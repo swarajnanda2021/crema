@@ -1,0 +1,104 @@
+[
+  {
+    "roaster_slug": "7000-steps-india",
+    "corrections": {
+      "tagline": "Northeast Indian Coffee | Direct from Farmers",
+      "about_blurb": "7000 Steps sources coffee directly from over 200 farming families across Northeast India, offering single-origin and microlot coffees from the region's diverse microclimates. With a master roaster who has spent 4+ years perfecting the craft, they focus on sustainable farming and preserving the authentic terroir of Northeast Indian coffees.",
+      "founding_year": 2018,
+      "sourcing_regions": ["Assam", "Meghalaya"],
+      "specialties": ["single-origin", "microlot", "direct-trade", "specialty-grade"],
+      "social_links": {
+        "instagram": "https://www.instagram.com/7000stepscoffee/",
+        "facebook": "https://www.facebook.com/7000stepscoffee",
+        "youtube": "https://www.youtube.com/@7000StepsCoffee"
+      }
+    }
+  },
+  {
+    "roaster_slug": "naivo-coffee",
+    "corrections": {
+      "tagline": "Craft Coffee Roasters | Specialty Beans from India and Beyond",
+      "about_blurb": "Naivo Coffee Company sources and roasts the finest specialty beans, combining three decades of legacy from Indcaffe (established 1996) with modern roasting expertise. Co-founded by V E Ovian and certified Q-Grader Jessie Ovian, they roast three to four times weekly using a harmonious blend of intuitive art and precise science to develop delightful flavor profiles for each unique coffee lot.",
+      "founding_year": 2016,
+      "sourcing_regions": ["Chikmagalur", "Coorg", "Araku Valley"],
+      "specialties": ["single-origin", "specialty-grade", "q-grader", "direct-trade"],
+      "social_links": {
+        "instagram": "https://www.instagram.com/naivocoffeecompany/",
+        "facebook": "https://www.facebook.com/naivocoffeecompany/"
+      }
+    }
+  },
+  {
+    "roaster_slug": "toffee-coffee",
+    "corrections": {
+      "tagline": "Sourcing & Roasting Finest Coffee Across Asia",
+      "about_blurb": "Toffee Coffee Roasters specializes in sourcing and roasting Asia's finest specialty coffees from various estates across India's coffee regions. Featured on Shark Tank India, they focus on medium roast single origins and signature blends with carefully curated flavor profiles.",
+      "sourcing_regions": ["Chikmagalur", "Karnataka"],
+      "specialties": ["single-origin", "specialty-grade", "medium-roast"],
+      "social_links": {
+        "instagram": "https://www.instagram.com/toffeeroasters/",
+        "facebook": "https://www.facebook.com/toffeecoffeeroastersrecipes/"
+      }
+    }
+  },
+  {
+    "roaster_slug": "bili-hu-coffee",
+    "corrections": {
+      "tagline": "Specialty Single Estate Coffee from Chikmagalur",
+      "sourcing_regions": ["Chikmagalur"],
+      "specialties": ["single-origin", "organic", "specialty-grade"],
+      "social_links": {
+        "instagram": "https://www.instagram.com/bilihu_coffee/"
+      }
+    }
+  },
+  {
+    "roaster_slug": "araku-coffee",
+    "corrections": {
+      "tagline": "Organic Specialty Coffee from Araku Valley",
+      "about_blurb": "Araku Coffee brings award-winning specialty coffee directly from the Araku Valley in Andhra Pradesh. Their coffees are produced using sustainable and organic farming practices, supporting the tribal communities in the region.",
+      "sourcing_regions": ["Araku Valley"],
+      "specialties": ["single-origin", "organic", "fair-trade", "specialty-grade"],
+      "social_links": {
+        "instagram": "https://www.instagram.com/arakucoffee/"
+      }
+    }
+  },
+  {
+    "roaster_slug": "aromas-of-coorg",
+    "corrections": {
+      "tagline": "Premium Specialty Coffee from Coorg",
+      "about_blurb": "Aromas of Coorg offers single-origin coffees from the hills of Coorg (Kodagu), Karnataka. They focus on small-batch roasting and direct relationships with local farmers to preserve the unique terroir of each microlot.",
+      "sourcing_regions": ["Coorg", "Kodagu"],
+      "specialties": ["single-origin", "small-batch", "direct-trade", "specialty-grade"],
+      "social_links": {
+        "instagram": "https://www.instagram.com/aromasofcoorg/"
+      }
+    }
+  },
+  {
+    "roaster_slug": "blue-tokai-coffee",
+    "corrections": {
+      "sourcing_regions": ["Chikmagalur", "Araku Valley", "Nilgiris"],
+      "specialties": ["single-origin", "specialty-grade", "direct-trade"]
+    }
+  },
+  {
+    "roaster_slug": "coffeeverse",
+    "corrections": {
+      "tagline": "Specialty Coffee from Indian Estates",
+      "sourcing_regions": ["Chikmagalur"],
+      "specialties": ["single-origin", "specialty-grade"],
+      "social_links": {
+        "instagram": "https://www.instagram.com/coffeeverse_in/"
+      }
+    }
+  },
+  {
+    "roaster_slug": "takaraa-specialty",
+    "corrections": {
+      "sourcing_regions": ["Chikmagalur"],
+      "specialties": ["single-origin", "specialty-grade"]
+    }
+  }
+]

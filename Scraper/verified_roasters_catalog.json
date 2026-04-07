@@ -1,0 +1,392 @@
+[
+  {
+    "name": "Blue Tokai Coffee Roasters",
+    "city": "New Delhi",
+    "state": "Delhi",
+    "lat": 28.4595,
+    "lng": 77.0266,
+    "website": "https://bluetokaicoffee.com",
+    "shop_url": "https://bluetokaicoffee.com/collections/roasted-and-ground-coffee-beans",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Savorworks Coffee & Chocolate",
+    "city": "New Delhi",
+    "state": "Delhi",
+    "lat": 28.5378,
+    "lng": 77.2386,
+    "website": "https://savorworksroasters.com",
+    "shop_url": "https://www.savorworksroasters.com/collections/coffee",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Rossette Coffee Lab",
+    "city": "New Delhi",
+    "state": "Delhi",
+    "lat": 28.6373,
+    "lng": 77.1076,
+    "website": "https://rossettecoffee.com",
+    "shop_url": "https://rossettecoffee.com/collections/coffee",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Devan's Coffee",
+    "city": "New Delhi",
+    "state": "Delhi",
+    "lat": 28.5799,
+    "lng": 77.222,
+    "website": "https://devans.in",
+    "shop_url": "https://www.devans.in/collections/single-origin",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Sleepy Owl Coffee",
+    "city": "New Delhi",
+    "state": "Delhi",
+    "lat": 28.5683,
+    "lng": 77.2355,
+    "website": "https://sleepyowl.co",
+    "shop_url": "https://sleepyowl.co/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Bili Hu Coffee",
+    "city": "Noida",
+    "state": "Uttar Pradesh",
+    "lat": 28.5955,
+    "lng": 77.3194,
+    "website": "https://bilihu.in",
+    "shop_url": "https://bilihu.in/pages/coffee-shop",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Subko Coffee Roasters",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "lat": 19.0532,
+    "lng": 72.83,
+    "website": "https://subko.coffee",
+    "shop_url": "https://www.subko.coffee/collections/all",
+    "platform": "Shopify"
+  },
+  {
+    "name": "KC Roasters (Koinonia)",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "lat": 19.076,
+    "lng": 72.8777,
+    "website": "https://kcroasters.com",
+    "shop_url": "https://kcroasters.com/collections/indian-coffee",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Bombay Island Coffee Company",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "lat": 19.0931,
+    "lng": 72.9202,
+    "website": "https://bombayisland.com",
+    "shop_url": "https://www.bombayisland.com/collections/coffee",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Dope Coffee Roasters",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "lat": 18.9991,
+    "lng": 72.8298,
+    "website": "https://dopecoffee.in",
+    "shop_url": "https://dopecoffee.in/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Toise Coffee Roastery",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "lat": 19.0125,
+    "lng": 72.8217,
+    "website": "https://toise.coffee",
+    "shop_url": "https://toise.coffee/collections/frontpage",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Toffee Coffee Roasters",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "lat": 19.0493,
+    "lng": 72.8293,
+    "website": "https://toffeecoffeeroasters.com",
+    "shop_url": "https://toffeecoffeeroasters.com/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Corridor Seven Coffee Roasters",
+    "city": "Nagpur",
+    "state": "Maharashtra",
+    "lat": 21.1449,
+    "lng": 79.0819,
+    "website": "https://corridorseven.coffee",
+    "shop_url": "https://corridorseven.coffee/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Grey Soul Coffee Roasters",
+    "city": "Pune",
+    "state": "Maharashtra",
+    "lat": 18.5204,
+    "lng": 73.8567,
+    "website": "https://greysoul.coffee",
+    "shop_url": "https://greysoul.coffee/collections/coffee",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Third Wave Coffee Roasters",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "lat": 12.9347,
+    "lng": 77.6296,
+    "website": "https://thirdwavecoffeeroasters.com",
+    "shop_url": "https://www.thirdwavecoffeeroasters.com/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Naivo Coffee Company",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "lat": 12.9716,
+    "lng": 77.5946,
+    "website": "https://naivocoffee.com",
+    "shop_url": "https://naivocoffee.com/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Maverick & Farmer Coffee",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "lat": 12.9352,
+    "lng": 77.6245,
+    "website": "https://maverickandfarmer.com",
+    "shop_url": "https://www.maverickandfarmer.com/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Black Baza Coffee",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "lat": 12.9783,
+    "lng": 77.6408,
+    "website": "https://blackbazacoffee.com",
+    "shop_url": "https://blackbazacoffee.com/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Ainmane Coffee",
+    "city": "Sakleshpur",
+    "state": "Karnataka",
+    "lat": 12.9461,
+    "lng": 75.7848,
+    "website": "https://ainmane.com",
+    "shop_url": "https://ainmane.com/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Flying Squirrel Coffee",
+    "city": "Coorg",
+    "state": "Karnataka",
+    "lat": 12.3375,
+    "lng": 75.8069,
+    "website": "https://flyingsquirrelcoffee.in",
+    "shop_url": "https://flyingsquirrelcoffee.in/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Halli Berri Coffee",
+    "city": "Chikmagalur",
+    "state": "Karnataka",
+    "lat": 13.3161,
+    "lng": 75.7720,
+    "website": "https://halliberri.com",
+    "shop_url": "https://halliberri.com/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "ARAKU Coffee",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "lat": 12.9716,
+    "lng": 77.5946,
+    "website": "https://arakucoffee.in",
+    "shop_url": "https://arakucoffee.in/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Halli Berri / Kerehaklu (MS Estate)",
+    "city": "Mudigere",
+    "state": "Karnataka",
+    "lat": 13.1325,
+    "lng": 75.6375,
+    "website": "https://kerehaklu.com",
+    "shop_url": "https://kerehaklu.com/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Kapi Kottai",
+    "city": "Chennai",
+    "state": "Tamil Nadu",
+    "lat": 13.0827,
+    "lng": 80.2707,
+    "website": "https://kapikottai.coffee",
+    "shop_url": "https://kapikottai.coffee/collections/all",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Leo Coffee",
+    "city": "Chennai",
+    "state": "Tamil Nadu",
+    "lat": 13.0324,
+    "lng": 80.2689,
+    "website": "https://leocoffee.co.in",
+    "shop_url": "https://stores.leocoffee.co.in/",
+    "platform": "Custom"
+  },
+  {
+    "name": "Marc's Coffees / Coffee Ideas",
+    "city": "Auroville",
+    "state": "Tamil Nadu",
+    "lat": 11.9911,
+    "lng": 79.8258,
+    "website": "https://coffeeideas.in",
+    "shop_url": "https://coffeeideas.in/",
+    "platform": "Custom"
+  },
+  {
+    "name": "Nandan Coffee",
+    "city": "Kodaikanal",
+    "state": "Tamil Nadu",
+    "lat": 10.2381,
+    "lng": 77.4892,
+    "website": "https://nandancoffee.com",
+    "shop_url": "https://www.nandancoffee.com/",
+    "platform": "Custom"
+  },
+  {
+    "name": "Roastery Coffee House",
+    "city": "Hyderabad",
+    "state": "Telangana",
+    "lat": 17.4234,
+    "lng": 78.4318,
+    "website": "https://roasterycoffee.co.in",
+    "shop_url": "https://roasterycoffee.co.in/coffee-beans/",
+    "platform": "WooCommerce"
+  },
+  {
+    "name": "Curious Life Coffee Roasters",
+    "city": "Jaipur",
+    "state": "Rajasthan",
+    "lat": 26.9093,
+    "lng": 75.8087,
+    "website": "https://curiouslifecoffee.com",
+    "shop_url": "https://www.curiouslifecoffee.com/shop/",
+    "platform": "Custom"
+  },
+  {
+    "name": "Alchemist Roastery",
+    "city": "Ajmer",
+    "state": "Rajasthan",
+    "lat": 26.4676,
+    "lng": 74.6482,
+    "website": "https://alchemistroastery.com",
+    "shop_url": "https://alchemistroastery.com/",
+    "platform": "Custom"
+  },
+  {
+    "name": "Coffeeverse",
+    "city": "Ahmedabad",
+    "state": "Gujarat",
+    "lat": 23.035,
+    "lng": 72.5216,
+    "website": "https://coffeeverse.in",
+    "shop_url": "https://coffeeverse.in/",
+    "platform": "Custom"
+  },
+  {
+    "name": "Siolim Coffee",
+    "city": "Indore",
+    "state": "Madhya Pradesh",
+    "lat": 22.6992,
+    "lng": 75.8717,
+    "website": "https://siolim.coffee",
+    "shop_url": "https://www.siolim.coffee/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Bloom Coffee Roasters",
+    "city": "Panchkula",
+    "state": "Haryana",
+    "lat": 30.7178,
+    "lng": 76.8508,
+    "website": "https://bloomcoffeeroasters.in",
+    "shop_url": "https://bloomcoffeeroasters.in/",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Akio Coffee Roasters",
+    "city": "Dehradun",
+    "state": "Uttarakhand",
+    "lat": 30.3134,
+    "lng": 78.0476,
+    "website": "https://akiocoffee.in",
+    "shop_url": "https://akiocoffee.in/",
+    "platform": "Custom"
+  },
+  {
+    "name": "Kapiberry Beverages",
+    "city": "Kochi",
+    "state": "Kerala",
+    "lat": 10.0307,
+    "lng": 76.3755,
+    "website": "https://kapiberry.com",
+    "shop_url": "https://www.kapiberry.com/",
+    "platform": "Custom"
+  },
+  {
+    "name": "Regal Coffee Works",
+    "city": "Kalpetta",
+    "state": "Kerala",
+    "lat": 11.614,
+    "lng": 76.0829,
+    "website": "https://regalcoffeeworks.com",
+    "shop_url": "https://regalcoffeeworks.com/",
+    "platform": "Custom"
+  },
+  {
+    "name": "Deomali Coffee & Roastery",
+    "city": "Bhubaneswar",
+    "state": "Odisha",
+    "lat": 20.2565,
+    "lng": 85.797,
+    "website": "https://deomalicoffee.in",
+    "shop_url": "https://deomalicoffee.in/",
+    "platform": "Custom"
+  },
+  {
+    "name": "Assava Coffee Roasters",
+    "city": "Bhubaneswar",
+    "state": "Odisha",
+    "lat": 20.28,
+    "lng": 85.8546,
+    "website": "https://assava.in",
+    "shop_url": "https://assava.in/",
+    "platform": "Custom"
+  },
+  {
+    "name": "The Beanster Company",
+    "city": "Raipur",
+    "state": "Chhattisgarh",
+    "lat": 21.195,
+    "lng": 81.7139,
+    "website": "https://thebeanstercompany.in",
+    "shop_url": "https://thebeanstercompany.in/",
+    "platform": "Custom"
+  }
+]

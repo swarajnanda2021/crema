@@ -1,0 +1,25 @@
+[
+  {
+    "roaster_slug": "nada-coffee",
+    "name": "Nada Coffee",
+    "city": "Panaji",
+    "state": "Goa",
+    "lat": 15.49,
+    "lng": 73.83,
+    "website": "https://www.nadagoa.com",
+    "shop_url": "https://www.nadagoa.com/category/coffee",
+    "platform": "Wix",
+    "logo_url": "https://static.wixstatic.com/media/7f8371_30feeb61aadd4a5e9a7f6d4181efdbfd%7Emv2.png/v1/fill/w_192%2Ch_192%2Clg_1%2Cusm_0.66_1.00_0.01/7f8371_30feeb61aadd4a5e9a7f6d4181efdbfd%7Emv2.png",
+    "tagline": "An Invitation to Pause",
+    "about_blurb": "Nada was born from a desire to revive the beauty of the everyday — to create objects and experiences that celebrate slowness, tactility, and connection. Based in Fontainhas, Goa, they collaborate closely with artisans, growers, and makers to honour tradition while embracing thoughtful innovation. From hand-thrown ceramic vessels to carefully roasted coffee and freshly baked bread, everything is grounded in a respect for materials and the rhythms of making.",
+    "founding_year": null,
+    "sourcing_regions": ["Chikmagalur"],
+    "specialties": ["single-origin", "small-batch", "specialty-grade"],
+    "social_links": {
+      "instagram": "https://www.instagram.com/nada_goa/"
+    },
+    "rating": null,
+    "rating_count": null,
+    "coffee_count": 4
+  }
+]
