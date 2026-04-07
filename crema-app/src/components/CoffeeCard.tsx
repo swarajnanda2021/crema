@@ -59,14 +59,14 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
   return (
     <View style={{ width: "100%", maxWidth: 300, height: cardHeight }}>
       <Pressable onPress={handleFlip} style={{ flex: 1 }}>
-        {/* ── Front Face ── */}
+        {/* -- Front Face -- */}
         <Animated.View style={[styles.face, { backgroundColor: colors.cardFront }, frontStyle]}>
           {/* Image */}
           <View style={{ height: compact ? 140 : 180, backgroundColor: colors.border, overflow: "hidden" }}>
             {coffee.image_url ? (
               <Image source={{ uri: coffee.image_url }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
             ) : (
-              <View className="flex-1 items-center justify-center">
+              <View style={styles.imagePlaceholder}>
                 <Coffee size={48} color={colors.border} />
               </View>
             )}
@@ -83,49 +83,48 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
           </View>
 
           {/* Content */}
-          <View className="flex-1 p-3 justify-between">
+          <View style={styles.frontContent}>
             <View>
-              <Text className="text-lg font-semibold leading-snug" numberOfLines={2} style={{ color: colors.textPrimary }}>
+              <Text style={styles.coffeeName} numberOfLines={2}>
                 {coffee.coffee_name}
               </Text>
               <Pressable onPress={() => router.push(`/roaster/${coffee.roaster_slug}`)}>
-                <Text className="text-sm mt-0.5" numberOfLines={1} style={{ color: colors.textSecondary }}>
+                <Text style={styles.roasterName} numberOfLines={1}>
                   {coffee.roaster_name}
                 </Text>
               </Pressable>
             </View>
 
             {/* Chips */}
-            <View className="flex-row flex-wrap gap-1 mt-1.5">
+            <View style={styles.chipRow}>
               {coffee.roast_level && coffee.roast_level !== "Unknown" && <Chip>{coffee.roast_level}</Chip>}
               {coffee.process && <Chip>{coffee.process}</Chip>}
               {coffee.altitude_masl && <Chip>{`${coffee.altitude_masl.toLocaleString()}m`}</Chip>}
             </View>
 
             {/* Price row */}
-            <View className="flex-row items-center justify-between mt-2">
-              <View className="flex-row items-baseline">
-                <Text className="text-xl font-bold" style={{ color: colors.textPrimary }}>
+            <View style={styles.priceRow}>
+              <View style={styles.priceLeft}>
+                <Text style={styles.price}>
                   {price250 != null ? `\u20B9${price250.toLocaleString("en-IN")}` : "\u2014"}
                 </Text>
-                <Text className="text-sm ml-1 opacity-60" style={{ color: colors.textSecondary }}>/ 250g</Text>
+                <Text style={styles.priceUnit}>/ 250g</Text>
               </View>
               <Pressable
                 onPress={() => {
                   trackClick(coffee.product_id, coffee.roaster_slug, "card_front");
                   Linking.openURL(coffee.product_url);
                 }}
-                className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg"
-                style={{ backgroundColor: colors.accent }}
+                style={styles.buyBtn}
               >
                 <ShoppingCart size={14} color="white" />
-                <Text className="text-sm font-medium" style={{ color: "white" }}>Buy</Text>
+                <Text style={styles.buyText}>Buy</Text>
               </Pressable>
             </View>
           </View>
         </Animated.View>
 
-        {/* ── Back Face ── */}
+        {/* -- Back Face -- */}
         <Animated.View style={[styles.face, styles.backFace, backStyle]}>
           {/* Map layer */}
           <IndiaMap
@@ -137,8 +136,8 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
           {/* Gradient overlay */}
           <View style={styles.mapOverlay} />
           {/* Content */}
-          <View className="flex-1 p-4 justify-between" style={{ zIndex: 10 }}>
-            <View className="gap-3 flex-1">
+          <View style={styles.backContent}>
+            <View style={styles.backMetaList}>
               <MetaRow icon={<Coffee size={16} color={colors.textOnDark} />} label="Tasting Notes" value={coffee.tasting_notes || "Not listed"} muted={!coffee.tasting_notes} />
               <MetaRow icon={<MapPin size={16} color={colors.textOnDark} />} label="Origin" value={coffee.origin || "Not listed"} muted={!coffee.origin} />
               {coffee.altitude_masl && (
@@ -153,15 +152,13 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
             </View>
 
             {/* Actions */}
-            <View className="flex-row items-center justify-between mt-3 pt-3 border-t border-white/10">
-              <Pressable onPress={() => share(coffee)} className="flex-row items-center gap-1.5">
+            <View style={styles.backActions}>
+              <Pressable onPress={() => share(coffee)} style={styles.shareBtn}>
                 <Share2 size={18} color="rgba(255,255,255,0.8)" />
                 <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 14 }}>Share</Text>
               </Pressable>
             </View>
-            <Text className="text-center text-xs mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Tap to flip back
-            </Text>
+            <Text style={styles.flipHint}>Tap to flip back</Text>
           </View>
         </Animated.View>
       </Pressable>
@@ -170,10 +167,8 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
       <Modal visible={showPopularity} transparent animationType="fade" onRequestClose={() => setShowPopularity(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowPopularity(false)}>
           <View style={styles.modalContent}>
-            <Text className="text-base font-semibold p-4 border-b" style={{ borderColor: colors.border, color: colors.textPrimary }}>
-              {coffee.coffee_name}
-            </Text>
-            <Text className="p-4 text-center text-sm" style={{ color: colors.textSecondary }}>
+            <Text style={styles.modalTitle}>{coffee.coffee_name}</Text>
+            <Text style={styles.modalBody}>
               {userCount} {userCount === 1 ? "person has" : "people have"} this on their shelf.
             </Text>
           </View>
@@ -205,6 +200,11 @@ const styles = StyleSheet.create({
     zIndex: 1,
     backgroundColor: "rgba(26, 15, 10, 0.7)",
   },
+  imagePlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   popularityBadge: {
     position: "absolute",
     top: 8,
@@ -217,6 +217,93 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     zIndex: 20,
   },
+  frontContent: {
+    flex: 1,
+    padding: 12,
+    justifyContent: "space-between",
+  },
+  coffeeName: {
+    fontSize: 18,
+    fontWeight: "600",
+    lineHeight: 22,
+    color: colors.textPrimary,
+  },
+  roasterName: {
+    fontSize: 14,
+    marginTop: 2,
+    color: colors.textSecondary,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginTop: 6,
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  priceLeft: {
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
+  price: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+  priceUnit: {
+    fontSize: 14,
+    marginLeft: 4,
+    opacity: 0.6,
+    color: colors.textSecondary,
+  },
+  buyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: colors.accent,
+  },
+  buyText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "white",
+  },
+  backContent: {
+    flex: 1,
+    padding: 16,
+    justifyContent: "space-between",
+    zIndex: 10,
+  },
+  backMetaList: {
+    gap: 12,
+    flex: 1,
+  },
+  backActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  shareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  flipHint: {
+    textAlign: "center",
+    fontSize: 12,
+    marginTop: 8,
+    color: "rgba(255,255,255,0.4)",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -225,10 +312,24 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   modalContent: {
-    backgroundColor: "#FAF7F2",
+    backgroundColor: colors.bg,
     borderRadius: 12,
     width: "100%",
     maxWidth: 400,
     maxHeight: "70%",
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+    color: colors.textPrimary,
+  },
+  modalBody: {
+    padding: 16,
+    textAlign: "center",
+    fontSize: 14,
+    color: colors.textSecondary,
   },
 });

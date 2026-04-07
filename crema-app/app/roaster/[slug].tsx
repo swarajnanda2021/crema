@@ -1,8 +1,8 @@
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, Stack } from "expo-router";
 import * as Linking from "expo-linking";
-import { MapPin, Star, Calendar, Globe, ExternalLink } from "lucide-react-native";
+import { MapPin, Star, Calendar, Globe } from "lucide-react-native";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { colors } from "../../src/theme/colors";
@@ -19,29 +19,33 @@ export default function RoasterDetailPage() {
   const coffees = products.filter((p: any) => p.roaster_slug === slug);
 
   if (!roaster) {
-    return <View className="flex-1 items-center justify-center" style={{ backgroundColor: colors.bg }}><Text>Roaster not found</Text></View>;
+    return (
+      <View style={styles.notFound}>
+        <Text>Roaster not found</Text>
+      </View>
+    );
   }
 
   return (
     <>
       <Stack.Screen options={{ title: roaster.name, headerTintColor: colors.accent }} />
-      <ScrollView className="flex-1" style={{ backgroundColor: colors.bg }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <View className="px-4 pt-4 pb-6" style={{ backgroundColor: colors.cardFront, borderBottomWidth: 1, borderColor: colors.border }}>
-          <View className="flex-row items-center gap-4">
+        <View style={styles.header}>
+          <View style={styles.headerRow}>
             {profile?.logo_url ? (
               <Image source={{ uri: profile.logo_url }} style={{ width: 56, height: 56, borderRadius: 12 }} contentFit="contain" />
             ) : (
-              <View className="w-14 h-14 rounded-xl items-center justify-center" style={{ backgroundColor: colors.tagBg }}>
-                <Text className="text-xl font-bold" style={{ color: colors.tagText }}>{(roaster.name || "?")[0]}</Text>
+              <View style={styles.logoFallback}>
+                <Text style={styles.logoLetter}>{(roaster.name || "?")[0]}</Text>
               </View>
             )}
-            <View className="flex-1">
-              <Text className="text-xl font-bold" style={{ color: colors.textPrimary }}>{roaster.name}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.roasterName}>{roaster.name}</Text>
               {(roaster.city || profile?.city) && (
-                <View className="flex-row items-center gap-1 mt-0.5">
+                <View style={styles.locationRow}>
                   <MapPin size={12} color={colors.textSecondary} />
-                  <Text className="text-sm" style={{ color: colors.textSecondary }}>
+                  <Text style={styles.locationText}>
                     {roaster.city || profile?.city}{(roaster.state || profile?.state) ? `, ${roaster.state || profile?.state}` : ""}
                   </Text>
                 </View>
@@ -49,47 +53,45 @@ export default function RoasterDetailPage() {
             </View>
           </View>
 
-          {profile?.tagline && <Text className="text-sm mt-3 italic" style={{ color: colors.textSecondary }}>{profile.tagline}</Text>}
+          {profile?.tagline && <Text style={styles.tagline}>{profile.tagline}</Text>}
 
           {/* Meta row */}
-          <View className="flex-row flex-wrap gap-4 mt-3">
+          <View style={styles.metaRow}>
             {profile?.rating && (
-              <View className="flex-row items-center gap-1">
+              <View style={styles.metaItem}>
                 <Star size={14} color="#E8C07A" fill="#E8C07A" />
-                <Text className="text-sm font-medium" style={{ color: colors.textPrimary }}>{profile.rating}</Text>
+                <Text style={styles.metaRating}>{profile.rating}</Text>
               </View>
             )}
             {profile?.founding_year && (
-              <View className="flex-row items-center gap-1">
+              <View style={styles.metaItem}>
                 <Calendar size={14} color={colors.textSecondary} />
-                <Text className="text-sm" style={{ color: colors.textSecondary }}>Est. {profile.founding_year}</Text>
+                <Text style={styles.metaText}>Est. {profile.founding_year}</Text>
               </View>
             )}
             {(roaster.website || profile?.website) && (
-              <Pressable onPress={() => Linking.openURL(roaster.website || profile.website)} className="flex-row items-center gap-1">
+              <Pressable onPress={() => Linking.openURL(roaster.website || profile.website)} style={styles.metaItem}>
                 <Globe size={14} color={colors.accent} />
-                <Text className="text-sm" style={{ color: colors.accent }}>Website</Text>
+                <Text style={styles.metaLink}>Website</Text>
               </Pressable>
             )}
           </View>
 
           {/* Specialties */}
           {profile?.specialties?.length > 0 && (
-            <View className="flex-row flex-wrap gap-1.5 mt-3">
+            <View style={styles.specialtiesRow}>
               {profile.specialties.map((s: string) => <Chip key={s}>{s.replace(/-/g, " ")}</Chip>)}
             </View>
           )}
 
           {profile?.about_blurb && (
-            <Text className="text-sm mt-3 leading-relaxed" numberOfLines={6} style={{ color: colors.textPrimary }}>
-              {profile.about_blurb}
-            </Text>
+            <Text style={styles.aboutText} numberOfLines={6}>{profile.about_blurb}</Text>
           )}
         </View>
 
         {/* Coffees */}
-        <View className="px-4 pt-4">
-          <Text className="text-lg font-semibold mb-3" style={{ color: colors.textPrimary }}>
+        <View style={styles.coffeesSection}>
+          <Text style={styles.coffeesTitle}>
             {coffees.length} {coffees.length === 1 ? "coffee" : "coffees"}
           </Text>
           {coffees.map((c: any) => (
@@ -103,3 +105,109 @@ export default function RoasterDetailPage() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  notFound: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.bg,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+    backgroundColor: colors.cardFront,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  logoFallback: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.tagBg,
+  },
+  logoLetter: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.tagText,
+  },
+  roasterName: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  locationText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  tagline: {
+    fontSize: 14,
+    marginTop: 12,
+    fontStyle: "italic",
+    color: colors.textSecondary,
+  },
+  metaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+    marginTop: 12,
+  },
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  metaRating: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: colors.textPrimary,
+  },
+  metaText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  metaLink: {
+    fontSize: 14,
+    color: colors.accent,
+  },
+  specialtiesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 12,
+  },
+  aboutText: {
+    fontSize: 14,
+    marginTop: 12,
+    lineHeight: 20,
+    color: colors.textPrimary,
+  },
+  coffeesSection: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  coffeesTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 12,
+    color: colors.textPrimary,
+  },
+});

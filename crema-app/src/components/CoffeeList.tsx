@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
-import { FlatList, View, Text, useWindowDimensions } from "react-native";
+import { FlatList, View, Text, useWindowDimensions, StyleSheet } from "react-native";
+import { colors } from "../theme/colors";
 import CoffeeCard from "./CoffeeCard";
 
 const PAGE_SIZE = 24;
@@ -24,10 +25,10 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
 
   if (coffees.length === 0) {
     return (
-      <View className="items-center py-20 px-4">
-        <Text className="text-5xl mb-4">{"☕"}</Text>
-        <Text className="text-xl font-semibold mb-2" style={{ color: "#1A1A1A" }}>No coffees match your filters.</Text>
-        <Text className="text-sm" style={{ color: "#6B5B4F" }}>Try broadening your search or clearing some filters.</Text>
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyEmoji}>{"☕"}</Text>
+        <Text style={styles.emptyTitle}>No coffees match your filters.</Text>
+        <Text style={styles.emptySubtitle}>Try broadening your search or clearing some filters.</Text>
       </View>
     );
   }
@@ -51,3 +52,25 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
     />
   );
 }
+
+const styles = StyleSheet.create({
+  emptyContainer: {
+    alignItems: "center",
+    paddingVertical: 80,
+    paddingHorizontal: 16,
+  },
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    marginBottom: 8,
+    color: colors.textPrimary,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+});

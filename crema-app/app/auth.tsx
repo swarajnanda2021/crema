@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { Coffee } from "lucide-react-native";
 import { useAuth } from "../src/hooks/useAuth";
@@ -33,22 +33,18 @@ export default function AuthPage() {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className="flex-1" style={{ backgroundColor: colors.bg }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 24 }}>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Logo */}
-        <View className="items-center mb-8">
+        <View style={styles.logoSection}>
           <Coffee size={48} color={colors.accent} />
-          <Text className="text-3xl font-bold mt-2" style={{ color: colors.textPrimary }}>
-            Crema
-          </Text>
-          <Text className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-            Indian Specialty Coffee Community
-          </Text>
+          <Text style={styles.logoTitle}>Crema</Text>
+          <Text style={styles.logoSubtitle}>Indian Specialty Coffee Community</Text>
         </View>
 
         {/* Form card */}
-        <View className="rounded-2xl p-6" style={{ backgroundColor: colors.cardFront, shadowColor: "#2C1810", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 }}>
-          <Text className="text-xl font-bold mb-6 text-center" style={{ color: colors.textPrimary }}>
+        <View style={styles.formCard}>
+          <Text style={styles.formTitle}>
             {isLogin ? "Welcome Back" : "Join Crema"}
           </Text>
 
@@ -59,8 +55,7 @@ export default function AuthPage() {
             onChangeText={setUsername}
             autoCapitalize="none"
             autoCorrect={false}
-            className="rounded-xl px-4 py-3 text-base mb-3"
-            style={{ backgroundColor: colors.bg, color: colors.textPrimary, borderWidth: 1, borderColor: colors.border }}
+            style={styles.input}
           />
 
           {!isLogin && (
@@ -69,8 +64,7 @@ export default function AuthPage() {
               placeholderTextColor={colors.unavailable}
               value={displayName}
               onChangeText={setDisplayName}
-              className="rounded-xl px-4 py-3 text-base mb-3"
-              style={{ backgroundColor: colors.bg, color: colors.textPrimary, borderWidth: 1, borderColor: colors.border }}
+              style={styles.input}
             />
           )}
 
@@ -80,39 +74,117 @@ export default function AuthPage() {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
-            className="rounded-xl px-4 py-3 text-base mb-4"
-            style={{ backgroundColor: colors.bg, color: colors.textPrimary, borderWidth: 1, borderColor: colors.border }}
+            style={[styles.input, { marginBottom: 16 }]}
           />
 
           {error ? (
-            <Text className="text-sm mb-3 text-center" style={{ color: colors.like }}>{error}</Text>
+            <Text style={styles.errorText}>{error}</Text>
           ) : null}
 
           <Pressable
             onPress={handleSubmit}
             disabled={loading}
-            className="rounded-xl py-3.5 items-center mb-4"
-            style={{ backgroundColor: loading ? colors.unavailable : colors.accent }}
+            style={[styles.submitBtn, { backgroundColor: loading ? colors.unavailable : colors.accent }]}
           >
-            <Text className="text-base font-semibold" style={{ color: "white" }}>
+            <Text style={styles.submitText}>
               {loading ? "..." : isLogin ? "Sign In" : "Create Account"}
             </Text>
           </Pressable>
 
           <Pressable onPress={() => { setIsLogin(!isLogin); setError(""); }}>
-            <Text className="text-sm text-center" style={{ color: colors.accent }}>
+            <Text style={styles.toggleText}>
               {isLogin ? "New here? Create an account" : "Already have an account? Sign in"}
             </Text>
           </Pressable>
         </View>
 
         {/* Browse link */}
-        <Pressable onPress={() => router.push("/browse")} className="mt-6">
-          <Text className="text-sm text-center" style={{ color: colors.textSecondary }}>
-            or browse coffees without signing in
-          </Text>
+        <Pressable onPress={() => router.push("/browse")} style={{ marginTop: 24 }}>
+          <Text style={styles.browseText}>or browse coffees without signing in</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    padding: 24,
+  },
+  logoSection: {
+    alignItems: "center",
+    marginBottom: 32,
+  },
+  logoTitle: {
+    fontSize: 30,
+    fontWeight: "700",
+    marginTop: 8,
+    color: colors.textPrimary,
+  },
+  logoSubtitle: {
+    fontSize: 14,
+    marginTop: 4,
+    color: colors.textSecondary,
+  },
+  formCard: {
+    borderRadius: 16,
+    padding: 24,
+    backgroundColor: colors.cardFront,
+    shadowColor: "#2C1810",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  formTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 24,
+    textAlign: "center",
+    color: colors.textPrimary,
+  },
+  input: {
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    marginBottom: 12,
+    backgroundColor: colors.bg,
+    color: colors.textPrimary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  errorText: {
+    fontSize: 14,
+    marginBottom: 12,
+    textAlign: "center",
+    color: colors.like,
+  },
+  submitBtn: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  submitText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "white",
+  },
+  toggleText: {
+    fontSize: 14,
+    textAlign: "center",
+    color: colors.accent,
+  },
+  browseText: {
+    fontSize: 14,
+    textAlign: "center",
+    color: colors.textSecondary,
+  },
+});

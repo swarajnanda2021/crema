@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { useLocalSearchParams, Stack } from "expo-router";
 import { Coffee, Check, Star } from "lucide-react-native";
 import { apiFetch } from "../../src/api/client";
@@ -36,7 +36,11 @@ export default function UserProfilePage() {
   }, [username]);
 
   if (loading) {
-    return <View className="flex-1 items-center justify-center" style={{ backgroundColor: colors.bg }}><Text style={{ color: colors.textSecondary }}>Loading...</Text></View>;
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={{ color: colors.textSecondary }}>Loading...</Text>
+      </View>
+    );
   }
 
   const totalCoffees = Object.values(shelves).reduce((sum: number, entries: any) => sum + entries.length, 0);
@@ -44,38 +48,50 @@ export default function UserProfilePage() {
   return (
     <>
       <Stack.Screen options={{ title: user?.display_name || username, headerTintColor: colors.accent }} />
-      <ScrollView className="flex-1" style={{ backgroundColor: colors.bg }} showsVerticalScrollIndicator={false}>
-        {user && <View className="px-4 pt-4"><ProfileCard user={user} coffeeCount={totalCoffees} /></View>}
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        {user && (
+          <View style={styles.profileWrap}>
+            <ProfileCard user={user} coffeeCount={totalCoffees} />
+          </View>
+        )}
 
         {/* Shelf tabs */}
-        <View className="flex-row mx-4 mt-4 rounded-xl overflow-hidden" style={{ backgroundColor: colors.cardFront, borderWidth: 1, borderColor: colors.border }}>
+        <View style={styles.shelfTabs}>
           {(Object.keys(SHELF_LABELS) as ShelfKey[]).map((key) => {
             const meta = SHELF_LABELS[key];
             const Icon = SHELF_ICONS[key];
             const count = (shelves[key] || []).length;
             const isActive = activeShelf === key;
             return (
-              <Pressable key={key} onPress={() => setActiveShelf(key)} className="flex-1 flex-row items-center justify-center gap-1.5 py-2.5" style={{ backgroundColor: isActive ? colors.accent : "transparent" }}>
+              <Pressable
+                key={key}
+                onPress={() => setActiveShelf(key)}
+                style={[styles.shelfTab, { backgroundColor: isActive ? colors.accent : "transparent" }]}
+              >
                 <Icon size={14} color={isActive ? "white" : meta.color} />
-                <Text className="text-xs font-medium" style={{ color: isActive ? "white" : colors.textSecondary }}>{meta.label}</Text>
-                <View className="px-1.5 py-0.5 rounded-full" style={{ backgroundColor: isActive ? "rgba(255,255,255,0.25)" : colors.tagBg }}>
-                  <Text className="text-[10px] font-bold" style={{ color: isActive ? "white" : colors.tagText }}>{count}</Text>
+                <Text style={[styles.shelfTabLabel, { color: isActive ? "white" : colors.textSecondary }]}>
+                  {meta.label}
+                </Text>
+                <View style={[styles.countBadge, { backgroundColor: isActive ? "rgba(255,255,255,0.25)" : colors.tagBg }]}>
+                  <Text style={[styles.countBadgeText, { color: isActive ? "white" : colors.tagText }]}>{count}</Text>
                 </View>
               </Pressable>
             );
           })}
         </View>
 
-        <View className="px-4 mt-4">
+        <View style={styles.shelfContent}>
           {(shelves[activeShelf] || []).length === 0 ? (
-            <View className="items-center py-12"><Text className="text-sm" style={{ color: colors.textSecondary }}>No coffees here yet.</Text></View>
+            <View style={styles.emptyShelf}>
+              <Text style={styles.emptyText}>No coffees here yet.</Text>
+            </View>
           ) : (
             (shelves[activeShelf] as any[]).map((entry: any) => <ShelfIsland key={entry.id} entry={entry} />)
           )}
         </View>
 
         {recommendations.length > 0 && (
-          <View className="px-4 mt-4 mb-8">
+          <View style={styles.recSection}>
             <RecommendationPanel recommendations={recommendations} />
           </View>
         )}
@@ -84,3 +100,68 @@ export default function UserProfilePage() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.bg,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  profileWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  shelfTabs: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: colors.cardFront,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  shelfTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+  },
+  shelfTabLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  countBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 9999,
+  },
+  countBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  shelfContent: {
+    paddingHorizontal: 16,
+    marginTop: 16,
+  },
+  emptyShelf: {
+    alignItems: "center",
+    paddingVertical: 48,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  recSection: {
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 32,
+  },
+});

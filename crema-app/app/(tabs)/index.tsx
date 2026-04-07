@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, Pressable, FlatList, RefreshControl } from "react-native";
+import { View, Text, Pressable, FlatList, RefreshControl, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { MapPin, ShoppingCart } from "lucide-react-native";
@@ -37,20 +37,31 @@ export default function FeedPage() {
   const onRefresh = async () => { setRefreshing(true); await loadTimeline(); setRefreshing(false); };
 
   if (loading) {
-    return <View className="flex-1 items-center justify-center" style={{ backgroundColor: colors.bg }}><Text style={{ color: colors.textSecondary }}>Loading feed...</Text></View>;
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={{ color: colors.textSecondary }}>Loading feed...</Text>
+      </View>
+    );
   }
 
   return (
-    <View className="flex-1" style={{ backgroundColor: colors.bg }}>
+    <View style={styles.container}>
       <FlatList
         data={timeline}
         keyExtractor={(item) => `${item.note_id}`}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
         ListHeaderComponent={recommendations.length > 0 ? (
-          <View className="px-4 pt-4 pb-2"><RecommendationPanel recommendations={recommendations.slice(0, 5)} onAddToShelf={(id) => addToShelf(id, "want_to_try")} /></View>
+          <View style={styles.recHeader}>
+            <RecommendationPanel recommendations={recommendations.slice(0, 5)} onAddToShelf={(id) => addToShelf(id, "want_to_try")} />
+          </View>
         ) : null}
         renderItem={({ item }) => <FeedCard item={item} productMap={productMap} router={router} />}
-        ListEmptyComponent={<View className="items-center py-20"><Text className="text-4xl mb-4">{"☕"}</Text><Text className="text-lg font-semibold" style={{ color: colors.textPrimary }}>No notes yet</Text></View>}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyEmoji}>{"☕"}</Text>
+            <Text style={styles.emptyTitle}>No notes yet</Text>
+          </View>
+        }
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       />
@@ -63,41 +74,174 @@ function FeedCard({ item, productMap, router }: { item: any; productMap: any; ro
   const price250 = coffee ? pricePer250g(coffee.price_per_gram) : null;
 
   return (
-    <View className="mx-4 my-2 rounded-2xl overflow-hidden" style={{ backgroundColor: colors.cardFront, borderWidth: 1, borderColor: colors.border }}>
+    <View style={feedStyles.card}>
       {/* User row */}
-      <View className="flex-row items-center gap-2.5 p-3 border-b" style={{ borderColor: colors.border }}>
+      <View style={feedStyles.userRow}>
         <Pressable onPress={() => router.push(`/user/${item.user?.username}`)}>
           {item.user?.avatar_url ? (
             <Image source={{ uri: item.user.avatar_url }} style={{ width: 36, height: 36, borderRadius: 18 }} />
           ) : (
-            <View className="w-9 h-9 rounded-full items-center justify-center" style={{ backgroundColor: colors.tagBg }}>
-              <Text className="text-sm font-bold" style={{ color: colors.tagText }}>{(item.user?.display_name || "?")[0]}</Text>
+            <View style={feedStyles.avatarFallback}>
+              <Text style={feedStyles.avatarLetter}>{(item.user?.display_name || "?")[0]}</Text>
             </View>
           )}
         </Pressable>
-        <View className="flex-1">
-          <Text className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{item.user?.display_name}</Text>
-          {item.user?.location && <View className="flex-row items-center gap-0.5"><MapPin size={10} color={colors.textSecondary} /><Text className="text-[10px]" style={{ color: colors.textSecondary }}>{item.user.location}</Text></View>}
+        <View style={{ flex: 1 }}>
+          <Text style={feedStyles.userName}>{item.user?.display_name}</Text>
+          {item.user?.location && (
+            <View style={feedStyles.locationRow}>
+              <MapPin size={10} color={colors.textSecondary} />
+              <Text style={feedStyles.locationText}>{item.user.location}</Text>
+            </View>
+          )}
         </View>
       </View>
 
       {/* Coffee */}
-      <Pressable onPress={() => router.push(`/coffee/${item.product_id}`)} className="flex-row p-3 gap-3">
-        {(coffee?.image_url || item.image_url) && <Image source={{ uri: coffee?.image_url || item.image_url }} style={{ width: 60, height: 60, borderRadius: 8 }} contentFit="cover" />}
-        <View className="flex-1">
-          <Text className="text-base font-semibold" numberOfLines={1} style={{ color: colors.textPrimary }}>{item.coffee_name || coffee?.coffee_name}</Text>
-          <Text className="text-xs" style={{ color: colors.textSecondary }}>{item.roaster_name || coffee?.roaster_name}</Text>
-          {price250 != null && <Text className="text-sm font-bold mt-1" style={{ color: colors.textPrimary }}>{`\u20B9${price250.toLocaleString("en-IN")}`}<Text className="text-xs font-normal opacity-60"> / 250g</Text></Text>}
+      <Pressable onPress={() => router.push(`/coffee/${item.product_id}`)} style={feedStyles.coffeeRow}>
+        {(coffee?.image_url || item.image_url) && (
+          <Image source={{ uri: coffee?.image_url || item.image_url }} style={{ width: 60, height: 60, borderRadius: 8 }} contentFit="cover" />
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={feedStyles.coffeeName} numberOfLines={1}>{item.coffee_name || coffee?.coffee_name}</Text>
+          <Text style={feedStyles.roasterName}>{item.roaster_name || coffee?.roaster_name}</Text>
+          {price250 != null && (
+            <Text style={feedStyles.price}>
+              {`\u20B9${price250.toLocaleString("en-IN")}`}
+              <Text style={feedStyles.priceUnit}> / 250g</Text>
+            </Text>
+          )}
         </View>
         {coffee?.product_url && (
-          <Pressable onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "feed"); Linking.openURL(coffee.product_url); }} className="w-9 h-9 rounded-full items-center justify-center self-center" style={{ backgroundColor: colors.accent }}>
+          <Pressable
+            onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "feed"); Linking.openURL(coffee.product_url); }}
+            style={feedStyles.buyBtn}
+          >
             <ShoppingCart size={16} color="white" />
           </Pressable>
         )}
       </Pressable>
 
       {/* Note */}
-      <View className="px-3 pb-3"><TastingNoteDisplay note={item} /></View>
+      <View style={feedStyles.noteSection}>
+        <TastingNoteDisplay note={item} />
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.bg,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  recHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    paddingVertical: 80,
+  },
+  emptyEmoji: {
+    fontSize: 32,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.textPrimary,
+  },
+});
+
+const feedStyles = StyleSheet.create({
+  card: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: colors.cardFront,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  userRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+  },
+  avatarFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 9999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.tagBg,
+  },
+  avatarLetter: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.tagText,
+  },
+  userName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.textPrimary,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  locationText: {
+    fontSize: 10,
+    color: colors.textSecondary,
+  },
+  coffeeRow: {
+    flexDirection: "row",
+    padding: 12,
+    gap: 12,
+  },
+  coffeeName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.textPrimary,
+  },
+  roasterName: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  price: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 4,
+    color: colors.textPrimary,
+  },
+  priceUnit: {
+    fontSize: 12,
+    fontWeight: "400",
+    opacity: 0.6,
+  },
+  buyBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 9999,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    backgroundColor: colors.accent,
+  },
+  noteSection: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+});

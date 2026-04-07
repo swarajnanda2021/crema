@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
-import { View, Text, Pressable, TextInput } from "react-native";
-import { Search, X, SlidersHorizontal } from "lucide-react-native";
+import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
+import { Search, X } from "lucide-react-native";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { colors } from "../../src/theme/colors";
 import { filterCoffees } from "../../src/utils/filterCoffees";
@@ -38,9 +38,9 @@ export default function BrowsePage() {
   }, [products, filters, popularity]);
 
   return (
-    <View className="flex-1" style={{ backgroundColor: colors.bg }}>
+    <View style={styles.container}>
       {/* Sub-tabs */}
-      <View className="flex-row border-b px-4" style={{ borderColor: colors.border, backgroundColor: colors.cardFront }}>
+      <View style={styles.tabBar}>
         <TabButton label="Beans" active={activeTab === "beans"} onPress={() => setActiveTab("beans")} />
         <TabButton label="Roasters" active={activeTab === "roasters"} onPress={() => setActiveTab("roasters")} />
       </View>
@@ -50,23 +50,22 @@ export default function BrowsePage() {
           coffees={filtered}
           popularity={popularity}
           ListHeaderComponent={
-            <View className="px-4 pt-3 pb-1">
+            <View style={styles.searchSection}>
               {/* Search bar */}
-              <View className="flex-row items-center rounded-xl px-3 py-2 mb-2" style={{ backgroundColor: colors.cardFront, borderWidth: 1, borderColor: colors.border }}>
+              <View style={styles.searchBar}>
                 <Search size={18} color={colors.textSecondary} />
                 <TextInput
                   placeholder="Search coffees..."
                   placeholderTextColor={colors.unavailable}
                   value={query}
                   onChangeText={setQuery}
-                  className="flex-1 ml-2 text-sm"
-                  style={{ color: colors.textPrimary }}
+                  style={styles.searchInput}
                 />
                 {query ? <Pressable onPress={() => setQuery("")}><X size={18} color={colors.textSecondary} /></Pressable> : null}
               </View>
-              <Text className="text-sm mb-2" style={{ color: colors.textSecondary }}>
-                <Text className="font-semibold" style={{ color: colors.textPrimary }}>{filtered.length}</Text> coffees from{" "}
-                <Text className="font-semibold" style={{ color: colors.textPrimary }}>{roasters.length}</Text> roasters
+              <Text style={styles.countText}>
+                <Text style={styles.countBold}>{filtered.length}</Text> coffees from{" "}
+                <Text style={styles.countBold}>{roasters.length}</Text> roasters
               </Text>
             </View>
           }
@@ -80,8 +79,11 @@ export default function BrowsePage() {
 
 function TabButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} className="px-4 py-2.5" style={{ borderBottomWidth: 2, borderBottomColor: active ? colors.accent : "transparent" }}>
-      <Text className="text-sm font-medium" style={{ color: active ? colors.accent : colors.textSecondary }}>{label}</Text>
+    <Pressable
+      onPress={onPress}
+      style={[styles.tabBtn, { borderBottomColor: active ? colors.accent : "transparent" }]}
+    >
+      <Text style={[styles.tabLabel, { color: active ? colors.accent : colors.textSecondary }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -98,32 +100,133 @@ function RoastersList() {
   }, [roasters, search]);
 
   return (
-    <View className="flex-1">
-      <View className="px-4 pt-3">
-        <View className="flex-row items-center rounded-xl px-3 py-2 mb-2" style={{ backgroundColor: colors.cardFront, borderWidth: 1, borderColor: colors.border }}>
+    <View style={{ flex: 1 }}>
+      <View style={styles.roasterSearchWrap}>
+        <View style={styles.searchBar}>
           <Search size={18} color={colors.textSecondary} />
-          <TextInput placeholder="Search roasters..." placeholderTextColor={colors.unavailable} value={search} onChangeText={setSearch} className="flex-1 ml-2 text-sm" style={{ color: colors.textPrimary }} />
+          <TextInput
+            placeholder="Search roasters..."
+            placeholderTextColor={colors.unavailable}
+            value={search}
+            onChangeText={setSearch}
+            style={styles.searchInput}
+          />
         </View>
       </View>
-      <View className="flex-1 px-4">
+      <View style={styles.roasterList}>
         {filtered.map((r: any) => (
           <Pressable
             key={r.slug}
             onPress={() => router.push(`/roaster/${r.slug}`)}
-            className="flex-row items-center gap-3 py-3 border-b"
-            style={{ borderColor: colors.border }}
+            style={styles.roasterRow}
           >
-            <View className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: colors.tagBg }}>
-              <Text className="text-sm font-bold" style={{ color: colors.tagText }}>{(r.name || "?")[0]}</Text>
+            <View style={styles.roasterAvatar}>
+              <Text style={styles.roasterAvatarText}>{(r.name || "?")[0]}</Text>
             </View>
-            <View className="flex-1">
-              <Text className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{r.name}</Text>
-              {r.city && <Text className="text-xs" style={{ color: colors.textSecondary }}>{r.city}{r.state ? `, ${r.state}` : ""}</Text>}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.roasterName}>{r.name}</Text>
+              {r.city && <Text style={styles.roasterCity}>{r.city}{r.state ? `, ${r.state}` : ""}</Text>}
             </View>
-            <Text className="text-xs" style={{ color: colors.textSecondary }}>{r.coffeeCount} coffees</Text>
+            <Text style={styles.roasterCount}>{r.coffeeCount} coffees</Text>
           </Pressable>
         ))}
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  tabBar: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    paddingHorizontal: 16,
+    borderColor: colors.border,
+    backgroundColor: colors.cardFront,
+  },
+  tabBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 2,
+  },
+  tabLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  searchSection: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+    backgroundColor: colors.cardFront,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  countText: {
+    fontSize: 14,
+    marginBottom: 8,
+    color: colors.textSecondary,
+  },
+  countBold: {
+    fontWeight: "600",
+    color: colors.textPrimary,
+  },
+  roasterSearchWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  roasterList: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  roasterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+  },
+  roasterAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 9999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.tagBg,
+  },
+  roasterAvatarText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.tagText,
+  },
+  roasterName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.textPrimary,
+  },
+  roasterCity: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  roasterCount: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+});

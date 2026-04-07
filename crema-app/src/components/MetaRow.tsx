@@ -1,5 +1,6 @@
-import { View, Text } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { ReactNode } from "react";
+import { colors } from "../theme/colors";
 
 interface MetaRowProps {
   icon: ReactNode;
@@ -10,16 +11,43 @@ interface MetaRowProps {
 
 export default function MetaRow({ icon, label, value, muted = false }: MetaRowProps) {
   return (
-    <View className="flex-row items-start gap-2">
-      <View className="mt-0.5 opacity-60">{icon}</View>
-      <View className="flex-1">
-        <Text className="text-[11px] uppercase tracking-wider opacity-50 font-semibold text-text-on-dark">
-          {label}
-        </Text>
-        <Text className={`text-sm text-text-on-dark ${muted ? "opacity-40 italic" : ""}`}>
-          {value}
-        </Text>
+    <View style={styles.container}>
+      <View style={styles.iconWrap}>{icon}</View>
+      <View style={styles.content}>
+        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.value, muted && styles.valueMuted]}>{value}</Text>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  iconWrap: {
+    marginTop: 2,
+    opacity: 0.6,
+  },
+  content: {
+    flex: 1,
+  },
+  label: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    opacity: 0.5,
+    fontWeight: "600",
+    color: colors.textOnDark,
+  },
+  value: {
+    fontSize: 14,
+    color: colors.textOnDark,
+  },
+  valueMuted: {
+    opacity: 0.4,
+    fontStyle: "italic",
+  },
+});

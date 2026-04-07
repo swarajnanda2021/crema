@@ -1,4 +1,4 @@
-import { View, Text, Pressable } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { MapPin, Coffee, Settings, Pencil } from "lucide-react-native";
 import { colors } from "../theme/colors";
@@ -17,76 +17,162 @@ export default function ProfileCard({ user, coffeeCount = 0, isOwner, onEdit }: 
     : "";
 
   return (
-    <View className="rounded-2xl overflow-hidden" style={{ backgroundColor: colors.cardFront, borderWidth: 1, borderColor: colors.border }}>
+    <View style={styles.card}>
       {/* Avatar background */}
-      <View style={{ height: 140, backgroundColor: colors.cardBack }}>
+      <View style={styles.avatarBg}>
         {user.avatar_url ? (
           <Image source={{ uri: user.avatar_url }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
         ) : (
-          <View className="flex-1 items-center justify-center">
-            <Text className="text-4xl font-bold" style={{ color: colors.textOnDark }}>
+          <View style={styles.avatarFallback}>
+            <Text style={styles.avatarLetter}>
               {(user.display_name || "?")[0]}
             </Text>
           </View>
         )}
         {/* Edit button */}
         {isOwner && onEdit && (
-          <Pressable onPress={onEdit} className="absolute top-3 right-3 w-8 h-8 rounded-full items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.4)" }}>
+          <Pressable onPress={onEdit} style={styles.editBtn}>
             <Pencil size={14} color="white" />
           </Pressable>
         )}
       </View>
 
       {/* Bio content */}
-      <View className="p-4">
-        <Text className="text-lg font-bold" style={{ color: colors.textPrimary }}>
-          {user.display_name}
-        </Text>
-        <Text className="text-sm" style={{ color: colors.textSecondary }}>
-          @{user.username}
-        </Text>
+      <View style={styles.body}>
+        <Text style={styles.displayName}>{user.display_name}</Text>
+        <Text style={styles.username}>@{user.username}</Text>
 
         {user.location && (
-          <View className="flex-row items-center gap-1 mt-2">
+          <View style={styles.locationRow}>
             <MapPin size={12} color={colors.textSecondary} />
-            <Text className="text-xs" style={{ color: colors.textSecondary }}>{user.location}</Text>
+            <Text style={styles.locationText}>{user.location}</Text>
           </View>
         )}
 
         {user.bio && (
-          <Text className="text-sm mt-2 leading-relaxed" style={{ color: colors.textPrimary }}>
-            {user.bio}
-          </Text>
+          <Text style={styles.bio}>{user.bio}</Text>
         )}
 
         {/* Preferences */}
-        <View className="flex-row flex-wrap gap-3 mt-3">
+        <View style={styles.prefsRow}>
           {user.coffee_preference && (
-            <View className="flex-row items-center gap-1">
+            <View style={styles.prefItem}>
               <Coffee size={12} color={colors.textSecondary} />
-              <Text className="text-xs" style={{ color: colors.textSecondary }}>{user.coffee_preference}</Text>
+              <Text style={styles.prefText}>{user.coffee_preference}</Text>
             </View>
           )}
           {user.brewing_style && (
-            <View className="flex-row items-center gap-1">
+            <View style={styles.prefItem}>
               <Settings size={12} color={colors.textSecondary} />
-              <Text className="text-xs" style={{ color: colors.textSecondary }}>{user.brewing_style}</Text>
+              <Text style={styles.prefText}>{user.brewing_style}</Text>
             </View>
           )}
         </View>
 
         {/* Stats */}
-        <View className="flex-row gap-4 mt-3 pt-3 border-t" style={{ borderColor: colors.border }}>
-          <Text className="text-xs" style={{ color: colors.textSecondary }}>
-            <Text className="font-bold" style={{ color: colors.textPrimary }}>{coffeeCount}</Text> coffees tried
+        <View style={styles.statsRow}>
+          <Text style={styles.statLabel}>
+            <Text style={styles.statValue}>{coffeeCount}</Text> coffees tried
           </Text>
           {sinceStr && (
-            <Text className="text-xs" style={{ color: colors.textSecondary }}>
-              Since {sinceStr}
-            </Text>
+            <Text style={styles.statLabel}>Since {sinceStr}</Text>
           )}
         </View>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: colors.cardFront,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  avatarBg: {
+    height: 140,
+    backgroundColor: colors.cardBack,
+  },
+  avatarFallback: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarLetter: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: colors.textOnDark,
+  },
+  editBtn: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 9999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  body: {
+    padding: 16,
+  },
+  displayName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+  username: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 8,
+  },
+  locationText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  bio: {
+    fontSize: 14,
+    marginTop: 8,
+    lineHeight: 20,
+    color: colors.textPrimary,
+  },
+  prefsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 12,
+  },
+  prefItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  prefText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  statsRow: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderColor: colors.border,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  statValue: {
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+});

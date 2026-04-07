@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, RefreshControl } from "react-native";
+import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from "react-native";
 import { Coffee, Check, Star } from "lucide-react-native";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useShelves } from "../../src/hooks/useShelves";
@@ -39,18 +39,17 @@ export default function MyShelfPage() {
 
   return (
     <ScrollView
-      className="flex-1"
-      style={{ backgroundColor: colors.bg }}
+      style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
       showsVerticalScrollIndicator={false}
     >
       {/* Profile Card */}
-      <View className="px-4 pt-4">
+      <View style={styles.profileWrap}>
         <ProfileCard user={user} coffeeCount={totalCoffees} isOwner />
       </View>
 
       {/* Shelf Tabs */}
-      <View className="flex-row mx-4 mt-4 rounded-xl overflow-hidden" style={{ backgroundColor: colors.cardFront, borderWidth: 1, borderColor: colors.border }}>
+      <View style={styles.shelfTabs}>
         {(Object.keys(SHELF_LABELS) as ShelfKey[]).map((key) => {
           const meta = SHELF_LABELS[key];
           const Icon = SHELF_ICONS[key];
@@ -60,15 +59,14 @@ export default function MyShelfPage() {
             <Pressable
               key={key}
               onPress={() => setActiveShelf(key)}
-              className="flex-1 flex-row items-center justify-center gap-1.5 py-2.5"
-              style={{ backgroundColor: isActive ? colors.accent : "transparent" }}
+              style={[styles.shelfTab, { backgroundColor: isActive ? colors.accent : "transparent" }]}
             >
               <Icon size={14} color={isActive ? "white" : meta.color} />
-              <Text className="text-xs font-medium" style={{ color: isActive ? "white" : colors.textSecondary }}>
+              <Text style={[styles.shelfTabLabel, { color: isActive ? "white" : colors.textSecondary }]}>
                 {meta.label}
               </Text>
-              <View className="px-1.5 py-0.5 rounded-full" style={{ backgroundColor: isActive ? "rgba(255,255,255,0.25)" : colors.tagBg }}>
-                <Text className="text-[10px] font-bold" style={{ color: isActive ? "white" : colors.tagText }}>{count}</Text>
+              <View style={[styles.countBadge, { backgroundColor: isActive ? "rgba(255,255,255,0.25)" : colors.tagBg }]}>
+                <Text style={[styles.countBadgeText, { color: isActive ? "white" : colors.tagText }]}>{count}</Text>
               </View>
             </Pressable>
           );
@@ -76,11 +74,11 @@ export default function MyShelfPage() {
       </View>
 
       {/* Shelf Content */}
-      <View className="px-4 mt-4">
+      <View style={styles.shelfContent}>
         {(shelves[activeShelf] || []).length === 0 ? (
-          <View className="items-center py-12">
-            <Text className="text-3xl mb-2">{"☕"}</Text>
-            <Text className="text-sm" style={{ color: colors.textSecondary }}>No coffees in this shelf yet.</Text>
+          <View style={styles.emptyShelf}>
+            <Text style={styles.emptyEmoji}>{"☕"}</Text>
+            <Text style={styles.emptyText}>No coffees in this shelf yet.</Text>
           </View>
         ) : (
           (shelves[activeShelf] as any[]).map((entry: any) => (
@@ -96,7 +94,7 @@ export default function MyShelfPage() {
 
       {/* Recommendations */}
       {recommendations.length > 0 && (
-        <View className="px-4 mt-4 mb-8">
+        <View style={styles.recSection}>
           <RecommendationPanel
             recommendations={recommendations}
             onAddToShelf={(id) => addToShelf(id, "want_to_try")}
@@ -108,3 +106,66 @@ export default function MyShelfPage() {
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  profileWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  shelfTabs: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: colors.cardFront,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  shelfTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+  },
+  shelfTabLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  countBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 9999,
+  },
+  countBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  shelfContent: {
+    paddingHorizontal: 16,
+    marginTop: 16,
+  },
+  emptyShelf: {
+    alignItems: "center",
+    paddingVertical: 48,
+  },
+  emptyEmoji: {
+    fontSize: 30,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  recSection: {
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 32,
+  },
+});

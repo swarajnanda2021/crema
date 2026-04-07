@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from "react-native";
 import { ChevronDown, ChevronUp, Send } from "lucide-react-native";
 import { colors } from "../theme/colors";
 
@@ -57,7 +57,7 @@ export default function TastingNoteForm({ productId, onSubmit }: Props) {
   };
 
   return (
-    <View className="rounded-xl p-4" style={{ backgroundColor: colors.cardFront, borderWidth: 1, borderColor: colors.border }}>
+    <View style={styles.card}>
       {/* Comment */}
       <TextInput
         placeholder="How was this coffee?"
@@ -65,32 +65,31 @@ export default function TastingNoteForm({ productId, onSubmit }: Props) {
         value={comment}
         onChangeText={setComment}
         multiline
-        className="text-sm mb-3 min-h-[60px]"
-        style={{ color: colors.textPrimary }}
+        style={styles.commentInput}
       />
 
       {/* Quick selectors row */}
-      <View className="flex-row flex-wrap gap-2 mb-3">
+      <View style={styles.selectorsRow}>
         <DropdownChips label="Style" options={DRINK_STYLES} selected={drinkStyle} onSelect={setDrinkStyle} />
         <DropdownChips label="Brew" options={BREW_METHODS} selected={brewMethod} onSelect={setBrewMethod} />
         <DropdownChips label="Milk" options={MILK_TYPES} selected={milkType} onSelect={setMilkType} />
       </View>
 
       {/* Advanced toggle */}
-      <Pressable onPress={() => setShowAdvanced(!showAdvanced)} className="flex-row items-center gap-1 mb-2">
-        <Text className="text-xs font-medium" style={{ color: colors.accent }}>
+      <Pressable onPress={() => setShowAdvanced(!showAdvanced)} style={styles.advancedToggle}>
+        <Text style={styles.advancedText}>
           {showAdvanced ? "Hide advanced" : "Show advanced"}
         </Text>
         {showAdvanced ? <ChevronUp size={14} color={colors.accent} /> : <ChevronDown size={14} color={colors.accent} />}
       </Pressable>
 
       {showAdvanced && (
-        <View className="gap-2 mb-3">
-          <View className="flex-row gap-2">
+        <View style={styles.advancedSection}>
+          <View style={styles.inputRow}>
             <NumberInput label="Dose (g)" value={doseGrams} onChange={setDoseGrams} />
             <NumberInput label="Yield (g)" value={yieldGrams} onChange={setYieldGrams} />
           </View>
-          <View className="flex-row gap-2">
+          <View style={styles.inputRow}>
             <NumberInput label="Temp (\u00B0C)" value={waterTemp} onChange={setWaterTemp} />
             <NumberInput label="Time (s)" value={extractionTime} onChange={setExtractionTime} />
           </View>
@@ -102,11 +101,10 @@ export default function TastingNoteForm({ productId, onSubmit }: Props) {
       <Pressable
         onPress={handleSubmit}
         disabled={submitting}
-        className="flex-row items-center justify-center gap-2 py-2.5 rounded-lg"
-        style={{ backgroundColor: submitting ? colors.unavailable : colors.accent }}
+        style={[styles.submitBtn, { backgroundColor: submitting ? colors.unavailable : colors.accent }]}
       >
         <Send size={16} color="white" />
-        <Text className="text-sm font-semibold" style={{ color: "white" }}>
+        <Text style={styles.submitText}>
           {submitting ? "Saving..." : "Add Note"}
         </Text>
       </Pressable>
@@ -118,20 +116,23 @@ function DropdownChips({ label, options, selected, onSelect }: { label: string; 
   const [open, setOpen] = useState(false);
   return (
     <View>
-      <Pressable onPress={() => setOpen(!open)} className="px-3 py-1.5 rounded-full flex-row items-center gap-1" style={{ backgroundColor: selected ? colors.accent : colors.tagBg }}>
-        <Text className="text-xs font-medium" style={{ color: selected ? "white" : colors.tagText }}>
+      <Pressable
+        onPress={() => setOpen(!open)}
+        style={[dropStyles.chip, { backgroundColor: selected ? colors.accent : colors.tagBg }]}
+      >
+        <Text style={[dropStyles.chipText, { color: selected ? "white" : colors.tagText }]}>
           {selected ? selected.replace(/-/g, " ") : label}
         </Text>
         <ChevronDown size={12} color={selected ? "white" : colors.tagText} />
       </Pressable>
       {open && (
-        <ScrollView className="absolute top-8 left-0 rounded-lg shadow-lg z-50 max-h-40" style={{ backgroundColor: colors.cardFront, borderWidth: 1, borderColor: colors.border, width: 160 }}>
-          <Pressable onPress={() => { onSelect(""); setOpen(false); }} className="px-3 py-2">
-            <Text className="text-xs" style={{ color: colors.textSecondary }}>Clear</Text>
+        <ScrollView style={dropStyles.dropdown}>
+          <Pressable onPress={() => { onSelect(""); setOpen(false); }} style={dropStyles.option}>
+            <Text style={dropStyles.optionTextClear}>Clear</Text>
           </Pressable>
           {options.map((o) => (
-            <Pressable key={o} onPress={() => { onSelect(o); setOpen(false); }} className="px-3 py-2">
-              <Text className="text-xs capitalize" style={{ color: o === selected ? colors.accent : colors.textPrimary }}>
+            <Pressable key={o} onPress={() => { onSelect(o); setOpen(false); }} style={dropStyles.option}>
+              <Text style={[dropStyles.optionText, { color: o === selected ? colors.accent : colors.textPrimary }]}>
                 {o.replace(/-/g, " ")}
               </Text>
             </Pressable>
@@ -144,15 +145,131 @@ function DropdownChips({ label, options, selected, onSelect }: { label: string; 
 
 function NumberInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
-    <View className="flex-1">
-      <Text className="text-[10px] uppercase mb-1" style={{ color: colors.textSecondary }}>{label}</Text>
+    <View style={{ flex: 1 }}>
+      <Text style={numStyles.label}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={onChange}
         keyboardType="numeric"
-        className="rounded-lg px-3 py-2 text-sm"
-        style={{ backgroundColor: colors.bg, color: colors.textPrimary, borderWidth: 1, borderColor: colors.border }}
+        style={numStyles.input}
       />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    borderRadius: 12,
+    padding: 16,
+    backgroundColor: colors.cardFront,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  commentInput: {
+    fontSize: 14,
+    marginBottom: 12,
+    minHeight: 60,
+    color: colors.textPrimary,
+  },
+  selectorsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  },
+  advancedToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 8,
+  },
+  advancedText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: colors.accent,
+  },
+  advancedSection: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  inputRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  submitBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  submitText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "white",
+  },
+});
+
+const dropStyles = StyleSheet.create({
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 9999,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  dropdown: {
+    position: "absolute",
+    top: 32,
+    left: 0,
+    borderRadius: 8,
+    zIndex: 50,
+    maxHeight: 160,
+    backgroundColor: colors.cardFront,
+    borderWidth: 1,
+    borderColor: colors.border,
+    width: 160,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  option: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  optionTextClear: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  optionText: {
+    fontSize: 12,
+    textTransform: "capitalize",
+  },
+});
+
+const numStyles = StyleSheet.create({
+  label: {
+    fontSize: 10,
+    textTransform: "uppercase",
+    marginBottom: 4,
+    color: colors.textSecondary,
+  },
+  input: {
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    backgroundColor: colors.bg,
+    color: colors.textPrimary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+});
