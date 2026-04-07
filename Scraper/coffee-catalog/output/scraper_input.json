@@ -1,0 +1,192 @@
+[
+  {
+    "name": "Ainmane Coffee",
+    "city": "Sakleshpur",
+    "state": "Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://ainmane.com",
+    "shop_url": "https://www.ainmane.com/coffee.html",
+    "platform": "Custom"
+  },
+  {
+    "name": "Bili Hu Coffee",
+    "city": "Noida",
+    "state": "Uttar Pradesh",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://bilihu.in",
+    "shop_url": "https://bilihu.in/pages/coffee-shop",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Black Baza Coffee",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://blackbazacoffee.com",
+    "shop_url": "https://blackbazacoffee.com/collections/all",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Blue Tokai Coffee Roasters",
+    "city": "New Delhi",
+    "state": "Delhi",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://bluetokaicoffee.com",
+    "shop_url": "https://bluetokaicoffee.com/collections/roasted-and-ground-coffee-beans",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Bombay Island Coffee Company",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://bombayisland.com",
+    "shop_url": "https://bombayisland.com/collections/taster-packs",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Coffeeverse",
+    "city": "Ahmedabad",
+    "state": "Gujarat",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://coffeeverse.in",
+    "shop_url": "https://coffeeverse.in/collections/shop-all",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Deomali Coffee & Roastery",
+    "city": "Bhubaneswar",
+    "state": "Odisha",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://deomalicoffee.in",
+    "shop_url": "https://deomalicoffee.in/why-deomali-coffee/",
+    "platform": "WooCommerce"
+  },
+  {
+    "name": "Halli Berri Coffee",
+    "city": "Chikmagalur",
+    "state": "Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://halliberri.com",
+    "shop_url": "https://halliberri.com/coffee/",
+    "platform": "WooCommerce"
+  },
+  {
+    "name": "Leo Coffee",
+    "city": "Chennai",
+    "state": "Tamil Nadu",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://leocoffee.co.in",
+    "shop_url": "https://leocoffee.co.in/collections/pure-coffee-blends",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Marc's Coffees / Coffee Ideas",
+    "city": "Auroville",
+    "state": "Tamil Nadu",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://coffeeideas.in",
+    "shop_url": "https://coffeeideas.in/product/our-coffees/limited-edition/ratna-raga-competition-lot/",
+    "platform": "WooCommerce"
+  },
+  {
+    "name": "Maverick & Farmer Coffee",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://maverickandfarmer.com",
+    "shop_url": "https://maverickandfarmer.com/collections/shop-all",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Naivo Coffee Company",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://naivo.in",
+    "shop_url": "https://naivo.in/shop/",
+    "platform": "WooCommerce"
+  },
+  {
+    "name": "Nandan Coffee",
+    "city": "Kodaikanal",
+    "state": "Tamil Nadu",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://nandancoffee.com",
+    "shop_url": "https://www.nandancoffee.com/coffee/",
+    "platform": "WooCommerce"
+  },
+  {
+    "name": "Roastery Coffee House",
+    "city": "Hyderabad",
+    "state": "Telangana",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://roasterycoffee.co.in",
+    "shop_url": "https://roasterycoffee.co.in",
+    "platform": "WooCommerce"
+  },
+  {
+    "name": "Savorworks Coffee & Chocolate",
+    "city": "New Delhi",
+    "state": "Delhi",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://savorworksroasters.com",
+    "shop_url": "https://savorworksroasters.com/collections/coffee/Light-Medium-Dark",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Sleepy Owl Coffee",
+    "city": "New Delhi",
+    "state": "Delhi",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://sleepyowl.co",
+    "shop_url": "https://sleepyowl.co/collections/premium-instant-coffee",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Subko Coffee Roasters",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://subko.coffee",
+    "shop_url": "https://subko.coffee/pages/coffee",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Third Wave Coffee Roasters",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://thirdwavecoffeeroasters.com",
+    "shop_url": "https://thirdwavecoffeeroasters.com",
+    "platform": "Shopify"
+  },
+  {
+    "name": "Toffee Coffee Roasters",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://toffeecoffeeroasters.com",
+    "shop_url": "https://toffeecoffeeroasters.com/collections/all-coffee",
+    "platform": "Shopify"
+  }
+]

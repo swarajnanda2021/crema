@@ -1,0 +1,222 @@
+[
+  {
+    "slug": "7000-steps-india",
+    "name": "7000 Steps - India's Most Remote Coffee",
+    "website": "https://www.7000steps.com"
+  },
+  {
+    "slug": "93-degrees-coffee",
+    "name": "93 Degrees Coffee Roasters",
+    "website": "https://93degreescoffeeroasters.com"
+  },
+  {
+    "slug": "araku-coffee",
+    "name": "ARAKU Coffee",
+    "website": "http://www.arakucoffee.in"
+  },
+  {
+    "slug": "aromas-of-coorg",
+    "name": "Aromas of Coorg",
+    "website": "https://www.aromasofcoorg.com"
+  },
+  {
+    "slug": "black-fuel",
+    "name": "Black Fuel Roastery",
+    "website": "https://www.blackfuel.coffee"
+  },
+  {
+    "slug": "bloom-coffee",
+    "name": "Bloom Coffee Roasters",
+    "website": "https://bloomcoffeeroasters.in"
+  },
+  {
+    "slug": "caarabi",
+    "name": "Caarabi Coffee Roasters",
+    "website": "http://www.caarabicoffee.com"
+  },
+  {
+    "slug": "caffena",
+    "name": "Caffena Coffee",
+    "website": "https://caffenacoffee.com"
+  },
+  {
+    "slug": "chariot",
+    "name": "Chariot Coffee",
+    "website": "https://chariotcoffee.com"
+  },
+  {
+    "slug": "coffee-culture",
+    "name": "Coffee Culture",
+    "website": "http://www.coffeeculture.co.in"
+  },
+  {
+    "slug": "coffee-sutra",
+    "name": "Coffee Sutra",
+    "website": "https://sutracoffee.com"
+  },
+  {
+    "slug": "coffeeverse",
+    "name": "Coffeeverse",
+    "website": "https://coffeeverse.co.in"
+  },
+  {
+    "slug": "corridor-seven",
+    "name": "Corridor Seven Coffee Roasters",
+    "website": "http://corridorseven.coffee"
+  },
+  {
+    "slug": "cothas",
+    "name": "Cothas Coffee",
+    "website": "https://cothas.com"
+  },
+  {
+    "slug": "curious-life",
+    "name": "Curious Life Coffee Roasters",
+    "website": "https://curiouslifecoffee.com"
+  },
+  {
+    "slug": "devans",
+    "name": "Devan's Coffee",
+    "website": "https://www.devans.in"
+  },
+  {
+    "slug": "dope-coffee",
+    "name": "Dope Coffee Roasters",
+    "website": "https://dopecoffee.in"
+  },
+  {
+    "slug": "drum-coffee",
+    "name": "Drum Coffee Roasters",
+    "website": "https://drumcoffee.in"
+  },
+  {
+    "slug": "ekata",
+    "name": "Ekata Coffee Roasters",
+    "website": "https://ekatacoffee.in"
+  },
+  {
+    "slug": "ffox",
+    "name": "FFOX Coffee",
+    "website": "https://ffoxcoffee.com"
+  },
+  {
+    "slug": "forest-farmer",
+    "name": "Forest Farmer Coffee Roasters",
+    "website": "https://forestfarmercoffee.com"
+  },
+  {
+    "slug": "g-shot",
+    "name": "G-Shot Coffee Roastery",
+    "website": "https://gshotcoffeeroastery.com"
+  },
+  {
+    "slug": "grey-soul",
+    "name": "Grey Soul Coffee Roasters",
+    "website": "https://greysoul.coffee"
+  },
+  {
+    "slug": "home-blend",
+    "name": "Home Blend Coffee Roasters",
+    "website": "https://homeblendcoffee.com"
+  },
+  {
+    "slug": "ikkis",
+    "name": "Ikkis Coffee Roasters",
+    "website": "https://ikkiscoffee.com"
+  },
+  {
+    "slug": "kafeido",
+    "name": "Kafeido Roastery",
+    "website": "https://www.kafeido.com"
+  },
+  {
+    "slug": "kaffa-cerrado",
+    "name": "Kaffa Cerrado",
+    "website": "https://kaffacerrado.com"
+  },
+  {
+    "slug": "kapi-kottai",
+    "name": "Kapi Kottai",
+    "website": "https://kapikottai.coffee"
+  },
+  {
+    "slug": "kat-kin",
+    "name": "Kat & Kin Coffee Roasters",
+    "website": "https://katandkin.in"
+  },
+  {
+    "slug": "kallucoppa",
+    "name": "Kallucoppa Coffee",
+    "website": "https://kallucoppa.com"
+  },
+  {
+    "slug": "korebi",
+    "name": "Korebi Gourmet",
+    "website": "https://www.korebi.in"
+  },
+  {
+    "slug": "korero",
+    "name": "Korero Coffee Roasters",
+    "website": "https://korerocoffee.com"
+  },
+  {
+    "slug": "kruti",
+    "name": "Kruti Coffee",
+    "website": "https://kruticoffee.com"
+  },
+  {
+    "slug": "la-cuppa",
+    "name": "La Cuppa Coffee",
+    "website": "https://lacuppacoffee.com"
+  },
+  {
+    "slug": "love-kaapi",
+    "name": "Love Kaapi",
+    "website": "https://lovekaapi.com"
+  },
+  {
+    "slug": "okiru",
+    "name": "Okiru Coffee Roasters",
+    "website": "https://okirucoffee.com"
+  },
+  {
+    "slug": "panduranga",
+    "name": "PANDURANGA COFFEE 1938",
+    "website": "https://pandurangacoffee.com"
+  },
+  {
+    "slug": "roastery-vui",
+    "name": "Roastery of Vui",
+    "website": "https://roasteryofvui.com"
+  },
+  {
+    "slug": "rossette",
+    "name": "Rossette Coffee Lab",
+    "website": "https://rossettecoffee.com"
+  },
+  {
+    "slug": "siolim",
+    "name": "Siolim Coffee",
+    "website": "https://siolim.coffee"
+  },
+  {
+    "slug": "takaraa",
+    "name": "Takaraa Specialty Coffees",
+    "website": "https://takaraacoffee.com"
+  },
+  {
+    "slug": "third-wave",
+    "name": "Third Wave Coffee Roasters",
+    "website": "https://thirdwavecoffeeroasters.com"
+  },
+  {
+    "slug": "toise",
+    "name": "Toise Coffee Roastery",
+    "website": "https://toise.coffee"
+  },
+  {
+    "slug": "wonderbean",
+    "name": "WonderBean Coffee Co",
+    "website": "https://www.wonderbean.in"
+  }
+]

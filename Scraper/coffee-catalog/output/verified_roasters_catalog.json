@@ -1,0 +1,1363 @@
+{
+  "generated_at": "2026-04-06T04:47:31Z",
+  "pipeline_version": "1.0",
+  "criteria": "Google Places + seeds + website verification",
+  "summary": {
+    "total_discovered": 20,
+    "total_with_website": 20,
+    "total_verified": 19,
+    "total_dropped": 1,
+    "states_covered": 8
+  },
+  "roasters": [
+    {
+      "roaster_slug": "ainmane-coffee",
+      "name": "Ainmane Coffee",
+      "city": "Sakleshpur",
+      "state": "Karnataka",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://ainmane.com",
+      "shop_url": "https://www.ainmane.com/coffee.html",
+      "platform": "Custom",
+      "google_maps_url": null,
+      "place_id": "seed_ainmane-coffee",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "https://www.ainmane.com/pub/media/logo/stores/1/logo.png",
+      "tagline": null,
+      "about_blurb": "With love from the highlands of Coorg, We bring to you our legacy of flavours. Coorg has a rich and vibrant culture that is unique and fascinating. Of the many things typically Coorg, its cuisine plays a crucial part in reminding us of its glorious heritage. At AinMané, we aim to carry this legacy forward by bringing to you the best collection of food products from the highlands of Coorg & Western Ghats. Through significant collaboration with like-minded coffee growers, beekeepers and other agriculturists, we have made sure that each and every product is 100% genuine, like they have always been in the homes of Coorg.",
+      "founding_year": null,
+      "sourcing_regions": [
+        "Coorg"
+      ],
+      "specialties": [
+        "single-origin",
+        "organic",
+        "specialty-grade"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/ainmane/",
+        "facebook": "https://www.facebook.com/AinmaneCoorg"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "filter",
+          "blend",
+          "single origin",
+          "coffee",
+          "single-origin",
+          "natural",
+          "robusta",
+          "arabica"
+        ],
+        "price_examples": [
+          "Rs 2000",
+          "₹115",
+          "₹590",
+          "₹460",
+          "₹240"
+        ],
+        "cart_signals": [
+          "add to cart"
+        ],
+        "shop_links_found": [
+          "https://www.ainmane.com/coffee.html",
+          "https://www.ainmane.com/coffee/speciality-coffee.html",
+          "https://www.ainmane.com/coffee/single-origin-coffee.html",
+          "https://www.ainmane.com/coffee/filter-coffee-without-chicory.html",
+          "https://www.ainmane.com/coffee/micro-lot-coffee.html"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_tagline",
+        "missing_founding_year"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "bili-hu-coffee",
+      "name": "Bili Hu Coffee",
+      "city": "Noida",
+      "state": "Uttar Pradesh",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://bilihu.in",
+      "shop_url": "https://bilihu.in/pages/coffee-shop",
+      "platform": "Shopify",
+      "google_maps_url": null,
+      "place_id": "seed_bili-hu-coffee",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "http://bilihu.in/cdn/shop/files/Bili_Hu_coffee_Logo_page-0001.jpg?crop=center&height=1200&v=1737574769&width=1200",
+      "tagline": "Buy specialty coffee from Bili Hu, trusted coffee bean roasters delivering fresh Indian coffee, freshly ground coffee for home, and premium blends for coffee lovers.",
+      "about_blurb": "Just ask The Oberoi, Taj, Porsche and other esteemed establishments who picked Bili Hufrom a competitive and crowded market.What’s the secret? Nuance.We work with some of the best coffee planters in India every step of the way so thatthe coffee that reaches shelves, kitchens, and cups, is really the best. A perfect cup of coffee is one of life’s great luxuries. And it starts from the beans. Ours come from one of the most bio-diverse regions in the world,Chikmagalur, a five hour drive from Bangalore well known for its world class coffee plantations. But that’s just the start. Every lot is scanned via UV rays to ensure defects are absolutely at the bare minimum - if at all. To preserve the coffee’s natural flavours, each batch is meticulously roasted to bring out nuances treating it like it were wine or whiskey. There are no machines at the time of harvest either, which means each cherry is picked and sorted by hand. The attention to detail at every step of the way is obvious from the first sip.There's nothing else quite like Bili Hu.",
+      "founding_year": null,
+      "sourcing_regions": [
+        "Chikmagalur"
+      ],
+      "specialties": [
+        "specialty-grade"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/bili.hu.coffee/",
+        "youtube": "https://www.youtube.com/embed/"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "beans",
+          "filter",
+          "roast",
+          "blend",
+          "coffee",
+          "single-origin",
+          "natural",
+          "robusta",
+          "ground",
+          "arabica"
+        ],
+        "price_examples": [
+          "₹749",
+          "₹749",
+          "₹749",
+          "₹325",
+          "₹749"
+        ],
+        "cart_signals": [
+          "buy now",
+          "cdn.shopify.com",
+          "shopify",
+          "whatsapp"
+        ],
+        "shop_links_found": [
+          "https://bilihu.in/pages/coffee-shop",
+          "https://bilihu.in/collections/accessories",
+          "https://bilihu.in/collections/gift-hampers",
+          "https://bilihu.in/blogs/know-your-coffee",
+          "https://bilihu.in/collections/all-products/products/single-estate-coffee-balur"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_founding_year"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "black-baza-coffee",
+      "name": "Black Baza Coffee",
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://blackbazacoffee.com",
+      "shop_url": "https://blackbazacoffee.com/collections/all",
+      "platform": "Shopify",
+      "google_maps_url": null,
+      "place_id": "seed_black-baza-coffee",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "http://www.blackbazacoffee.com/cdn/shop/files/Web_Preview_BlackBazaCoffee_V1.png?v=1773993701",
+      "tagline": null,
+      "about_blurb": "At Black Baza, we envision a world where coffee is grown in harmony with both people and nature. The philosophy behind our ‘1000 Year Brew’ embodies this vision — a long-term approach that underpins our grassroots actions, scientific research, and business model. By taking the long view, we believe we’re laying the foundation for a producer-led sustainability model, where biodiversity, local ecosystems, and community well-being are central to every decision we make. But the concept of a ‘1000 Year Brew’ can go beyond coffee. It’s also about nurturing a deeper, more immersive coffee culture, one that embraces a fuller understanding of flavour! Black Baza Coffee began, quite unintentionally, as a question during Arshiya’s PhD:Why do so many sustainability certifications fail to bring about real change?Her research revealed that most certifications were limited in reach, top-down in design, and rarely addressed the deeper issues of power, livelihoods, and biodiversity. So the idea was simple — to build something better. A system rooted in trust, fairness, and ecological integrity. A true alternative to certification.",
+      "founding_year": null,
+      "sourcing_regions": [
+        "BR Hills"
+      ],
+      "specialties": [
+        "small-batch",
+        "single-origin",
+        "organic",
+        "fair-trade",
+        "specialty-grade",
+        "sustainability"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/blackbazacoffee/",
+        "twitter": "https://x.com/blackbazacoffee",
+        "facebook": "https://www.facebook.com/blackbazacoffee/",
+        "youtube": "https://www.youtube.com/@kaadinamakkalu"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "beans",
+          "whole bean",
+          "filter",
+          "roast",
+          "blend",
+          "single origin",
+          "coffee",
+          "natural",
+          "robusta",
+          "ground",
+          "arabica"
+        ],
+        "price_examples": [
+          "price.css?v=70172745017360139101741788227",
+          "price.css?v=70172745017360139101741788227",
+          "price.css?v=70172745017360139101741788227",
+          "price.css?v=70172745017360139101741788227",
+          "price.css?v=70172745017360139101741788227"
+        ],
+        "cart_signals": [
+          "add to cart",
+          "cdn.shopify.com",
+          "shopify",
+          "whatsapp"
+        ],
+        "shop_links_found": [
+          "https://blackbazacoffee.com/collections/all",
+          "https://blackbazacoffee.com/collections/homepage-featured",
+          "https://blackbazacoffee.com/collections/coffee",
+          "https://blackbazacoffee.com/products/from-forest-to-cup-goa-edit",
+          "https://blackbazacoffee.com/products/kombucha-honey"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_tagline",
+        "missing_founding_year"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "blue-tokai-coffee-roasters",
+      "name": "Blue Tokai Coffee Roasters",
+      "city": "New Delhi",
+      "state": "Delhi",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://bluetokaicoffee.com",
+      "shop_url": "https://bluetokaicoffee.com/collections/roasted-and-ground-coffee-beans",
+      "platform": "Shopify",
+      "google_maps_url": null,
+      "place_id": "seed_blue-tokai-coffee-roasters",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "http://bluetokaicoffee.com/cdn/shop/files/og-image_fb86e907-95f5-4bce-a80f-c940e284474d.jpg?v=1692794605",
+      "tagline": "Blue Tokai Coffee brings you fresh single estate 100% Arabica coffee beans, roasted with care, from the best farms across India. Order yours online now!",
+      "about_blurb": "Our mission since we started has stayed simple: introduce our customers to the estates we directly buy our great tasting coffee from, roast the beans with care, and make high quality coffee more accessible through our cafes and our website. The coffee we roast is the coffee we like to drink, and we hope you like it too. At Blue Tokai Coffee Roasters, we follow a simple set of beliefs. The first thing we did when we started our company was to highlight our award winning farms. This idea of transparency organically evolved to the way we worked in other areas too - our baristas are always present to discuss brewing tips, our customer service team are there to walk you through your coffee questions, and our roasting team to show you how they work.",
+      "founding_year": null,
+      "sourcing_regions": null,
+      "specialties": [
+        "single-origin",
+        "estate-grown",
+        "specialty-grade"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/bluetokaicoffee/",
+        "twitter": "https://twitter.com/bluetokaicoffee",
+        "facebook": "https://www.facebook.com/bluetokaicoffee/"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "beans",
+          "whole bean",
+          "filter",
+          "whole-bean",
+          "roast",
+          "blend",
+          "single origin",
+          "coffee",
+          "single-origin",
+          "natural",
+          "ground",
+          "arabica",
+          "espresso"
+        ],
+        "price_examples": [
+          "₹1200",
+          "₹250",
+          "₹250",
+          "₹600",
+          "₹600"
+        ],
+        "cart_signals": [
+          "add to cart",
+          "buy now",
+          "cdn.shopify.com",
+          "shopify",
+          "razorpay",
+          "whatsapp"
+        ],
+        "shop_links_found": [
+          "https://bluetokaicoffee.com/collections/roasted-and-ground-coffee-beans",
+          "https://bluetokaicoffee.com/collections/aluminium-coffee-capsule",
+          "https://bluetokaicoffee.com/collections/no-equipment-collection",
+          "https://bluetokaicoffee.com/collections/easy-pour",
+          "https://bluetokaicoffee.com/collections/cold-brew-coffee-bags"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_founding_year",
+        "missing_sourcing_regions"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "bombay-island-coffee-company",
+      "name": "Bombay Island Coffee Company",
+      "city": "Mumbai",
+      "state": "Maharashtra",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://bombayisland.com",
+      "shop_url": "https://bombayisland.com/collections/taster-packs",
+      "platform": "Shopify",
+      "google_maps_url": null,
+      "place_id": "seed_bombay-island-coffee-company",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "https://www.bombayisland.com/cdn/shop/files/12.png?v=1758620124&width=250",
+      "tagline": null,
+      "about_blurb": "Bombay Island Coffee Company is an artisanal Coffee Company  born out of boundless passionfor coffee founded by Rupal Jain with a mission to provide high quality coffee to all coffee lovers across the globe through our cafes and online supplies.  We are part by the Third Wave Coffee Movement which has redefined the ideas around sourcing, roasting & brewing coffee. We source the finest quality coffee beans and custom roast them on our beautiful roaster especially for you. Our coffees are proudly grown in India reflecting our tradition, nature andthe story of our culture. We source coffees from award winning estates of chikmagalur, karnataka. We roast our coffees in small batches in our micro-roaster probat. Our craft roasted coffee will indulge you in the essence of Indian soil, so that you can enjoy the aromatic experience of the Indian beans with each sip. Carving the niche of every individual, we recreate the ideal bean to cup stories, leaving a sense of cultural mystery in the air. We are dedicated to provide you a unique & enriching experiencein your cup of black gold that satisfies your soul. In the entire journey from crop to cup we believe in maintaining keen focus on standards & excellence. Our methods for selection of green beans and technology for roasting them makes our coffee one of its kind. We follow the standards set by specialty coffee association in every stage of coffee making.",
+      "founding_year": null,
+      "sourcing_regions": [
+        "Chikmagalur"
+      ],
+      "specialties": [
+        "small-batch",
+        "specialty-grade"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/p/",
+        "twitter": "https://twitter.com/BombayIsland",
+        "facebook": "https://www.facebook.com/Bombayisland"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "beans",
+          "whole bean",
+          "filter",
+          "roast",
+          "blend",
+          "coffee",
+          "ground",
+          "arabica",
+          "espresso"
+        ],
+        "price_examples": [
+          "Rs. 480",
+          "Rs. 600",
+          "Rs. 600",
+          "Rs. 550",
+          "Rs. 600"
+        ],
+        "cart_signals": [
+          "add to cart",
+          "buy now",
+          "cdn.shopify.com",
+          "shopify"
+        ],
+        "shop_links_found": [
+          "https://bombayisland.com/collections/taster-packs",
+          "https://bombayisland.com/collections/coffee",
+          "https://bombayisland.com/collections/subscriptions",
+          "https://bombayisland.com/collections/brewing-gears",
+          "https://bombayisland.com/"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_tagline",
+        "missing_founding_year"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "coffeeverse",
+      "name": "Coffeeverse",
+      "city": "Ahmedabad",
+      "state": "Gujarat",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://coffeeverse.in",
+      "shop_url": "https://coffeeverse.in/collections/shop-all",
+      "platform": "Shopify",
+      "google_maps_url": null,
+      "place_id": "seed_coffeeverse",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "http://coffeeverse.in/cdn/shop/files/coffeeverse.webp?v=1761739617",
+      "tagline": null,
+      "about_blurb": "Coffeeverse is a coffee roasting and brewing company, sourcing beans from the finest estates. We are bold, knowledgeable, and modern, blending education with lifestyle. Coffeeverse is not an attempt to make specialty coffee “cooler” or “hip”, it is only a representation of the coffee community and their lifestyle choices. For us Coffee isn’t just a product—it’s a culture, a craft, and a statement.Coffeeverse is the ultimate destination for all things coffee, crafted to bring the universe of speciality coffee right to your fingertips. With each pack of coffee that we ship, our goal is to provide a transparent farm to cup journey.  Dive into an extraordinary coffee adventure with our handpicked selection of Coffeeverse's premium beans! Plus, discover top-notch brewing equipment that meet international standards, crafted for everyone from curious newcomers to seasoned connoisseurs, making it perfect for elevating your own coffee experience. Our coffee journey starts in the lush hills of Chikmagalur, Karnataka, and stretches all the way to the Nilgiris in Tamil Nadu. Along the way, we work with some of the best coffee farms and passionate farmers who pour their heart into every lot they process. It’s the journey that keeps us focused and reminds us to always respect the hard work behind every coffee bean.",
+      "founding_year": null,
+      "sourcing_regions": [
+        "Ethiopia",
+        "Colombia",
+        "Chikmagalur",
+        "Nilgiris",
+        "Nilgiri"
+      ],
+      "specialties": [
+        "small-batch",
+        "single-origin",
+        "specialty-grade"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/coffeeverse.in/",
+        "facebook": "https://www.facebook.com/people/",
+        "youtube": "https://www.youtube.com/@coffeeverse_in"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "washed",
+          "beans",
+          "whole bean",
+          "filter",
+          "roast",
+          "coffee",
+          "single-origin",
+          "natural",
+          "robusta",
+          "ground",
+          "arabica",
+          "espresso"
+        ],
+        "price_examples": [
+          "₹599",
+          "Rs. 750",
+          "Rs. 900",
+          "Rs. 1,100",
+          "Rs. 1,100"
+        ],
+        "cart_signals": [
+          "add to cart",
+          "cdn.shopify.com",
+          "shopify"
+        ],
+        "shop_links_found": [
+          "https://coffeeverse.in/collections/shop-all",
+          "https://coffeeverse.in/collections/coffee",
+          "https://coffeeverse.in/collections/gifts",
+          "https://coffeeverse.in/collections/equipment",
+          "https://coffeeverse.in/pages/women-in-coffee"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_tagline",
+        "missing_founding_year"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "deomali-coffee-roastery",
+      "name": "Deomali Coffee & Roastery",
+      "city": "Bhubaneswar",
+      "state": "Odisha",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://deomalicoffee.in",
+      "shop_url": "https://deomalicoffee.in/why-deomali-coffee/",
+      "platform": "WooCommerce",
+      "google_maps_url": null,
+      "place_id": "seed_deomali-coffee-roastery",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "https://deomalicoffee.in/wp-content/uploads/2025/03/cropped-deomali-coffee-favicon-180x180.png",
+      "tagline": null,
+      "about_blurb": "Our MissionTo deliver premium, ethically sourced coffee while empowering local communities and promoting sustainable agriculture. We aim to create a warm and inviting coffee culture that connects people over a shared love for authentic flavors. To establish Deomali Coffee as a leading specialty coffee brand, recognized across India and globally for its commitment to quality, sustainability, and innovation in the coffee industry. Expanding Nationwide – Bringing Koraput coffee to every major city.Empowering Farmers – Strengthening livelihoods through fair trade & ethical sourcing.Innovating with Every Brew – Blending tradition with modern café culture.",
+      "founding_year": null,
+      "sourcing_regions": [
+        "Koraput",
+        "Vietnam"
+      ],
+      "specialties": [
+        "single-origin",
+        "direct-trade",
+        "sustainability"
+      ],
+      "social_links": {
+        "facebook": "https://www.facebook.com/Deomalicoffee"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "beans",
+          "filter",
+          "roast",
+          "blend",
+          "coffee",
+          "single-origin",
+          "natural",
+          "ground",
+          "arabica",
+          "espresso"
+        ],
+        "price_examples": [
+          "price c2\"> <span class=\"icon-price\">₹</span> 200",
+          "price c2\"> <span class=\"icon-price\">₹</span> 230",
+          "price c2\"> <span class=\"icon-price\">₹</span> 210",
+          "price c2\"> <span class=\"icon-price\">₹</span> 220",
+          "price c2\"> <span class=\"icon-price\">₹</span> 190"
+        ],
+        "cart_signals": [
+          "woocommerce",
+          "whatsapp"
+        ],
+        "shop_links_found": [
+          "https://deomalicoffee.in/why-deomali-coffee/",
+          "https://deomalicoffee.in/shop/",
+          "https://deomalicoffee.in/the-coffee-buddha-of-odisha-the-visionary-journey-of-pradeep-kumar-mohanty/",
+          "https://deomalicoffee.in/brewing-change-how-coffee-cultivation-transformed-tribal-lives-in-koraput/",
+          "https://deomalicoffee.in/koraputs-coffee-on-the-global-map-the-legacy-of-quality-and-sustainability/"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_tagline",
+        "missing_founding_year"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "halli-berri-coffee",
+      "name": "Halli Berri Coffee",
+      "city": "Chikmagalur",
+      "state": "Karnataka",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://halliberri.com",
+      "shop_url": "https://halliberri.com/coffee/",
+      "platform": "WooCommerce",
+      "google_maps_url": null,
+      "place_id": "seed_halli-berri-coffee",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "https://halliberri.com/wp-content/uploads/2021/05/cropped-favicon-01-180x180.png",
+      "tagline": "Boutique cottages in a serene coffee estate in Chikmagalur. Experience plantation stays, nature trails, and farm-fresh dining near Baba Budangiri.",
+      "about_blurb": "After my father passed on; My mother was determined to build ourselves into a success story without having to sell our lands. She and Ihave together worked tirelessly to create Halli Berri into what it is today. This is why this landscape has been sacred. We are on a mission to keep our community and village alive. Running the plantations with my sisters keeps us together as a family and building thebrand from the ground up emulates more than just business. It’sbeen an ’emotion’ and more! Halli Berri is a diversified conscious living homegrown brand that has its roots deep in the jungle canopies of the western ghats in India. Today the company focuses on building par excellence produce through the natural goodness derived from the conscious responsible co existence with nature.",
+      "founding_year": null,
+      "sourcing_regions": [
+        "Chikmagalur",
+        "Coorg",
+        "Baba Budan",
+        "Chikkamagaluru"
+      ],
+      "specialties": null,
+      "social_links": null,
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "washed",
+          "beans",
+          "filter",
+          "roast",
+          "blend",
+          "single origin",
+          "coffee",
+          "natural",
+          "robusta",
+          "ground",
+          "arabica"
+        ],
+        "price_examples": [
+          "woocommerce-Price-amount,",
+          "woocommerce-Price-amount{color:rgba(143,90,39,1",
+          "woocommerce-Price-amount,",
+          "woocommerce-Price-amount,",
+          "woocommerce-Price-amount,"
+        ],
+        "cart_signals": [
+          "woocommerce",
+          "whatsapp"
+        ],
+        "shop_links_found": [
+          "https://halliberri.com/coffee/",
+          "https://halliberri.com/shop/"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_social",
+        "missing_founding_year"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "leo-coffee",
+      "name": "Leo Coffee",
+      "city": "Chennai",
+      "state": "Tamil Nadu",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://leocoffee.co.in",
+      "shop_url": "https://leocoffee.co.in/collections/pure-coffee-blends",
+      "platform": "Shopify",
+      "google_maps_url": null,
+      "place_id": "seed_leo-coffee",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "https://www.leocoffee.co.in/cdn/shop/files/Leo-Coffee-Grind-Daily.png?v=1684406164",
+      "tagline": null,
+      "about_blurb": "Our philosophy exemplified by our traditions to dispatch only the freshest coffee to our customers reflects our constant strive for perfection.Passionate dedication and unrelenting efforts by every member of the Leo family is what enriched our legacy. Leo Coffee was founded in 1910 by PRK Nadar, the enterprising pioneer of coffee plantations. He gave the coffee-loving South Indians the gift of Leo Coffee.He set exceedingly high standards for cultivation and worked tirelessly with a dedicated team of skilled growers. Our association with uncompromising quality started with him. Times change but our values don’t. With decades of experience, we have gathered enough knowledge to pick up all the nuances of coffee cultivation, selective picking, processing, and blending. In this way, we continue to conserve the legacy passed on to us, the results of which can be seen and tasted in every single bean.",
+      "founding_year": 1910,
+      "sourcing_regions": null,
+      "specialties": null,
+      "social_links": {
+        "instagram": "https://www.instagram.com/leocoffeeindia/",
+        "twitter": "https://twitter.com/LeoCoffeeGroup",
+        "facebook": "https://www.facebook.com/leocoffeeindia",
+        "youtube": "https://www.youtube.com/channel/"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "beans",
+          "peaberry",
+          "whole bean",
+          "filter",
+          "roast",
+          "blend",
+          "single origin",
+          "coffee",
+          "single-origin",
+          "natural",
+          "robusta",
+          "ground",
+          "arabica",
+          "espresso"
+        ],
+        "price_examples": [
+          "₹1399",
+          "₹1399",
+          "Rs. 1,890",
+          "Rs. 625",
+          "Rs. 1,920"
+        ],
+        "cart_signals": [
+          "cdn.shopify.com",
+          "shopify",
+          "wa.me/",
+          "whatsapp"
+        ],
+        "shop_links_found": [
+          "https://leocoffee.co.in/collections/pure-coffee-blends",
+          "https://leocoffee.co.in/collections/coffee-with-chicory-blends",
+          "https://leocoffee.co.in/products/filter-coffee-decoction",
+          "https://leocoffee.co.in/collections/instant-coffee",
+          "https://leocoffee.co.in/collections/horeca-and-bulk"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_tagline",
+        "missing_sourcing_regions"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "marcs-coffees-coffee-ideas",
+      "name": "Marc's Coffees / Coffee Ideas",
+      "city": "Auroville",
+      "state": "Tamil Nadu",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://coffeeideas.in",
+      "shop_url": "https://coffeeideas.in/product/our-coffees/limited-edition/ratna-raga-competition-lot/",
+      "platform": "WooCommerce",
+      "google_maps_url": null,
+      "place_id": "seed_marc-s-coffees-coffee-ideas",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "https://coffeeideas.in/media/2025/10/cropped-logo--180x180.png",
+      "tagline": "Explore the best specialty coffee India has to offer. Marc's single origin beans from Auroville — shop online or visit our café in Pondicherry.",
+      "about_blurb": null,
+      "founding_year": null,
+      "sourcing_regions": [
+        "Chikmagalur",
+        "Coorg",
+        "Araku"
+      ],
+      "specialties": [
+        "single-origin",
+        "specialty-grade"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/coffeeideas_formermarcscoffees/",
+        "facebook": "https://www.facebook.com/coffeeideascafestore/",
+        "youtube": "https://www.youtube.com/@coffeeideas"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "washed",
+          "beans",
+          "filter",
+          "roast",
+          "blend",
+          "single origin",
+          "coffee",
+          "natural",
+          "ground",
+          "espresso"
+        ],
+        "price_examples": [
+          "&#8377;300",
+          "&#8377;3,000",
+          "&#8377;200",
+          "&#8377;2,000",
+          "&#8377;300"
+        ],
+        "cart_signals": [
+          "add to cart",
+          "buy now",
+          "woocommerce",
+          "whatsapp"
+        ],
+        "shop_links_found": [
+          "https://coffeeideas.in/product/our-coffees/limited-edition/ratna-raga-competition-lot/",
+          "https://coffeeideas.in/product-category/brewing-equipment/",
+          "https://coffeeideas.in/product-category/master-classes/",
+          "https://coffeeideas.in/product-category/master-classes/coffee-courses/",
+          "https://coffeeideas.in/product-category/master-classes/fermentation-courses/"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_about",
+        "missing_founding_year"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "maverick-farmer-coffee",
+      "name": "Maverick & Farmer Coffee",
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://maverickandfarmer.com",
+      "shop_url": "https://maverickandfarmer.com/collections/shop-all",
+      "platform": "Shopify",
+      "google_maps_url": null,
+      "place_id": "seed_maverick-farmer-coffee",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "http://www.maverickandfarmer.com/cdn/shop/files/image_3_1.png?height=628&pad_color=ffffff&v=1726516996&width=1200",
+      "tagline": "Maverickandfarmer",
+      "about_blurb": null,
+      "founding_year": null,
+      "sourcing_regions": [
+        "Coorg",
+        "Ethiopia",
+        "Colombia",
+        "Kenya",
+        "Rwanda",
+        "Guatemala",
+        "Brazil",
+        "Vietnam",
+        "Panama"
+      ],
+      "specialties": [
+        "direct-trade",
+        "estate-grown",
+        "sustainability"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/maverickandfarmer",
+        "facebook": "https://www.facebook.com/maverickandfarmer",
+        "youtube": "https://www.youtube.com/@maverickandfarmer"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "washed",
+          "beans",
+          "whole bean",
+          "filter",
+          "whole-bean",
+          "roast",
+          "blend",
+          "coffee",
+          "natural",
+          "robusta",
+          "ground",
+          "arabica",
+          "espresso"
+        ],
+        "price_examples": [
+          "Rs. 1,000",
+          "Rs. 1,000",
+          "Rs. 400",
+          "Rs. 400",
+          "Rs. 944"
+        ],
+        "cart_signals": [
+          "add to cart",
+          "buy now",
+          "cdn.shopify.com",
+          "shopify",
+          "whatsapp"
+        ],
+        "shop_links_found": [
+          "https://maverickandfarmer.com/collections/shop-all",
+          "https://maverickandfarmer.com/collections/micro-lots-limited-availability",
+          "https://maverickandfarmer.com/collections/light-medium",
+          "https://maverickandfarmer.com/collections/medium",
+          "https://maverickandfarmer.com/collections/medium-dark"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_about",
+        "missing_founding_year"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "naivo-coffee-company",
+      "name": "Naivo Coffee Company",
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://naivo.in",
+      "shop_url": "https://naivo.in/shop/",
+      "platform": "WooCommerce",
+      "google_maps_url": null,
+      "place_id": "seed_naivo-coffee-company",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "https://naivo.in/wp-content/uploads/2024/08/cropped-logo-300x300.png",
+      "tagline": "We bring you the finest specialty coffees handpicked from estates around the world, freshly roasted on order and delivered to your doorstep.",
+      "about_blurb": "At Naivo Coffee Company, our mission is to passionately source and roast the finest coffee beans from top farms across India and around the globe. We are dedicated to providing our customers with an unparalleled coffee experience by offering a range of craft coffees, including specialty decaf, that reflect our commitment to quality, innovation, and customer satisfaction. Through continuous improvement, customer feedback, and customer education initiatives, we strive to elevate the standards of the Indian coffee industry, spreading awareness and delighting coffee enthusiasts with every cup. Our journey began in 1996 when our parent company, Indcaffe, established itself as a reputable coffee exports brokerage firm, facilitating export contracts for India’s premier traders and producers to leading consumer countries like Italy, France, Switzerland, Germany, Spain and Australia. Naivo was born in 2016, a labor of love co-founded by the dynamic duo of V E Ovian, a seasoned coffee trader, and his wife Jessie Ovian, a certified Q-Grader and coffee quality expert. Mr. Ovian’s experience extends back into the eighties when he began his career in coffee trading for the Government of India through the State Trading Corporation of India. Their shared commitment to exceptional coffee experiences laid the groundwork for Naivo’s commitment to delivering nothing short of excellence to our customers.",
+      "founding_year": 2016,
+      "sourcing_regions": [
+        "Ethiopia",
+        "Colombia",
+        "Kenya",
+        "Rwanda",
+        "Guatemala",
+        "Brazil",
+        "Vietnam",
+        "Panama"
+      ],
+      "specialties": [
+        "specialty-grade",
+        "q-grader"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/naivocoffeecompany/",
+        "facebook": "https://www.facebook.com/naivocoffeecompany/"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "washed",
+          "beans",
+          "filter",
+          "roast",
+          "blend",
+          "coffee",
+          "natural",
+          "robusta",
+          "ground",
+          "arabica",
+          "espresso"
+        ],
+        "price_examples": [
+          "woocommerce-Price-amount amount\"><bdi><span class=\"woocommerce-Price-currencySymbol\">₹</span>655",
+          "woocommerce-Price-amount amount\"><bdi><span class=\"woocommerce-Price-currencySymbol\">₹</span>775",
+          "woocommerce-Price-amount amount\"><bdi><span class=\"woocommerce-Price-currencySymbol\">₹</span>765",
+          "woocommerce-Price-amount amount\"><bdi><span class=\"woocommerce-Price-currencySymbol\">₹</span>890",
+          "woocommerce-Price-amount amount\"><bdi><span class=\"woocommerce-Price-currencySymbol\">₹</span>525"
+        ],
+        "cart_signals": [
+          "buy now",
+          "woocommerce"
+        ],
+        "shop_links_found": [
+          "https://naivo.in/shop/",
+          "https://naivo.in/product/maillards-dream-kerehaklu-62h-mosto-culture-naturals/",
+          "https://naivo.in/product/evanescence-kerehaklu-37h-culture-washed/",
+          "https://naivo.in/product/pichia-parables-harley-36h-pichia-yeast-naturals/",
+          "https://naivo.in/product/kraken-jam-orchardale-naturals/"
+        ]
+      },
+      "enrichment_flags": [],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "nandan-coffee",
+      "name": "Nandan Coffee",
+      "city": "Kodaikanal",
+      "state": "Tamil Nadu",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://nandancoffee.com",
+      "shop_url": "https://www.nandancoffee.com/coffee/",
+      "platform": "WooCommerce",
+      "google_maps_url": null,
+      "place_id": "seed_nandan-coffee",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "https://www.nandancoffee.com/wp-content/uploads/2024/09/cropped-Logo-Variations-1-180x180.png",
+      "tagline": null,
+      "about_blurb": "Our story begins with our grandparents – The visionaries behind Nandan. Hansraj and Hansa Mariwala developed Nandan with one goal – to enjoy an exceptional cup of coffee with friends while protecting the environment.  Keeping this in mind, our first three blends, Royale, Gold and L’lmore were developed in partnership with Coffee ConnoisseurSunalini Menon‘Asia’s first lady of coffee’. In 2012 our parents Shyam and Farida Mariwala expanded the Nandan Collection, and introduced our Sister Brand,Yaraman Coffee Private Limited Today, Nandan is run by us – two sisters who endeavour to bring high quality Indian coffee to the forefront of the global coffee market. Generations have passed but our aim still remains the same – to enjoy an exceptional cup of coffee with friends while protecting the environment. We hope you enjoy our coffee as much as we’ve enjoyed carrying our legacy forward!",
+      "founding_year": 1997,
+      "sourcing_regions": [
+        "Kodaikanal"
+      ],
+      "specialties": [
+        "organic",
+        "estate-grown"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/nandancoffee/",
+        "twitter": "https://twitter.com/nandancoffee",
+        "facebook": "https://www.facebook.com/nandancoffee/"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "beans",
+          "filter",
+          "roast",
+          "blend",
+          "coffee",
+          "ground",
+          "espresso"
+        ],
+        "price_examples": [
+          "&#8377;650",
+          "&#8377;650",
+          "&#8377;650",
+          "&#8377;830",
+          "&#8377;600"
+        ],
+        "cart_signals": [
+          "add to cart",
+          "woocommerce",
+          "razorpay"
+        ],
+        "shop_links_found": [
+          "https://www.nandancoffee.com/coffee/",
+          "https://www.nandancoffee.com/our-coffee/",
+          "https://www.nandancoffee.com/coffee-bar-services/",
+          "https://www.nandancoffee.com/order-tracking/"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_tagline"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "roastery-coffee-house",
+      "name": "Roastery Coffee House",
+      "city": "Hyderabad",
+      "state": "Telangana",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://roasterycoffee.co.in",
+      "shop_url": "https://roasterycoffee.co.in",
+      "platform": "WooCommerce",
+      "google_maps_url": null,
+      "place_id": "seed_roastery-coffee-house",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "https://roasterycoffee.co.in/wp-content/uploads/2024/07/cropped-cropped-wepik-20240702115430a27c-1-1-180x180.png",
+      "tagline": null,
+      "about_blurb": "Roastery Coffee House was founded in 2017 with a quiet but determined belief: India deserves great coffee, served with honesty, intention, and a feeling of home.What began as a small roastery has grown into a café culture that celebrates the simple pleasures of everyday life. We source 80+ scored coffees from India’s most dedicated farms, roast them fresh in-house, and serve them in cafés built around modern Indian warmth, spaces designed for conversations, comfort, and community.Our journey has always been guided by one promise: to honour the entire journey from farm to cup. We work closely with farmers, pay fair and premium prices for quality, roast each batch with respect for the bean, and serve coffee with the calmness and care that define Roastery.Today, Roastery is more than a café or a roastery.It is a feeling of familiarity, of warmth, of being remembered.Whether you’re sipping a Cranberry Coffee®️ at one of our cafés or brewing our beans at home, we want you to feel the same comforting ease.",
+      "founding_year": 2017,
+      "sourcing_regions": null,
+      "specialties": [
+        "specialty-grade"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/roasterycoffeehouseindia/",
+        "facebook": "https://www.facebook.com/roasterycoffeehousehyd",
+        "youtube": "https://www.youtube.com/@roasterycoffeehouseindia/"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "beans",
+          "filter",
+          "roast",
+          "coffee",
+          "natural",
+          "ground"
+        ],
+        "price_examples": [
+          "woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&#8377",
+          "woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&#8377"
+        ],
+        "cart_signals": [
+          "woocommerce",
+          "whatsapp"
+        ],
+        "shop_links_found": [
+          "https://roasterycoffee.co.in",
+          "https://roasterycoffee.co.in/coffee-beans/",
+          "https://roasterycoffee.co.in/journal/"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_tagline",
+        "missing_sourcing_regions"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "savorworks-coffee-chocolate",
+      "name": "Savorworks Coffee & Chocolate",
+      "city": "New Delhi",
+      "state": "Delhi",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://savorworksroasters.com",
+      "shop_url": "https://savorworksroasters.com/collections/coffee/Light-Medium-Dark",
+      "platform": "Shopify",
+      "google_maps_url": null,
+      "place_id": "seed_savorworks-coffee-chocolate",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "http://www.savorworksroasters.com/cdn/shop/files/Untitled_design_11.png?v=1751376247",
+      "tagline": null,
+      "about_blurb": "Ever wonder why your coffee is served with a shot of soda?It’s not just for refreshment. Soda helps cleanse your palate, allowing your taste buds to better perceive the nuanced flavors and aromas. But the artistry of specialty coffee and chocolate goes beyond taste. It’s an intricate blend of science, craftsmanship, and dedication. Ready to uncover their stories? Let’s begin 1. What Is Specialty Coffee and How Is It Different from Average Coffee?Specialty coffee refers to beans that are carefully cultivated, processed, and scored 80 or above on a 100-point scale based on flavor, aroma, and overall quality. Unlike regular or mass-market coffee, which often has inconsistent flavor or defects, specialty coffee emphasizes excellence, uniqueness, and superior craftsmanship. While Arabica is a popular variety, it does not automatically make coffee specialty; the distinction lies in quality, handling, and origin. Specialty coffee involves meticulous attention from farm to cup, ensuring a richer and more consistent experience.",
+      "founding_year": null,
+      "sourcing_regions": [
+        "Chikmagalur",
+        "Yercaud",
+        "Brazil",
+        "Panama"
+      ],
+      "specialties": [
+        "single-origin",
+        "specialty-grade"
+      ],
+      "social_links": null,
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "beans",
+          "whole bean",
+          "filter",
+          "roast",
+          "blend",
+          "coffee",
+          "single-origin",
+          "natural",
+          "ground",
+          "espresso"
+        ],
+        "price_examples": [
+          "Rs1000",
+          "Rs. 2,700",
+          "Rs. 2,700",
+          "Rs. 1,050",
+          "Rs. 1,050"
+        ],
+        "cart_signals": [
+          "add to cart",
+          "cdn.shopify.com",
+          "shopify"
+        ],
+        "shop_links_found": [
+          "https://savorworksroasters.com/collections/coffee/Light-Medium-Dark",
+          "https://savorworksroasters.com/collections/chocolate",
+          "https://savorworksroasters.com/pages/coffee-academy",
+          "https://savorworksroasters.com/collections/coffee",
+          "https://savorworksroasters.com/collections/gifting"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_tagline",
+        "missing_social",
+        "missing_founding_year"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "sleepy-owl-coffee",
+      "name": "Sleepy Owl Coffee",
+      "city": "New Delhi",
+      "state": "Delhi",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://sleepyowl.co",
+      "shop_url": "https://sleepyowl.co/collections/premium-instant-coffee",
+      "platform": "Shopify",
+      "google_maps_url": null,
+      "place_id": "seed_sleepy-owl-coffee",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "http://sleepyowl.co/cdn/shop/files/logo_110x_2x_569f9152-f3b5-4a7f-bc0e-f73df9d3a74c.png?v=1637246476",
+      "tagline": null,
+      "about_blurb": "Three good friends. One ambitious vision. We started Sleepy Owl to bring real good coffee to everyone, without complex equipment or brewing techniques. They have a few things in common—they’re high quality, quick to prepare & taste great! We’re proud to call them the best in India. High-quality Instant coffee like you’ve never had before.",
+      "founding_year": null,
+      "sourcing_regions": null,
+      "specialties": [
+        "small-batch"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/sleepyowlcoffee/",
+        "twitter": "https://twitter.com/sleepyowlcoffee",
+        "facebook": "https://www.facebook.com/sleepyowlcoffee",
+        "youtube": "https://www.youtube.com/channel/"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "beans",
+          "filter",
+          "roast",
+          "blend",
+          "coffee",
+          "natural",
+          "robusta",
+          "ground",
+          "arabica",
+          "espresso"
+        ],
+        "price_examples": [
+          "₹999",
+          "₹599",
+          "₹599",
+          "₹564",
+          "₹564"
+        ],
+        "cart_signals": [
+          "add to cart",
+          "cdn.shopify.com",
+          "shopify"
+        ],
+        "shop_links_found": [
+          "https://sleepyowl.co/collections/premium-instant-coffee",
+          "https://sleepyowl.co/collections/best-sellers",
+          "https://sleepyowl.co/pages/bulk-special-orders",
+          "https://sleepyowl.co/products/xpresso-strong-blend-instant-coffee",
+          "https://sleepyowl.co/collections/cold-brew-coffee"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_tagline",
+        "missing_founding_year",
+        "missing_sourcing_regions"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "subko-coffee-roasters",
+      "name": "Subko Coffee Roasters",
+      "city": "Mumbai",
+      "state": "Maharashtra",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://subko.coffee",
+      "shop_url": "https://subko.coffee/pages/coffee",
+      "platform": "Shopify",
+      "google_maps_url": null,
+      "place_id": "seed_subko-coffee-roasters",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "http://www.subko.coffee/cdn/shop/files/subko_logo_black_square.png?v=1735626165",
+      "tagline": null,
+      "about_blurb": null,
+      "founding_year": null,
+      "sourcing_regions": null,
+      "specialties": [
+        "small-batch",
+        "single-origin",
+        "specialty-grade",
+        "q-grader"
+      ],
+      "social_links": null,
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "washed",
+          "beans",
+          "whole bean",
+          "filter",
+          "roast",
+          "blend",
+          "single origin",
+          "coffee",
+          "natural",
+          "robusta",
+          "ground",
+          "arabica",
+          "espresso"
+        ],
+        "price_examples": [
+          "₹ 0",
+          "₹ 0",
+          "₹ 0",
+          "₹ 0",
+          "₹ 0"
+        ],
+        "cart_signals": [
+          "add to cart",
+          "cdn.shopify.com",
+          "shopify",
+          "razorpay",
+          "whatsapp"
+        ],
+        "shop_links_found": [
+          "https://subko.coffee/pages/coffee",
+          "https://subko.coffee/",
+          "https://subko.coffee/collections/all"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_tagline",
+        "missing_social",
+        "missing_about",
+        "missing_founding_year",
+        "missing_sourcing_regions"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "third-wave-coffee-roasters",
+      "name": "Third Wave Coffee Roasters",
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://thirdwavecoffeeroasters.com",
+      "shop_url": "https://thirdwavecoffeeroasters.com",
+      "platform": "Shopify",
+      "google_maps_url": null,
+      "place_id": "seed_third-wave-coffee-roasters",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "https://cdn.shopify.com/s/files/1/1834/9395/files/twc.jpg?v=1648441830",
+      "tagline": "Best coffee brands in India | Order best-selling coffee online | High quality 100% arabica Coffee | No preservatives | Delivered at your doorstep.",
+      "about_blurb": "We love what you love!Try out the coffees our customers liked best. From intensely bold to gently light, there’s a flavour and roast for everyone. Whether you just started your coffee journey or you’re a seasoned coffee-lover, there’s something for everyone to sip on. Take our quick quiz to find out what suits you best.",
+      "founding_year": null,
+      "sourcing_regions": null,
+      "specialties": [
+        "single-origin"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/thirdwavecoffeeindia/",
+        "facebook": "https://www.facebook.com/thirdwavecoffeeindia"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "beans",
+          "filter",
+          "roast",
+          "blend",
+          "coffee",
+          "single-origin",
+          "ground",
+          "arabica",
+          "espresso"
+        ],
+        "price_examples": [
+          "Rs. 590",
+          "Rs. 540",
+          "Rs. 540",
+          "Rs. 590",
+          "Rs. 540"
+        ],
+        "cart_signals": [
+          "cdn.shopify.com",
+          "shopify"
+        ],
+        "shop_links_found": [
+          "https://thirdwavecoffeeroasters.com",
+          "https://thirdwavecoffeeroasters.com/collections/all",
+          "https://thirdwavecoffeeroasters.com/collections/coffee-beans",
+          "https://thirdwavecoffeeroasters.com/collections/easy-cold-brew-bags",
+          "https://thirdwavecoffeeroasters.com/collections/easy-coffee-bags"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_founding_year",
+        "missing_sourcing_regions"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    },
+    {
+      "roaster_slug": "toffee-coffee-roasters",
+      "name": "Toffee Coffee Roasters",
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "lat": 0,
+      "lng": 0,
+      "website": "https://toffeecoffeeroasters.com",
+      "shop_url": "https://toffeecoffeeroasters.com/collections/all-coffee",
+      "platform": "Shopify",
+      "google_maps_url": null,
+      "place_id": "seed_toffee-coffee-roasters",
+      "rating": null,
+      "rating_count": null,
+      "logo_url": "https://cdn.shopify.com/s/files/1/0271/7974/5418/files/Untitled_design__75_-removebg-preview.png?height=628&pad_color=ffffff&v=1690458985&width=1200",
+      "tagline": "Toffee Coffee Roasters brings you fresh single estate 100% Arabica coffee beans, roasted with care, from the finest estates across Asia.",
+      "about_blurb": "In the early 2019, in Bandra Mumbai, two slightly disaffected coffee lunatic, weary of the commercial coffee enterprise and stale, overly roasted beans, decided to open a roaster for people who were clamoring for the actual taste of fresh coffee. Using a minuscule 5 kg batch roaster, they made a historic vow: “We will only sell coffee less than 48 hours out of the roaster to our guests, so they may enjoy coffee at peak flavor. We will only use the finest, most delicious, and responsibly sourced beans across the world.” Toffee Coffee Roasters was born in back lanes of Bandra and within 3 months opened its wings to Phoenix Marketcity Kurla and now serves Single Origin and Signature blends of coffee across India through its website and many integrated partners. It has been rated as top coffee spots in town by Zomato and WhatsHot. We are united by the simple purpose of getting great coffee to everyone who asks for it. We have gotten even more specific about freshness and peak flavor. Our mission and vision is to help people experience the finest grown coffee across the world which is artistically and freshly roasted.",
+      "founding_year": null,
+      "sourcing_regions": [
+        "Baba Budan",
+        "Ethiopia",
+        "Colombia",
+        "Brazil"
+      ],
+      "specialties": [
+        "small-batch",
+        "single-origin",
+        "specialty-grade"
+      ],
+      "social_links": {
+        "instagram": "https://www.instagram.com/toffeecoffeeroasters/",
+        "twitter": "https://twitter.com/RoastersToffee",
+        "facebook": "https://www.facebook.com/toffeecoffeeroasters"
+      },
+      "verification_class": "VERIFIED",
+      "verification_evidence": {
+        "coffee_terms_found": [
+          "beans",
+          "peaberry",
+          "whole bean",
+          "filter",
+          "roast",
+          "blend",
+          "single origin",
+          "coffee",
+          "single-origin",
+          "ground",
+          "arabica",
+          "espresso"
+        ],
+        "price_examples": [
+          "₹55",
+          "Rs. 840",
+          "Rs. 840",
+          "Rs. 840",
+          "Rs. 840"
+        ],
+        "cart_signals": [
+          "add to cart",
+          "cdn.shopify.com",
+          "shopify",
+          "razorpay",
+          "wa.me/"
+        ],
+        "shop_links_found": [
+          "https://toffeecoffeeroasters.com/collections/all-coffee",
+          "https://toffeecoffeeroasters.com/collections/single-origin-coffee",
+          "https://toffeecoffeeroasters.com/collections/speciality-blend-coffee",
+          "https://toffeecoffeeroasters.com/collections/speciality-instant-coffees/instant-coffee",
+          "https://toffeecoffeeroasters.com/collections/easy-brew-hot-brew"
+        ]
+      },
+      "enrichment_flags": [
+        "missing_founding_year"
+      ],
+      "cataloged_at": "2026-04-06T04:47:31Z"
+    }
+  ],
+  "dropped": [
+    {
+      "name": "Kapiberry Beverages",
+      "website": "https://kapiberry.com",
+      "classification": "WEBSITE_DEAD",
+      "evidence_summary": "No shop links found.",
+      "place_id": "seed_kapiberry-beverages"
+    }
+  ]
+}

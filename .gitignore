@@ -3,30 +3,18 @@ node_modules/
 __pycache__/
 *.pyc
 venv/
-package-lock.json
 
 # Build output
 dist/
-coffee-discovery/dist/
 
 # Environment / secrets
 .env
-*.env
 
-# Database
+# Database (user data, recreated on first run)
 *.db
-coffee_community.db
 
-# Uploads (user-generated content)
+# Uploads (user-generated profile photos)
 Community/coffee-community-api/uploads/
-
-# Scraper output (regenerated on each run)
-Scraper/output/
-Scraper/coffee-catalog/output/
-
-# Frontend data files (served by API, not static)
-coffee-discovery/src/data/products.json
-coffee-discovery/src/data/roasters.json
 
 # OS files
 .DS_Store
@@ -36,11 +24,8 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Claude artifacts
+# Claude session artifacts
 .claude/
-
-# NPX cache
-.npm/
 
 # Log files
 *.log

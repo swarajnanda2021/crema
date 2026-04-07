@@ -1,0 +1,382 @@
+[
+  {
+    "place_id": "seed_blue-tokai-coffee-roasters",
+    "name": "Blue Tokai Coffee Roasters",
+    "brand": "Blue Tokai Coffee Roasters",
+    "address": "New Delhi, Delhi",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://bluetokaicoffee.com",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "New Delhi",
+    "city": "New Delhi",
+    "state": "Delhi"
+  },
+  {
+    "place_id": "seed_sleepy-owl-coffee",
+    "name": "Sleepy Owl Coffee",
+    "brand": "Sleepy Owl Coffee",
+    "address": "New Delhi, Delhi",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://sleepyowl.co",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "New Delhi",
+    "city": "New Delhi",
+    "state": "Delhi"
+  },
+  {
+    "place_id": "seed_bili-hu-coffee",
+    "name": "Bili Hu Coffee",
+    "brand": "Bili Hu Coffee",
+    "address": "Noida, Uttar Pradesh",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://bilihu.in",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Noida",
+    "city": "Noida",
+    "state": "Uttar Pradesh"
+  },
+  {
+    "place_id": "seed_toffee-coffee-roasters",
+    "name": "Toffee Coffee Roasters",
+    "brand": "Toffee Coffee Roasters",
+    "address": "Bengaluru, Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://toffeecoffeeroasters.com",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Bengaluru",
+    "city": "Bengaluru",
+    "state": "Karnataka"
+  },
+  {
+    "place_id": "seed_third-wave-coffee-roasters",
+    "name": "Third Wave Coffee Roasters",
+    "brand": "Third Wave Coffee Roasters",
+    "address": "Bengaluru, Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://thirdwavecoffeeroasters.com",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Bengaluru",
+    "city": "Bengaluru",
+    "state": "Karnataka"
+  },
+  {
+    "place_id": "seed_naivo-coffee-company",
+    "name": "Naivo Coffee Company",
+    "brand": "Naivo Coffee Company",
+    "address": "Bengaluru, Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://naivo.in",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Bengaluru",
+    "city": "Bengaluru",
+    "state": "Karnataka"
+  },
+  {
+    "place_id": "seed_maverick-farmer-coffee",
+    "name": "Maverick & Farmer Coffee",
+    "brand": "Maverick & Farmer Coffee",
+    "address": "Bengaluru, Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://maverickandfarmer.com",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Bengaluru",
+    "city": "Bengaluru",
+    "state": "Karnataka"
+  },
+  {
+    "place_id": "seed_black-baza-coffee",
+    "name": "Black Baza Coffee",
+    "brand": "Black Baza Coffee",
+    "address": "Bengaluru, Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://blackbazacoffee.com",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Bengaluru",
+    "city": "Bengaluru",
+    "state": "Karnataka"
+  },
+  {
+    "place_id": "seed_halli-berri-coffee",
+    "name": "Halli Berri Coffee",
+    "brand": "Halli Berri Coffee",
+    "address": "Chikmagalur, Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://halliberri.com",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Chikmagalur",
+    "city": "Chikmagalur",
+    "state": "Karnataka"
+  },
+  {
+    "place_id": "seed_leo-coffee",
+    "name": "Leo Coffee",
+    "brand": "Leo Coffee",
+    "address": "Chennai, Tamil Nadu",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://leocoffee.co.in",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Chennai",
+    "city": "Chennai",
+    "state": "Tamil Nadu"
+  },
+  {
+    "place_id": "seed_marc-s-coffees-coffee-ideas",
+    "name": "Marc's Coffees / Coffee Ideas",
+    "brand": "Marc's Coffees / Coffee Ideas",
+    "address": "Auroville, Tamil Nadu",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://coffeeideas.in",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Auroville",
+    "city": "Auroville",
+    "state": "Tamil Nadu"
+  },
+  {
+    "place_id": "seed_nandan-coffee",
+    "name": "Nandan Coffee",
+    "brand": "Nandan Coffee",
+    "address": "Kodaikanal, Tamil Nadu",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://nandancoffee.com",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Kodaikanal",
+    "city": "Kodaikanal",
+    "state": "Tamil Nadu"
+  },
+  {
+    "place_id": "seed_roastery-coffee-house",
+    "name": "Roastery Coffee House",
+    "brand": "Roastery Coffee House",
+    "address": "Hyderabad, Telangana",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://roasterycoffee.co.in",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Hyderabad",
+    "city": "Hyderabad",
+    "state": "Telangana"
+  },
+  {
+    "place_id": "seed_coffeeverse",
+    "name": "Coffeeverse",
+    "brand": "Coffeeverse",
+    "address": "Ahmedabad, Gujarat",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://coffeeverse.in",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Ahmedabad",
+    "city": "Ahmedabad",
+    "state": "Gujarat"
+  },
+  {
+    "place_id": "seed_deomali-coffee-roastery",
+    "name": "Deomali Coffee & Roastery",
+    "brand": "Deomali Coffee & Roastery",
+    "address": "Bhubaneswar, Odisha",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://deomalicoffee.in",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Bhubaneswar",
+    "city": "Bhubaneswar",
+    "state": "Odisha"
+  },
+  {
+    "place_id": "seed_kapiberry-beverages",
+    "name": "Kapiberry Beverages",
+    "brand": "Kapiberry Beverages",
+    "address": "Kochi, Kerala",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://kapiberry.com",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Kochi",
+    "city": "Kochi",
+    "state": "Kerala"
+  },
+  {
+    "place_id": "seed_savorworks-coffee-chocolate",
+    "name": "Savorworks Coffee & Chocolate",
+    "brand": "Savorworks Coffee & Chocolate",
+    "address": "New Delhi, Delhi",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://savorworksroasters.com",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "New Delhi",
+    "city": "New Delhi",
+    "state": "Delhi"
+  },
+  {
+    "place_id": "seed_subko-coffee-roasters",
+    "name": "Subko Coffee Roasters",
+    "brand": "Subko Coffee Roasters",
+    "address": "Mumbai, Maharashtra",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://subko.coffee",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Mumbai",
+    "city": "Mumbai",
+    "state": "Maharashtra"
+  },
+  {
+    "place_id": "seed_bombay-island-coffee-company",
+    "name": "Bombay Island Coffee Company",
+    "brand": "Bombay Island Coffee Company",
+    "address": "Mumbai, Maharashtra",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://bombayisland.com",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Mumbai",
+    "city": "Mumbai",
+    "state": "Maharashtra"
+  },
+  {
+    "place_id": "seed_ainmane-coffee",
+    "name": "Ainmane Coffee",
+    "brand": "Ainmane Coffee",
+    "address": "Sakleshpur, Karnataka",
+    "lat": 0,
+    "lng": 0,
+    "website": "https://ainmane.com",
+    "google_maps_url": null,
+    "types": [
+      "seed_d2c"
+    ],
+    "rating": null,
+    "rating_count": null,
+    "business_status": "OPERATIONAL",
+    "city_searched": "Sakleshpur",
+    "city": "Sakleshpur",
+    "state": "Karnataka"
+  }
+]

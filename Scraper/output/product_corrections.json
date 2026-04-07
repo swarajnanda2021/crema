@@ -1,0 +1,78 @@
+[
+  {
+    "product_id": "bili-hu-coffee_balur-estate",
+    "corrections": {
+      "tasting_notes": "Chocolate, Caramel, Nutty",
+      "origin": "Balur Estate, Chikmagalur",
+      "altitude_masl": 1200
+    }
+  },
+  {
+    "product_id": "bili-hu-coffee_aghora-estate",
+    "corrections": {
+      "tasting_notes": "Chocolate, Berry, Caramel",
+      "origin": "Aghora Estate, Chikmagalur"
+    }
+  },
+  {
+    "product_id": "bili-hu-coffee_krishna-estate",
+    "corrections": {
+      "origin": "Krishna Estate, Chikmagalur",
+      "roast_level": "Medium"
+    }
+  },
+  {
+    "product_id": "toffee-coffee-roasters_baarbara-estate",
+    "corrections": {
+      "tasting_notes": "Almond, Cocoa, Honey",
+      "roast_level": "Medium"
+    }
+  },
+  {
+    "product_id": "toffee-coffee-roasters_kithagalale-honey-caramel",
+    "corrections": {
+      "tasting_notes": "Honey, Caramel, Sweet",
+      "roast_level": "Medium"
+    }
+  },
+  {
+    "product_id": "toffee-coffee-roasters_peaberry-medium-roast",
+    "corrections": {
+      "tasting_notes": "Citrus, Floral, Caramel",
+      "roast_level": "Medium"
+    }
+  },
+  {
+    "product_id": "coffeeverse_rc-7-naturals",
+    "corrections": {
+      "origin": "Hemavathi Estate, Chikmagalur",
+      "roast_level": "Medium"
+    }
+  },
+  {
+    "product_id": "bombay-island-coffee-company_full-city-roast",
+    "corrections": {
+      "origin": "Chikmagalur",
+      "roast_level": "Dark",
+      "tasting_notes": "Gooseberry, Molasses, Roasted Hazelnuts"
+    }
+  },
+  {
+    "product_id": "bili-hu-coffee_balur-estate-dark-roast",
+    "corrections": {
+      "origin": "Balur Estate, Chikmagalur"
+    }
+  },
+  {
+    "product_id": "bili-hu-coffee_cold-brew-blend",
+    "corrections": {
+      "origin": "Chikmagalur"
+    }
+  },
+  {
+    "product_id": "third-wave-coffee-roasters_speciality-single-origin",
+    "corrections": {
+      "origin": "Baba Budan Giri Hills, Chikmagalur"
+    }
+  }
+]
