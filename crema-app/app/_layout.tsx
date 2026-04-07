@@ -1,59 +1,72 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+import { useFonts } from "expo-font";
+import { Stack, useRouter, useSegments } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { useEffect } from "react";
+import { StatusBar } from "expo-status-bar";
+import "react-native-reanimated";
+import "../global.css";
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { AuthProvider, useAuth } from "../src/hooks/useAuth";
+import { CoffeeDataProvider } from "../src/hooks/useCoffeeData";
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
+export { ErrorBoundary } from "expo-router";
 
-export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
-};
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
-  const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    ...FontAwesome.font,
-  });
-
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
-  useEffect(() => {
-    if (error) throw error;
-  }, [error]);
+/** Redirect to /auth if not logged in */
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { user, loading, backendAvailable } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
+    if (loading) return;
+    const inAuthScreen = segments[0] === "auth";
+    const inBrowse = segments[0] === "(tabs)" && segments[1] === "browse";
+
+    // Allow browse without auth
+    if (inBrowse) return;
+
+    if (!backendAvailable || !user) {
+      if (!inAuthScreen) router.replace("/auth");
+    } else {
+      if (inAuthScreen) router.replace("/");
     }
-  }, [loaded]);
+  }, [user, loading, backendAvailable, segments]);
 
-  if (!loaded) {
-    return null;
-  }
-
-  return <RootLayoutNav />;
+  return <>{children}</>;
 }
 
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    PlayfairDisplay: require("../assets/fonts/SpaceMono-Regular.ttf"), // Placeholder — replace with Playfair
+    Inter: require("../assets/fonts/SpaceMono-Regular.ttf"), // Placeholder — replace with Inter
+  });
+
+  useEffect(() => {
+    if (fontError) throw fontError;
+  }, [fontError]);
+
+  useEffect(() => {
+    if (fontsLoaded) SplashScreen.hideAsync();
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+    <AuthProvider>
+      <CoffeeDataProvider>
+        <AuthGate>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="auth" options={{ presentation: "modal" }} />
+            <Stack.Screen name="coffee/[id]" options={{ headerShown: true, title: "" }} />
+            <Stack.Screen name="roaster/[slug]" options={{ headerShown: true, title: "" }} />
+            <Stack.Screen name="user/[username]" options={{ headerShown: true, title: "" }} />
+          </Stack>
+          <StatusBar style="dark" />
+        </AuthGate>
+      </CoffeeDataProvider>
+    </AuthProvider>
   );
 }
