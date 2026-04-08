@@ -61,8 +61,8 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
     backfaceVisibility: "hidden",
   }));
 
-  const cardHeight = compact ? 300 : 380;
-  const imgHeight = compact ? 150 : 190;
+  const cardHeight = compact ? 280 : 350;
+  const imgHeight = compact ? 130 : 170;
 
   return (
     <View style={[s.container, { height: cardHeight }]}>
@@ -221,14 +221,14 @@ const s = StyleSheet.create({
   },
   coffeeName: {
     fontFamily: fonts.displaySemiBold,
-    fontSize: 16,
-    lineHeight: 21,
+    fontSize: 14,
+    lineHeight: 19,
     color: colors.textPrimary,
   },
   roasterName: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 13,
-    marginTop: 3,
+    fontFamily: fonts.bodyRegular,
+    fontSize: 12,
+    marginTop: 2,
     color: colors.textSecondary,
   },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 8 },
@@ -244,27 +244,27 @@ const s = StyleSheet.create({
   priceGroup: { flexDirection: "row", alignItems: "baseline" },
   price: {
     fontFamily: fonts.bodyBold,
-    fontSize: 20,
+    fontSize: 17,
     color: colors.textPrimary,
   },
   priceUnit: {
     fontFamily: fonts.bodyRegular,
-    fontSize: 12,
-    marginLeft: 3,
+    fontSize: 11,
+    marginLeft: 2,
     color: colors.textMuted,
   },
   buyBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
     backgroundColor: colors.accent,
   },
   buyText: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 13,
+    fontSize: 12,
     color: "white",
   },
   // Back face
