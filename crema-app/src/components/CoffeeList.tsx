@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
-import { FlatList, View, Text, useWindowDimensions, StyleSheet } from "react-native";
-import { colors } from "../theme/colors";
+import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
+import { colors, fonts } from "../theme/colors";
 import CoffeeCard from "./CoffeeCard";
 
 const PAGE_SIZE = 24;
@@ -9,67 +9,103 @@ interface CoffeeListProps {
   coffees: any[];
   popularity?: Record<string, number>;
   compact?: boolean;
-  ListHeaderComponent?: React.ComponentType<any> | React.ReactElement | null;
+  ListHeaderComponent?: React.ReactElement | null;
 }
 
+/**
+ * Renders a flex-wrap grid of CoffeeCards inside a ScrollView.
+ * FlatList with numColumns is unreliable on React Native Web
+ * for fixed-dimension cards, so we use ScrollView + flex-wrap.
+ */
 export default function CoffeeList({ coffees, popularity = {}, compact, ListHeaderComponent }: CoffeeListProps) {
-  const { width } = useWindowDimensions();
-  const numColumns = Math.max(1, Math.floor(width / 350));
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  const loadMore = useCallback(() => {
-    setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, coffees.length));
-  }, [coffees.length]);
-
   const visible = coffees.slice(0, visibleCount);
+  const hasMore = visibleCount < coffees.length;
 
   if (coffees.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyEmoji}>{"☕"}</Text>
-        <Text style={styles.emptyTitle}>No coffees match your filters.</Text>
-        <Text style={styles.emptySubtitle}>Try broadening your search or clearing some filters.</Text>
+      <View style={s.emptyContainer}>
+        <Text style={s.emptyEmoji}>{"\u2615"}</Text>
+        <Text style={s.emptyTitle}>No coffees match your filters.</Text>
+        <Text style={s.emptySubtitle}>Try broadening your search or clearing some filters.</Text>
       </View>
     );
   }
 
   return (
-    <FlatList
-      key={numColumns}
-      data={visible}
-      numColumns={numColumns}
-      keyExtractor={(item) => item.product_id}
-      ListHeaderComponent={ListHeaderComponent}
-      renderItem={({ item }) => (
-        <View style={{ flex: 1, alignItems: "center", padding: 8 }}>
-          <CoffeeCard coffee={item} userCount={popularity[item.product_id]} compact={compact} />
-        </View>
-      )}
-      onEndReached={loadMore}
-      onEndReachedThreshold={0.5}
+    <ScrollView
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{ paddingBottom: 100 }}
-    />
+    >
+      {ListHeaderComponent}
+
+      {/* Flex-wrap grid */}
+      <View style={s.grid}>
+        {visible.map((item) => (
+          <View key={item.product_id} style={s.cardWrapper}>
+            <CoffeeCard
+              coffee={item}
+              userCount={popularity[item.product_id]}
+              compact={compact}
+            />
+          </View>
+        ))}
+      </View>
+
+      {/* Load more */}
+      {hasMore && (
+        <Pressable
+          onPress={() => setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, coffees.length))}
+          style={s.loadMoreBtn}
+        >
+          <Text style={s.loadMoreText}>
+            Show more ({coffees.length - visibleCount} remaining)
+          </Text>
+        </Pressable>
+      )}
+    </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    gap: 16,
+  },
+  cardWrapper: {
+    // Each card handles its own width (320px)
+  },
+  loadMoreBtn: {
+    alignSelf: "center",
+    marginTop: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: colors.tagBg,
+  },
+  loadMoreText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: colors.tagText,
+  },
   emptyContainer: {
     alignItems: "center",
     paddingVertical: 80,
     paddingHorizontal: 16,
   },
-  emptyEmoji: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
+  emptyEmoji: { fontSize: 48, marginBottom: 16 },
   emptyTitle: {
+    fontFamily: fonts.displaySemiBold,
     fontSize: 20,
-    fontWeight: "600",
     marginBottom: 8,
     color: colors.textPrimary,
   },
   emptySubtitle: {
+    fontFamily: fonts.bodyRegular,
     fontSize: 14,
     color: colors.textSecondary,
   },
