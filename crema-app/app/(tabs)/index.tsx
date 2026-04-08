@@ -8,7 +8,7 @@ import { useAuth } from "../../src/hooks/useAuth";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRecommendations } from "../../src/hooks/useRecommendations";
 import { apiFetch, trackClick } from "../../src/api/client";
-import { colors } from "../../src/theme/colors";
+import { colors, fonts, cardShadow } from "../../src/theme/colors";
 import { pricePer250g } from "../../src/utils/formatPrice";
 import TastingNoteDisplay from "../../src/components/TastingNoteDisplay";
 import RecommendationPanel from "../../src/components/RecommendationPanel";
@@ -178,12 +178,11 @@ const s = StyleSheet.create({
 
 const fc = StyleSheet.create({
   card: {
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: "hidden",
-    marginBottom: 16,
+    marginBottom: 20,
     backgroundColor: colors.cardFront,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...cardShadow,
   },
   userRow: {
     flexDirection: "row",
@@ -198,8 +197,8 @@ const fc = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     backgroundColor: colors.tagBg,
   },
-  avatarLetter: { fontSize: 12, fontWeight: "700", color: colors.tagText },
-  userName: { fontSize: 14, fontWeight: "600", color: colors.textPrimary },
+  avatarLetter: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.tagText },
+  userName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.textPrimary },
   locationRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   locationText: { fontSize: 10, color: colors.textSecondary },
   // Two-column content
@@ -217,8 +216,8 @@ const fc = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 8,
   },
-  coffeeName: { fontSize: 12, fontWeight: "600", lineHeight: 16, color: colors.textPrimary },
-  roasterName: { fontSize: 10, marginTop: 2, color: colors.textSecondary },
+  coffeeName: { fontFamily: fonts.displaySemiBold, fontSize: 13, lineHeight: 17, color: colors.textPrimary },
+  roasterName: { fontFamily: fonts.bodyRegular, fontSize: 11, marginTop: 2, color: colors.textSecondary },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 6 },
   buyLink: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 },
   noteCol: { flex: 1, minWidth: 0, paddingHorizontal: 16, paddingBottom: 16 },

@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import { Coffee, ExternalLink, ArrowRight, Trash2, PenLine } from "lucide-react-native";
-import { colors } from "../theme/colors";
+import { colors, fonts } from "../theme/colors";
 import { pricePer250g } from "../utils/formatPrice";
 import { useTastingNotes } from "../hooks/useTastingNotes";
 import { trackClick } from "../api/client";
@@ -166,20 +166,20 @@ const s = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 12,
   },
-  coffeeName: { fontSize: 14, fontWeight: "600", color: colors.textPrimary },
-  roasterName: { fontSize: 11, marginTop: 2, color: colors.textSecondary },
+  coffeeName: { fontFamily: fonts.displaySemiBold, fontSize: 14, color: colors.textPrimary },
+  roasterName: { fontFamily: fonts.bodyRegular, fontSize: 11, marginTop: 2, color: colors.textSecondary },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 8 },
   actions: { marginTop: 12, gap: 4 },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
   actionText: { fontSize: 11, color: colors.textSecondary },
   rightCol: { flex: 1, minWidth: 0, padding: 12 },
   journalHeader: {
+    fontFamily: fonts.bodySemiBold,
     fontSize: 10,
-    fontWeight: "600",
     textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     marginBottom: 8,
-    color: colors.textSecondary,
+    color: colors.textMuted,
   },
   journalCount: { fontWeight: "400" },
   emptyText: { fontSize: 14, fontStyle: "italic", paddingVertical: 16, color: colors.textSecondary },

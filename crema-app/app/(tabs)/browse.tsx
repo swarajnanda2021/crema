@@ -3,7 +3,7 @@ import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, useWindowDime
 import { Search, X, ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
-import { colors } from "../../src/theme/colors";
+import { colors, fonts } from "../../src/theme/colors";
 import { filterCoffees } from "../../src/utils/filterCoffees";
 import CoffeeList from "../../src/components/CoffeeList";
 import { apiFetch } from "../../src/api/client";
@@ -170,8 +170,8 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   tabBar: { flexDirection: "row", borderBottomWidth: 1, paddingHorizontal: 16, borderColor: colors.border, backgroundColor: colors.cardFront },
   tabBtn: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 2 },
-  tabLabel: { fontSize: 14, fontWeight: "500" },
-  greyTab: { paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, opacity: 0.3, color: colors.textSecondary },
+  tabLabel: { fontFamily: fonts.bodySemiBold, fontSize: 14 },
+  greyTab: { fontFamily: fonts.bodyRegular, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, opacity: 0.25, color: colors.textSecondary },
   browseLayout: { flex: 1, flexDirection: "row", alignSelf: "center" as any, width: "100%" as any },
   sidebarDesktop: {
     width: 260,
@@ -188,13 +188,13 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8,
     backgroundColor: colors.cardFront, borderWidth: 1, borderColor: colors.border,
   },
-  searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: colors.textPrimary },
-  countText: { fontSize: 14, marginBottom: 8, color: colors.textSecondary },
-  countBold: { fontWeight: "600", color: colors.textPrimary },
+  searchInput: { flex: 1, marginLeft: 8, fontFamily: fonts.bodyRegular, fontSize: 14, color: colors.textPrimary },
+  countText: { fontFamily: fonts.bodyRegular, fontSize: 14, marginBottom: 8, color: colors.textSecondary },
+  countBold: { fontFamily: fonts.bodySemiBold, color: colors.textPrimary },
   roasterRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderColor: colors.border },
   roasterAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: colors.tagBg },
   roasterAvatarText: { fontSize: 14, fontWeight: "700", color: colors.tagText },
-  roasterName: { fontSize: 14, fontWeight: "600", color: colors.textPrimary },
-  roasterCity: { fontSize: 12, color: colors.textSecondary },
-  roasterCount: { fontSize: 12, color: colors.textSecondary },
+  roasterName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.textPrimary },
+  roasterCity: { fontFamily: fonts.bodyRegular, fontSize: 12, color: colors.textSecondary },
+  roasterCount: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.textMuted },
 });

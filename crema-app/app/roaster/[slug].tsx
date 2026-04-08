@@ -5,7 +5,7 @@ import * as Linking from "expo-linking";
 import { MapPin, Star, Calendar, Globe } from "lucide-react-native";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
-import { colors } from "../../src/theme/colors";
+import { colors, fonts } from "../../src/theme/colors";
 import Chip from "../../src/components/Chip";
 import CoffeeCard from "../../src/components/CoffeeCard";
 
@@ -144,8 +144,8 @@ const styles = StyleSheet.create({
     color: colors.tagText,
   },
   roasterName: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontFamily: fonts.displayBold,
+    fontSize: 22,
     color: colors.textPrimary,
   },
   locationRow: {
@@ -205,8 +205,8 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   coffeesTitle: {
+    fontFamily: fonts.displaySemiBold,
     fontSize: 18,
-    fontWeight: "600",
     marginBottom: 12,
     color: colors.textPrimary,
   },

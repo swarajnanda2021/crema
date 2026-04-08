@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, Scrol
 import { useRouter } from "expo-router";
 import { Coffee } from "lucide-react-native";
 import { useAuth } from "../src/hooks/useAuth";
-import { colors } from "../src/theme/colors";
+import { colors, fonts } from "../src/theme/colors";
 
 export default function AuthPage() {
   const router = useRouter();
@@ -122,43 +122,47 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   logoTitle: {
-    fontSize: 30,
-    fontWeight: "700",
+    fontFamily: fonts.displayBold,
+    fontSize: 34,
     marginTop: 8,
     color: colors.textPrimary,
+    letterSpacing: -0.5,
   },
   logoSubtitle: {
+    fontFamily: fonts.bodyRegular,
     fontSize: 14,
-    marginTop: 4,
-    color: colors.textSecondary,
+    marginTop: 6,
+    color: colors.textMuted,
+    letterSpacing: 0.5,
   },
   formCard: {
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 20,
+    padding: 28,
     backgroundColor: colors.cardFront,
-    shadowColor: "#2C1810",
-    shadowOffset: { width: 0, height: 4 },
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowRadius: 24,
+    elevation: 6,
   },
   formTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 24,
+    fontFamily: fonts.displaySemiBold,
+    fontSize: 22,
+    marginBottom: 28,
     textAlign: "center",
     color: colors.textPrimary,
   },
   input: {
+    fontFamily: fonts.bodyRegular,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
+    paddingVertical: 14,
+    fontSize: 15,
     marginBottom: 12,
     backgroundColor: colors.bg,
     color: colors.textPrimary,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderLight,
   },
   errorText: {
     fontSize: 14,
@@ -168,23 +172,26 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 16,
     alignItems: "center",
     marginBottom: 16,
   },
   submitText: {
+    fontFamily: fonts.bodySemiBold,
     fontSize: 16,
-    fontWeight: "600",
     color: "white",
+    letterSpacing: 0.3,
   },
   toggleText: {
+    fontFamily: fonts.bodyMedium,
     fontSize: 14,
     textAlign: "center",
     color: colors.accent,
   },
   browseText: {
+    fontFamily: fonts.bodyRegular,
     fontSize: 14,
     textAlign: "center",
-    color: colors.textSecondary,
+    color: colors.textMuted,
   },
 });

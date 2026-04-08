@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react-native";
-import { colors } from "../theme/colors";
+import { colors, fonts } from "../theme/colors";
 import Chip from "./Chip";
 
 function formatDate(iso: string): string {
@@ -135,11 +135,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: colors.cardFront,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderLight,
   },
   comment: {
+    fontFamily: fonts.bodyRegular,
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 22,
     marginBottom: 8,
     color: colors.textPrimary,
   },

@@ -6,7 +6,7 @@ import { Coffee, MapPin, Mountain, Leaf, Settings, ShoppingCart, Share2 } from "
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useShare } from "../../src/hooks/useShare";
 import { trackClick } from "../../src/api/client";
-import { colors } from "../../src/theme/colors";
+import { colors, fonts, cardShadow } from "../../src/theme/colors";
 import { pricePer250g } from "../../src/utils/formatPrice";
 import Chip from "../../src/components/Chip";
 import CoffeeCard from "../../src/components/CoffeeCard";
@@ -130,13 +130,15 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   title: {
-    fontSize: 24,
-    fontWeight: "700",
+    fontFamily: fonts.displayBold,
+    fontSize: 26,
     color: colors.textPrimary,
+    letterSpacing: -0.3,
   },
   roasterLink: {
+    fontFamily: fonts.bodyMedium,
     fontSize: 16,
-    marginTop: 4,
+    marginTop: 6,
     color: colors.accent,
   },
   chipRow: {
@@ -156,8 +158,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   price: {
-    fontSize: 24,
-    fontWeight: "700",
+    fontFamily: fonts.bodyBold,
+    fontSize: 26,
     color: colors.textPrimary,
   },
   priceLabel: {
@@ -198,8 +200,8 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   relatedTitle: {
+    fontFamily: fonts.displaySemiBold,
     fontSize: 18,
-    fontWeight: "600",
     marginBottom: 12,
     color: colors.textPrimary,
   },

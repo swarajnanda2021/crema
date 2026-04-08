@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from "react-native";
 import { ReactNode } from "react";
-import { colors } from "../theme/colors";
+import { colors, fonts } from "../theme/colors";
 
 interface MetaRowProps {
   icon: ReactNode;
@@ -11,43 +11,34 @@ interface MetaRowProps {
 
 export default function MetaRow({ icon, label, value, muted = false }: MetaRowProps) {
   return (
-    <View style={styles.container}>
-      <View style={styles.iconWrap}>{icon}</View>
-      <View style={styles.content}>
-        <Text style={styles.label}>{label}</Text>
-        <Text style={[styles.value, muted && styles.valueMuted]}>{value}</Text>
+    <View style={s.container}>
+      <View style={s.iconWrap}>{icon}</View>
+      <View style={s.content}>
+        <Text style={s.label}>{label}</Text>
+        <Text style={[s.value, muted && s.valueMuted]}>{value}</Text>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-  },
-  iconWrap: {
-    marginTop: 2,
-    opacity: 0.6,
-  },
-  content: {
-    flex: 1,
-  },
+const s = StyleSheet.create({
+  container: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  iconWrap: { marginTop: 2, opacity: 0.6 },
+  content: { flex: 1 },
   label: {
-    fontSize: 11,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 9,
     textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     opacity: 0.5,
-    fontWeight: "600",
     color: colors.textOnDark,
   },
   value: {
-    fontSize: 14,
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
+    lineHeight: 17,
     color: colors.textOnDark,
+    marginTop: 1,
   },
-  valueMuted: {
-    opacity: 0.4,
-    fontStyle: "italic",
-  },
+  valueMuted: { opacity: 0.35, fontStyle: "italic" },
 });

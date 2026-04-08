@@ -1,7 +1,7 @@
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { MapPin, Calendar, Coffee, Settings, Award, PenLine } from "lucide-react-native";
-import { colors } from "../theme/colors";
+import { colors, fonts, cardShadow } from "../theme/colors";
 
 const PREF_LABELS: Record<string, string> = { light: "Light Roast", medium: "Medium Roast", dark: "Dark Roast" };
 const STYLE_LABELS: Record<string, string> = { espresso: "Espresso", filter: "Filter", both: "Espresso & Filter" };
@@ -88,17 +88,17 @@ export default function ProfileCard({ user, drankCount = 0, coffeeCount, isOwner
 }
 
 const s = StyleSheet.create({
-  card: { borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: colors.border },
+  card: { borderRadius: 16, overflow: "hidden", ...cardShadow },
   avatarBg: { position: "relative" },
   avatarFallback: { width: "100%" as any, height: "100%", alignItems: "center", justifyContent: "center", backgroundColor: "#D4C5B8" },
-  initials: { fontSize: 48, fontWeight: "700", color: colors.textSecondary, opacity: 0.4 },
+  initials: { fontFamily: fonts.displayBold, fontSize: 48, color: colors.textSecondary, opacity: 0.4 },
   editBtn: { position: "absolute", top: 12, right: 12, padding: 8, borderRadius: 9999, backgroundColor: "rgba(255,255,255,0.7)" },
   bioOverlay: { padding: 16, backgroundColor: "rgba(250, 247, 242, 0.95)" },
-  displayName: { fontSize: 18, fontWeight: "700", color: colors.textPrimary },
-  username: { fontSize: 12, color: colors.textSecondary },
+  displayName: { fontFamily: fonts.displayBold, fontSize: 20, color: colors.textPrimary },
+  username: { fontFamily: fonts.bodyRegular, fontSize: 13, color: colors.textMuted },
   locationRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 },
   locationText: { fontSize: 12, color: colors.textSecondary },
-  bio: { fontSize: 14, marginTop: 8, lineHeight: 20, color: colors.textSecondary },
+  bio: { fontFamily: fonts.bodyRegular, fontSize: 14, marginTop: 8, lineHeight: 22, color: colors.textSecondary },
   pillRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 12 },
   pill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 9999, backgroundColor: colors.tagBg },
   pillText: { fontSize: 10, color: colors.tagText },

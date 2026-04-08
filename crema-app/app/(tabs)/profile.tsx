@@ -5,7 +5,7 @@ import { useAuth } from "../../src/hooks/useAuth";
 import { useShelves } from "../../src/hooks/useShelves";
 import { useRecommendations } from "../../src/hooks/useRecommendations";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
-import { colors, SHELF_LABELS, ShelfKey } from "../../src/theme/colors";
+import { colors, fonts, cardShadow, SHELF_LABELS, ShelfKey } from "../../src/theme/colors";
 import ProfileCard from "../../src/components/ProfileCard";
 import ShelfIsland from "../../src/components/ShelfIsland";
 import RecommendationPanel from "../../src/components/RecommendationPanel";
@@ -142,11 +142,10 @@ const s = StyleSheet.create({
   centerCol: { flex: 1, minWidth: 0 },
   recColDesktop: { width: 280 },
   shelfCard: {
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: "hidden",
     backgroundColor: colors.cardFront,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...cardShadow,
   },
   tabGrid: { flexDirection: "row" },
   tabCell: {
@@ -158,8 +157,8 @@ const s = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 2,
   },
-  tabLabel: { fontSize: 12, fontWeight: "600" },
-  tabCount: { fontSize: 12, fontWeight: "700" },
+  tabLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12 },
+  tabCount: { fontFamily: fonts.bodyBold, fontSize: 12 },
   tabPlus: { width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  emptyText: { fontSize: 14, textAlign: "center", paddingVertical: 12, color: colors.textSecondary },
+  emptyText: { fontFamily: fonts.bodyRegular, fontSize: 14, textAlign: "center", paddingVertical: 24, color: colors.textMuted },
 });
