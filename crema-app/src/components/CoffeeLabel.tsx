@@ -84,7 +84,7 @@ export default function CoffeeLabel({
         </Text>
 
         {/* Subtitle: Origin */}
-        <Text style={s.originSubtitle} numberOfLines={1}>
+        <Text style={s.originSubtitle} numberOfLines={2}>
           {origin ? origin.toUpperCase() : "\u2014"}
         </Text>
 
