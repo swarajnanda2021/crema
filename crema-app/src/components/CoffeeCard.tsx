@@ -37,8 +37,8 @@ import { useShare } from "../hooks/useShare";
 import { useShelves } from "../hooks/useShelves";
 import PopularityModal from "./PopularityModal";
 
-const CARD_W = 320;
-const CARD_H = 460; // image area + label overlay + button row
+const CARD_W = 250;
+const CARD_H = 340; // image area + label overlay + button row
 
 interface CoffeeCardProps {
   coffee: any;
@@ -125,7 +125,7 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
               onPress={(e) => { e.stopPropagation?.(); addToShelf(coffee.product_id, "want_to_try"); }}
               style={s.btn}
             >
-              <Plus size={16} color="#2a2a2a" />
+              <Plus size={14} color="#2a2a2a" />
             </Pressable>
 
             <Pressable
@@ -136,7 +136,7 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
               }}
               style={[s.btn, s.btnAccent]}
             >
-              <ShoppingCart size={16} color="white" />
+              <ShoppingCart size={14} color="white" />
             </Pressable>
 
             {userCount != null && userCount > 0 ? (
@@ -201,7 +201,7 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
   );
 }
 
-const BTN_SIZE = 36;
+const BTN_SIZE = 30;
 
 const s = StyleSheet.create({
   container: {
@@ -255,9 +255,9 @@ const s = StyleSheet.create({
   buttonRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 8,
     backgroundColor: colors.cardFront,
     borderTopWidth: 1,
     borderColor: colors.borderLight,
@@ -293,12 +293,12 @@ const s = StyleSheet.create({
   },
   priceText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textPrimary,
   },
   priceUnit: {
     fontFamily: fonts.bodyRegular,
-    fontSize: 11,
+    fontSize: 10,
     color: colors.textMuted,
     marginLeft: 2,
   },

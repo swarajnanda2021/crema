@@ -70,8 +70,8 @@ const s = StyleSheet.create({
     gap: 12,
   },
   cardSlot: {
-    width: 320,
-    height: 460,
+    width: 250,
+    height: 340,
   },
   errorCard: {
     width: 320,
