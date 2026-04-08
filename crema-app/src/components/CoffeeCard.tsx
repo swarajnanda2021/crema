@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, Pressable, Modal, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
@@ -10,7 +10,7 @@ import Animated, {
   interpolate,
   Easing,
 } from "react-native-reanimated";
-import { Coffee, MapPin, Mountain, Leaf, Settings, ShoppingCart, Users, Share2 } from "lucide-react-native";
+import { Coffee, MapPin, Mountain, Leaf, Settings, ShoppingCart, Users as UsersIcon, Share2 } from "lucide-react-native";
 import { colors, fonts, cardShadow } from "../theme/colors";
 import IndiaMap from "./IndiaMap";
 import MetaRow from "./MetaRow";
@@ -19,6 +19,7 @@ import { resolveOriginCoords } from "../data/coffeeRegions";
 import { pricePer250g } from "../utils/formatPrice";
 import { trackClick } from "../api/client";
 import { useShare } from "../hooks/useShare";
+import PopularityModal from "./PopularityModal";
 
 interface CoffeeCardProps {
   coffee: any;
@@ -84,7 +85,7 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
                 onPress={(e) => { e.stopPropagation?.(); setShowPopularity(true); }}
                 style={s.badge}
               >
-                <Users size={12} color="white" />
+                <UsersIcon size={12} color="white" />
                 <Text style={s.badgeText}>{userCount}</Text>
               </Pressable>
             )}
@@ -160,25 +161,13 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
         </Animated.View>
       </Pressable>
 
-      {/* Popularity Modal */}
-      <Modal visible={showPopularity} transparent animationType="fade" onRequestClose={() => setShowPopularity(false)}>
-        <Pressable style={s.modalOverlay} onPress={() => setShowPopularity(false)}>
-          <View style={s.modalCard}>
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>{coffee.coffee_name}</Text>
-            </View>
-            <View style={s.modalBody}>
-              <View style={s.modalIconCircle}>
-                <Users size={24} color={colors.accent} />
-              </View>
-              <Text style={s.modalCount}>{userCount}</Text>
-              <Text style={s.modalLabel}>
-                {userCount === 1 ? "person has" : "people have"} this on their shelf
-              </Text>
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
+      {/* Popularity Modal — fetches actual users + their tasting notes */}
+      <PopularityModal
+        visible={showPopularity}
+        productId={coffee.product_id}
+        coffeeName={coffee.coffee_name}
+        onClose={() => setShowPopularity(false)}
+      />
     </View>
   );
 }
@@ -285,31 +274,4 @@ const s = StyleSheet.create({
   shareRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, borderTopWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
   shareText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "rgba(255,255,255,0.7)" },
   flipHint: { fontFamily: fonts.bodyRegular, textAlign: "center", fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 6 },
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
-  modalCard: {
-    backgroundColor: colors.bg,
-    borderRadius: 20,
-    width: "100%",
-    maxWidth: 360,
-    overflow: "hidden",
-  },
-  modalHeader: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  modalTitle: { fontFamily: fonts.displaySemiBold, fontSize: 18, color: colors.textPrimary },
-  modalBody: { padding: 32, alignItems: "center" },
-  modalIconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.accentSoft,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
-  },
-  modalCount: { fontFamily: fonts.displayBold, fontSize: 36, color: colors.textPrimary },
-  modalLabel: { fontFamily: fonts.bodyRegular, fontSize: 14, color: colors.textSecondary, marginTop: 4 },
 });

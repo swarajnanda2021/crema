@@ -241,14 +241,19 @@ const s = StyleSheet.create({
     width: "100%" as any,
   },
 
-  // Filter sidebar — NARROW (~200px, not 50%)
+  // Filter sidebar — NARROW, fixed width, does NOT flex-grow
   sidebar: {
     width: 200,
+    minWidth: 200,
+    maxWidth: 200,
+    flexShrink: 0,
+    flexGrow: 0,
     borderRightWidth: 1,
     borderColor: colors.borderLight,
     position: "sticky" as any,
     top: 56,
-    height: "calc(100vh - 56px)" as any,
+    height: "calc(100vh - 100px)" as any,
+    overflow: "hidden" as any,
   },
   sidebarTitle: {
     fontFamily: fonts.bodySemiBold,
