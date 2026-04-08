@@ -110,14 +110,15 @@ interface IndiaMapProps {
   originLng?: number | null;
   roasterLat?: number | null;
   roasterLng?: number | null;
+  fullMap?: boolean; // show entire India instead of zoomed region
 }
 
-const IndiaMap = memo(function IndiaMap({ originLat, originLng, roasterLat, roasterLng }: IndiaMapProps) {
+const IndiaMap = memo(function IndiaMap({ originLat, originLng, roasterLat, roasterLng, fullMap }: IndiaMapProps) {
   const centerLat = originLat ?? roasterLat;
   const centerLng = originLng ?? roasterLng;
   if (centerLat == null || centerLng == null) return null;
 
-  const viewBox = computeViewBox(centerLat, centerLng);
+  const viewBox = fullMap ? `0 0 ${SVG_W} ${SVG_H}` : computeViewBox(centerLat, centerLng);
   const hasOrigin = originLat != null && originLng != null;
   const hasRoaster = roasterLat != null && roasterLng != null;
   const showBoth = hasOrigin && hasRoaster &&

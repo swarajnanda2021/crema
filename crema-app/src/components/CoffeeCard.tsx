@@ -1,17 +1,7 @@
 /**
- * CoffeeCard — Product image background + typographic label overlay + action buttons.
- * Taps flip to India map back face.
- *
- * Layout (front):
- *   ┌─────────────────────────┐
- *   │  Product Image (fill)   │
- *   │  ┌───────────────────┐  │
- *   │  │  CoffeeLabel      │  │
- *   │  │  (overlay island)  │  │
- *   │  └───────────────────┘  │
- *   ├─────────────────────────┤
- *   │  [+] [🛒] [👥 4] ₹938  │
- *   └─────────────────────────┘
+ * CoffeeCard — Product image + label overlay + action buttons.
+ * Front: image bg, CoffeeLabel island, button row with share + MASL.
+ * Back: full India map with origin/roaster pins, coffee name overlay.
  */
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
@@ -25,10 +15,9 @@ import Animated, {
   interpolate,
   Easing,
 } from "react-native-reanimated";
-import { ShoppingCart, Users as UsersIcon, Plus, Coffee, MapPin, Mountain, Leaf, Settings, Share2 } from "lucide-react-native";
+import { ShoppingCart, Users as UsersIcon, Plus, Coffee, Share2, Mountain } from "lucide-react-native";
 import { colors, fonts, cardShadow } from "../theme/colors";
 import IndiaMap from "./IndiaMap";
-import MetaRow from "./MetaRow";
 import CoffeeLabel from "./CoffeeLabel";
 import { resolveOriginCoords } from "../data/coffeeRegions";
 import { pricePer250g } from "../utils/formatPrice";
@@ -59,25 +48,15 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
   const handleFlip = () => {
     const next = !isFlipped;
     setIsFlipped(next);
-    rotation.value = withTiming(next ? 180 : 0, {
-      duration: 600,
-      easing: Easing.bezier(0.4, 0, 0.2, 1),
-    });
+    rotation.value = withTiming(next ? 180 : 0, { duration: 600, easing: Easing.bezier(0.4, 0, 0.2, 1) });
   };
 
   const frontStyle = useAnimatedStyle(() => ({
-    transform: [
-      { perspective: 1000 },
-      { rotateY: `${interpolate(rotation.value, [0, 180], [0, 180])}deg` },
-    ],
+    transform: [{ perspective: 1000 }, { rotateY: `${interpolate(rotation.value, [0, 180], [0, 180])}deg` }],
     backfaceVisibility: "hidden",
   }));
-
   const backStyle = useAnimatedStyle(() => ({
-    transform: [
-      { perspective: 1000 },
-      { rotateY: `${interpolate(rotation.value, [0, 180], [180, 360])}deg` },
-    ],
+    transform: [{ perspective: 1000 }, { rotateY: `${interpolate(rotation.value, [0, 180], [180, 360])}deg` }],
     backfaceVisibility: "hidden",
   }));
 
@@ -85,24 +64,16 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
     <View style={{ width: cardW, height: cardH }}>
       <Pressable onPress={handleFlip} style={{ width: cardW, height: cardH }}>
 
-        {/* ════════ FRONT FACE ════════ */}
+        {/* ═══ FRONT ═══ */}
         <Animated.View style={[s.face, frontStyle]}>
-          {/* 1. Product image — fills the top area */}
+          {/* Product image background */}
           <View style={s.imageArea}>
             {coffee.image_url ? (
-              <Image
-                source={{ uri: coffee.image_url }}
-                style={StyleSheet.absoluteFillObject}
-                contentFit="cover"
-                transition={200}
-              />
+              <Image source={{ uri: coffee.image_url }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
             ) : (
-              <View style={s.imagePlaceholder}>
-                <Coffee size={48} color="rgba(42,42,42,0.15)" />
-              </View>
+              <View style={s.imagePlaceholder}><Coffee size={48} color="rgba(42,42,42,0.15)" /></View>
             )}
-
-            {/* 2. CoffeeLabel overlaid as a card island */}
+            {/* Label overlay island */}
             <View style={s.labelOverlay}>
               <CoffeeLabel
                 coffee_name={coffee.coffee_name}
@@ -118,76 +89,64 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
             </View>
           </View>
 
-          {/* 3. Button row — uniform buttons below the image */}
+          {/* Button row: [+] [cart] [people N] [share] | MASL | price */}
           <View style={s.buttonRow}>
-            <Pressable
-              onPress={(e) => { e.stopPropagation?.(); addToShelf(coffee.product_id, "want_to_try"); }}
-              style={s.btn}
-            >
-              <Plus size={14} color="#2a2a2a" />
+            <Pressable onPress={(e) => { e.stopPropagation?.(); addToShelf(coffee.product_id, "want_to_try"); }} style={s.btn}>
+              <Plus size={13} color="#2a2a2a" />
             </Pressable>
 
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation?.();
-                trackClick(coffee.product_id, coffee.roaster_slug, "card_front");
-                Linking.openURL(coffee.product_url);
-              }}
-              style={[s.btn, s.btnAccent]}
-            >
-              <ShoppingCart size={14} color="white" />
+            <Pressable onPress={(e) => { e.stopPropagation?.(); trackClick(coffee.product_id, coffee.roaster_slug, "card_front"); Linking.openURL(coffee.product_url); }} style={[s.btn, s.btnAccent]}>
+              <ShoppingCart size={13} color="white" />
             </Pressable>
 
             {userCount != null && userCount > 0 ? (
-              <Pressable
-                onPress={(e) => { e.stopPropagation?.(); setShowPopularity(true); }}
-                style={s.btn}
-              >
-                <UsersIcon size={14} color="#2a2a2a" />
+              <Pressable onPress={(e) => { e.stopPropagation?.(); setShowPopularity(true); }} style={s.btn}>
+                <UsersIcon size={12} color="#2a2a2a" />
                 <Text style={s.btnCountText}>{userCount}</Text>
               </Pressable>
             ) : (
-              <View style={s.btn}>
-                <UsersIcon size={14} color="rgba(42,42,42,0.3)" />
+              <View style={s.btn}><UsersIcon size={12} color="rgba(42,42,42,0.25)" /></View>
+            )}
+
+            <Pressable onPress={(e) => { e.stopPropagation?.(); share(coffee); }} style={s.btn}>
+              <Share2 size={12} color="#2a2a2a" />
+            </Pressable>
+
+            {/* MASL if available */}
+            {coffee.altitude_masl && (
+              <View style={s.maslTag}>
+                <Mountain size={10} color={colors.textMuted} />
+                <Text style={s.maslText}>{coffee.altitude_masl.toLocaleString()}m</Text>
               </View>
             )}
 
-            {/* Price — right-aligned */}
+            {/* Price right-aligned */}
             <View style={s.priceArea}>
-              <Text style={s.priceText}>
-                {price250 != null ? `\u20B9${price250.toLocaleString("en-IN")}` : "\u2014"}
-              </Text>
+              <Text style={s.priceText}>{price250 != null ? `\u20B9${price250.toLocaleString("en-IN")}` : "\u2014"}</Text>
               <Text style={s.priceUnit}>/250g</Text>
             </View>
           </View>
         </Animated.View>
 
-        {/* ════════ BACK FACE ════════ */}
+        {/* ═══ BACK — full India map only ═══ */}
         <Animated.View style={[s.face, s.backFace, backStyle]}>
           <IndiaMap
             originLat={originCoords?.lat}
             originLng={originCoords?.lng}
             roasterLat={coffee.roaster_lat}
             roasterLng={coffee.roaster_lng}
+            fullMap
           />
-          <View style={s.mapOverlay} />
-          <View style={s.backContent}>
-            <View style={s.backMeta}>
-              <MetaRow icon={<Coffee size={14} color={colors.textOnDark} />} label="Tasting Notes" value={coffee.tasting_notes || "Not listed"} muted={!coffee.tasting_notes} />
-              <MetaRow icon={<MapPin size={14} color={colors.textOnDark} />} label="Origin" value={coffee.origin || "Not listed"} muted={!coffee.origin} />
-              {coffee.altitude_masl && <MetaRow icon={<Mountain size={14} color={colors.textOnDark} />} label="Altitude" value={`${coffee.altitude_masl.toLocaleString()} m.a.s.l.`} />}
-              {coffee.varietal && <MetaRow icon={<Leaf size={14} color={colors.textOnDark} />} label="Varietal" value={coffee.varietal} />}
-              {coffee.process && <MetaRow icon={<Settings size={14} color={colors.textOnDark} />} label="Process" value={coffee.process} />}
-            </View>
-            <View style={s.backFooter}>
-              <Pressable onPress={() => share(coffee)} style={s.shareRow}>
-                <Share2 size={16} color="rgba(255,255,255,0.7)" />
-                <Text style={s.shareText}>Share</Text>
-              </Pressable>
-              <Text style={s.flipHint}>Tap to flip back</Text>
-            </View>
+          {/* Subtle dark overlay for text legibility */}
+          <View style={s.mapTint} />
+          {/* Coffee name + origin at bottom */}
+          <View style={s.backLabelArea}>
+            <Text style={s.backName} numberOfLines={2}>{coffee.coffee_name}</Text>
+            {coffee.origin && <Text style={s.backOrigin}>{coffee.origin}</Text>}
+            <Text style={s.flipHint}>Tap to flip back</Text>
           </View>
         </Animated.View>
+
       </Pressable>
 
       <PopularityModal
@@ -200,7 +159,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
   );
 }
 
-const BTN_SIZE = 30;
+const BTN_SIZE = 28;
 
 const s = StyleSheet.create({
   face: {
@@ -212,109 +171,67 @@ const s = StyleSheet.create({
     backgroundColor: colors.cardFront,
     ...cardShadow,
   },
-  backFace: {
-    backgroundColor: "#1A0F0A",
-  },
+  backFace: { backgroundColor: "#1A0F0A" },
 
-  /* ── Front face layout ── */
+  // Front
+  imageArea: { flex: 1, backgroundColor: "#d4c5b8", position: "relative" },
+  imagePlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#e8e0d0" },
+  labelOverlay: { position: "absolute", top: 8, left: 8, right: 8, bottom: 8 },
 
-  // Image fills the top, label floats on top
-  imageArea: {
-    flex: 1,
-    backgroundColor: "#d4c5b8",
-    position: "relative",
-  },
-  imagePlaceholder: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#e8e0d0",
-  },
-
-  // Label overlay — inset from edges so image peeks through
-  labelOverlay: {
-    position: "absolute",
-    top: 10,
-    left: 10,
-    right: 10,
-    bottom: 10,
-  },
-
-  // Button row — clean uniform strip
   buttonRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 6,
     backgroundColor: colors.cardFront,
     borderTopWidth: 1,
     borderColor: colors.borderLight,
   },
-
-  // All buttons are the same size square
   btn: {
-    width: BTN_SIZE,
-    height: BTN_SIZE,
+    width: BTN_SIZE, height: BTN_SIZE,
     borderRadius: BTN_SIZE / 2,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 3,
+    alignItems: "center", justifyContent: "center",
+    flexDirection: "row", gap: 2,
     backgroundColor: colors.tagBg,
   },
-  btnAccent: {
-    backgroundColor: colors.accent,
-  },
+  btnAccent: { backgroundColor: colors.accent },
   btnCountText: {
     fontFamily: Platform.select({ web: "ui-monospace, monospace", default: "monospace" }),
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#2a2a2a",
+    fontSize: 10, fontWeight: "700", color: "#2a2a2a",
   },
-
-  // Price right-aligned
+  maslTag: {
+    flexDirection: "row", alignItems: "center", gap: 2,
+  },
+  maslText: {
+    fontFamily: Platform.select({ web: "ui-monospace, monospace", default: "monospace" }),
+    fontSize: 9, color: colors.textMuted,
+  },
   priceArea: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "flex-end",
+    flex: 1, flexDirection: "row", alignItems: "baseline", justifyContent: "flex-end",
   },
-  priceText: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 14,
-    color: colors.textPrimary,
-  },
-  priceUnit: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 10,
-    color: colors.textMuted,
-    marginLeft: 2,
-  },
+  priceText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.textPrimary },
+  priceUnit: { fontFamily: fonts.bodyRegular, fontSize: 9, color: colors.textMuted, marginLeft: 1 },
 
-  /* ── Back face ── */
-  mapOverlay: {
-    position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
-    zIndex: 1,
-    backgroundColor: "rgba(26, 15, 10, 0.72)",
+  // Back — clean map only
+  mapTint: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    zIndex: 1, backgroundColor: "rgba(26, 15, 10, 0.35)",
   },
-  backContent: {
-    flex: 1,
-    padding: 16,
-    justifyContent: "space-between",
-    zIndex: 10,
+  backLabelArea: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    zIndex: 10, padding: 14,
+    backgroundColor: "rgba(26, 15, 10, 0.7)",
   },
-  backMeta: { gap: 10, flex: 1 },
-  backFooter: { marginTop: 8 },
-  shareRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 6,
-    borderTopWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+  backName: {
+    fontFamily: Platform.select({ web: "Georgia, serif", default: "serif" }),
+    fontSize: 15, fontWeight: "700", color: colors.textOnDark,
   },
-  shareText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "rgba(255,255,255,0.7)" },
-  flipHint: { fontFamily: fonts.bodyRegular, textAlign: "center", fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 6 },
+  backOrigin: {
+    fontFamily: fonts.bodyRegular, fontSize: 11, color: "rgba(245,240,235,0.7)", marginTop: 2,
+  },
+  flipHint: {
+    fontFamily: fonts.bodyRegular, textAlign: "center",
+    fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 8,
+  },
 });
