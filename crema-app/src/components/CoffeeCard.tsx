@@ -186,7 +186,7 @@ const s = StyleSheet.create({
   // Front
   imageArea: { flex: 1, backgroundColor: "#d4c5b8", position: "relative" },
   imagePlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#e8e0d0" },
-  labelOverlay: { position: "absolute", top: 8, left: 8, right: 8, bottom: 8 },
+  labelOverlay: { position: "absolute", top: "5%", left: "5%", right: "5%", bottom: "5%" } as any,
 
   buttonRow: {
     flexDirection: "row",

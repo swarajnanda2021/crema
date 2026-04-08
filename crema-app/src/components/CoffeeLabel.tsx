@@ -44,21 +44,22 @@ export default function CoffeeLabel({
   return (
     /* Outer wrapper fills parent, has checkerboard border padding */
     <View style={s.outerWrap}>
-      {/* Checkerboard — web only */}
+      {/* Checkerboard — semi-transparent so product image shows through */}
       {Platform.OS === "web" && (
         <View
           style={[
             StyleSheet.absoluteFillObject,
             {
               borderRadius: 3,
-              backgroundImage: "repeating-conic-gradient(#2a2a2a 0% 25%, rgba(236,229,211,0.85) 0% 50%)",
+              opacity: 0.8,
+              backgroundImage: "repeating-conic-gradient(rgba(42,42,42,0.9) 0% 25%, rgba(236,229,211,0.75) 0% 50%)",
               backgroundSize: "10px 10px",
             } as any,
           ]}
         />
       )}
       {Platform.OS !== "web" && (
-        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#2a2a2a", borderRadius: 3 }]} />
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(42,42,42,0.8)", borderRadius: 3 }]} />
       )}
 
       {/* Inner card — fills remaining space after padding */}
