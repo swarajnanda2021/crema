@@ -57,24 +57,24 @@ export default function CoffeeLabel({
 
   return (
     <View style={s.outerWrap}>
-      {/* Checkerboard border */}
+      {/* Checkerboard — ONLY in the border strip (behind innerCard, visible in the 6px padding gap) */}
       {Platform.OS === "web" && (
         <View
           style={[
             StyleSheet.absoluteFillObject,
             {
               borderRadius: 3,
-              opacity: 0.8,
-              backgroundImage: "repeating-conic-gradient(rgba(42,42,42,0.9) 0% 25%, rgba(236,229,211,0.75) 0% 50%)",
+              backgroundImage: "repeating-conic-gradient(#2a2a2a 0% 25%, #e8e0d0 0% 50%)",
               backgroundSize: "10px 10px",
             } as any,
           ]}
         />
       )}
       {Platform.OS !== "web" && (
-        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(42,42,42,0.8)", borderRadius: 3 }]} />
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#2a2a2a", borderRadius: 3 }]} />
       )}
 
+      {/* Inner card — fully covers center, checkerboard only peeks at border edges */}
       <View style={s.innerCard}>
         <View style={s.insetBorder} />
 
