@@ -15,7 +15,7 @@ import Animated, {
   interpolate,
   Easing,
 } from "react-native-reanimated";
-import { ShoppingCart, Users as UsersIcon, Plus, Coffee, Share2, Mountain } from "lucide-react-native";
+import { ShoppingCart, Users as UsersIcon, Plus, Coffee, Share2 } from "lucide-react-native";
 import { colors, fonts, cardShadow } from "../theme/colors";
 import IndiaMap from "./IndiaMap";
 import CoffeeLabel from "./CoffeeLabel";
@@ -82,6 +82,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
                 origin={coffee.origin}
                 process={coffee.process}
                 varietal={coffee.varietal}
+                altitude_masl={coffee.altitude_masl}
                 price_inr={coffee.price_inr}
                 weight_grams={coffee.weight_grams}
                 roaster_name={coffee.roaster_name}
@@ -114,14 +115,6 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
 
             {/* Spacer pushes price to right */}
             <View style={{ flex: 1 }} />
-
-            {/* MASL if available */}
-            {coffee.altitude_masl ? (
-              <View style={s.maslTag}>
-                <Mountain size={9} color={colors.textMuted} />
-                <Text style={s.maslText}>{coffee.altitude_masl.toLocaleString()}m</Text>
-              </View>
-            ) : null}
 
             {/* Price */}
             <Text style={s.priceText}>
@@ -212,13 +205,6 @@ const s = StyleSheet.create({
   btnCountText: {
     fontFamily: Platform.select({ web: "ui-monospace, monospace", default: "monospace" }),
     fontSize: 10, fontWeight: "700", color: "#2a2a2a",
-  },
-  maslTag: {
-    flexDirection: "row", alignItems: "center", gap: 2,
-  },
-  maslText: {
-    fontFamily: Platform.select({ web: "ui-monospace, monospace", default: "monospace" }),
-    fontSize: 9, color: colors.textMuted,
   },
   priceText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.textPrimary },
   priceUnit: { fontFamily: fonts.bodyRegular, fontSize: 9, color: colors.textMuted, marginLeft: 1 },

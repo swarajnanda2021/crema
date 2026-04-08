@@ -12,6 +12,7 @@ interface CoffeeLabelProps {
   origin: string | null;
   process: string | null;
   varietal: string | null;
+  altitude_masl: number | null;
   price_inr: number;
   weight_grams: number;
   roaster_name: string;
@@ -24,7 +25,7 @@ function formatINR(n: number): string {
 
 export default function CoffeeLabel({
   coffee_name, roast_level, tasting_notes, origin, process, varietal,
-  price_inr, weight_grams, roaster_name,
+  altitude_masl, price_inr, weight_grams, roaster_name,
 }: CoffeeLabelProps) {
   const roastClean = roast_level && roast_level !== "Unknown" ? roast_level : null;
   const subtitle = [roastClean, process].filter(Boolean).join(" \u00B7 ");
@@ -39,6 +40,7 @@ export default function CoffeeLabel({
     ["ROAST", roastClean || "\u2014"],
     ["PROCESS", process ? (varietal ? `${process} (${varietal})` : process) : "\u2014"],
     ["TASTING", tasting_notes || "\u2014"],
+    ["ALTITUDE", altitude_masl ? `${altitude_masl.toLocaleString()} m.a.s.l.` : "\u2014"],
   ];
 
   return (
