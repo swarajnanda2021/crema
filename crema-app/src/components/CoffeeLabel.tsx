@@ -133,10 +133,11 @@ const s = StyleSheet.create({
     padding: 6,
     borderRadius: 3,
     overflow: "hidden",
+    opacity: 0.92,
   },
   innerCard: {
     flex: 1,
-    backgroundColor: "rgba(236, 229, 211, 0.60)",
+    backgroundColor: "#ece5d3",
     borderWidth: 1.5,
     borderColor: "#2a2a2a",
     borderRadius: 2,
