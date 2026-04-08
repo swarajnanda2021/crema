@@ -1,6 +1,11 @@
+/**
+ * CoffeeCard — Flip card with typographic label front + India map back.
+ *
+ * Front: CoffeeLabel (kraft paper roaster label) + action button strip
+ * Back: India SVG map with origin pin + metadata overlay
+ */
 import { useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Image } from "expo-image";
+import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import Animated, {
@@ -10,15 +15,16 @@ import Animated, {
   interpolate,
   Easing,
 } from "react-native-reanimated";
-import { Coffee, MapPin, Mountain, Leaf, Settings, ShoppingCart, Users as UsersIcon, Share2 } from "lucide-react-native";
+import { ShoppingCart, Users as UsersIcon, Plus, Coffee, MapPin, Mountain, Leaf, Settings, Share2 } from "lucide-react-native";
 import { colors, fonts, cardShadow } from "../theme/colors";
 import IndiaMap from "./IndiaMap";
 import MetaRow from "./MetaRow";
-import Chip from "./Chip";
+import CoffeeLabel from "./CoffeeLabel";
 import { resolveOriginCoords } from "../data/coffeeRegions";
 import { pricePer250g } from "../utils/formatPrice";
 import { trackClick } from "../api/client";
 import { useShare } from "../hooks/useShare";
+import { useShelves } from "../hooks/useShelves";
 import PopularityModal from "./PopularityModal";
 
 interface CoffeeCardProps {
@@ -33,6 +39,7 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
   const [isFlipped, setIsFlipped] = useState(false);
   const [showPopularity, setShowPopularity] = useState(false);
   const { share } = useShare();
+  const { addToShelf } = useShelves();
 
   const originCoords = resolveOriginCoords(coffee.origin, coffee.coffee_name);
   const price250 = pricePer250g(coffee.price_per_gram);
@@ -62,78 +69,69 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
     backfaceVisibility: "hidden",
   }));
 
-  const cardHeight = compact ? 280 : 350;
-  const imgHeight = compact ? 130 : 170;
-
   return (
-    <View style={[s.container, { height: cardHeight }]}>
-      <Pressable onPress={handleFlip} style={{ flex: 1 }}>
-        {/* ── Front Face ── */}
-        <Animated.View style={[s.face, cardShadow, frontStyle]}>
-          {/* Image */}
-          <View style={[s.imageContainer, { height: imgHeight }]}>
-            {coffee.image_url ? (
-              <Image source={{ uri: coffee.image_url }} style={s.image} contentFit="cover" transition={300} />
-            ) : (
-              <View style={s.imagePlaceholder}>
-                <Coffee size={40} color={colors.border} />
-              </View>
-            )}
-            {/* Popularity badge */}
+    <View style={s.container}>
+      <Pressable onPress={handleFlip}>
+        {/* ── Front Face: CoffeeLabel + action strip ── */}
+        <Animated.View style={[s.face, frontStyle]}>
+          {/* The typographic label card */}
+          <CoffeeLabel
+            coffee_name={coffee.coffee_name}
+            roast_level={coffee.roast_level || "Unknown"}
+            tasting_notes={coffee.tasting_notes}
+            origin={coffee.origin}
+            process={coffee.process}
+            varietal={coffee.varietal}
+            price_inr={coffee.price_inr}
+            weight_grams={coffee.weight_grams}
+            roaster_name={coffee.roaster_name}
+          />
+
+          {/* Action buttons strip — overlaid at bottom */}
+          <View style={s.actionStrip}>
+            {/* + Add to shelf */}
+            <Pressable
+              onPress={(e) => { e.stopPropagation?.(); addToShelf(coffee.product_id, "want_to_try"); }}
+              style={s.actionBtn}
+            >
+              <Plus size={14} color={colors.tagText} />
+            </Pressable>
+
+            {/* Shopping cart — Buy */}
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                trackClick(coffee.product_id, coffee.roaster_slug, "card_front");
+                Linking.openURL(coffee.product_url);
+              }}
+              style={[s.actionBtn, s.buyBtn]}
+            >
+              <ShoppingCart size={14} color="white" />
+            </Pressable>
+
+            {/* Popularity — people count */}
             {userCount != null && userCount > 0 && (
               <Pressable
                 onPress={(e) => { e.stopPropagation?.(); setShowPopularity(true); }}
-                style={s.badge}
+                style={s.peopleBadge}
               >
-                <UsersIcon size={12} color="white" />
-                <Text style={s.badgeText}>{userCount}</Text>
+                <UsersIcon size={12} color="#2a2a2a" />
+                <Text style={s.peopleText}>{userCount}</Text>
               </Pressable>
             )}
-          </View>
 
-          {/* Content */}
-          <View style={s.content}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.coffeeName} numberOfLines={2}>{coffee.coffee_name}</Text>
-              <Pressable
-                onPress={(e) => { e.stopPropagation?.(); router.push(`/roaster/${coffee.roaster_slug}`); }}
-              >
-                <Text style={s.roasterName} numberOfLines={1}>{coffee.roaster_name}</Text>
-              </Pressable>
-
-              {/* Chips */}
-              <View style={s.chipRow}>
-                {coffee.roast_level && coffee.roast_level !== "Unknown" && <Chip>{coffee.roast_level}</Chip>}
-                {coffee.process && <Chip>{coffee.process}</Chip>}
-                {coffee.altitude_masl && <Chip>{`${coffee.altitude_masl.toLocaleString()}m`}</Chip>}
-              </View>
-            </View>
-
-            {/* Price + Buy */}
-            <View style={s.priceRow}>
-              <View style={s.priceGroup}>
-                <Text style={s.price}>
-                  {price250 != null ? `\u20B9${price250.toLocaleString("en-IN")}` : "\u2014"}
-                </Text>
-                <Text style={s.priceUnit}>/ 250g</Text>
-              </View>
-              <Pressable
-                onPress={(e) => {
-                  e.stopPropagation?.();
-                  trackClick(coffee.product_id, coffee.roaster_slug, "card_front");
-                  Linking.openURL(coffee.product_url);
-                }}
-                style={s.buyBtn}
-              >
-                <ShoppingCart size={13} color="white" />
-                <Text style={s.buyText}>Buy</Text>
-              </Pressable>
+            {/* Price */}
+            <View style={s.priceTag}>
+              <Text style={s.priceText}>
+                {price250 != null ? `\u20B9${price250.toLocaleString("en-IN")}` : "—"}
+              </Text>
+              <Text style={s.priceUnit}>/250g</Text>
             </View>
           </View>
         </Animated.View>
 
-        {/* ── Back Face ── */}
-        <Animated.View style={[s.face, s.backFace, cardShadow, backStyle]}>
+        {/* ── Back Face: India map + metadata ── */}
+        <Animated.View style={[s.face, s.backFace, backStyle]}>
           <IndiaMap
             originLat={originCoords?.lat}
             originLng={originCoords?.lng}
@@ -161,7 +159,7 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
         </Animated.View>
       </Pressable>
 
-      {/* Popularity Modal — fetches actual users + their tasting notes */}
+      {/* Popularity Modal */}
       <PopularityModal
         visible={showPopularity}
         productId={coffee.product_id}
@@ -173,89 +171,75 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
 }
 
 const s = StyleSheet.create({
-  container: { width: "100%", maxWidth: 300 },
+  container: {
+    width: 320,
+    height: 400, // 360 label + 40 action strip
+  },
   face: {
     position: "absolute",
     width: "100%",
     height: "100%",
-    borderRadius: 16,
+    borderRadius: 6,
     overflow: "hidden",
-    backgroundColor: colors.cardFront,
+    ...cardShadow,
   },
-  backFace: { backgroundColor: "#1A0F0A" },
-  imageContainer: {
-    overflow: "hidden",
-    backgroundColor: colors.tagBg,
+  backFace: {
+    backgroundColor: "#1A0F0A",
   },
-  image: { width: "100%", height: "100%" },
-  imagePlaceholder: { flex: 1, alignItems: "center", justifyContent: "center" },
-  badge: {
-    position: "absolute",
-    top: 10,
-    left: 10,
+
+  // Action strip at bottom of front face
+  actionStrip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: colors.accent,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    zIndex: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 8,
+    backgroundColor: "#2a2a2a",
   },
-  badgeText: { color: "white", fontFamily: fonts.bodyBold, fontSize: 12 },
-  content: {
-    flex: 1,
-    padding: 14,
-    justifyContent: "space-between",
-  },
-  coffeeName: {
-    fontFamily: fonts.displaySemiBold,
-    fontSize: 14,
-    lineHeight: 19,
-    color: colors.textPrimary,
-  },
-  roasterName: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 12,
-    marginTop: 2,
-    color: colors.textSecondary,
-  },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 8 },
-  priceRow: {
-    flexDirection: "row",
+  actionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
     alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  priceGroup: { flexDirection: "row", alignItems: "baseline" },
-  price: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 17,
-    color: colors.textPrimary,
-  },
-  priceUnit: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 11,
-    marginLeft: 2,
-    color: colors.textMuted,
+    justifyContent: "center",
+    backgroundColor: "rgba(236,229,211,0.9)",
   },
   buyBtn: {
+    backgroundColor: colors.accent,
+  },
+  peopleBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: colors.accent,
+    borderRadius: 6,
+    backgroundColor: "rgba(236,229,211,0.9)",
   },
-  buyText: {
-    fontFamily: fonts.bodySemiBold,
+  peopleText: {
+    fontFamily: Platform.select({ web: "ui-monospace, monospace", default: "monospace" }),
     fontSize: 12,
-    color: "white",
+    fontWeight: "700",
+    color: "#2a2a2a",
   },
+  priceTag: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    marginLeft: "auto" as any,
+  },
+  priceText: {
+    fontFamily: Platform.select({ web: "ui-monospace, monospace", default: "monospace" }),
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#ece5d3",
+  },
+  priceUnit: {
+    fontFamily: Platform.select({ web: "ui-monospace, monospace", default: "monospace" }),
+    fontSize: 10,
+    color: "rgba(236,229,211,0.6)",
+    marginLeft: 2,
+  },
+
   // Back face
   mapOverlay: {
     position: "absolute",
@@ -271,7 +255,24 @@ const s = StyleSheet.create({
   },
   backMeta: { gap: 10, flex: 1 },
   backFooter: { marginTop: 8 },
-  shareRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, borderTopWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
-  shareText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "rgba(255,255,255,0.7)" },
-  flipHint: { fontFamily: fonts.bodyRegular, textAlign: "center", fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 6 },
+  shareRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    borderTopWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  shareText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.7)",
+  },
+  flipHint: {
+    fontFamily: fonts.bodyRegular,
+    textAlign: "center",
+    fontSize: 10,
+    color: "rgba(255,255,255,0.3)",
+    marginTop: 6,
+  },
 });

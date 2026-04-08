@@ -14,7 +14,7 @@ interface CoffeeListProps {
 
 export default function CoffeeList({ coffees, popularity = {}, compact, ListHeaderComponent }: CoffeeListProps) {
   const { width } = useWindowDimensions();
-  const numColumns = Math.max(1, Math.floor(width / 320));
+  const numColumns = Math.max(1, Math.floor(width / 350));
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const loadMore = useCallback(() => {
