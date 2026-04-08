@@ -1,207 +1,197 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
-import { ShoppingCart, Share2, Coffee, X } from "lucide-react-native";
+import { Coffee, ExternalLink, ArrowRight, Trash2, PenLine } from "lucide-react-native";
 import { colors } from "../theme/colors";
 import { pricePer250g } from "../utils/formatPrice";
-import { useCoffeeData } from "../hooks/useCoffeeData";
 import { useTastingNotes } from "../hooks/useTastingNotes";
-import { useShare } from "../hooks/useShare";
 import { trackClick } from "../api/client";
 import TastingNoteDisplay from "./TastingNoteDisplay";
 import TastingNoteForm from "./TastingNoteForm";
 import Chip from "./Chip";
 
+const SHELF_META: Record<string, { label: string }> = {
+  currently_drinking: { label: "Currently Drinking" },
+  drank: { label: "Drank" },
+  want_to_try: { label: "Want to Try" },
+};
+const SHELF_ORDER = ["currently_drinking", "drank", "want_to_try"];
+
 interface Props {
   entry: any;
+  coffee: any;
   isOwner?: boolean;
+  currentShelf?: string;
   onRemove?: () => void;
+  onMove?: (productId: string, shelf: string) => void;
 }
 
-export default function ShelfIsland({ entry, isOwner, onRemove }: Props) {
+export default function ShelfIsland({ entry, coffee, isOwner, currentShelf, onRemove, onMove }: Props) {
   const router = useRouter();
-  const { productMap } = useCoffeeData();
   const { notes, fetchNotes, createNote, deleteNote } = useTastingNotes();
-  const { share } = useShare();
-  const coffee = productMap?.get(entry.product_id);
   const [showForm, setShowForm] = useState(false);
-
-  useEffect(() => {
-    fetchNotes(entry.product_id);
-  }, [entry.product_id]);
-
-  if (!coffee) return null;
-
   const price250 = pricePer250g(coffee.price_per_gram);
 
+  useEffect(() => { fetchNotes(coffee.product_id); }, [coffee.product_id]);
+
+  const handleSaveNote = useCallback(async (noteData: any) => {
+    await createNote(noteData);
+    setShowForm(false);
+    fetchNotes(coffee.product_id);
+  }, [createNote, fetchNotes, coffee.product_id]);
+
+  const nextShelf = currentShelf
+    ? SHELF_ORDER[(SHELF_ORDER.indexOf(currentShelf) + 1) % SHELF_ORDER.length]
+    : "drank";
+
   return (
-    <View style={styles.card}>
-      {/* Coffee info row */}
-      <View style={styles.infoRow}>
-        {/* Image */}
-        <Pressable onPress={() => router.push(`/coffee/${coffee.product_id}`)} style={{ width: 110 }}>
+    <View style={s.card}>
+      {/* Two-column layout: image+details left | tasting journal right */}
+      <View style={s.twoCol}>
+        {/* ── Left: Coffee image + details ── */}
+        <View style={s.leftCol}>
+          {/* Large image */}
           {coffee.image_url ? (
-            <Image source={{ uri: coffee.image_url }} style={{ width: 110, height: 130 }} contentFit="cover" />
+            <Image source={{ uri: coffee.image_url }} style={s.coffeeImage} contentFit="cover" />
           ) : (
-            <View style={styles.imagePlaceholder}>
+            <View style={[s.coffeeImage, { backgroundColor: colors.tagBg, alignItems: "center", justifyContent: "center" }]}>
               <Coffee size={32} color={colors.border} />
             </View>
           )}
-        </Pressable>
 
-        {/* Details */}
-        <View style={styles.details}>
-          <View>
-            <Text style={styles.coffeeName} numberOfLines={2}>{coffee.coffee_name}</Text>
-            <Pressable onPress={() => router.push(`/roaster/${coffee.roaster_slug}`)}>
-              <Text style={styles.roasterName}>{coffee.roaster_name}</Text>
-            </Pressable>
-            <View style={styles.chipRow}>
-              {coffee.roast_level && coffee.roast_level !== "Unknown" && <Chip>{coffee.roast_level}</Chip>}
-              {coffee.process && <Chip>{coffee.process}</Chip>}
-            </View>
+          {/* Details */}
+          <Text style={s.coffeeName}>{coffee.coffee_name}</Text>
+          <Pressable onPress={() => router.push(`/roaster/${coffee.roaster_slug}`)}>
+            <Text style={s.roasterName}>{coffee.roaster_name}</Text>
+          </Pressable>
+
+          {/* Chips */}
+          <View style={s.chipRow}>
+            {coffee.roast_level && coffee.roast_level !== "Unknown" && <Chip>{coffee.roast_level}</Chip>}
+            {coffee.process && <Chip>{coffee.process}</Chip>}
+            {price250 != null && <Chip>{`\u20B9${price250}/250g`}</Chip>}
           </View>
 
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>
-              {price250 != null ? `\u20B9${price250.toLocaleString("en-IN")}` : "\u2014"}
-              <Text style={styles.priceUnit}> / 250g</Text>
-            </Text>
-            <View style={styles.actionBtns}>
-              <Pressable onPress={() => share(coffee)} style={[styles.iconBtn, { backgroundColor: colors.tagBg }]}>
-                <Share2 size={14} color={colors.tagText} />
-              </Pressable>
+          {/* Quick actions */}
+          {isOwner && (
+            <View style={s.actions}>
+              {onMove && (
+                <Pressable onPress={() => onMove(coffee.product_id, nextShelf)} style={s.actionBtn}>
+                  <ArrowRight size={9} color={colors.textSecondary} />
+                  <Text style={s.actionText}>Move to {SHELF_META[nextShelf]?.label}</Text>
+                </Pressable>
+              )}
               <Pressable
                 onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "shelf"); Linking.openURL(coffee.product_url); }}
-                style={[styles.iconBtn, { backgroundColor: colors.accent }]}
+                style={s.actionBtn}
               >
-                <ShoppingCart size={14} color="white" />
+                <ExternalLink size={9} color={colors.textSecondary} />
+                <Text style={s.actionText}>Buy from roaster</Text>
               </Pressable>
-              {isOwner && onRemove && (
-                <Pressable onPress={onRemove} style={[styles.iconBtn, { backgroundColor: colors.tagBg }]}>
-                  <X size={14} color={colors.like} />
+              {onRemove && (
+                <Pressable onPress={onRemove} style={s.actionBtn}>
+                  <Trash2 size={9} color="#E63946" />
+                  <Text style={[s.actionText, { color: "#E63946" }]}>Remove</Text>
                 </Pressable>
               )}
             </View>
-          </View>
+          )}
         </View>
-      </View>
 
-      {/* Tasting notes section */}
-      <View style={styles.notesSection}>
-        {notes.filter((n: any) => n.product_id === entry.product_id).length > 0 && (
-          <View style={{ marginBottom: 8 }}>
-            {notes.filter((n: any) => n.product_id === entry.product_id).map((note: any) => (
-              <TastingNoteDisplay
-                key={note.id}
-                note={note}
-                isOwner={isOwner}
-                onDelete={() => { deleteNote(note.id).then(() => fetchNotes(entry.product_id)); }}
-              />
-            ))}
-          </View>
-        )}
+        {/* ── Right: Tasting notes journal ── */}
+        <View style={s.rightCol}>
+          <Text style={s.journalHeader}>
+            Tasting Journal
+            {notes.length > 0 && (
+              <Text style={s.journalCount}> ({notes.length} {notes.length === 1 ? "entry" : "entries"})</Text>
+            )}
+          </Text>
 
-        {isOwner && (
-          showForm ? (
-            <TastingNoteForm
-              productId={entry.product_id}
-              onSubmit={async (note) => { await createNote(note); fetchNotes(entry.product_id); setShowForm(false); }}
-            />
+          {notes.length > 0 ? (
+            <View style={{ marginBottom: 12 }}>
+              {notes.map((note: any) => (
+                <TastingNoteDisplay
+                  key={note.id}
+                  note={note}
+                  isOwner={isOwner}
+                  onDelete={() => { deleteNote(note.id).then(() => fetchNotes(coffee.product_id)); }}
+                />
+              ))}
+            </View>
           ) : (
-            <Pressable onPress={() => setShowForm(true)} style={styles.addNoteBtn}>
-              <Text style={styles.addNoteText}>+ Add tasting note</Text>
-            </Pressable>
-          )
-        )}
+            <Text style={s.emptyText}>No notes yet. How does this coffee taste to you?</Text>
+          )}
+
+          {isOwner && (
+            showForm ? (
+              <TastingNoteForm
+                productId={coffee.product_id}
+                onSubmit={handleSaveNote}
+              />
+            ) : (
+              <Pressable onPress={() => setShowForm(true)} style={s.addNoteBtn}>
+                <PenLine size={12} color={colors.accent} />
+                <Text style={s.addNoteText}>
+                  {notes.length > 0 ? "Add another entry" : "Write a tasting note"}
+                </Text>
+              </Pressable>
+            )
+          )}
+        </View>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   card: {
-    borderRadius: 16,
+    borderRadius: 8,
     overflow: "hidden",
-    marginBottom: 16,
-    backgroundColor: colors.cardFront,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  infoRow: {
-    flexDirection: "row",
-  },
-  imagePlaceholder: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 110,
-    height: 130,
-    backgroundColor: colors.tagBg,
-  },
-  details: {
-    flex: 1,
+  twoCol: { flexDirection: "row" },
+  leftCol: {
+    width: 200,
     padding: 12,
-    justifyContent: "space-between",
-  },
-  coffeeName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.textPrimary,
-  },
-  roasterName: {
-    fontSize: 12,
-    marginTop: 2,
-    color: colors.accent,
-  },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 4,
-    marginTop: 6,
-  },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 8,
-  },
-  price: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.textPrimary,
-  },
-  priceUnit: {
-    fontSize: 12,
-    fontWeight: "400",
-    opacity: 0.6,
-  },
-  actionBtns: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 9999,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  notesSection: {
-    padding: 12,
-    borderTopWidth: 1,
+    borderRightWidth: 1,
     borderColor: colors.border,
   },
+  coffeeImage: {
+    width: "100%" as any,
+    aspectRatio: 1,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  coffeeName: { fontSize: 14, fontWeight: "600", color: colors.textPrimary },
+  roasterName: { fontSize: 11, marginTop: 2, color: colors.textSecondary },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 8 },
+  actions: { marginTop: 12, gap: 4 },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  actionText: { fontSize: 11, color: colors.textSecondary },
+  rightCol: { flex: 1, minWidth: 0, padding: 12 },
+  journalHeader: {
+    fontSize: 10,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 8,
+    color: colors.textSecondary,
+  },
+  journalCount: { fontWeight: "400" },
+  emptyText: { fontSize: 14, fontStyle: "italic", paddingVertical: 16, color: colors.textSecondary },
   addNoteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
     paddingVertical: 8,
     borderRadius: 8,
-    alignItems: "center",
-    backgroundColor: colors.tagBg,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  addNoteText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: colors.tagText,
-  },
+  addNoteText: { fontSize: 12, fontWeight: "500", color: colors.accent },
 });
