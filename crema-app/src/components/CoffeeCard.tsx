@@ -128,7 +128,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
           </View>
         </Animated.View>
 
-        {/* ═══ BACK — full India map only ═══ */}
+        {/* ═══ BACK — full India map + legend ═══ */}
         <Animated.View style={[s.face, s.backFace, backStyle]}>
           <IndiaMap
             originLat={originCoords?.lat}
@@ -137,12 +137,22 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
             roasterLng={coffee.roaster_lng}
             fullMap
           />
-          {/* Subtle dark overlay for text legibility */}
           <View style={s.mapTint} />
-          {/* Coffee name + origin at bottom */}
-          <View style={s.backLabelArea}>
-            <Text style={s.backName} numberOfLines={2}>{coffee.coffee_name}</Text>
-            {coffee.origin && <Text style={s.backOrigin}>{coffee.origin}</Text>}
+
+          {/* Legend — top right */}
+          <View style={s.legend}>
+            <View style={s.legendRow}>
+              <View style={[s.legendDot, { backgroundColor: "#C8553D" }]} />
+              <Text style={s.legendText}>Bean source</Text>
+            </View>
+            <View style={s.legendRow}>
+              <View style={[s.legendDot, { backgroundColor: "#E8C07A" }]} />
+              <Text style={s.legendText}>Roastery</Text>
+            </View>
+          </View>
+
+          {/* Flip hint — bottom center */}
+          <View style={s.flipHintArea}>
             <Text style={s.flipHint}>Tap to flip back</Text>
           </View>
         </Animated.View>
@@ -213,25 +223,27 @@ const s = StyleSheet.create({
   priceText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.textPrimary },
   priceUnit: { fontFamily: fonts.bodyRegular, fontSize: 9, color: colors.textMuted, marginLeft: 1 },
 
-  // Back — clean map only
+  // Back
   mapTint: {
     position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-    zIndex: 1, backgroundColor: "rgba(26, 15, 10, 0.35)",
+    zIndex: 1, backgroundColor: "rgba(26, 15, 10, 0.25)",
   },
-  backLabelArea: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
-    zIndex: 10, padding: 14,
-    backgroundColor: "rgba(26, 15, 10, 0.7)",
+  legend: {
+    position: "absolute", top: 10, right: 10, zIndex: 10,
+    backgroundColor: "rgba(26, 15, 10, 0.6)",
+    borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6, gap: 4,
   },
-  backName: {
-    fontFamily: Platform.select({ web: "Georgia, serif", default: "serif" }),
-    fontSize: 15, fontWeight: "700", color: colors.textOnDark,
+  legendRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: {
+    fontFamily: fonts.bodyRegular, fontSize: 8, color: "rgba(245,240,235,0.8)",
   },
-  backOrigin: {
-    fontFamily: fonts.bodyRegular, fontSize: 11, color: "rgba(245,240,235,0.7)", marginTop: 2,
+  flipHintArea: {
+    position: "absolute", bottom: 10, left: 0, right: 0, zIndex: 10,
+    alignItems: "center",
   },
   flipHint: {
-    fontFamily: fonts.bodyRegular, textAlign: "center",
-    fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 8,
+    fontFamily: fonts.bodyRegular, fontSize: 9,
+    color: "rgba(255,255,255,0.35)",
   },
 });
