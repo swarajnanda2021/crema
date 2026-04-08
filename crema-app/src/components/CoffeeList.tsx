@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { colors, fonts } from "../theme/colors";
 import CoffeeCard from "./CoffeeCard";
@@ -12,14 +12,8 @@ interface CoffeeListProps {
   ListHeaderComponent?: React.ReactElement | null;
 }
 
-/**
- * Renders a flex-wrap grid of CoffeeCards inside a ScrollView.
- * FlatList with numColumns is unreliable on React Native Web
- * for fixed-dimension cards, so we use ScrollView + flex-wrap.
- */
 export default function CoffeeList({ coffees, popularity = {}, compact, ListHeaderComponent }: CoffeeListProps) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-
   const visible = coffees.slice(0, visibleCount);
   const hasMore = visibleCount < coffees.length;
 
@@ -34,34 +28,34 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
   }
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 100 }}
-    >
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
       {ListHeaderComponent}
-
-      {/* Flex-wrap grid */}
       <View style={s.grid}>
-        {visible.map((item) => (
-          <View key={item.product_id} style={s.cardWrapper}>
-            <CoffeeCard
-              coffee={item}
-              userCount={popularity[item.product_id]}
-              compact={compact}
-            />
-          </View>
-        ))}
+        {visible.map((item) => {
+          try {
+            return (
+              <View key={item.product_id} style={s.cardSlot}>
+                <CoffeeCard
+                  coffee={item}
+                  userCount={popularity[item.product_id]}
+                  compact={compact}
+                />
+              </View>
+            );
+          } catch (e: any) {
+            // Render a fallback if CoffeeCard crashes
+            return (
+              <View key={item.product_id} style={s.errorCard}>
+                <Text style={{ color: "red", fontSize: 10 }}>Error: {e.message}</Text>
+                <Text style={{ fontSize: 12 }}>{item.coffee_name}</Text>
+              </View>
+            );
+          }
+        })}
       </View>
-
-      {/* Load more */}
       {hasMore && (
-        <Pressable
-          onPress={() => setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, coffees.length))}
-          style={s.loadMoreBtn}
-        >
-          <Text style={s.loadMoreText}>
-            Show more ({coffees.length - visibleCount} remaining)
-          </Text>
+        <Pressable onPress={() => setVisibleCount(prev => Math.min(prev + PAGE_SIZE, coffees.length))} style={s.loadMoreBtn}>
+          <Text style={s.loadMoreText}>Show more ({coffees.length - visibleCount} remaining)</Text>
         </Pressable>
       )}
     </ScrollView>
@@ -72,12 +66,19 @@ const s = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "center",
     paddingHorizontal: 8,
-    gap: 16,
+    gap: 12,
   },
-  cardWrapper: {
-    // Each card handles its own width (320px)
+  cardSlot: {
+    width: 320,
+    height: 400,
+  },
+  errorCard: {
+    width: 320,
+    height: 400,
+    backgroundColor: "#ffe0e0",
+    borderRadius: 8,
+    padding: 12,
   },
   loadMoreBtn: {
     alignSelf: "center",
@@ -87,26 +88,9 @@ const s = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.tagBg,
   },
-  loadMoreText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 13,
-    color: colors.tagText,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: 80,
-    paddingHorizontal: 16,
-  },
+  loadMoreText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.tagText },
+  emptyContainer: { alignItems: "center", paddingVertical: 80, paddingHorizontal: 16 },
   emptyEmoji: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: {
-    fontFamily: fonts.displaySemiBold,
-    fontSize: 20,
-    marginBottom: 8,
-    color: colors.textPrimary,
-  },
-  emptySubtitle: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
+  emptyTitle: { fontFamily: fonts.displaySemiBold, fontSize: 20, marginBottom: 8, color: colors.textPrimary },
+  emptySubtitle: { fontFamily: fonts.bodyRegular, fontSize: 14, color: colors.textSecondary },
 });

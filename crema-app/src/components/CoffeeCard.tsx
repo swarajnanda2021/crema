@@ -71,7 +71,7 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
 
   return (
     <View style={s.container}>
-      <Pressable onPress={handleFlip}>
+      <Pressable onPress={handleFlip} style={{ width: 320, height: 400 }}>
         {/* ── Front Face: CoffeeLabel + action strip ── */}
         <Animated.View style={[s.face, frontStyle]}>
           {/* The typographic label card */}

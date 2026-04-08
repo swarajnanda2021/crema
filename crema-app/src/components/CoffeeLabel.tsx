@@ -134,7 +134,6 @@ const s = StyleSheet.create({
     overflow: "hidden",
   },
   innerCard: {
-    flex: 1,
     width: 300,
     height: 340,
     backgroundColor: "#ece5d3",
@@ -165,7 +164,6 @@ const s = StyleSheet.create({
     fontFamily: Platform.select({ web: "Georgia, serif", default: "serif" }),
     fontWeight: "700",
     letterSpacing: -1,
-    lineHeight: undefined, // set dynamically
     color: "#2a2a2a",
     // 2-line clamp via numberOfLines={2} prop
   },
@@ -201,7 +199,7 @@ const s = StyleSheet.create({
     letterSpacing: 1,
     textTransform: "uppercase",
     color: "#2a2a2a",
-    width: "36%",
+    width: 90,
   },
   cellValue: {
     fontFamily: MONO,
@@ -210,9 +208,8 @@ const s = StyleSheet.create({
     flex: 1,
   },
 
-  // Footer
+  // Footer — pushed to bottom by table's flex: 1
   footer: {
-    marginTop: "auto" as any,
     paddingTop: 10,
     paddingHorizontal: 6,
   },
