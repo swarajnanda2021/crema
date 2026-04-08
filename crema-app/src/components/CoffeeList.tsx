@@ -71,7 +71,7 @@ const s = StyleSheet.create({
   },
   cardSlot: {
     width: 320,
-    height: 400,
+    height: 460,
   },
   errorCard: {
     width: 320,
