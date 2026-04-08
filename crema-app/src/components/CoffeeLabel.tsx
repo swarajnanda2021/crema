@@ -1,6 +1,19 @@
 /**
  * CoffeeLabel — Scalable typographic coffee label card.
  * Semi-transparent kraft paper overlay. Fills its parent container.
+ *
+ * Layout:
+ *   Coffee Name (title)
+ *   Origin (subtitle)
+ *   ─────────────────
+ *   ROAST     Medium
+ *   PROCESS   Washed (Catuai)
+ *   ALTITUDE  1,340 m.a.s.l.
+ *   COST      ₹938 / 250g
+ *   TASTING   Citrus, Chocolate,
+ *             Nut, Cacao...
+ *   ─────────────────
+ *   Roaster Name
  */
 import { View, Text, StyleSheet, Platform } from "react-native";
 import { useMemo } from "react";
@@ -20,7 +33,7 @@ interface CoffeeLabelProps {
 
 function formatINR(n: number): string {
   if (!n || isNaN(n)) return "\u2014";
-  return n.toLocaleString("en-IN");
+  return "\u20B9" + n.toLocaleString("en-IN");
 }
 
 export default function CoffeeLabel({
@@ -28,25 +41,23 @@ export default function CoffeeLabel({
   altitude_masl, price_inr, weight_grams, roaster_name,
 }: CoffeeLabelProps) {
   const roastClean = roast_level && roast_level !== "Unknown" ? roast_level : null;
-  const subtitle = [roastClean, process].filter(Boolean).join(" \u00B7 ");
 
   const nameFontSize = useMemo(() => {
     if (!coffee_name) return 18;
     return coffee_name.length > 28 ? 14 : 18;
   }, [coffee_name]);
 
-  const rows: [string, string][] = [
-    ["ORIGIN", origin || "\u2014"],
-    ["ROAST", roastClean || "\u2014"],
-    ["PROCESS", process ? (varietal ? `${process} (${varietal})` : process) : "\u2014"],
-    ["TASTING", tasting_notes || "\u2014"],
-    ["ALTITUDE", altitude_masl ? `${altitude_masl.toLocaleString()} m.a.s.l.` : "\u2014"],
-  ];
+  const processDisplay = process
+    ? (varietal ? `${process} (${varietal})` : process)
+    : "\u2014";
+
+  const costDisplay = price_inr
+    ? `${formatINR(price_inr)} / ${weight_grams}g`
+    : "\u2014";
 
   return (
-    /* Outer wrapper fills parent, has checkerboard border padding */
     <View style={s.outerWrap}>
-      {/* Checkerboard — semi-transparent so product image shows through */}
+      {/* Checkerboard border */}
       {Platform.OS === "web" && (
         <View
           style={[
@@ -64,33 +75,49 @@ export default function CoffeeLabel({
         <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(42,42,42,0.8)", borderRadius: 3 }]} />
       )}
 
-      {/* Inner card — fills remaining space after padding */}
       <View style={s.innerCard}>
         <View style={s.insetBorder} />
 
-        {/* Title */}
-        <View style={s.titleArea}>
-          <Text style={[s.coffeeName, { fontSize: nameFontSize }]} numberOfLines={2}>
-            {coffee_name}
-          </Text>
-          {subtitle ? <Text style={s.subtitle}>{subtitle.toUpperCase()}</Text> : null}
-        </View>
+        {/* Title: Coffee Name */}
+        <Text style={[s.coffeeName, { fontSize: nameFontSize }]} numberOfLines={2}>
+          {coffee_name}
+        </Text>
 
-        {/* Info table */}
+        {/* Subtitle: Origin */}
+        <Text style={s.originSubtitle} numberOfLines={1}>
+          {origin ? origin.toUpperCase() : "\u2014"}
+        </Text>
+
+        {/* Info table: ROAST, PROCESS, ALTITUDE, COST — single line each */}
         <View style={s.table}>
-          {rows.map(([label, value], i) => (
-            <View key={label} style={[s.row, i === rows.length - 1 && s.rowLast]}>
-              <Text style={s.cellLabel}>{label}</Text>
-              <Text style={s.cellValue} numberOfLines={1}>{value}</Text>
-            </View>
-          ))}
+          <Row label="ROAST" value={roastClean || "\u2014"} />
+          <Row label="PROCESS" value={processDisplay} />
+          <Row label="ALTITUDE" value={altitude_masl ? `${altitude_masl.toLocaleString()} m.a.s.l.` : "\u2014"} />
+          <Row label="COST" value={costDisplay} />
+
+          {/* TASTING — gets remaining space, 2-3 lines */}
+          <View style={[s.row, s.rowLast, { flex: 1 }]}>
+            <Text style={s.cellLabel}>TASTING</Text>
+            <Text style={s.cellValueWrap} numberOfLines={3}>
+              {tasting_notes || "\u2014"}
+            </Text>
+          </View>
         </View>
 
-        {/* Footer */}
+        {/* Footer: Roaster name — larger */}
         <View style={s.footer}>
           <Text style={s.footerText} numberOfLines={1}>{roaster_name}</Text>
         </View>
       </View>
+    </View>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={s.row}>
+      <Text style={s.cellLabel}>{label}</Text>
+      <Text style={s.cellValue} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
@@ -101,7 +128,6 @@ const MONO = Platform.select({
 });
 
 const s = StyleSheet.create({
-  // Fills its parent — parent controls the size
   outerWrap: {
     flex: 1,
     padding: 6,
@@ -115,8 +141,8 @@ const s = StyleSheet.create({
     borderColor: "#2a2a2a",
     borderRadius: 2,
     paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 6,
     position: "relative",
   },
   insetBorder: {
@@ -125,33 +151,35 @@ const s = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: "rgba(42,42,42,0.4)",
   },
-  titleArea: {
-    minHeight: 40,
-    justifyContent: "center",
-  },
+
+  // Title
   coffeeName: {
     fontFamily: Platform.select({ web: "Georgia, serif", default: "serif" }),
     fontWeight: "700",
     letterSpacing: -0.5,
     color: "#2a2a2a",
   },
-  subtitle: {
+
+  // Subtitle — origin
+  originSubtitle: {
     fontFamily: MONO,
     fontSize: 8,
     letterSpacing: 1.2,
     color: "#2a2a2a",
-    marginTop: 3,
+    marginTop: 2,
+    marginBottom: 6,
   },
+
+  // Table
   table: {
     flex: 1,
-    marginTop: 8,
     marginHorizontal: 2,
   },
   row: {
     flexDirection: "row",
     borderTopWidth: 1,
     borderColor: "#2a2a2a",
-    paddingVertical: 2.5,
+    paddingVertical: 2,
   },
   rowLast: {
     borderBottomWidth: 1,
@@ -164,7 +192,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: "uppercase",
     color: "#2a2a2a",
-    width: 52,
+    width: 55,
   },
   cellValue: {
     fontFamily: MONO,
@@ -172,13 +200,23 @@ const s = StyleSheet.create({
     color: "#2a2a2a",
     flex: 1,
   },
+  // Tasting value — wraps to 2-3 lines
+  cellValueWrap: {
+    fontFamily: MONO,
+    fontSize: 8,
+    color: "#2a2a2a",
+    flex: 1,
+    lineHeight: 12,
+  },
+
+  // Footer — roaster name, larger
   footer: {
-    paddingTop: 5,
+    paddingTop: 4,
     paddingHorizontal: 2,
   },
   footerText: {
     fontFamily: MONO,
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: "700",
     letterSpacing: 0.3,
     color: "#2a2a2a",

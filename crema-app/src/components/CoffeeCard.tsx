@@ -20,7 +20,7 @@ import { colors, fonts, cardShadow } from "../theme/colors";
 import IndiaMap from "./IndiaMap";
 import CoffeeLabel from "./CoffeeLabel";
 import { resolveOriginCoords } from "../data/coffeeRegions";
-import { pricePer250g } from "../utils/formatPrice";
+// Price now shown inside CoffeeLabel, not the button bar
 import { trackClick } from "../api/client";
 import { useShare } from "../hooks/useShare";
 import { useShelves } from "../hooks/useShelves";
@@ -43,7 +43,6 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
   const { addToShelf } = useShelves();
 
   const originCoords = resolveOriginCoords(coffee.origin, coffee.coffee_name);
-  const price250 = pricePer250g(coffee.price_per_gram);
 
   const handleFlip = () => {
     const next = !isFlipped;
@@ -113,14 +112,6 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
               <Share2 size={12} color="#2a2a2a" />
             </Pressable>
 
-            {/* Spacer pushes price to right */}
-            <View style={{ flex: 1 }} />
-
-            {/* Price */}
-            <Text style={s.priceText}>
-              {price250 != null ? `\u20B9${price250.toLocaleString("en-IN")}` : "\u2014"}
-            </Text>
-            <Text style={s.priceUnit}>/250g</Text>
           </View>
         </Animated.View>
 
@@ -187,9 +178,10 @@ const s = StyleSheet.create({
   buttonRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 8,
     paddingVertical: 6,
-    gap: 6,
+    gap: 8,
     backgroundColor: colors.cardFront,
     borderTopWidth: 1,
     borderColor: colors.borderLight,
@@ -206,8 +198,6 @@ const s = StyleSheet.create({
     fontFamily: Platform.select({ web: "ui-monospace, monospace", default: "monospace" }),
     fontSize: 10, fontWeight: "700", color: "#2a2a2a",
   },
-  priceText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.textPrimary },
-  priceUnit: { fontFamily: fonts.bodyRegular, fontSize: 9, color: colors.textMuted, marginLeft: 1 },
 
   // Back
   mapTint: {
