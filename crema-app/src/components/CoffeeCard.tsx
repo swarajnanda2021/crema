@@ -59,20 +59,21 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
     backfaceVisibility: "hidden",
   }));
 
+  const btnRowHeight = BTN_SIZE + 12; // button + padding
+  const flipAreaHeight = cardH - btnRowHeight;
+
   return (
     <View style={{ width: cardW, height: cardH }}>
-      <Pressable onPress={handleFlip} style={{ width: cardW, height: cardH }}>
-
+      {/* Flip area — only the card faces, not the buttons */}
+      <Pressable onPress={handleFlip} style={{ width: cardW, height: flipAreaHeight }}>
         {/* ═══ FRONT ═══ */}
-        <Animated.View style={[s.face, frontStyle]}>
-          {/* Product image background */}
+        <Animated.View style={[s.face, { height: flipAreaHeight }, frontStyle]}>
           <View style={s.imageArea}>
             {coffee.image_url ? (
               <Image source={{ uri: coffee.image_url }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
             ) : (
               <View style={s.imagePlaceholder}><Coffee size={48} color="rgba(42,42,42,0.15)" /></View>
             )}
-            {/* Label overlay island */}
             <View style={s.labelOverlay}>
               <CoffeeLabel
                 coffee_name={coffee.coffee_name}
@@ -88,35 +89,10 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
               />
             </View>
           </View>
-
-          {/* Button row: [+] [cart] [people N] [share] | MASL | price */}
-          <View style={s.buttonRow}>
-            <Pressable onPress={(e) => { e.stopPropagation?.(); addToShelf(coffee.product_id, "want_to_try"); }} style={s.btn}>
-              <Plus size={13} color="#2a2a2a" />
-            </Pressable>
-
-            <Pressable onPress={(e) => { e.stopPropagation?.(); trackClick(coffee.product_id, coffee.roaster_slug, "card_front"); Linking.openURL(coffee.product_url); }} style={[s.btn, s.btnAccent]}>
-              <ShoppingCart size={13} color="white" />
-            </Pressable>
-
-            {userCount != null && userCount > 0 ? (
-              <Pressable onPress={(e) => { e.stopPropagation?.(); setShowPopularity(true); }} style={s.btn}>
-                <UsersIcon size={12} color="#2a2a2a" />
-                <Text style={s.btnCountText}>{userCount}</Text>
-              </Pressable>
-            ) : (
-              <View style={s.btn}><UsersIcon size={12} color="rgba(42,42,42,0.25)" /></View>
-            )}
-
-            <Pressable onPress={(e) => { e.stopPropagation?.(); share(coffee); }} style={s.btn}>
-              <Share2 size={12} color="#2a2a2a" />
-            </Pressable>
-
-          </View>
         </Animated.View>
 
-        {/* ═══ BACK — full India map + legend ═══ */}
-        <Animated.View style={[s.face, s.backFace, backStyle]}>
+        {/* ═══ BACK ═══ */}
+        <Animated.View style={[s.face, s.backFace, { height: flipAreaHeight }, backStyle]}>
           <IndiaMap
             originLat={originCoords?.lat}
             originLng={originCoords?.lng}
@@ -125,8 +101,6 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
             fullMap
           />
           <View style={s.mapTint} />
-
-          {/* Legend — top right */}
           <View style={s.legend}>
             <View style={s.legendRow}>
               <View style={[s.legendDot, { backgroundColor: "#C8553D" }]} />
@@ -137,14 +111,32 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
               <Text style={s.legendText}>Roastery</Text>
             </View>
           </View>
-
-          {/* Flip hint — bottom center */}
           <View style={s.flipHintArea}>
             <Text style={s.flipHint}>Tap to flip back</Text>
           </View>
         </Animated.View>
-
       </Pressable>
+
+      {/* Button row — OUTSIDE the flip pressable, always visible */}
+      <View style={s.buttonRow}>
+        <Pressable onPress={() => addToShelf(coffee.product_id, "want_to_try")} style={s.btn}>
+          <Plus size={13} color="#2a2a2a" />
+        </Pressable>
+        <Pressable onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "card_front"); Linking.openURL(coffee.product_url); }} style={[s.btn, s.btnAccent]}>
+          <ShoppingCart size={13} color="white" />
+        </Pressable>
+        {userCount != null && userCount > 0 ? (
+          <Pressable onPress={() => setShowPopularity(true)} style={s.btn}>
+            <UsersIcon size={12} color="#2a2a2a" />
+            <Text style={s.btnCountText}>{userCount}</Text>
+          </Pressable>
+        ) : (
+          <View style={s.btn}><UsersIcon size={12} color="rgba(42,42,42,0.25)" /></View>
+        )}
+        <Pressable onPress={() => share(coffee)} style={s.btn}>
+          <Share2 size={12} color="#2a2a2a" />
+        </Pressable>
+      </View>
 
       <PopularityModal
         visible={showPopularity}
@@ -162,7 +154,6 @@ const s = StyleSheet.create({
   face: {
     position: "absolute",
     width: "100%",
-    height: "100%",
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: colors.cardFront,
