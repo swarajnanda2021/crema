@@ -112,19 +112,22 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
               <Share2 size={12} color="#2a2a2a" />
             </Pressable>
 
+            {/* Spacer pushes price to right */}
+            <View style={{ flex: 1 }} />
+
             {/* MASL if available */}
-            {coffee.altitude_masl && (
+            {coffee.altitude_masl ? (
               <View style={s.maslTag}>
-                <Mountain size={10} color={colors.textMuted} />
+                <Mountain size={9} color={colors.textMuted} />
                 <Text style={s.maslText}>{coffee.altitude_masl.toLocaleString()}m</Text>
               </View>
-            )}
+            ) : null}
 
-            {/* Price right-aligned */}
-            <View style={s.priceArea}>
-              <Text style={s.priceText}>{price250 != null ? `\u20B9${price250.toLocaleString("en-IN")}` : "\u2014"}</Text>
-              <Text style={s.priceUnit}>/250g</Text>
-            </View>
+            {/* Price */}
+            <Text style={s.priceText}>
+              {price250 != null ? `\u20B9${price250.toLocaleString("en-IN")}` : "\u2014"}
+            </Text>
+            <Text style={s.priceUnit}>/250g</Text>
           </View>
         </Animated.View>
 
@@ -216,9 +219,6 @@ const s = StyleSheet.create({
   maslText: {
     fontFamily: Platform.select({ web: "ui-monospace, monospace", default: "monospace" }),
     fontSize: 9, color: colors.textMuted,
-  },
-  priceArea: {
-    flex: 1, flexDirection: "row", alignItems: "baseline", justifyContent: "flex-end",
   },
   priceText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.textPrimary },
   priceUnit: { fontFamily: fonts.bodyRegular, fontSize: 9, color: colors.textMuted, marginLeft: 1 },

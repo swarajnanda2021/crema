@@ -1,5 +1,5 @@
 import { memo } from "react";
-import Svg, { Path, Circle, Line, G, Rect, Ellipse } from "react-native-svg";
+import Svg, { Path, Circle, Line, Rect } from "react-native-svg";
 
 // India outline from Wikimedia Commons (public domain, Natural Earth data)
 const INDIA_PATH =
@@ -110,7 +110,7 @@ interface IndiaMapProps {
   originLng?: number | null;
   roasterLat?: number | null;
   roasterLng?: number | null;
-  fullMap?: boolean; // show entire India instead of zoomed region
+  fullMap?: boolean;
 }
 
 const IndiaMap = memo(function IndiaMap({ originLat, originLng, roasterLat, roasterLng, fullMap }: IndiaMapProps) {
@@ -124,31 +124,38 @@ const IndiaMap = memo(function IndiaMap({ originLat, originLng, roasterLat, roas
   const showBoth = hasOrigin && hasRoaster &&
     (Math.abs(originLat! - roasterLat!) > 0.15 || Math.abs(originLng! - roasterLng!) > 0.15);
 
+  // Scale pin sizes: bigger for full map since the viewBox is much larger
+  const pinR = fullMap ? 10 : 4;
+  const lineW = fullMap ? 2 : 0.8;
+
   return (
     <Svg viewBox={viewBox} preserveAspectRatio="xMidYMid slice" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}>
       <Rect x={-50} y={-50} width={SVG_W + 100} height={SVG_H + 100} fill="#1A0F0A" />
-      <Path d={INDIA_PATH} fill="#F5EDE0" stroke="#D4C5B8" strokeWidth={1} opacity={0.18} />
+      <Path
+        d={INDIA_PATH}
+        fill="#F5EDE0"
+        stroke="#D4C5B8"
+        strokeWidth={fullMap ? 2 : 1}
+        opacity={fullMap ? 0.3 : 0.18}
+      />
 
+      {/* Connecting line */}
       {showBoth && (() => {
         const a = toSvg(originLat!, originLng!);
         const b = toSvg(roasterLat!, roasterLng!);
-        return <Line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="white" strokeWidth={0.8} strokeDasharray="3,3" opacity={0.35} />;
+        return <Line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="white" strokeWidth={lineW} strokeDasharray={fullMap ? "6,6" : "3,3"} opacity={0.4} />;
       })()}
 
+      {/* Roaster pin — gold filled circle (matches legend) */}
       {hasRoaster && (() => {
         const { x, y } = toSvg(roasterLat!, roasterLng!);
-        return <Circle cx={x} cy={y} r={4} fill="#E8C07A" stroke="white" strokeWidth={1.2} />;
+        return <Circle cx={x} cy={y} r={pinR} fill="#E8C07A" stroke="white" strokeWidth={fullMap ? 2.5 : 1.2} />;
       })()}
 
+      {/* Origin pin — terracotta filled circle (matches legend) */}
       {hasOrigin && (() => {
         const { x, y } = toSvg(originLat!, originLng!);
-        return (
-          <G transform={`translate(${x}, ${y})`}>
-            <Ellipse cx={0} cy={3} rx={5} ry={2} fill="rgba(0,0,0,0.25)" />
-            <Path d="M 0,-14 C -6,-8 -7,-3 -7,0 C -7,3.8 -3.8,7 0,7 C 3.8,7 7,3.8 7,0 C 7,-3 6,-8 0,-14 Z" fill="#C8553D" stroke="white" strokeWidth={1.5} />
-            <Circle cx={0} cy={0} r={2.5} fill="white" />
-          </G>
-        );
+        return <Circle cx={x} cy={y} r={pinR} fill="#C8553D" stroke="white" strokeWidth={fullMap ? 2.5 : 1.2} />;
       })()}
     </Svg>
   );
