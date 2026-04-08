@@ -1,26 +1,16 @@
 /**
- * CoffeeCard — Product image + label overlay + action buttons.
- * Front: image bg, CoffeeLabel island, button row with share + MASL.
- * Back: full India map with origin/roaster pins, coffee name overlay.
+ * CoffeeCard — Exact Figma specs from node 8:1615.
+ * Card: 240×372. Image: 240×160. Info: 240×212.
+ * Top corners: 3.624px. Bottom corners: 5px.
  */
 import { useState } from "react";
-import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  interpolate,
-  Easing,
-} from "react-native-reanimated";
-import { ShoppingCart, Users as UsersIcon, Plus, Coffee, Share2 } from "lucide-react-native";
-import { colors, fonts, cardShadow } from "../theme/colors";
-import IndiaMap from "./IndiaMap";
-import CoffeeLabel from "./CoffeeLabel";
-import { resolveOriginCoords } from "../data/coffeeRegions";
-// Price now shown inside CoffeeLabel, not the button bar
+import { Coffee, Trash2 } from "lucide-react-native";
+import { colors, fonts, cardShadow, SHELF_LABELS, ShelfKey } from "../theme/colors";
+import { HeartIcon, HeartFilledIcon, ShareIcon, CartIcon, UsersIcon } from "./icons/FigmaIcons";
+import CoffeeLabel, { CoffeeLabelPrice } from "./CoffeeLabel";
 import { trackClick } from "../api/client";
 import { useShare } from "../hooks/useShare";
 import { useShelves } from "../hooks/useShelves";
@@ -32,110 +22,109 @@ interface CoffeeCardProps {
   compact?: boolean;
   width?: number;
   height?: number;
+  shelfMode?: boolean;
+  currentShelf?: ShelfKey;
+  onMoveShelf?: (productId: string, shelf: string) => void;
+  onRemove?: () => void;
 }
 
-export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 250, height: cardH = 340 }: CoffeeCardProps) {
-  const router = useRouter();
-  const rotation = useSharedValue(0);
-  const [isFlipped, setIsFlipped] = useState(false);
+// Figma: image 160/372, info 212/372
+const IMAGE_RATIO = 160 / 372;
+const SHELF_KEYS: ShelfKey[] = ["currently_drinking", "drank", "want_to_try"];
+const BTN_SIZE = 31;
+
+export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 240, height: cardH = 372, shelfMode, currentShelf, onMoveShelf, onRemove }: CoffeeCardProps) {
   const [showPopularity, setShowPopularity] = useState(false);
+  const [showShelfPicker, setShowShelfPicker] = useState(false);
+  const [shelvedAs, setShelvedAs] = useState<ShelfKey | null>(currentShelf || null);
   const { share } = useShare();
   const { addToShelf } = useShelves();
 
-  const originCoords = resolveOriginCoords(coffee.origin, coffee.coffee_name);
+  const imageH = Math.round(cardH * IMAGE_RATIO);
+  const infoH = cardH - imageH;
 
-  const handleFlip = () => {
-    const next = !isFlipped;
-    setIsFlipped(next);
-    rotation.value = withTiming(next ? 180 : 0, { duration: 600, easing: Easing.bezier(0.4, 0, 0.2, 1) });
+  const handleShelfSelect = (key: ShelfKey) => {
+    if (shelfMode && onMoveShelf) {
+      onMoveShelf(coffee.product_id, key);
+      setShelvedAs(key);
+    } else if (shelvedAs === key) {
+      setShelvedAs(null);
+    } else {
+      setShelvedAs(key);
+      addToShelf(coffee.product_id, key);
+    }
+    setShowShelfPicker(false);
   };
 
-  const frontStyle = useAnimatedStyle(() => ({
-    transform: [{ perspective: 1000 }, { rotateY: `${interpolate(rotation.value, [0, 180], [0, 180])}deg` }],
-    backfaceVisibility: "hidden",
-  }));
-  const backStyle = useAnimatedStyle(() => ({
-    transform: [{ perspective: 1000 }, { rotateY: `${interpolate(rotation.value, [0, 180], [180, 360])}deg` }],
-    backfaceVisibility: "hidden",
-  }));
-
-  const btnRowHeight = BTN_SIZE + 12; // button + padding
-  const flipAreaHeight = cardH - btnRowHeight;
-
   return (
-    <View style={{ width: cardW, height: cardH }}>
-      {/* Flip area — only the card faces, not the buttons */}
-      <Pressable onPress={handleFlip} style={{ width: cardW, height: flipAreaHeight }}>
-        {/* ═══ FRONT ═══ */}
-        <Animated.View style={[s.face, { height: flipAreaHeight }, frontStyle]}>
-          <View style={s.imageArea}>
-            {coffee.image_url ? (
-              <Image source={{ uri: coffee.image_url }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
-            ) : (
-              <View style={s.imagePlaceholder}><Coffee size={48} color="rgba(42,42,42,0.15)" /></View>
-            )}
-            <View style={s.labelOverlay}>
-              <CoffeeLabel
-                coffee_name={coffee.coffee_name}
-                roast_level={coffee.roast_level || "Unknown"}
-                tasting_notes={coffee.tasting_notes}
-                origin={coffee.origin}
-                process={coffee.process}
-                varietal={coffee.varietal}
-                altitude_masl={coffee.altitude_masl}
-                price_inr={coffee.price_inr}
-                weight_grams={coffee.weight_grams}
-                roaster_name={coffee.roaster_name}
-              />
-            </View>
-          </View>
-        </Animated.View>
+    <View style={[s.card, { width: cardW, height: cardH }]}>
+      {/* Image area — 160px at 240w, clips to top corners */}
+      <View style={[s.imageArea, { height: imageH }]}>
+        {coffee.image_url ? (
+          <Image source={{ uri: coffee.image_url }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
+        ) : (
+          <View style={s.imagePlaceholder}><Coffee size={40} color="rgba(53,17,1,0.12)" /></View>
+        )}
+      </View>
 
-        {/* ═══ BACK ═══ */}
-        <Animated.View style={[s.face, s.backFace, { height: flipAreaHeight }, backStyle]}>
-          <IndiaMap
-            originLat={originCoords?.lat}
-            originLng={originCoords?.lng}
-            roasterLat={coffee.roaster_lat}
-            roasterLng={coffee.roaster_lng}
-            fullMap
-          />
-          <View style={s.mapTint} />
-          <View style={s.legend}>
-            <View style={s.legendRow}>
-              <View style={[s.legendDot, { backgroundColor: "#C8553D" }]} />
-              <Text style={s.legendText}>Bean source</Text>
-            </View>
-            <View style={s.legendRow}>
-              <View style={[s.legendDot, { backgroundColor: "#E8C07A" }]} />
-              <Text style={s.legendText}>Roastery</Text>
-            </View>
-          </View>
-          <View style={s.flipHintArea}>
-            <Text style={s.flipHint}>Tap to flip back</Text>
-          </View>
-        </Animated.View>
+      {/* Overlay buttons — positioned from card level */}
+      {shelfMode && onRemove ? (
+        <Pressable onPress={onRemove} style={s.binBtn}>
+          <Trash2 size={14} color={colors.accent} />
+        </Pressable>
+      ) : userCount != null && userCount > 0 ? (
+        <Pressable onPress={() => setShowPopularity(true)} style={s.friendsBadge}>
+          <UsersIcon size={15} color="#351101" />
+          <Text style={s.friendsCount}>{userCount}</Text>
+        </Pressable>
+      ) : null}
+
+      {/* Heart — top right, 31px (SVG includes circle bg) */}
+      <Pressable onPress={() => setShowShelfPicker(!showShelfPicker)} style={s.heartBtn}>
+        {shelvedAs ? <HeartFilledIcon size={BTN_SIZE} /> : <HeartIcon size={BTN_SIZE} />}
       </Pressable>
 
-      {/* Button row — OUTSIDE the flip pressable, always visible */}
-      <View style={s.buttonRow}>
-        <Pressable onPress={() => addToShelf(coffee.product_id, "want_to_try")} style={s.btn}>
-          <Plus size={13} color="#2a2a2a" />
-        </Pressable>
-        <Pressable onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "card_front"); Linking.openURL(coffee.product_url); }} style={[s.btn, s.btnAccent]}>
-          <ShoppingCart size={13} color="white" />
-        </Pressable>
-        {userCount != null && userCount > 0 ? (
-          <Pressable onPress={() => setShowPopularity(true)} style={s.btn}>
-            <UsersIcon size={12} color="#2a2a2a" />
-            <Text style={s.btnCountText}>{userCount}</Text>
-          </Pressable>
-        ) : (
-          <View style={s.btn}><UsersIcon size={12} color="rgba(42,42,42,0.25)" /></View>
-        )}
-        <Pressable onPress={() => share(coffee)} style={s.btn}>
-          <Share2 size={12} color="#2a2a2a" />
-        </Pressable>
+      {/* Shelf picker dropdown */}
+      {showShelfPicker && (
+        <View style={s.shelfPicker}>
+          {SHELF_KEYS.map((key) => (
+            <Pressable key={key} onPress={() => handleShelfSelect(key)} style={[s.shelfOption, shelvedAs === key && s.shelfOptionActive]}>
+              <View style={[s.shelfDot, { backgroundColor: SHELF_LABELS[key].color }]} />
+              <Text style={[s.shelfOptionText, shelvedAs === key && s.shelfOptionTextActive]}>{SHELF_LABELS[key].label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      {/* Info section — 212px at 240w, bg #EFE9DB */}
+      <View style={[s.infoSection, { height: infoH }]}>
+        <CoffeeLabel
+          coffee_name={coffee.coffee_name}
+          roast_level={coffee.roast_level || "Unknown"}
+          tasting_notes={coffee.tasting_notes}
+          origin={coffee.origin}
+          process={coffee.process}
+          varietal={coffee.varietal}
+          altitude_masl={coffee.altitude_masl}
+          price_inr={coffee.price_inr}
+          weight_grams={coffee.weight_grams}
+          roaster_name={coffee.roaster_name}
+        />
+
+        {/* Bottom row: price left, share+cart right — same baseline */}
+        <View style={s.bottomRow}>
+          <CoffeeLabelPrice price_inr={coffee.price_inr} weight_grams={coffee.weight_grams} />
+          <View style={s.bottomButtons}>
+            <Pressable onPress={() => share(coffee)}>
+              <ShareIcon size={BTN_SIZE} />
+            </Pressable>
+            <Pressable
+              onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "card_front"); Linking.openURL(coffee.product_url); }}
+            >
+              <CartIcon size={BTN_SIZE} />
+            </Pressable>
+          </View>
+        </View>
       </View>
 
       <PopularityModal
@@ -148,69 +137,117 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
   );
 }
 
-const BTN_SIZE = 28;
-
 const s = StyleSheet.create({
-  face: {
-    position: "absolute",
-    width: "100%",
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: colors.cardFront,
+  card: {
+    borderTopLeftRadius: 3.624,
+    borderTopRightRadius: 3.624,
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
+    backgroundColor: "#EFE9DB",
+    position: "relative",
     ...cardShadow,
   },
-  backFace: { backgroundColor: "#1A0F0A" },
-
-  // Front
-  imageArea: { flex: 1, backgroundColor: "#d4c5b8", position: "relative" },
-  imagePlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#e8e0d0" },
-  labelOverlay: { position: "absolute", top: "5%", left: "5%", right: "5%", bottom: "5%" } as any,
-
-  buttonRow: {
-    flexDirection: "row",
+  imageArea: {
+    backgroundColor: "#d4c5b8",
+    borderTopLeftRadius: 3.624,
+    borderTopRightRadius: 3.624,
+    overflow: "hidden",
+  },
+  imagePlaceholder: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    gap: 8,
-    backgroundColor: colors.cardFront,
-    borderTopWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  btn: {
-    width: BTN_SIZE, height: BTN_SIZE,
-    borderRadius: BTN_SIZE / 2,
-    alignItems: "center", justifyContent: "center",
-    flexDirection: "row", gap: 2,
-    backgroundColor: colors.tagBg,
-  },
-  btnAccent: { backgroundColor: colors.accent },
-  btnCountText: {
-    fontFamily: Platform.select({ web: "ui-monospace, monospace", default: "monospace" }),
-    fontSize: 10, fontWeight: "700", color: "#2a2a2a",
+    backgroundColor: "#e8e0d0",
   },
 
-  // Back
-  mapTint: {
-    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-    zIndex: 1, backgroundColor: "rgba(26, 15, 10, 0.25)",
-  },
-  legend: {
-    position: "absolute", top: 10, right: 10, zIndex: 10,
-    backgroundColor: "rgba(26, 15, 10, 0.6)",
-    borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6, gap: 4,
-  },
-  legendRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: {
-    fontFamily: fonts.bodyRegular, fontSize: 8, color: "rgba(245,240,235,0.8)",
-  },
-  flipHintArea: {
-    position: "absolute", bottom: 10, left: 0, right: 0, zIndex: 10,
+  // Bin button — shelf mode, top-left
+  binBtn: {
+    position: "absolute",
+    top: 10,
+    left: 12,
+    width: BTN_SIZE,
+    height: BTN_SIZE,
+    borderRadius: BTN_SIZE / 2,
+    backgroundColor: "rgba(255,255,255,0.85)",
     alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
   },
-  flipHint: {
-    fontFamily: fonts.bodyRegular, fontSize: 9,
-    color: "rgba(255,255,255,0.35)",
+
+  // Friends badge — top left, bg #EFE9DB, rounded 20px
+  friendsBadge: {
+    position: "absolute",
+    top: 10,
+    left: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#EFE9DB",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    zIndex: 10,
+  },
+  // Inter Semi Bold, 10.165px, #351101
+  friendsCount: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 10.2,
+    color: "#351101",
+  },
+
+  // Heart — top right (SVG includes its own 31px circle bg)
+  heartBtn: {
+    position: "absolute",
+    top: 10,
+    right: 12,
+    zIndex: 10,
+  },
+
+  // Shelf picker
+  shelfPicker: {
+    position: "absolute",
+    top: 10 + BTN_SIZE + 6,
+    right: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    paddingVertical: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 20,
+    minWidth: 130,
+  },
+  shelfOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  shelfOptionActive: { backgroundColor: "#EFE9DB" },
+  shelfDot: { width: 8, height: 8, borderRadius: 4 },
+  shelfOptionText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "#351101" },
+  shelfOptionTextActive: { fontFamily: fonts.bodySemiBold },
+
+  // Info section — padding matches Figma (name starts ~13px from info top)
+  infoSection: {
+    paddingHorizontal: 17,
+    paddingTop: 13,
+    paddingBottom: 12,
+  },
+
+  // Bottom row — price left, buttons right
+  bottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: "auto" as any,
+  },
+  bottomButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
 });

@@ -15,6 +15,7 @@ export default function BrowsePage() {
   const [query, setQuery] = useState("");
   const [popularity, setPopularity] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState<"beans" | "roasters">("beans");
+  const [sortBy, setSortBy] = useState<string>("featured");
   const [selectedRoasters, setSelectedRoasters] = useState<string[]>([]);
   const [selectedRoasts, setSelectedRoasts] = useState<string[]>([]);
   const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
@@ -34,11 +35,15 @@ export default function BrowsePage() {
 
   const filtered = useMemo(() => {
     let result = filterCoffees(products, filters);
-    if (filters.sortBy === "newest" && Object.keys(popularity).length > 0) {
+    if (sortBy === "featured" && Object.keys(popularity).length > 0) {
       result = [...result].sort((a, b) => (popularity[b.product_id] || 0) - (popularity[a.product_id] || 0));
+    } else if (sortBy === "price_low") {
+      result = [...result].sort((a, b) => (a.price_inr || 0) - (b.price_inr || 0));
+    } else if (sortBy === "price_high") {
+      result = [...result].sort((a, b) => (b.price_inr || 0) - (a.price_inr || 0));
     }
     return result;
-  }, [products, filters, popularity]);
+  }, [products, filters, popularity, sortBy]);
 
   const hasActiveFilters = selectedRoasters.length > 0 || selectedRoasts.length > 0 || selectedProcesses.length > 0 || !!query;
 
@@ -50,13 +55,19 @@ export default function BrowsePage() {
 
   return (
     <View style={s.container}>
-      {/* Sub-tabs */}
+      {/* Sub-tabs — Figma "Sticky Tabs" */}
       <View style={s.tabBar}>
         <View style={s.tabBarInner}>
-          <TabButton label="Beans" active={activeTab === "beans"} onPress={() => setActiveTab("beans")} />
-          <TabButton label="Roasters" active={activeTab === "roasters"} onPress={() => setActiveTab("roasters")} />
-          <Text style={s.greyTab}>Apparatus</Text>
-          <Text style={s.greyTab}>Coffee Spots</Text>
+          {/* Left: "LOOKING FOR" aligned with filter sidebar */}
+          <View style={s.tabBarLeft}>
+            <Text style={s.lookingForLabel}>LOOKING FOR</Text>
+          </View>
+          {/* Right: tabs aligned with card grid */}
+          <View style={s.tabBarRight}>
+            <TabButton label="BEANS" active={activeTab === "beans"} onPress={() => setActiveTab("beans")} />
+            <TabButton label="ROASTERS" active={activeTab === "roasters"} onPress={() => setActiveTab("roasters")} />
+            <Text style={s.greyTab}>COFFEE SPOTS</Text>
+          </View>
         </View>
       </View>
 
@@ -69,37 +80,61 @@ export default function BrowsePage() {
               contentContainerStyle={{ padding: 16 }}
               showsVerticalScrollIndicator={false}
             >
-              <Text style={s.sidebarTitle}>Filters</Text>
+              <Text style={s.sidebarTitle}>{filtered.length} COFFEES</Text>
               {hasActiveFilters && (
                 <Pressable onPress={clearAll} style={{ marginBottom: 12 }}>
                   <Text style={s.clearText}>Clear all</Text>
                 </Pressable>
               )}
-              <FilterSection title="Roast Level" items={(roastLevels as string[]).map(r => ({ key: r, label: r }))} selected={selectedRoasts} onToggle={v => toggleArray(selectedRoasts, setSelectedRoasts, v)} />
+              {/* Sort By — radio buttons */}
+              <View style={s.filterSection}>
+                <Text style={s.filterTitle}>Sort By</Text>
+                {[
+                  { key: "featured", label: "Featured" },
+                  { key: "newest", label: "Newest" },
+                  { key: "price_low", label: "Price: Low-High" },
+                  { key: "price_high", label: "Price: High-Low" },
+                ].map(opt => (
+                  <Pressable key={opt.key} onPress={() => setSortBy(opt.key)} style={s.radioRow}>
+                    <View style={[s.radio, sortBy === opt.key && s.radioSelected]}>
+                      {sortBy === opt.key && <View style={s.radioDot} />}
+                    </View>
+                    <Text style={s.checkLabel}>{opt.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <View style={s.filterDivider} />
+              <FilterSection title="Roasters" items={roasters.map((r: any) => ({ key: r.slug, label: r.name }))} selected={selectedRoasters} onToggle={v => toggleArray(selectedRoasters, setSelectedRoasters, v)} maxVisible={20} />
+              <View style={s.filterDivider} />
               <FilterSection title="Process" items={(processes as string[]).map(p => ({ key: p, label: p }))} selected={selectedProcesses} onToggle={v => toggleArray(selectedProcesses, setSelectedProcesses, v)} />
-              <FilterSection title="Roaster" items={roasters.map((r: any) => ({ key: r.slug, label: r.name }))} selected={selectedRoasters} onToggle={v => toggleArray(selectedRoasters, setSelectedRoasters, v)} maxVisible={20} />
             </ScrollView>
           )}
 
+          {/* Vertical divider between sidebar and cards */}
+          {isDesktop && <View style={s.verticalDivider} />}
+
           {/* Card grid */}
           <View style={{ flex: 1, minWidth: 0 }}>
+            {/* Sticky search bar */}
+            <View style={s.stickySearchWrap}>
+              <View style={s.searchBar}>
+                <Search size={16} color={colors.textMuted} />
+                <TextInput
+                  placeholder="Search"
+                  placeholderTextColor={colors.textMuted}
+                  value={query}
+                  onChangeText={setQuery}
+                  style={s.searchInput}
+                />
+                {query ? <Pressable onPress={() => setQuery("")}><X size={16} color={colors.textSecondary} /></Pressable> : null}
+              </View>
+            </View>
+
             <CoffeeList
               coffees={filtered}
               popularity={popularity}
               ListHeaderComponent={
                 <View style={s.listHeader}>
-                  {/* Search */}
-                  <View style={s.searchBar}>
-                    <Search size={16} color={colors.textMuted} />
-                    <TextInput
-                      placeholder="Search coffees..."
-                      placeholderTextColor={colors.textMuted}
-                      value={query}
-                      onChangeText={setQuery}
-                      style={s.searchInput}
-                    />
-                    {query ? <Pressable onPress={() => setQuery("")}><X size={16} color={colors.textSecondary} /></Pressable> : null}
-                  </View>
                   {/* Count */}
                   <Text style={s.countText}>
                     <Text style={s.countBold}>{filtered.length}</Text> coffees from{" "}
@@ -207,101 +242,178 @@ function RoastersList() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
-  // Sub-tabs
+  // Sub-tabs — Figma "Sticky Tabs" (node 8:644)
   tabBar: {
+    borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: colors.borderLight,
-    backgroundColor: colors.cardFront,
+    borderColor: "#D7D1C4",
+    backgroundColor: "#FAF8F0",
+    height: 80,
+    justifyContent: "center",
   },
   tabBarInner: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
+    paddingLeft: 90,
+    paddingRight: 90,
     maxWidth: 1600,
     alignSelf: "center" as any,
     width: "100%" as any,
   },
-  tabBtn: {
-    paddingHorizontal: 16,
+  // sidebar content starts at padding 16 inside the 195px sidebar → left=88+16=104
+  // cards start at 88+195=283 but with the grid's 16px pad → content at 299
+  // tab left should match the sidebar padding start
+  tabBarLeft: {
+    width: 195,
+    flexShrink: 0,
+    paddingLeft: 16,
+    justifyContent: "center",
+  } as any,
+  tabBarRight: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 16,
+    gap: 48,
+  } as any,
+  // Inter Medium 14px, #351101, uppercase — vertically aligned with tab text
+  lookingForLabel: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 14,
+    color: "#351101",
+    textTransform: "uppercase",
     paddingVertical: 10,
-    borderBottomWidth: 2,
+    borderBottomWidth: 4,
+    borderBottomColor: "transparent",
+  } as any,
+  tabBtn: {
+    paddingVertical: 10,
+    borderBottomWidth: 4,
     borderBottomColor: "transparent",
   },
-  tabBtnActive: { borderBottomColor: colors.accent },
-  tabLabel: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.textMuted },
-  tabLabelActive: { fontFamily: fonts.bodySemiBold, color: colors.accent },
-  greyTab: { fontFamily: fonts.bodyRegular, paddingHorizontal: 16, paddingVertical: 10, fontSize: 13, opacity: 0.25, color: colors.textSecondary },
+  tabBtnActive: { borderBottomColor: "#351101" },
+  tabLabel: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#A09580" },
+  tabLabelActive: { fontFamily: fonts.bodySemiBold, color: "#351101" },
+  greyTab: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#A09580", paddingVertical: 10, borderBottomWidth: 4, borderBottomColor: "transparent" },
 
-  // Browse layout
+  // Browse layout — Figma: filters start at x=88, cards start at x=330
   browseLayout: {
     flex: 1,
     flexDirection: "row",
     maxWidth: 1600,
     alignSelf: "center" as any,
     width: "100%" as any,
+    paddingLeft: 90,
+    paddingRight: 90,
   },
 
-  // Filter sidebar — NARROW, fixed width, does NOT flex-grow
+  // Vertical divider between sidebar and cards
+  verticalDivider: {
+    width: 1,
+    backgroundColor: "#D7D1C4",
+    marginHorizontal: 0,
+  } as any,
+
+  // Filter sidebar — Figma: width 195px
   sidebar: {
-    width: 200,
-    minWidth: 200,
-    maxWidth: 200,
+    width: 195,
+    minWidth: 195,
+    maxWidth: 195,
     flexShrink: 0,
     flexGrow: 0,
-    borderRightWidth: 1,
-    borderColor: colors.borderLight,
     position: "sticky" as any,
     top: 56,
     height: "calc(100vh - 100px)" as any,
     overflow: "hidden" as any,
   },
+  // Figma: "472 COFFEES" Inter Semi Bold 14px #351101 uppercase
   sidebarTitle: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
+    fontSize: 14,
+    color: "#351101",
     textTransform: "uppercase",
-    letterSpacing: 1.5,
-    color: colors.textMuted,
-    marginBottom: 12,
-  },
-  clearText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.accent },
-  filterSection: { marginBottom: 20 },
+    marginBottom: 20,
+  } as any,
+  clearText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.accent },
+  // Figma: 1px line, #D7D1C4, width 193px
+  filterDivider: { height: 1, backgroundColor: "#D7D1C4", marginVertical: 12 },
+  filterSection: { marginBottom: 8 },
+  // Figma: Inter Semi Bold 15px, #351101, tracking -0.375px
   filterTitle: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    color: colors.textSecondary,
-    marginBottom: 8,
+    fontSize: 15,
+    letterSpacing: -0.375,
+    color: "#351101",
+    marginBottom: 12,
   },
+  // Figma: 14px gap checkbox→label, 4px between rows
   checkRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 8,
-    paddingVertical: 3,
+    gap: 14,
+    minHeight: 24,
+    marginBottom: 4,
   },
+  // Figma: 20px checkbox, border #D7D1C4, 1.5px, rounded 6px, bg white
   checkbox: {
-    width: 14,
-    height: 14,
-    borderRadius: 3,
-    borderWidth: 1,
-    borderColor: colors.border,
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: "#D7D1C4",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#FFFFFF",
     marginTop: 1,
   },
-  checkboxChecked: { backgroundColor: colors.accent, borderColor: colors.accent },
-  checkmark: { color: "white", fontSize: 9, fontWeight: "700" as any },
+  checkboxChecked: { backgroundColor: "#351101", borderColor: "#351101" },
+  checkmark: { color: "white", fontSize: 11, fontWeight: "700" as any },
+  // Figma: Inter Regular 14px, #351101, tracking -0.336px, lineHeight 1.5 (21px)
   checkLabel: {
     fontFamily: fonts.bodyRegular,
-    fontSize: 12,
-    color: colors.textPrimary,
+    fontSize: 14,
+    letterSpacing: -0.336,
+    color: "#351101",
     flex: 1,
-    lineHeight: 16,
+    lineHeight: 21,
   },
-  showMoreText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.accent, marginTop: 4 },
+  showMoreText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.accent, marginTop: 6 },
 
-  // List header
-  listHeader: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
+  // Radio buttons for Sort By — Figma: 20px circle, #351101 fill when selected
+  radioRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    height: 32,
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: "#D7D1C4",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  radioSelected: {
+    borderColor: "#351101",
+  },
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#351101",
+  },
+
+  // Search bar above card grid
+  stickySearchWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  // List header — same paddingHorizontal as card grid (GRID_PAD=16)
+  listHeader: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -314,7 +426,7 @@ const s = StyleSheet.create({
     borderColor: colors.borderLight,
   },
   searchInput: { flex: 1, marginLeft: 8, fontFamily: fonts.bodyRegular, fontSize: 13, color: colors.textPrimary },
-  countText: { fontFamily: fonts.bodyRegular, fontSize: 13, marginBottom: 4, color: colors.textMuted },
+  countText: { fontFamily: fonts.bodySemiBold, fontSize: 14, marginBottom: 8, color: colors.textPrimary },
   countBold: { fontFamily: fonts.bodySemiBold, color: colors.textPrimary },
   activeChips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8, marginTop: 4 },
   activeChip: {
@@ -345,7 +457,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.tagBg,
   },
-  roasterAvatarText: { fontFamily: fonts.displaySemiBold, fontSize: 14, color: colors.tagText },
+  roasterAvatarText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.tagText },
   roasterName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.textPrimary },
   roasterCity: { fontFamily: fonts.bodyRegular, fontSize: 12, color: colors.textMuted, marginTop: 1 },
   roasterCountBadge: {

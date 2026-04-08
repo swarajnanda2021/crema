@@ -147,7 +147,7 @@ const s = StyleSheet.create({
     borderColor: colors.borderLight,
   },
   title: {
-    fontFamily: fonts.displaySemiBold,
+    fontFamily: fonts.bodySemiBold,
     fontSize: 16,
     color: colors.textPrimary,
     flex: 1,

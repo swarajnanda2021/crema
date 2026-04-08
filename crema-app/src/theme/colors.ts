@@ -1,49 +1,55 @@
 /**
- * Crema Design System — "Artisan Roastery" aesthetic
- * Premium specialty coffee brand feel with warm earth tones.
+ * Crema Design System — Redesigned palette from Figma
+ * Deep brown + cream + purple accent
  */
 
 export const colors = {
   // Core palette
-  bg: "#FAF7F2",
+  bg: "#FAF8F0",
   cardFront: "#FFFFFF",
   cardBack: "#2C1810",
+  cardInfo: "#EFE9DB",
 
   // Text hierarchy
-  textPrimary: "#1A1A1A",
-  textSecondary: "#6B5B4F",
-  textOnDark: "#F5F0EB",
-  textMuted: "#9B8F85",
+  textPrimary: "#351101",
+  textSecondary: "#684F44",
+  textOnDark: "#FAF8F0",
+  textMuted: "#A09580",
 
   // Accents
   accent: "#C8553D",
   accentHover: "#A94432",
   accentSoft: "rgba(200, 85, 61, 0.08)",
-  like: "#E63946",
+  like: "#D798DA",
   gold: "#E8C07A",
+  purple: "#D798DA",
+
+  // Navbar
+  navbarBg: "#351101",
 
   // Surfaces
-  tagBg: "#EDE8E1",
+  tagBg: "#EFE9DB",
   tagText: "#5D4E42",
-  border: "#E0D8CF",
+  border: "#D7D1C4",
   borderLight: "#EDE8E1",
+  divider: "#C7BAA5",
   unavailable: "#B0A89F",
 
   // Shadows
-  shadowColor: "#2C1810",
+  shadowColor: "#351101",
 } as const;
 
 export const fonts = {
-  // Display — Playfair Display for headings, coffee names
-  displayRegular: "PlayfairDisplay_400Regular",
-  displaySemiBold: "PlayfairDisplay_600SemiBold",
-  displayBold: "PlayfairDisplay_700Bold",
+  // Display — Canela Text for coffee names & prices
+  displayRegular: "CanelaText_Regular",
+  displaySemiBold: "CanelaText_Regular",  // only one weight available
+  displayBold: "CanelaText_Regular",
 
-  // Body — DM Sans for UI text, labels, buttons
-  bodyRegular: "DMSans_400Regular",
-  bodyMedium: "DMSans_500Medium",
-  bodySemiBold: "DMSans_600SemiBold",
-  bodyBold: "DMSans_700Bold",
+  // Body — Inter for all UI text
+  bodyRegular: "Inter_400Regular",
+  bodyMedium: "Inter_500Medium",
+  bodySemiBold: "Inter_600SemiBold",
+  bodyBold: "Inter_700Bold",
 } as const;
 
 /** Card shadow preset */

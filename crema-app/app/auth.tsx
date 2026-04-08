@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { Coffee } from "lucide-react-native";
 import { useAuth } from "../src/hooks/useAuth";
 import { colors, fonts } from "../src/theme/colors";
+import CremaLogo from "../src/components/CremaLogo";
 
 export default function AuthPage() {
   const router = useRouter();
@@ -35,10 +35,9 @@ export default function AuthPage() {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Logo */}
+        {/* Logo — dark brown header strip */}
         <View style={styles.logoSection}>
-          <Coffee size={48} color={colors.accent} />
-          <Text style={styles.logoTitle}>Crema</Text>
+          <CremaLogo width={180} height={37} />
           <Text style={styles.logoSubtitle}>Indian Specialty Coffee Community</Text>
         </View>
 
@@ -50,7 +49,7 @@ export default function AuthPage() {
 
           <TextInput
             placeholder="Username"
-            placeholderTextColor={colors.unavailable}
+            placeholderTextColor={colors.textMuted}
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
@@ -61,7 +60,7 @@ export default function AuthPage() {
           {!isLogin && (
             <TextInput
               placeholder="Display Name"
-              placeholderTextColor={colors.unavailable}
+              placeholderTextColor={colors.textMuted}
               value={displayName}
               onChangeText={setDisplayName}
               style={styles.input}
@@ -70,7 +69,7 @@ export default function AuthPage() {
 
           <TextInput
             placeholder="Password"
-            placeholderTextColor={colors.unavailable}
+            placeholderTextColor={colors.textMuted}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -84,7 +83,7 @@ export default function AuthPage() {
           <Pressable
             onPress={handleSubmit}
             disabled={loading}
-            style={[styles.submitBtn, { backgroundColor: loading ? colors.unavailable : colors.accent }]}
+            style={[styles.submitBtn, { backgroundColor: loading ? colors.textMuted : colors.textPrimary }]}
           >
             <Text style={styles.submitText}>
               {loading ? "..." : isLogin ? "Sign In" : "Create Account"}
@@ -119,24 +118,25 @@ const styles = StyleSheet.create({
   },
   logoSection: {
     alignItems: "center",
+    backgroundColor: colors.navbarBg,
+    marginHorizontal: -24,
+    marginTop: -24,
+    paddingTop: 64,
+    paddingBottom: 40,
     marginBottom: 32,
-  },
-  logoTitle: {
-    fontFamily: fonts.displayBold,
-    fontSize: 34,
-    marginTop: 8,
-    color: colors.textPrimary,
-    letterSpacing: -0.5,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
   logoSubtitle: {
     fontFamily: fonts.bodyRegular,
     fontSize: 14,
-    marginTop: 6,
-    color: colors.textMuted,
+    marginTop: 12,
+    color: colors.textOnDark,
     letterSpacing: 0.5,
+    opacity: 0.7,
   },
   formCard: {
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 28,
     backgroundColor: colors.cardFront,
     shadowColor: colors.shadowColor,
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   formTitle: {
-    fontFamily: fonts.displaySemiBold,
+    fontFamily: fonts.bodySemiBold,
     fontSize: 22,
     marginBottom: 28,
     textAlign: "center",
@@ -154,10 +154,10 @@ const styles = StyleSheet.create({
   },
   input: {
     fontFamily: fonts.bodyRegular,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 15,
+    fontSize: 14,
     marginBottom: 12,
     backgroundColor: colors.bg,
     color: colors.textPrimary,
@@ -165,20 +165,21 @@ const styles = StyleSheet.create({
     borderColor: colors.borderLight,
   },
   errorText: {
+    fontFamily: fonts.bodyRegular,
     fontSize: 14,
     marginBottom: 12,
     textAlign: "center",
-    color: colors.like,
+    color: "#C8553D",
   },
   submitBtn: {
-    borderRadius: 12,
+    borderRadius: 10,
     paddingVertical: 16,
     alignItems: "center",
     marginBottom: 16,
   },
   submitText: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 16,
+    fontSize: 14,
     color: "white",
     letterSpacing: 0.3,
   },
@@ -186,7 +187,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     fontSize: 14,
     textAlign: "center",
-    color: colors.accent,
+    color: colors.textSecondary,
   },
   browseText: {
     fontFamily: fonts.bodyRegular,

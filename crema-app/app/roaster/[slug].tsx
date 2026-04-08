@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     color: colors.tagText,
   },
   roasterName: {
-    fontFamily: fonts.displayBold,
+    fontFamily: fonts.bodyBold,
     fontSize: 22,
     color: colors.textPrimary,
   },
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   coffeesTitle: {
-    fontFamily: fonts.displaySemiBold,
+    fontFamily: fonts.bodySemiBold,
     fontSize: 18,
     marginBottom: 12,
     color: colors.textPrimary,

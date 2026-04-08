@@ -1,22 +1,13 @@
 /**
- * CoffeeLabel — Scalable typographic coffee label card.
- * Semi-transparent kraft paper overlay. Fills its parent container.
- *
- * Layout:
- *   Coffee Name (title)
- *   Origin (subtitle)
- *   ─────────────────
- *   ROAST     Medium
- *   PROCESS   Washed (Catuai)
- *   ALTITUDE  1,340 m.a.s.l.
- *   COST      ₹938 / 250g
- *   TASTING   Citrus, Chocolate,
- *             Nut, Cacao...
- *   ─────────────────
- *   Roaster Name
+ * CoffeeLabel — Info section for product card.
+ * All values from Figma node 8:1615 at exact px sizes.
  */
 import { View, Text, StyleSheet, Platform } from "react-native";
-import { useMemo } from "react";
+import { colors, fonts } from "../theme/colors";
+
+const canelaNumeral = Platform.OS === "web"
+  ? { fontFeatureSettings: "'lnum', 'pnum'" } as any
+  : {};
 
 interface CoffeeLabelProps {
   coffee_name: string;
@@ -36,190 +27,129 @@ function formatINR(n: number): string {
   return "\u20B9" + n.toLocaleString("en-IN");
 }
 
-export default function CoffeeLabel({
-  coffee_name, roast_level, tasting_notes, origin, process, varietal,
-  altitude_masl, price_inr, weight_grams, roaster_name,
+function CoffeeLabel({
+  coffee_name, roast_level, tasting_notes, process,
+  roaster_name,
 }: CoffeeLabelProps) {
   const roastClean = roast_level && roast_level !== "Unknown" ? roast_level : null;
+  const processClean = process || null;
 
-  const nameFontSize = useMemo(() => {
-    if (!coffee_name) return 18;
-    return coffee_name.length > 28 ? 14 : 18;
-  }, [coffee_name]);
-
-  const processDisplay = process
-    ? (varietal ? `${process} (${varietal})` : process)
-    : "\u2014";
-
-  const costDisplay = price_inr
-    ? `${formatINR(price_inr)} / ${weight_grams}g`
-    : "\u2014";
+  const roastProcessLine = [
+    roastClean ? `${roastClean} Roast` : null,
+    processClean ? `${processClean} Process` : null,
+  ].filter(Boolean).join(" \u2022 ");
 
   return (
-    <View style={s.outerWrap}>
-      {/* Checkerboard — ONLY in the border strip (behind innerCard, visible in the 6px padding gap) */}
-      {Platform.OS === "web" && (
-        <View
-          style={[
-            StyleSheet.absoluteFillObject,
-            {
-              borderRadius: 3,
-              backgroundImage: "repeating-conic-gradient(#2a2a2a 0% 25%, #e8e0d0 0% 50%)",
-              backgroundSize: "10px 10px",
-            } as any,
-          ]}
-        />
-      )}
-      {Platform.OS !== "web" && (
-        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#2a2a2a", borderRadius: 3 }]} />
-      )}
+    <View style={s.container}>
+      {/* Coffee name — Canela Text 22.722px */}
+      <Text style={s.coffeeName} numberOfLines={2}>
+        {coffee_name}
+      </Text>
 
-      {/* Inner card — fully covers center, checkerboard only peeks at border edges */}
-      <View style={s.innerCard}>
-        <View style={s.insetBorder} />
+      {/* Roaster — Inter Regular 10.891px */}
+      <Text style={s.roasterName} numberOfLines={1}>
+        By {roaster_name}
+      </Text>
 
-        {/* Title: Coffee Name */}
-        <Text style={[s.coffeeName, { fontSize: nameFontSize }]} numberOfLines={2}>
-          {coffee_name}
-        </Text>
+      {/* Divider */}
+      <View style={s.divider} />
 
-        {/* Subtitle: Origin */}
-        <Text style={s.originSubtitle} numberOfLines={2}>
-          {origin ? origin.toUpperCase() : "\u2014"}
-        </Text>
+      {/* Roast + Process — Inter Regular 10.165px */}
+      {roastProcessLine ? (
+        <>
+          <Text style={s.detailText} numberOfLines={1}>{roastProcessLine}</Text>
+          <View style={s.divider} />
+        </>
+      ) : null}
 
-        {/* Info table: ROAST, PROCESS, ALTITUDE, COST — single line each */}
-        <View style={s.table}>
-          <Row label="ROAST" value={roastClean || "\u2014"} />
-          <Row label="PROCESS" value={processDisplay} />
-          <Row label="ALTITUDE" value={altitude_masl ? `${altitude_masl.toLocaleString()} m.a.s.l.` : "\u2014"} />
-          <Row label="COST" value={costDisplay} />
-
-          {/* TASTING — gets remaining space, 2-3 lines */}
-          <View style={[s.row, s.rowLast, { flex: 1 }]}>
-            <Text style={s.cellLabel}>TASTING</Text>
-            <Text style={s.cellValueWrap} numberOfLines={3}>
-              {tasting_notes || "\u2014"}
-            </Text>
-          </View>
-        </View>
-
-        {/* Footer: Roaster name — larger */}
-        <View style={s.footer}>
-          <Text style={s.footerText} numberOfLines={1}>{roaster_name}</Text>
-        </View>
-      </View>
+      {/* Tasting notes — Inter Regular 10.165px, lineHeight 14.521px */}
+      {tasting_notes ? (
+        <>
+          <Text style={s.tastingText} numberOfLines={2}>{tasting_notes}</Text>
+          <View style={s.divider} />
+        </>
+      ) : null}
     </View>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+/** Standalone price component for the bottom row */
+export function CoffeeLabelPrice({ price_inr, weight_grams }: { price_inr: number; weight_grams: number }) {
   return (
-    <View style={s.row}>
-      <Text style={s.cellLabel}>{label}</Text>
-      <Text style={s.cellValue} numberOfLines={1}>{value}</Text>
+    <View style={s.priceRow}>
+      <Text style={s.priceText}>{formatINR(price_inr)}</Text>
+      <Text style={s.weightText}> / {weight_grams} g</Text>
     </View>
   );
 }
 
-const MONO = Platform.select({
-  web: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
-  default: "monospace",
-});
+export default CoffeeLabel;
 
 const s = StyleSheet.create({
-  outerWrap: {
+  container: {
     flex: 1,
-    padding: 6,
-    borderRadius: 3,
-    overflow: "hidden",
-    opacity: 0.92,
-  },
-  innerCard: {
-    flex: 1,
-    backgroundColor: "#ece5d3",
-    borderWidth: 1.5,
-    borderColor: "#2a2a2a",
-    borderRadius: 2,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 6,
-    position: "relative",
-  },
-  insetBorder: {
-    position: "absolute",
-    top: 3, left: 3, right: 3, bottom: 3,
-    borderWidth: 0.5,
-    borderColor: "rgba(42,42,42,0.4)",
   },
 
-  // Title
+  // Canela Text Regular, 22.722px, #351101
   coffeeName: {
-    fontFamily: Platform.select({ web: "Georgia, serif", default: "serif" }),
-    fontWeight: "700",
-    letterSpacing: -0.5,
-    color: "#2a2a2a",
+    fontFamily: fonts.displayRegular,
+    fontSize: 22.7,
+    color: "#351101",
+    lineHeight: 27,
+    ...canelaNumeral,
   },
 
-  // Subtitle — origin
-  originSubtitle: {
-    fontFamily: MONO,
-    fontSize: 8,
-    letterSpacing: 1.2,
-    color: "#2a2a2a",
-    marginTop: 2,
-    marginBottom: 6,
+  // Inter Regular, 10.891px, #684F44
+  roasterName: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 10.9,
+    color: "#684F44",
+    marginTop: 4,
   },
 
-  // Table
-  table: {
-    flex: 1,
-    marginHorizontal: 2,
+  // 1px line, #C7BAA5
+  divider: {
+    height: 1,
+    backgroundColor: "#C7BAA5",
+    marginTop: 7,
+    marginBottom: 7,
   },
-  row: {
+
+  // Inter Regular, 10.165px, #684F44
+  detailText: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 10.2,
+    color: "#684F44",
+    ...canelaNumeral,
+  },
+
+  // Inter Regular, 10.165px, #684F44, lineHeight 14.521px
+  tastingText: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 10.2,
+    color: "#684F44",
+    lineHeight: 14.5,
+    ...canelaNumeral,
+  },
+
+  priceRow: {
     flexDirection: "row",
-    borderTopWidth: 1,
-    borderColor: "#2a2a2a",
-    paddingVertical: 2,
-  },
-  rowLast: {
-    borderBottomWidth: 1,
-    borderColor: "#2a2a2a",
-  },
-  cellLabel: {
-    fontFamily: MONO,
-    fontSize: 8,
-    fontWeight: "700",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-    color: "#2a2a2a",
-    width: 55,
-  },
-  cellValue: {
-    fontFamily: MONO,
-    fontSize: 8,
-    color: "#2a2a2a",
-    flex: 1,
-  },
-  // Tasting value — wraps to 2-3 lines
-  cellValueWrap: {
-    fontFamily: MONO,
-    fontSize: 8,
-    color: "#2a2a2a",
-    flex: 1,
-    lineHeight: 12,
+    alignItems: "baseline",
   },
 
-  // Footer — roaster name, larger
-  footer: {
-    paddingTop: 4,
-    paddingHorizontal: 2,
+  // Canela Text Regular, 18.152px, #351101
+  priceText: {
+    fontFamily: fonts.displayRegular,
+    fontSize: 18.2,
+    color: "#351101",
+    ...canelaNumeral,
   },
-  footerText: {
-    fontFamily: MONO,
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-    color: "#2a2a2a",
+
+  // Inter Regular, 10.165px, #351101
+  weightText: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 10.2,
+    color: "#351101",
+    ...canelaNumeral,
   },
 });

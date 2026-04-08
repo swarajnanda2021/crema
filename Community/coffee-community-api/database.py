@@ -76,6 +76,27 @@ CREATE INDEX IF NOT EXISTS idx_notes_user ON tasting_notes(user_id);
 CREATE INDEX IF NOT EXISTS idx_notes_product ON tasting_notes(product_id);
 CREATE INDEX IF NOT EXISTS idx_clicks_roaster ON click_events(roaster_slug);
 CREATE INDEX IF NOT EXISTS idx_clicks_product ON click_events(product_id);
+
+CREATE TABLE IF NOT EXISTS note_likes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    note_id INTEGER NOT NULL REFERENCES tasting_notes(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    UNIQUE(user_id, note_id)
+);
+
+CREATE TABLE IF NOT EXISTS note_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    note_id INTEGER NOT NULL REFERENCES tasting_notes(id) ON DELETE CASCADE,
+    comment TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_likes_note ON note_likes(note_id);
+CREATE INDEX IF NOT EXISTS idx_likes_user ON note_likes(user_id);
+CREATE INDEX IF NOT EXISTS idx_comments_note ON note_comments(note_id);
+CREATE INDEX IF NOT EXISTS idx_comments_user ON note_comments(user_id);
 """
 
 

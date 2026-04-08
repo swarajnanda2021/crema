@@ -1,15 +1,21 @@
-import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import * as Linking from "expo-linking";
-import { Coffee, MapPin, Mountain, Leaf, Settings, ShoppingCart, Share2 } from "lucide-react-native";
+import { MapPin, Mountain, Leaf, Settings } from "lucide-react-native";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useShare } from "../../src/hooks/useShare";
 import { trackClick } from "../../src/api/client";
 import { colors, fonts, cardShadow } from "../../src/theme/colors";
 import { pricePer250g } from "../../src/utils/formatPrice";
+import { ShareIcon, CartIcon } from "../../src/components/icons/FigmaIcons";
 import Chip from "../../src/components/Chip";
 import CoffeeCard from "../../src/components/CoffeeCard";
+
+/** Canela lining numerals */
+const canelaNumeral = Platform.OS === "web"
+  ? { fontFeatureSettings: "'lnum' 1, 'pnum' 1" } as any
+  : {};
 
 export default function CoffeeDetailPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -20,8 +26,8 @@ export default function CoffeeDetailPage() {
   const coffee = productMap?.get(id);
   if (!coffee) {
     return (
-      <View style={styles.notFound}>
-        <Text>Coffee not found</Text>
+      <View style={st.notFound}>
+        <Text style={{ fontFamily: fonts.bodyRegular, color: colors.textSecondary }}>Coffee not found</Text>
       </View>
     );
   }
@@ -31,65 +37,70 @@ export default function CoffeeDetailPage() {
 
   return (
     <>
-      <Stack.Screen options={{ title: coffee.coffee_name, headerTintColor: colors.accent }} />
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <Stack.Screen options={{ title: coffee.coffee_name, headerTintColor: colors.textPrimary, headerStyle: { backgroundColor: colors.bg } }} />
+      <ScrollView style={st.container} showsVerticalScrollIndicator={false}>
         {/* Hero image */}
         {coffee.image_url && (
-          <Image source={{ uri: coffee.image_url }} style={{ width: "100%", height: 280 }} contentFit="cover" />
+          <View style={st.heroWrap}>
+            <Image source={{ uri: coffee.image_url }} style={st.heroImage} contentFit="cover" />
+          </View>
         )}
 
-        <View style={styles.body}>
-          <Text style={styles.title}>{coffee.coffee_name}</Text>
+        <View style={st.body}>
+          {/* Title + roaster */}
+          <Text style={st.title}>{coffee.coffee_name}</Text>
           <Pressable onPress={() => router.push(`/roaster/${coffee.roaster_slug}`)}>
-            <Text style={styles.roasterLink}>{coffee.roaster_name}</Text>
+            <Text style={st.roasterLink}>By {coffee.roaster_name}</Text>
           </Pressable>
 
           {/* Chips */}
-          <View style={styles.chipRow}>
+          <View style={st.chipRow}>
             {coffee.roast_level && coffee.roast_level !== "Unknown" && <Chip>{coffee.roast_level}</Chip>}
             {coffee.process && <Chip>{coffee.process}</Chip>}
           </View>
 
           {/* Price + Buy */}
-          <View style={styles.priceSection}>
+          <View style={st.priceSection}>
             <View>
-              <Text style={styles.price}>
+              <Text style={st.price}>
                 {price250 != null ? `\u20B9${price250.toLocaleString("en-IN")}` : "\u2014"}
               </Text>
-              <Text style={styles.priceLabel}>per 250g</Text>
+              <Text style={st.priceLabel}>per 250g</Text>
             </View>
-            <View style={styles.actionRow}>
-              <Pressable onPress={() => share(coffee)} style={styles.shareBtn}>
-                <Share2 size={18} color={colors.tagText} />
+            <View style={st.actionRow}>
+              <Pressable onPress={() => share(coffee)} style={st.shareBtn}>
+                <ShareIcon size={18} color={colors.textSecondary} />
               </Pressable>
               <Pressable
                 onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "coffee_page"); Linking.openURL(coffee.product_url); }}
-                style={styles.buyBtn}
+                style={st.buyBtn}
               >
-                <ShoppingCart size={16} color="white" />
-                <Text style={styles.buyText}>Buy</Text>
+                <CartIcon size={16} color="#FFFFFF" />
+                <Text style={st.buyText}>Buy</Text>
               </Pressable>
             </View>
           </View>
 
+          {/* Divider */}
+          <View style={st.divider} />
+
           {/* Details */}
-          <View style={styles.detailsSection}>
-            {coffee.tasting_notes && <DetailRow icon={<Coffee size={18} color={colors.accent} />} label="Tasting Notes" value={coffee.tasting_notes} />}
-            {coffee.origin && <DetailRow icon={<MapPin size={18} color={colors.accent} />} label="Origin" value={coffee.origin} />}
-            {coffee.altitude_masl && <DetailRow icon={<Mountain size={18} color={colors.accent} />} label="Altitude" value={`${coffee.altitude_masl.toLocaleString()} m.a.s.l.`} />}
-            {coffee.varietal && <DetailRow icon={<Leaf size={18} color={colors.accent} />} label="Varietal" value={coffee.varietal} />}
-            {coffee.process && <DetailRow icon={<Settings size={18} color={colors.accent} />} label="Process" value={coffee.process} />}
-            {coffee.grind_options?.length > 0 && <DetailRow icon={<Settings size={18} color={colors.accent} />} label="Grinds" value={coffee.grind_options.join(", ")} />}
+          <View style={st.detailsSection}>
+            {coffee.tasting_notes && <DetailRow label="Tasting Notes" value={coffee.tasting_notes} />}
+            {coffee.origin && <DetailRow label="Origin" value={coffee.origin} icon={<MapPin size={14} color={colors.textMuted} />} />}
+            {coffee.altitude_masl && <DetailRow label="Altitude" value={`${coffee.altitude_masl.toLocaleString()} m.a.s.l.`} icon={<Mountain size={14} color={colors.textMuted} />} />}
+            {coffee.varietal && <DetailRow label="Varietal" value={coffee.varietal} icon={<Leaf size={14} color={colors.textMuted} />} />}
+            {coffee.process && <DetailRow label="Process" value={coffee.process} icon={<Settings size={14} color={colors.textMuted} />} />}
           </View>
 
           {/* Related coffees */}
           {related.length > 0 && (
-            <View style={styles.relatedSection}>
-              <Text style={styles.relatedTitle}>More from {coffee.roaster_name}</Text>
+            <View style={st.relatedSection}>
+              <Text style={st.relatedTitle}>More from {coffee.roaster_name}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {related.map((r: any) => (
-                  <View key={r.product_id} style={{ width: 200, marginRight: 12 }}>
-                    <CoffeeCard coffee={r} compact />
+                  <View key={r.product_id} style={{ width: 240, marginRight: 20 }}>
+                    <CoffeeCard coffee={r} width={240} height={372} compact />
                   </View>
                 ))}
               </ScrollView>
@@ -102,78 +113,63 @@ export default function CoffeeDetailPage() {
   );
 }
 
-function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function DetailRow({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   return (
-    <View style={detailStyles.row}>
-      <View style={{ marginTop: 2 }}>{icon}</View>
+    <View style={dt.row}>
+      {icon && <View style={{ marginTop: 2 }}>{icon}</View>}
       <View style={{ flex: 1 }}>
-        <Text style={detailStyles.label}>{label}</Text>
-        <Text style={detailStyles.value}>{value}</Text>
+        <Text style={dt.label}>{label}</Text>
+        <Text style={dt.value}>{value}</Text>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  notFound: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.bg,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
+const st = StyleSheet.create({
+  notFound: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: colors.bg },
+  heroWrap: { borderBottomLeftRadius: 5, borderBottomRightRadius: 5, overflow: "hidden" },
+  heroImage: { width: "100%" as any, height: 320 },
   body: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    maxWidth: 800,
+    alignSelf: "center" as any,
+    width: "100%" as any,
+    paddingHorizontal: 24,
+    paddingVertical: 24,
   },
   title: {
-    fontFamily: fonts.displayBold,
-    fontSize: 26,
+    fontFamily: fonts.displayRegular,
+    fontSize: 28,
     color: colors.textPrimary,
-    letterSpacing: -0.3,
+    lineHeight: 34,
+    ...canelaNumeral,
   },
   roasterLink: {
     fontFamily: fonts.bodyMedium,
-    fontSize: 16,
+    fontSize: 14,
     marginTop: 6,
-    color: colors.accent,
+    color: colors.textSecondary,
   },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 12,
-  },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
   priceSection: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 16,
+    marginTop: 20,
     paddingVertical: 16,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.border,
   },
   price: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 26,
+    fontFamily: fonts.displayRegular,
+    fontSize: 28,
     color: colors.textPrimary,
+    ...canelaNumeral,
   },
-  priceLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  actionRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
+  priceLabel: { fontFamily: fonts.bodyRegular, fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  actionRow: { flexDirection: "row", gap: 10 },
   shareBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 9999,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.tagBg,
@@ -182,47 +178,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 9999,
-    backgroundColor: colors.accent,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 22,
+    backgroundColor: colors.textPrimary,
   },
-  buyText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "white",
-  },
-  detailsSection: {
-    marginTop: 16,
-    gap: 12,
-  },
-  relatedSection: {
-    marginTop: 24,
-  },
-  relatedTitle: {
-    fontFamily: fonts.displaySemiBold,
-    fontSize: 18,
-    marginBottom: 12,
-    color: colors.textPrimary,
-  },
+  buyText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.textOnDark },
+  divider: { height: 1, backgroundColor: colors.divider, marginVertical: 4 },
+  detailsSection: { marginTop: 16, gap: 16 },
+  relatedSection: { marginTop: 32 },
+  relatedTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, marginBottom: 16, color: colors.textPrimary },
 });
 
-const detailStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  label: {
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    fontWeight: "600",
-    color: colors.textSecondary,
-  },
-  value: {
-    fontSize: 14,
-    marginTop: 2,
-    color: colors.textPrimary,
-  },
+const dt = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  label: { fontFamily: fonts.bodySemiBold, fontSize: 12, letterSpacing: 0.5, color: colors.textMuted },
+  value: { fontFamily: fonts.bodyRegular, fontSize: 14, marginTop: 2, lineHeight: 20, color: colors.textPrimary },
 });

@@ -48,64 +48,66 @@ export default function ShelfIsland({ entry, coffee, isOwner, currentShelf, onRe
 
   return (
     <View style={s.card}>
-      {/* Two-column layout: image+details left | tasting journal right */}
       <View style={s.twoCol}>
-        {/* ── Left: Coffee image + details ── */}
+        {/* Left: Coffee image + details */}
         <View style={s.leftCol}>
-          {/* Large image */}
-          {coffee.image_url ? (
-            <Image source={{ uri: coffee.image_url }} style={s.coffeeImage} contentFit="cover" />
-          ) : (
-            <View style={[s.coffeeImage, { backgroundColor: colors.tagBg, alignItems: "center", justifyContent: "center" }]}>
-              <Coffee size={32} color={colors.border} />
-            </View>
-          )}
+          <View style={s.imageWrap}>
+            {coffee.image_url ? (
+              <Image source={{ uri: coffee.image_url }} style={s.coffeeImage} contentFit="cover" />
+            ) : (
+              <View style={[s.coffeeImage, { backgroundColor: "#e8e0d0", alignItems: "center", justifyContent: "center" }]}>
+                <Coffee size={32} color={colors.divider} />
+              </View>
+            )}
+          </View>
 
-          {/* Details */}
           <Text style={s.coffeeName}>{coffee.coffee_name}</Text>
           <Pressable onPress={() => router.push(`/roaster/${coffee.roaster_slug}`)}>
-            <Text style={s.roasterName}>{coffee.roaster_name}</Text>
+            <Text style={s.roasterName}>By {coffee.roaster_name}</Text>
           </Pressable>
 
-          {/* Chips */}
+          <View style={s.divider} />
+
           <View style={s.chipRow}>
             {coffee.roast_level && coffee.roast_level !== "Unknown" && <Chip>{coffee.roast_level}</Chip>}
             {coffee.process && <Chip>{coffee.process}</Chip>}
             {price250 != null && <Chip>{`\u20B9${price250}/250g`}</Chip>}
           </View>
 
-          {/* Quick actions */}
           {isOwner && (
-            <View style={s.actions}>
-              {onMove && (
-                <Pressable onPress={() => onMove(coffee.product_id, nextShelf)} style={s.actionBtn}>
-                  <ArrowRight size={9} color={colors.textSecondary} />
-                  <Text style={s.actionText}>Move to {SHELF_META[nextShelf]?.label}</Text>
+            <>
+              <View style={s.divider} />
+              <View style={s.actions}>
+                {onMove && (
+                  <Pressable onPress={() => onMove(coffee.product_id, nextShelf)} style={s.actionBtn}>
+                    <ArrowRight size={10} color={colors.textSecondary} />
+                    <Text style={s.actionText}>Move to {SHELF_META[nextShelf]?.label}</Text>
+                  </Pressable>
+                )}
+                <Pressable
+                  onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "shelf"); Linking.openURL(coffee.product_url); }}
+                  style={s.actionBtn}
+                >
+                  <ExternalLink size={10} color={colors.textSecondary} />
+                  <Text style={s.actionText}>Buy from roaster</Text>
                 </Pressable>
-              )}
-              <Pressable
-                onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "shelf"); Linking.openURL(coffee.product_url); }}
-                style={s.actionBtn}
-              >
-                <ExternalLink size={9} color={colors.textSecondary} />
-                <Text style={s.actionText}>Buy from roaster</Text>
-              </Pressable>
-              {onRemove && (
-                <Pressable onPress={onRemove} style={s.actionBtn}>
-                  <Trash2 size={9} color="#E63946" />
-                  <Text style={[s.actionText, { color: "#E63946" }]}>Remove</Text>
-                </Pressable>
-              )}
-            </View>
+                {onRemove && (
+                  <Pressable onPress={onRemove} style={s.actionBtn}>
+                    <Trash2 size={10} color="#C8553D" />
+                    <Text style={[s.actionText, { color: "#C8553D" }]}>Remove</Text>
+                  </Pressable>
+                )}
+              </View>
+            </>
           )}
         </View>
 
-        {/* ── Right: Tasting notes journal ── */}
+        {/* Right: Tasting notes journal */}
         <View style={s.rightCol}>
           <Text style={s.journalHeader}>
             Tasting Journal
             {notes.length > 0 && (
-              <Text style={s.journalCount}> ({notes.length} {notes.length === 1 ? "entry" : "entries"})</Text>
+              <Text style={s.journalCount}> ({notes.length})</Text>
             )}
           </Text>
 
@@ -132,7 +134,7 @@ export default function ShelfIsland({ entry, coffee, isOwner, currentShelf, onRe
               />
             ) : (
               <Pressable onPress={() => setShowForm(true)} style={s.addNoteBtn}>
-                <PenLine size={12} color={colors.accent} />
+                <PenLine size={12} color={colors.textPrimary} />
                 <Text style={s.addNoteText}>
                   {notes.length > 0 ? "Add another entry" : "Write a tasting note"}
                 </Text>
@@ -147,51 +149,80 @@ export default function ShelfIsland({ entry, coffee, isOwner, currentShelf, onRe
 
 const s = StyleSheet.create({
   card: {
-    borderRadius: 8,
+    borderTopLeftRadius: 3.6,
+    borderTopRightRadius: 3.6,
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
     overflow: "hidden",
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginBottom: 16,
+    backgroundColor: colors.cardInfo,
+    shadowColor: colors.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 3,
   },
   twoCol: { flexDirection: "row" },
   leftCol: {
-    width: 200,
-    padding: 12,
+    width: 220,
+    padding: 16,
     borderRightWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.divider,
+  },
+  imageWrap: {
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 12,
   },
   coffeeImage: {
     width: "100%" as any,
     aspectRatio: 1,
-    borderRadius: 8,
-    marginBottom: 12,
   },
-  coffeeName: { fontFamily: fonts.displaySemiBold, fontSize: 14, color: colors.textPrimary },
-  roasterName: { fontFamily: fonts.bodyRegular, fontSize: 11, marginTop: 2, color: colors.textSecondary },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 8 },
-  actions: { marginTop: 12, gap: 4 },
-  actionBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  actionText: { fontSize: 11, color: colors.textSecondary },
-  rightCol: { flex: 1, minWidth: 0, padding: 12 },
+  coffeeName: {
+    fontFamily: fonts.displayRegular,
+    fontSize: 16,
+    color: colors.textPrimary,
+    lineHeight: 21,
+  },
+  roasterName: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 11,
+    marginTop: 2,
+    color: colors.textSecondary,
+  },
+  divider: { height: 1, backgroundColor: colors.divider, marginVertical: 10 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
+  actions: { gap: 6 },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+  actionText: { fontFamily: fonts.bodyRegular, fontSize: 12, color: colors.textSecondary },
+
+  rightCol: { flex: 1, minWidth: 0, padding: 16 },
   journalHeader: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 10,
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
-    marginBottom: 8,
-    color: colors.textMuted,
+    fontSize: 14,
+    marginBottom: 12,
+    color: colors.textPrimary,
   },
-  journalCount: { fontWeight: "400" },
-  emptyText: { fontSize: 14, fontStyle: "italic", paddingVertical: 16, color: colors.textSecondary },
+  journalCount: { fontFamily: fonts.bodyRegular, color: colors.textMuted },
+  emptyText: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 14,
+    paddingVertical: 24,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
   addNoteBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingVertical: 10,
+    borderRadius: 5,
+    backgroundColor: "rgba(255,255,255,0.6)",
   },
-  addNoteText: { fontSize: 12, fontWeight: "500", color: colors.accent },
+  addNoteText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: colors.textPrimary,
+  },
 });

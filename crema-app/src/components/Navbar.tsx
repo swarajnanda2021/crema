@@ -1,9 +1,17 @@
-import { View, Text, Pressable, TextInput, StyleSheet, Platform } from "react-native";
+/**
+ * Navbar — exact Figma specs from the design file.
+ * Height: 72px, bg: #351101.
+ * HOME at x=90, SHOP at x=213, logo centered at x=649.
+ * Search icon at x=1262 (24px), User icon at x=1326 (24px).
+ * Active SHOP link: #D798DA (logo purple).
+ */
+import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useState } from "react";
-import { Coffee, User, ShoppingBag, Search, X, LogIn } from "lucide-react-native";
+import { User, Search, X } from "lucide-react-native";
 import { colors, fonts } from "../theme/colors";
 import { useAuth } from "../hooks/useAuth";
+import CremaLogo from "./CremaLogo";
 
 export default function Navbar() {
   const router = useRouter();
@@ -20,35 +28,27 @@ export default function Navbar() {
     setQuery("");
   };
 
-  const isActive = (path: string) => pathname === path;
+  const isShop = pathname === "/browse";
+  const isHome = pathname === "/";
 
   return (
     <View style={s.navbar}>
-      {/* Logo — links to Feed */}
-      <Pressable onPress={() => router.push("/")} style={s.logoArea}>
-        <Coffee size={20} color={colors.accent} strokeWidth={2.5} />
-        <Text style={s.logoText}>Crema</Text>
-      </Pressable>
-
-      {/* Nav links */}
-      <View style={s.navLinks}>
-        {user && (
-          <NavLink
-            label="My Shelf"
-            icon={<User size={15} color={isActive("/profile") ? colors.textPrimary : colors.textMuted} strokeWidth={2} />}
-            active={isActive("/profile")}
-            onPress={() => router.push("/profile")}
-          />
-        )}
-        <NavLink
-          label="Browse"
-          icon={<ShoppingBag size={15} color={isActive("/browse") ? colors.textPrimary : colors.textMuted} strokeWidth={2} />}
-          active={isActive("/browse")}
-          onPress={() => router.push("/browse")}
-        />
+      {/* Left nav links — HOME at x=90, SHOP at x=213 */}
+      <View style={s.leftLinks}>
+        <Pressable onPress={() => router.push("/")} style={s.navLink}>
+          <Text style={[s.navLinkText, isHome && s.navLinkTextActiveHome]}>HOME</Text>
+        </Pressable>
+        <Pressable onPress={() => router.push("/browse")} style={s.navLink}>
+          <Text style={[s.navLinkText, isShop && s.navLinkTextActiveShop]}>SHOP</Text>
+        </Pressable>
       </View>
 
-      {/* Right side */}
+      {/* Center — Crema logo (141×29, centered) */}
+      <Pressable onPress={() => router.push("/")} style={s.logoArea}>
+        <CremaLogo width={141} height={29} />
+      </Pressable>
+
+      {/* Right side — search + user icons */}
       <View style={s.rightSide}>
         {searchOpen ? (
           <View style={s.searchContainer}>
@@ -57,130 +57,98 @@ export default function Navbar() {
               value={query}
               onChangeText={setQuery}
               onSubmitEditing={handleSearch}
-              placeholder="Search..."
-              placeholderTextColor={colors.textMuted}
+              placeholder="Search"
+              placeholderTextColor="rgba(250,248,240,0.5)"
               style={s.searchInput}
             />
             <Pressable onPress={() => { setSearchOpen(false); setQuery(""); }}>
-              <X size={16} color={colors.textSecondary} />
+              <X size={18} color="#E7D5B8" />
             </Pressable>
           </View>
         ) : (
-          <Pressable onPress={() => setSearchOpen(true)} style={s.iconBtn}>
-            <Search size={17} color={colors.textSecondary} strokeWidth={2} />
-          </Pressable>
-        )}
-
-        {backendAvailable && !user && (
-          <Pressable onPress={() => router.push("/auth")} style={s.signInBtn}>
-            <LogIn size={13} color="white" />
-            <Text style={s.signInText}>Sign In</Text>
-          </Pressable>
+          <>
+            <Pressable onPress={() => setSearchOpen(true)} style={s.iconBtn}>
+              <Search size={24} color="#E7D5B8" strokeWidth={1.5} />
+            </Pressable>
+            {user ? (
+              <Pressable onPress={() => router.push("/profile")} style={s.iconBtn}>
+                <User size={24} color="#E7D5B8" strokeWidth={1.5} />
+              </Pressable>
+            ) : backendAvailable ? (
+              <Pressable onPress={() => router.push("/auth")} style={s.iconBtn}>
+                <User size={24} color="#E7D5B8" strokeWidth={1.5} />
+              </Pressable>
+            ) : null}
+          </>
         )}
       </View>
     </View>
   );
 }
 
-function NavLink({ label, icon, active, onPress }: { label: string; icon: React.ReactNode; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={[s.navLink, active && s.navLinkActive]}>
-      {icon}
-      <Text style={[s.navLinkText, active && s.navLinkTextActive]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const s = StyleSheet.create({
+  // Figma: 1440×72, bg #351101
   navbar: {
-    height: 56,
+    height: 72,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-    backgroundColor: "rgba(250, 247, 242, 0.97)",
-    borderBottomWidth: 1,
-    borderColor: colors.borderLight,
-    // Web-specific backdrop blur
-    ...(Platform.OS === "web" ? { backdropFilter: "blur(12px)" } as any : {}),
+    justifyContent: "space-between",
+    paddingLeft: 90,   // Figma: HOME at x=90
+    paddingRight: 90,  // Figma: symmetric
+    backgroundColor: "#351101",
+  },
+  leftLinks: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 80,  // Figma: HOME(90)→SHOP(213), gap = 213-90-43 = 80
+    flex: 1,
+  },
+  navLink: {},
+  // Figma: Inter Semi Bold 14px, uppercase
+  navLinkText: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: "#E7D5B8",
+    textTransform: "uppercase",
+  } as any,
+  // HOME active: stays white/cream
+  navLinkTextActiveHome: {
+    color: "#FFFFFF",
+  },
+  // SHOP active: highlighted in logo purple #D798DA
+  navLinkTextActiveShop: {
+    color: "#D798DA",
   },
   logoArea: {
-    flexDirection: "row",
+    position: "absolute",
+    left: "50%",
+    marginLeft: -70.5,  // half of 141px logo width
     alignItems: "center",
-    gap: 8,
-    marginRight: 24,
-  },
-  logoText: {
-    fontFamily: fonts.displayBold,
-    fontSize: 20,
-    color: colors.textPrimary,
-    letterSpacing: -0.3,
-  },
-  navLinks: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  navLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  navLinkActive: {
-    backgroundColor: colors.tagBg,
-  },
-  navLinkText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  navLinkTextActive: {
-    color: colors.textPrimary,
-    fontFamily: fonts.bodySemiBold,
-  },
+    justifyContent: "center",
+  } as any,
   rightSide: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "flex-end",
+    gap: 40,  // Figma: search(1262)→user(1326) = 64px center-to-center, minus 24px icon = 40px gap
+    flex: 1,
   },
-  iconBtn: {
-    padding: 8,
-    borderRadius: 8,
-  },
+  // Figma: 24×24 icons
+  iconBtn: {},
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: colors.cardFront,
+    backgroundColor: "rgba(255,255,255,0.12)",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
     width: 200,
   },
   searchInput: {
     flex: 1,
     fontFamily: fonts.bodyRegular,
-    fontSize: 13,
-    color: colors.textPrimary,
-  },
-  signInBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: colors.accent,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
-    marginLeft: 4,
-  },
-  signInText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 13,
-    color: "white",
+    fontSize: 14,
+    color: "#E7D5B8",
   },
 });

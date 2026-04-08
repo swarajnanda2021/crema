@@ -1,13 +1,13 @@
 import { useState, useCallback } from "react";
-import { View, Text, ScrollView, StyleSheet, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
+import { View, Text, ScrollView, StyleSheet, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
 import { colors, fonts } from "../theme/colors";
 import CoffeeCard from "./CoffeeCard";
 
 const PAGE_SIZE = 24;
-const GAP = 8;
-const MIN_CARD_W = 200;
-const CARD_ASPECT = 1.36;
-const GRID_PAD = 8;
+const GAP = 20;                    // Figma: 20px between cards
+const MIN_CARD_W = 220;            // allows 4 cols at typical widths
+const CARD_ASPECT = 372 / 240;     // exact Figma ratio
+const GRID_PAD = 16;
 
 interface CoffeeListProps {
   coffees: any[];
@@ -17,16 +17,19 @@ interface CoffeeListProps {
 }
 
 export default function CoffeeList({ coffees, popularity = {}, compact, ListHeaderComponent }: CoffeeListProps) {
-  const { width: screenWidth } = useWindowDimensions();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [containerW, setContainerW] = useState(0);
   const visible = coffees.slice(0, visibleCount);
 
-  const availableWidth = screenWidth - GRID_PAD * 2;
+  const onLayout = useCallback((e: LayoutChangeEvent) => {
+    setContainerW(e.nativeEvent.layout.width);
+  }, []);
+
+  const availableWidth = containerW > 0 ? containerW - GRID_PAD * 2 : 960;
   const numCols = Math.max(1, Math.floor((availableWidth + GAP) / (MIN_CARD_W + GAP)));
   const cardWidth = Math.floor((availableWidth - GAP * (numCols - 1)) / numCols);
   const cardHeight = Math.floor(cardWidth * CARD_ASPECT);
 
-  // Auto-load more when scrolling near the bottom
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
     const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
@@ -47,6 +50,7 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
 
   return (
     <ScrollView
+      onLayout={onLayout}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{ paddingBottom: 100 }}
       onScroll={handleScroll}
@@ -74,6 +78,6 @@ const s = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap" },
   emptyContainer: { alignItems: "center", paddingVertical: 80, paddingHorizontal: 16 },
   emptyEmoji: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontFamily: fonts.displaySemiBold, fontSize: 20, marginBottom: 8, color: colors.textPrimary },
-  emptySubtitle: { fontFamily: fonts.bodyRegular, fontSize: 14, color: colors.textSecondary },
+  emptyTitle: { fontFamily: fonts.bodySemiBold, fontSize: 20, marginBottom: 8, color: "#351101" },
+  emptySubtitle: { fontFamily: fonts.bodyRegular, fontSize: 14, color: "#684F44" },
 });
