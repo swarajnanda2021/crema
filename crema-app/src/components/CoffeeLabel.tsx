@@ -136,7 +136,7 @@ const s = StyleSheet.create({
   },
   innerCard: {
     flex: 1,
-    backgroundColor: "#ece5d3",
+    backgroundColor: "rgba(236, 229, 211, 0.60)",
     borderWidth: 1.5,
     borderColor: "#2a2a2a",
     borderRadius: 2,
