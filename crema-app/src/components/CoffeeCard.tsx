@@ -37,16 +37,15 @@ import { useShare } from "../hooks/useShare";
 import { useShelves } from "../hooks/useShelves";
 import PopularityModal from "./PopularityModal";
 
-const CARD_W = 250;
-const CARD_H = 340; // image area + label overlay + button row
-
 interface CoffeeCardProps {
   coffee: any;
   userCount?: number;
   compact?: boolean;
+  width?: number;
+  height?: number;
 }
 
-export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardProps) {
+export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 250, height: cardH = 340 }: CoffeeCardProps) {
   const router = useRouter();
   const rotation = useSharedValue(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -83,8 +82,8 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
   }));
 
   return (
-    <View style={s.container}>
-      <Pressable onPress={handleFlip} style={s.pressable}>
+    <View style={{ width: cardW, height: cardH }}>
+      <Pressable onPress={handleFlip} style={{ width: cardW, height: cardH }}>
 
         {/* ════════ FRONT FACE ════════ */}
         <Animated.View style={[s.face, frontStyle]}>
@@ -204,14 +203,6 @@ export default function CoffeeCard({ coffee, userCount, compact }: CoffeeCardPro
 const BTN_SIZE = 30;
 
 const s = StyleSheet.create({
-  container: {
-    width: CARD_W,
-    height: CARD_H,
-  },
-  pressable: {
-    width: CARD_W,
-    height: CARD_H,
-  },
   face: {
     position: "absolute",
     width: "100%",
@@ -240,15 +231,13 @@ const s = StyleSheet.create({
     backgroundColor: "#e8e0d0",
   },
 
-  // Label overlay — centered on top of the image
+  // Label overlay — inset from edges so image peeks through
   labelOverlay: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: "center",
-    justifyContent: "center",
+    top: 10,
+    left: 10,
+    right: 10,
+    bottom: 10,
   },
 
   // Button row — clean uniform strip

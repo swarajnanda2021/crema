@@ -1,6 +1,6 @@
 /**
- * CoffeeLabel — Compact typographic coffee label card.
- * Semi-transparent kraft paper so the product image shows through.
+ * CoffeeLabel — Scalable typographic coffee label card.
+ * Semi-transparent kraft paper overlay. Fills its parent container.
  */
 import { View, Text, StyleSheet, Platform } from "react-native";
 import { useMemo } from "react";
@@ -30,8 +30,8 @@ export default function CoffeeLabel({
   const subtitle = [roastClean, process].filter(Boolean).join(" \u00B7 ");
 
   const nameFontSize = useMemo(() => {
-    if (!coffee_name) return 22;
-    return coffee_name.length > 28 ? 17 : 22;
+    if (!coffee_name) return 18;
+    return coffee_name.length > 28 ? 14 : 18;
   }, [coffee_name]);
 
   const rows: [string, string][] = [
@@ -42,6 +42,7 @@ export default function CoffeeLabel({
   ];
 
   return (
+    /* Outer wrapper fills parent, has checkerboard border padding */
     <View style={s.outerWrap}>
       {/* Checkerboard — web only */}
       {Platform.OS === "web" && (
@@ -60,7 +61,7 @@ export default function CoffeeLabel({
         <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#2a2a2a", borderRadius: 3 }]} />
       )}
 
-      {/* Inner card — semi-transparent so image bleeds through edges */}
+      {/* Inner card — fills remaining space after padding */}
       <View style={s.innerCard}>
         <View style={s.insetBorder} />
 
@@ -97,33 +98,32 @@ const MONO = Platform.select({
 });
 
 const s = StyleSheet.create({
+  // Fills its parent — parent controls the size
   outerWrap: {
-    width: 220,
-    height: 260,
-    padding: 7,
+    flex: 1,
+    padding: 6,
     borderRadius: 3,
     overflow: "hidden",
   },
   innerCard: {
-    width: 206,
-    height: 246,
+    flex: 1,
     backgroundColor: "rgba(236, 229, 211, 0.88)",
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: "#2a2a2a",
     borderRadius: 2,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 10,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
     position: "relative",
   },
   insetBorder: {
     position: "absolute",
-    top: 4, left: 4, right: 4, bottom: 4,
-    borderWidth: 1,
-    borderColor: "rgba(42,42,42,0.5)",
+    top: 3, left: 3, right: 3, bottom: 3,
+    borderWidth: 0.5,
+    borderColor: "rgba(42,42,42,0.4)",
   },
   titleArea: {
-    minHeight: 50,
+    minHeight: 40,
     justifyContent: "center",
   },
   coffeeName: {
@@ -134,21 +134,21 @@ const s = StyleSheet.create({
   },
   subtitle: {
     fontFamily: MONO,
-    fontSize: 9,
-    letterSpacing: 1.5,
+    fontSize: 8,
+    letterSpacing: 1.2,
     color: "#2a2a2a",
-    marginTop: 4,
+    marginTop: 3,
   },
   table: {
     flex: 1,
-    marginTop: 10,
-    marginHorizontal: 3,
+    marginTop: 8,
+    marginHorizontal: 2,
   },
   row: {
     flexDirection: "row",
     borderTopWidth: 1,
     borderColor: "#2a2a2a",
-    paddingVertical: 3,
+    paddingVertical: 2.5,
   },
   rowLast: {
     borderBottomWidth: 1,
@@ -156,26 +156,26 @@ const s = StyleSheet.create({
   },
   cellLabel: {
     fontFamily: MONO,
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: "700",
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
     textTransform: "uppercase",
     color: "#2a2a2a",
-    width: 60,
+    width: 52,
   },
   cellValue: {
     fontFamily: MONO,
-    fontSize: 9,
+    fontSize: 8,
     color: "#2a2a2a",
     flex: 1,
   },
   footer: {
-    paddingTop: 6,
-    paddingHorizontal: 3,
+    paddingTop: 5,
+    paddingHorizontal: 2,
   },
   footerText: {
     fontFamily: MONO,
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: "700",
     letterSpacing: 0.3,
     color: "#2a2a2a",

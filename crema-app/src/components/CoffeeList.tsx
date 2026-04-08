@@ -1,9 +1,13 @@
 import { useState } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { colors, fonts } from "../theme/colors";
 import CoffeeCard from "./CoffeeCard";
 
 const PAGE_SIZE = 24;
+const GAP = 8;
+const MIN_CARD_W = 200;  // minimum card width before dropping a column
+const CARD_ASPECT = 1.36; // height / width ratio (e.g., 272 / 200)
+const GRID_PAD = 8;       // horizontal padding on the grid
 
 interface CoffeeListProps {
   coffees: any[];
@@ -13,9 +17,17 @@ interface CoffeeListProps {
 }
 
 export default function CoffeeList({ coffees, popularity = {}, compact, ListHeaderComponent }: CoffeeListProps) {
+  const { width: screenWidth } = useWindowDimensions();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const visible = coffees.slice(0, visibleCount);
   const hasMore = visibleCount < coffees.length;
+
+  // Calculate how many columns fit, and what width each card gets
+  // Available width = screen minus grid padding on both sides
+  const availableWidth = screenWidth - GRID_PAD * 2;
+  const numCols = Math.max(1, Math.floor((availableWidth + GAP) / (MIN_CARD_W + GAP)));
+  const cardWidth = Math.floor((availableWidth - GAP * (numCols - 1)) / numCols);
+  const cardHeight = Math.floor(cardWidth * CARD_ASPECT);
 
   if (coffees.length === 0) {
     return (
@@ -30,28 +42,18 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
       {ListHeaderComponent}
-      <View style={s.grid}>
-        {visible.map((item) => {
-          try {
-            return (
-              <View key={item.product_id} style={s.cardSlot}>
-                <CoffeeCard
-                  coffee={item}
-                  userCount={popularity[item.product_id]}
-                  compact={compact}
-                />
-              </View>
-            );
-          } catch (e: any) {
-            // Render a fallback if CoffeeCard crashes
-            return (
-              <View key={item.product_id} style={s.errorCard}>
-                <Text style={{ color: "red", fontSize: 10 }}>Error: {e.message}</Text>
-                <Text style={{ fontSize: 12 }}>{item.coffee_name}</Text>
-              </View>
-            );
-          }
-        })}
+      <View style={[s.grid, { gap: GAP, paddingHorizontal: GRID_PAD }]}>
+        {visible.map((item) => (
+          <View key={item.product_id} style={{ width: cardWidth, height: cardHeight }}>
+            <CoffeeCard
+              coffee={item}
+              userCount={popularity[item.product_id]}
+              compact={compact}
+              width={cardWidth}
+              height={cardHeight}
+            />
+          </View>
+        ))}
       </View>
       {hasMore && (
         <Pressable onPress={() => setVisibleCount(prev => Math.min(prev + PAGE_SIZE, coffees.length))} style={s.loadMoreBtn}>
@@ -66,19 +68,6 @@ const s = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    paddingHorizontal: 8,
-    gap: 12,
-  },
-  cardSlot: {
-    width: 250,
-    height: 340,
-  },
-  errorCard: {
-    width: 320,
-    height: 400,
-    backgroundColor: "#ffe0e0",
-    borderRadius: 8,
-    padding: 12,
   },
   loadMoreBtn: {
     alignSelf: "center",
