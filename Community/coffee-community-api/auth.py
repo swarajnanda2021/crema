@@ -48,15 +48,18 @@ def _create_session(db, user_id: int) -> str:
 
 
 def _user_to_dict(row) -> dict:
+    keys = row.keys()
     return {
         "id": row["id"],
         "username": row["username"],
         "display_name": row["display_name"],
-        "bio": row["bio"] if "bio" in row.keys() else None,
-        "avatar_url": row["avatar_url"] if "avatar_url" in row.keys() else None,
-        "location": row["location"] if "location" in row.keys() else None,
-        "coffee_preference": row["coffee_preference"] if "coffee_preference" in row.keys() else None,
-        "brewing_style": row["brewing_style"] if "brewing_style" in row.keys() else None,
+        "bio": row["bio"] if "bio" in keys else None,
+        "avatar_url": row["avatar_url"] if "avatar_url" in keys else None,
+        "location": row["location"] if "location" in keys else None,
+        "coffee_preference": row["coffee_preference"] if "coffee_preference" in keys else None,
+        "brewing_style": row["brewing_style"] if "brewing_style" in keys else None,
+        "account_type": row["account_type"] if "account_type" in keys else "user",
+        "roaster_slug": row["roaster_slug"] if "roaster_slug" in keys else None,
         "created_at": row["created_at"],
     }
 

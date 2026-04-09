@@ -115,6 +115,23 @@ _MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN coffee_preference TEXT",
     "ALTER TABLE users ADD COLUMN brewing_style TEXT",
     "ALTER TABLE tasting_notes ADD COLUMN blend_components TEXT",
+    # Roaster account columns
+    "ALTER TABLE users ADD COLUMN account_type TEXT NOT NULL DEFAULT 'user'",
+    "ALTER TABLE users ADD COLUMN roaster_slug TEXT",
+    # Roaster posts table
+    """CREATE TABLE IF NOT EXISTS roaster_posts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        roaster_slug TEXT NOT NULL,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        title TEXT NOT NULL,
+        teaser TEXT NOT NULL,
+        external_url TEXT,
+        cover_image_url TEXT,
+        published_at TEXT,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_rposts_slug ON roaster_posts(roaster_slug)",
+    "CREATE INDEX IF NOT EXISTS idx_rposts_user ON roaster_posts(user_id)",
 ]
 
 

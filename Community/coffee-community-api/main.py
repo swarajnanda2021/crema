@@ -44,6 +44,7 @@ from tasting_notes import router as notes_router
 from click_tracking import router as clicks_router
 from dictionary import router as dictionary_router
 from social import router as social_router
+from roaster_posts import router as roaster_posts_router
 
 app = FastAPI(
     title="Crema API",
@@ -66,6 +67,7 @@ app.include_router(notes_router)
 app.include_router(clicks_router)
 app.include_router(dictionary_router)
 app.include_router(social_router)
+app.include_router(roaster_posts_router)
 
 # Initialize database on startup
 init_db()
