@@ -1,22 +1,16 @@
 [
   {
     "keep_slug": "corridor-seven-coffee-roasters",
-    "remove_slugs": ["corridor-seven-coffee-roasterystanding-room", "corridor-seven-lean"]
+    "remove_slugs": [
+      "corridor-seven-coffee-roasterystanding-room",
+      "corridor-seven-lean"
+    ]
   },
   {
     "keep_slug": "kruti-coffee-signature-cafe-irc-village-nayapalli-authentic-specialty-coffee-shop",
-    "remove_slugs": ["select-by-kruti-coffee", "kruti-coffee-marigold"]
-  },
-  {
-    "keep_slug": "coffee-culture",
-    "remove_slugs": ["coffee-culture-reserve"]
-  },
-  {
-    "keep_slug": "curious-life-coffee-roasters-blue",
-    "remove_slugs": ["curious-life-coffee-roasters-red"]
-  },
-  {
-    "keep_slug": "grey-soul-coffee-roasters-bandra-west",
-    "remove_slugs": ["grey-soul-coffee-roasters-koregaon-park"]
+    "remove_slugs": [
+      "select-by-kruti-coffee",
+      "kruti-coffee-marigold"
+    ]
   }
 ]

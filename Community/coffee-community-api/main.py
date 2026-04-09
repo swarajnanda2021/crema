@@ -238,6 +238,27 @@ def get_roasters():
             if slug and not any(r.get("roaster_slug") == slug for r in merged):
                 merged.append(mr)
 
+    # Apply enrichment from crema-app/src/data/roasters.json (slug-matched, takes priority)
+    enriched_path = os.path.join(_BASE, "crema-app", "src", "data", "roasters.json")
+    if os.path.exists(enriched_path):
+        with open(enriched_path, encoding="utf-8") as f:
+            enriched_roasters = json.load(f)
+        enriched_by_slug = {r["roaster_slug"]: r for r in enriched_roasters if r.get("roaster_slug")}
+        _ENRICH_FIELDS = ["about_blurb", "tagline", "founding_year", "specialties",
+                          "roast_focus", "sourcing_regions", "logo_url", "hero_image_url",
+                          "coffee_image_urls", "social_links"]
+        for r in merged:
+            slug = r.get("roaster_slug", "")
+            enrich = enriched_by_slug.get(slug)
+            if enrich:
+                for field in _ENRICH_FIELDS:
+                    val = enrich.get(field)
+                    if val:  # overwrite with enriched value if non-empty
+                        r[field] = val
+                # Apply clean display name override if present
+                if enrich.get("roaster_name"):
+                    r["name"] = enrich["roaster_name"]
+
     # Apply roaster corrections (enrichment patches)
     rc_path = os.path.join(_BASE, "Scraper", "input", "roaster_corrections.json")
     if os.path.exists(rc_path):
