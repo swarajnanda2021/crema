@@ -130,7 +130,7 @@ const g = StyleSheet.create({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function MyShelfPage() {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, logout } = useAuth();
   const { shelves, fetchShelves, addToShelf, removeFromShelf } = useShelves();
   const { productMap } = useCoffeeData();
   const { notes: myNotes, fetchMyNotes } = useTastingNotes();
@@ -233,6 +233,14 @@ export default function MyShelfPage() {
           <View style={s.filterDivider} />
           <Pressable onPress={() => setActiveTab("activity")} style={s.tabItemRow}>
             <Text style={[s.filterTitle, activeTab === "activity" && s.filterTitleActive]}>My Activity</Text>
+          </Pressable>
+        </View>
+
+        {/* Sign Out */}
+        <View style={s.filterSection}>
+          <View style={s.filterDivider} />
+          <Pressable onPress={logout} style={s.tabItemRow}>
+            <Text style={s.signOutSidebarText}>Sign Out</Text>
           </Pressable>
         </View>
       </View>
@@ -393,11 +401,16 @@ export default function MyShelfPage() {
           {/* Left — name, bio, stats */}
           <View style={s.heroLeft}>
 
-            {/* Edit button — top right corner of heroLeft */}
-            <Pressable onPress={() => setShowEditModal(true)} style={s.editBtn}>
-              <EditIcon />
-              <Text style={s.editBtnText}>Edit Profile</Text>
-            </Pressable>
+            {/* Edit + Sign Out buttons — top right of heroLeft */}
+            <View style={s.heroTopRow}>
+              <Pressable onPress={() => setShowEditModal(true)} style={s.editBtn}>
+                <EditIcon />
+                <Text style={s.editBtnText}>Edit Profile</Text>
+              </Pressable>
+              <Pressable onPress={logout} style={s.signOutBtn}>
+                <Text style={s.signOutText}>Sign Out</Text>
+              </Pressable>
+            </View>
 
             <Text style={[s.heroName, liningNumerals]} numberOfLines={2}>
               {user.display_name || user.username}
@@ -507,10 +520,16 @@ const s = StyleSheet.create({
     position: "relative",
   } as any,
 
-  editBtn: {
+  heroTopRow: {
     position: "absolute" as any,
     top: 20,
     right: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    zIndex: 10,
+  } as any,
+  editBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -519,12 +538,28 @@ const s = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "rgba(199,186,165,0.4)",
-    zIndex: 10,
   } as any,
   editBtnText: {
     fontFamily: fonts.bodyMedium,
     fontSize: 12,
     color: "#C7BAA5",
+  },
+  signOutBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(199,186,165,0.2)",
+  } as any,
+  signOutText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: "rgba(199,186,165,0.6)",
+  },
+  signOutSidebarText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: "rgba(199,186,165,0.5)",
   },
 
   heroName: {
