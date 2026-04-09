@@ -94,20 +94,22 @@
     "rating": 4.6,
     "rating_count": 10,
     "logo_url": "http://www.7000steps.com/cdn/shop/files/7000_Steps_coffee_from_northeast_india_5.png?v=1681735561&width=1024",
-    "tagline": null,
-    "about_blurb": null,
+    "tagline": "Extraordinary coffee from the heart of Northeast India.",
+    "about_blurb": "7000 Steps is a specialty coffee company sourcing exclusively from the Seven Sister States of Northeast India, working directly with over 200 farming families across Meghalaya, Assam, and beyond. Their small, hands-on team pairs artisan roasting expertise with deep farmer relationships to bring rare microlot coffees from remote highland microclimates to customers nationwide. Every bag traces back to a specific community, making each cup a journey into India's most unexplored coffee frontier.",
     "founding_year": null,
-    "sourcing_regions": null,
+    "sourcing_regions": [
+      "Meghalaya",
+      "Assam",
+      "Northeast India"
+    ],
     "specialties": [
       "single-origin",
       "specialty-grade",
       "sustainability"
     ],
     "social_links": {
-      "instagram": "https://www.instagram.com/7000stepscoffee/",
-      "facebook": "https://www.facebook.com/7000stepscoffee",
-      "youtube": "https://www.youtube.com/@7000StepsCoffee",
-      "linkedin": "https://www.linkedin.com/company/76669806/"
+      "instagram": "7000stepscoffee",
+      "facebook": "7000stepscoffee"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -152,7 +154,9 @@
       "missing_founding_year",
       "missing_sourcing_regions"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium",
+    "hero_image_url": "https://www.7000steps.com/cdn/shop/files/Gateway_to_Northeast_India_Coffee_ea69285c-ea6e-43df-b756-e605109c7a7d.webp?v=1703846821"
   },
   {
     "roaster_slug": "729-grams-coffee-roasters",
@@ -170,8 +174,8 @@
     "rating_count": 633,
     "logo_url": "https://static.wixstatic.com/media/ed2892_627efd640eb444bd978781ed5029f5af%7Emv2.png/v1/fill/w_180%2Ch_180%2Clg_1%2Cusm_0.66_1.00_0.01/ed2892_627efd640eb444bd978781ed5029f5af%7Emv2.png",
     "tagline": "Buy freshly roasted specialty coffee and high scoring coffee at 729 grams coffee roasters in Koregaon park, Pune.",
-    "about_blurb": null,
-    "founding_year": null,
+    "about_blurb": "729 Grams Coffee Roasters is a Pune-based specialty coffee roasting startup founded in 2022, offering meticulously sourced beans from the finest coffee estates in India and across the globe. Operating out of Koregaon Park, the roastery pairs its specialty coffee program with a European bakehouse experience, and offers Specialty Coffee Association-certified training for baristas and enthusiasts alike. Every bean is chosen to showcase the rich diversity of flavors and profiles that different origins have to offer.",
+    "founding_year": 2022,
     "sourcing_regions": [
       "Ethiopia",
       "Colombia",
@@ -186,9 +190,8 @@
       "specialty-grade"
     ],
     "social_links": {
-      "instagram": "https://www.instagram.com/729gramscoffeeroasters/",
-      "twitter": "https://x.com/729gramscoffee",
-      "facebook": "https://www.facebook.com/729GramsCoffee/"
+      "instagram": "729gramscoffee",
+      "facebook": "729GramsCoffee"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -308,12 +311,19 @@
     "place_id": "ChIJu3MeVd0XrjsRej9BlCg4hv4",
     "rating": 4.1,
     "rating_count": 2457,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "logo_url": "https://www.arakucoffee.in/cdn/shop/files/logo-araku_300x.svg?v=1686736125",
+    "tagline": "India's first coffee to shape the complete seed-to-cup journey.",
+    "about_blurb": "ARAKU Coffee is India's pioneering seed-to-cup specialty brand, sourcing 100% Arabica from the world's largest certified organic plantation in the Araku Valley of the Eastern Ghats, Andhra Pradesh. Built on 'Arakunomics,' their equitable farmer model — endorsed by The Rockefeller Foundation's Food System Vision 2050 Prize — eliminates middlemen and ensures tribal farming communities share in the value chain. With flagship stores in Paris and Bangalore and cupping scores of 91 points, ARAKU has placed Indian specialty coffee on the global map.",
     "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
+    "sourcing_regions": [
+      "Araku Valley"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Organic",
+      "Arabica",
+      "Direct Trade"
+    ],
     "social_links": null,
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -356,7 +366,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium",
+    "hero_image_url": "https://www.arakucoffee.in/cdn/shop/files/SUMMEREDIT.png"
   },
   {
     "roaster_slug": "agastya-coffee-cafe-store-madikeri",
@@ -373,12 +385,23 @@
     "rating": 4.7,
     "rating_count": 283,
     "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "tagline": "Shade-grown, bird-friendly single-origin coffee from Coorg.",
+    "about_blurb": "Agastya Coffee is a women-led specialty coffee enterprise based in Madikeri, Coorg, celebrating the dedication of small farms on Coorg's lush hill slopes by blending age-old traditions with the modern advantage of direct trade. Their single-origin coffees are shade-grown, selectively hand-picked, and bird-friendly, sourced in partnership with small farms across Kodagu. Beyond roasting, Agastya runs an all-day café and coffee tasting experience center in Madikeri, making them a destination for both locals and visitors.",
     "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "sourcing_regions": [
+      "Coorg",
+      "Kodagu"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Shade Grown",
+      "Direct Trade",
+      "Women-Led"
+    ],
+    "social_links": {
+      "instagram": "agastyacoffee",
+      "facebook": "AgastyaCoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -624,13 +647,24 @@
     "place_id": "ChIJyxxzEmZnUjoRuPbzS4_jHMU",
     "rating": 4.2,
     "rating_count": 725,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "logo_url": "https://beachvillecoffee.com/cdn/shop/files/beachville-logo.png?v=1743059891",
+    "tagline": "Make Every Coffee Special.",
+    "about_blurb": "Beachville Coffee Roasters is an Indian specialty roaster focused on estate-driven, single-origin coffees that highlight the natural terroir of South Indian growing regions. Their lineup spans carefully curated nano-lots — including limited fermented naturals from Kerehaklu Estate — through to espresso and filter blends sourced from estates in Chikmaglur and Yercaud. Roasts range from light to medium-dark, tailored to showcase the fruit, chocolate, and caramel notes inherent to each origin.",
     "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "sourcing_regions": [
+      "Chikkamagaluru",
+      "Yercaud"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Estate Coffee",
+      "Nano Lots",
+      "Natural Process"
+    ],
+    "social_links": {
+      "instagram": "beachvillecoffee",
+      "facebook": "beachvillecoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -670,7 +704,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium-dark",
+    "hero_image_url": "https://beachvillecoffee.com/cdn/shop/files/051825hero2_rot.png?v=1747546969"
   },
   {
     "roaster_slug": "black-fuel-roastery",
@@ -688,7 +724,7 @@
     "rating_count": 247,
     "logo_url": "http://blackfuel.coffee/cdn/shop/files/Copy_of_Shadow_Black.png?height=628&pad_color=ffffff&v=1754550549&width=1200",
     "tagline": "Black Fuel Roastery – small-batch specialty coffee sourced from India’s small farms. Micro-lots, espresso blends, and curated coffee subscriptions.",
-    "about_blurb": null,
+    "about_blurb": "Black Fuel Roastery is a specialty micro-roastery and café nestled in Jubilee Hills, Hyderabad, born from a commitment to sourcing rare microlots from tribal farms that preserve ancient growing practices. Each lot of green beans is carefully cupped and roast-profiled to highlight the unique characteristics of its origin, with a primary focus on Araku Valley and South Indian specialty estates. Set in their co-founder's backyard, they serve only what they themselves savour, creating an honest and personal coffee experience.",
     "founding_year": null,
     "sourcing_regions": [
       "Araku"
@@ -698,8 +734,7 @@
       "specialty-grade"
     ],
     "social_links": {
-      "instagram": "https://www.instagram.com/blackfuelcoffee.india",
-      "youtube": "https://www.youtube.com/@BlackFuelRoastery"
+      "instagram": "blackfuelcoffee.india"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -738,7 +773,8 @@
       "missing_about",
       "missing_founding_year"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium"
   },
   {
     "roaster_slug": "bloom-coffee-roasters-head-office",
@@ -959,13 +995,17 @@
     "rating_count": 408,
     "logo_url": "https://copperandcrumb.co.in/cdn/shop/files/CopperAndCrumb.svg?v=1746698230&width=950",
     "tagline": "Where French technique meets Indian heart, crafting tomorrow's classics today",
-    "about_blurb": null,
+    "about_blurb": "Copper & Crumb is an artisanal patisserie and café in Panchkula that grew from kitchen experiments during motherhood into a full-scale culinary destination. The brand blends antique copper aesthetics with modern espresso machines, pairing Kerala vanilla beans and French butter to create a distinctly Indo-French experience. Alongside their award-worthy cakes, desserts, and cookies, they serve house-roasted specialty coffee in an exhibition kitchen setting.",
     "founding_year": null,
     "sourcing_regions": null,
-    "specialties": null,
+    "specialties": [
+      "Artisan Pastry",
+      "Specialty Coffee",
+      "Indo-French Cuisine",
+      "House Roasted"
+    ],
     "social_links": {
-      "instagram": "https://www.instagram.com/copperandcrumb.in/",
-      "facebook": "https://www.facebook.com/tr"
+      "instagram": "copperandcrumb.in"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -1002,7 +1042,9 @@
       "missing_founding_year",
       "missing_sourcing_regions"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "House-roasted specialty coffee",
+    "hero_image_url": "https://copperandcrumb.co.in/cdn/shop/files/A7400233_1.jpg"
   },
   {
     "roaster_slug": "caarabi-coffee-roasters",
@@ -1018,12 +1060,20 @@
     "place_id": "ChIJD1vdtnnhDDkR64kmOqDeRh4",
     "rating": 4.4,
     "rating_count": 16,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "logo_url": "https://caarabicoffee.com/cdn/shop/files/Caarabi_Logo_Red.png?v=1763546065",
+    "tagline": "Fresh Roasted Coffee to perfection, just for you!",
+    "about_blurb": "Caarabi Coffee Roasters — whose name is an anagram of 'Arabica' — was founded with a singular purpose: to roast coffee that is genuinely satisfying to drink, staying true to the soul of each bean through equitable and sustainable farm partnerships. Their catalog spans Global Drops, Microlots, Nanolots, and a Dark Roast Series, with Indian estate partners including Ratnagiri Estate and Melkodige Estate in Chandragiri. The roastery champions traceability and craft, believing nothing is more important than the pursuit of a great cup.",
     "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
+    "sourcing_regions": [
+      "Ratnagiri",
+      "Chandragiri"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Microlot",
+      "Dark Roast",
+      "Specialty Blends"
+    ],
     "social_links": null,
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -1067,7 +1117,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to dark",
+    "hero_image_url": "https://caarabicoffee.com/cdn/shop/files/Omakase_Banner_copy-100.jpg?v=1765535339"
   },
   {
     "roaster_slug": "cafe-de-meet",
@@ -1146,13 +1198,21 @@
     "place_id": "ChIJf-tmEBFT4DsRYr64kXSK_tg",
     "rating": 4.5,
     "rating_count": 890,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "logo_url": "https://caffeinationroasters.com/cdn/shop/files/new_logo_135x.png?v=1672393245",
+    "tagline": "It's time to SPILL THE BEANS",
+    "about_blurb": "Caffeination Roasters is a passion-driven specialty coffee brand based in Surat, India, dedicated to sourcing and roasting the finest Arabica beans from premium estates around the world. With an emphasis on smooth, complex flavor profiles and sustainable sourcing, they offer single-origin and blended coffees including lots from estates such as Mubarak Estate and SM Plantations. The brand also operates Cafe De Meet, a public-facing café concept in Surat celebrating coffee and human connection.",
     "founding_year": null,
     "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "specialties": [
+      "Arabica",
+      "Single Origin",
+      "Small Batch Roasting",
+      "Specialty Blends"
+    ],
+    "social_links": {
+      "instagram": "caffeinationroasters",
+      "facebook": "caffeinationroaster"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -1188,7 +1248,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Medium to specialty, smooth and rich",
+    "hero_image_url": "https://caffeinationroasters.com/cdn/shop/files/slider-banner01.png?v=1697539903"
   },
   {
     "roaster_slug": "cafe-desire-mizoram",
@@ -1205,8 +1267,8 @@
     "rating": 5,
     "rating_count": 1232,
     "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "tagline": "Now enjoy your favourite authentic tea anywhere, anytime.",
+    "about_blurb": "Cafe Desire Mizoram (Cafemizo) is an Indian beverage brand specializing in coffee and tea vending machines, instant premix beverages, and related equipment. They supply a wide range of premix blends including cappuccino, cardamom tea, masala chai, and hot chocolate, aiming to deliver an authentic café experience anywhere. Their focus is on convenience-driven coffee and tea solutions for homes, offices, and commercial spaces.",
     "founding_year": null,
     "sourcing_regions": [
       "Ethiopia",
@@ -1218,7 +1280,11 @@
       "Vietnam",
       "Panama"
     ],
-    "specialties": null,
+    "specialties": [
+      "Instant Premix",
+      "Vending Machines",
+      "Tea & Coffee"
+    ],
     "social_links": null,
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -1256,7 +1322,8 @@
       "missing_about",
       "missing_founding_year"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "hero_image_url": "https://cafemizo.com/cdn/shop/files/BANNER-01_e9946fff-7c60-4d56-a178-e34269dc220a.jpg"
   },
   {
     "roaster_slug": "cafe-tea-trunk",
@@ -1428,13 +1495,21 @@
     "place_id": "ChIJn4HQZEPH5zsR_5WlJR3tI-Y",
     "rating": 4.8,
     "rating_count": 22,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "logo_url": "https://shop.candourcoffee.com/cdn/shop/files/gempages_574716459700192100-f06310dd-555a-4d2c-aabc-92f5d1ab1845.png?v=1757171846",
+    "tagline": "Indian Specialty Coffee Roasters.",
+    "about_blurb": "Candour Coffee Roastery is an Indian luxury specialty coffee brand built on honesty, heritage, and an obsession with craft, positioning itself as a roaster of high-altitude Arabica sourced and roasted in microlots with precision. Their product range spans Easy Pour Kits in light, medium, and medium-dark roasts, whole bean offerings, and cold brew kits, catering to both home brewers and specialty enthusiasts. The roastery is centered on an ethos of transparency — the word 'candour' itself a statement of their values.",
     "founding_year": null,
     "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "specialties": [
+      "Microlot",
+      "High-Altitude Arabica",
+      "Pour Over",
+      "Cold Brew"
+    ],
+    "social_links": {
+      "instagram": "candour.coffee",
+      "facebook": "CandourCoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -1475,7 +1550,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium-dark"
   },
   {
     "roaster_slug": "chai-kaapi-arera-colony",
@@ -1736,11 +1812,19 @@
     "rating": 4.2,
     "rating_count": 494,
     "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "tagline": "India's Finest Specialty Coffee Roastery.",
+    "about_blurb": "Coffee Culture India is a specialty coffee roastery offering a curated selection of single-origin and microlot coffees sourced from renowned Indian estates. Their catalogue highlights precision-processed coffees including light roast and medium-light roast microlots from estates such as Attikan and Baarbara. They position themselves as India's finest specialty coffee roastery, catering to discerning home brewers and café professionals.",
     "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
+    "sourcing_regions": [
+      "Attikan Estate",
+      "Baarbara Estate"
+    ],
+    "specialties": [
+      "Specialty Microlots",
+      "Single Origin",
+      "Light Roast",
+      "Fermentation Process"
+    ],
     "social_links": null,
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -1785,7 +1869,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium-light"
   },
   {
     "roaster_slug": "coffee-culture-reserve",
@@ -1802,11 +1887,19 @@
     "rating": 4.3,
     "rating_count": 5502,
     "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "tagline": "India's Finest Specialty Coffee Roastery.",
+    "about_blurb": "Coffee Culture Reserve is the premium microlot arm of Coffee Culture India, focusing on rare and experimental processing methods such as mixed fruit fermentation and culture process coffees. Sourcing from select Indian estates, the Reserve range targets specialty coffee enthusiasts seeking complex, traceable, and limited-release offerings. Their meticulous approach to fermentation and roast profiling sets them apart in the Indian specialty market.",
     "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
+    "sourcing_regions": [
+      "Attikan Estate",
+      "Baarbara Estate"
+    ],
+    "specialties": [
+      "Reserve Microlots",
+      "Experimental Process",
+      "Single Origin",
+      "Light Roast"
+    ],
     "social_links": null,
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -1851,7 +1944,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium-light"
   },
   {
     "roaster_slug": "coffee-sutra-c-scheme",
@@ -2081,13 +2175,25 @@
     "place_id": "ChIJedyVU-vA1DsRMXQ-cCiQ6vs",
     "rating": 4.5,
     "rating_count": 2602,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "logo_url": "https://corridorseven.coffee/cdn/shop/files/corridorseven.coffee_logo_black.png?v=1773230844",
+    "tagline": "India's finest single-estate coffees, roasted fresh twice a week.",
+    "about_blurb": "Corridor Seven Coffee Roasters is an Indian specialty roaster dedicated entirely to single-estate Indian coffees, sourcing from renowned estates such as Kuchally, Salawara, Gungegiri, Basankhan, Attikan, Melkodige, and Riverdale. Their lineup showcases advanced processing methods including bioreactor naturals, carbonic maceration, and saccharomyces fermentation, alongside accessible blends like BR!M and Cold Brew BOLD. Roasting freshly every Monday and Thursday, they bring a rigorous farm-to-cup philosophy to the Indian specialty coffee scene.",
     "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "sourcing_regions": [
+      "Chikkamagaluru",
+      "Coorg",
+      "Wayanad"
+    ],
+    "specialties": [
+      "Single Estate",
+      "Natural Process",
+      "Carbonic Maceration",
+      "Indian Estates"
+    ],
+    "social_links": {
+      "instagram": "corridorsevencoffee",
+      "facebook": "corridorsevencoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -2129,7 +2235,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium"
   },
   {
     "roaster_slug": "corridor-seven-coffee-roasterystanding-room",
@@ -2145,13 +2252,28 @@
     "place_id": "ChIJ0SxHPOrB1DsRovas_8D-G9Y",
     "rating": 4.6,
     "rating_count": 1774,
-    "logo_url": null,
+    "logo_url": "https://corridorseven.coffee/cdn/shop/files/corridorseven.coffee_logo_black.png?v=1773230844&width=2364",
     "tagline": null,
-    "about_blurb": null,
+    "about_blurb": "Corridor Seven Coffee Roasters is an Indian specialty roastery known for its rigorous sourcing from named Indian estates and a strong emphasis on experimental processing — including natural fermentation, carbonic maceration, and bioreactor naturals. They roast on a structured schedule (Mondays and Thursdays) and offer an extensive grind-to-order service across all major brew methods. Their Standing Room café concept brings their roastery-direct coffees to an accessible retail experience.",
     "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "sourcing_regions": [
+      "Kuchally Estate",
+      "Salawara Estate",
+      "Gungegiri Estate",
+      "Basankhan Estate",
+      "Attikan Estate",
+      "Melkodige Estate"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Experimental Process",
+      "Indian Estates",
+      "Specialty Roasting"
+    ],
+    "social_links": {
+      "instagram": "corridorsevencoffee",
+      "facebook": "corridorsevencoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -2209,13 +2331,25 @@
     "place_id": "ChIJfRWwXcTB1DsR_dfLcwPTlY4",
     "rating": 4.1,
     "rating_count": 253,
-    "logo_url": null,
+    "logo_url": "https://corridorseven.coffee/cdn/shop/files/corridorseven.coffee_logo_black.png?v=1773230844&width=2364",
     "tagline": null,
-    "about_blurb": null,
+    "about_blurb": "Corridor Seven Lean is a signature blend from Corridor Seven Coffee Roasters, designed as an approachable and consistent everyday offering within their specialty lineup. Part of Corridor Seven's range of house blends alongside BR!M and Cold Brew Bold, the LEAN Blend delivers a refined cup tailored for espresso and filter brewing. It reflects the roastery's commitment to traceable Indian-estate sourcing paired with precise roasting schedules.",
     "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "sourcing_regions": [
+      "Kuchally Estate",
+      "Salawara Estate",
+      "Attikan Estate"
+    ],
+    "specialties": [
+      "Signature Blend",
+      "Indian Estates",
+      "Espresso Blend",
+      "Specialty Roasting"
+    ],
+    "social_links": {
+      "instagram": "corridorsevencoffee",
+      "facebook": "corridorsevencoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -2273,13 +2407,24 @@
     "place_id": "ChIJ7TrolenZujsRbhPjhZae0zc",
     "rating": 4.3,
     "rating_count": 187,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "logo_url": "https://cothas.com/cdn/shop/files/Cothas_Logo_d730e1f5-e29e-4118-acc6-a45b79ff4db1_400x.png?v=1734338668",
+    "tagline": "The coffee a new nation woke up to.",
+    "about_blurb": "Cothas Coffee Co. is a Bengaluru-based heritage coffee brand founded in 1949 by Sri Krishnaiah Chetty, now managed by its third generation. Renowned for its traditional South Indian filter coffee, the company sources premium beans from the hills of Kodagu and Chikkamagaluru in Karnataka and roasts them using German machinery and proprietary techniques in a 40,000 sq. ft. ISO and FDA certified facility. From neighbourhood retailer to national brand, Cothas remains a beloved institution for authentic filter coffee culture.",
+    "founding_year": 1949,
+    "sourcing_regions": [
+      "Kodagu",
+      "Chikkamagaluru"
+    ],
+    "specialties": [
+      "Filter Coffee",
+      "South Indian Blends",
+      "Dark Roast",
+      "Instant Coffee"
+    ],
+    "social_links": {
+      "instagram": "cothas_coffee",
+      "facebook": "cothascoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -2317,7 +2462,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Dark espresso and filter focus",
+    "hero_image_url": "https://cothas.com/cdn/shop/files/Royal_Blend_Instant_Coffee_600x.png?v=1775197691"
   },
   {
     "roaster_slug": "curious-life-coffee-roasters-blue",
@@ -2542,13 +2689,25 @@
     "place_id": "ChIJ922KgfTiDDkRPWI4k_Yjtok",
     "rating": 4.6,
     "rating_count": 1227,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "logo_url": "https://www.devans.in/cdn/shop/files/300px_free_size_300x.png?v=1619597725",
+    "tagline": "Striving to provide the world's finest coffee.",
+    "about_blurb": "Devan's South Indian Coffee and Tea, established in 1962, is one of India's most storied specialty roasters and is recognised as North India's first dedicated coffee roastery. Renowned for sourcing and expertly roasting the finest single-origin Indian coffees — including Monsooned Malabar, Mysore Nuggets Extra Bold, and Robusta Kaapi Royale — as well as crafting customised blends for nearly six decades. Devan's serves a loyal community of filter coffee connoisseurs, luxury resorts, and retail chains from their flagship store in Lodhi Colony, New Delhi.",
+    "founding_year": 1962,
+    "sourcing_regions": [
+      "Mysore",
+      "Malabar",
+      "South Indian Estates"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Custom Blends",
+      "Monsooned Malabar",
+      "Cold Brew"
+    ],
+    "social_links": {
+      "instagram": "devanscoffee",
+      "facebook": "Devans1962"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -2586,7 +2745,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to dark, full range",
+    "hero_image_url": "https://www.devans.in/cdn/shop/files/2021-22_1_2000x.png?v=1746305715"
   },
   {
     "roaster_slug": "dope-coffee-roasters",
@@ -2602,13 +2763,24 @@
     "place_id": "ChIJTzaNrfLP5zsRRKBElyucgsY",
     "rating": 4.9,
     "rating_count": 27,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "logo_url": "https://dopecoffee.in/cdn/shop/files/DOPE_COFFEE_ROASTERS_Expanded-02_130x.png",
+    "tagline": "Life's too short for bad coffee.",
+    "about_blurb": "Dope Coffee Roasters is an Indian specialty coffee brand built around a culture-forward identity, roasting fresh daily and sourcing directly from named Indian plantations including Nilgiri and Kalledevarapura estates. They champion full transparency in their supply chain, publicly crediting every farm on their menu to foster direct producer-consumer connections. Beyond the cup, Dope integrates coffee into music festivals and lifestyle events, making specialty coffee accessible and exciting for a new generation.",
     "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "sourcing_regions": [
+      "Nilgiri",
+      "Kalledevarapura Estate"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Daily Fresh Roast",
+      "Direct Trade",
+      "Indian Estates"
+    ],
+    "social_links": {
+      "instagram": "itsdopecoffee",
+      "facebook": "itsdopecoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -2647,7 +2819,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Medium to dark",
+    "hero_image_url": "https://dopecoffee.in/cdn/shop/files/dark_matter_home.gif"
   },
   {
     "roaster_slug": "drum-coffee-roasters",
@@ -2663,13 +2837,20 @@
     "place_id": "ChIJHS169AO35zsRO4GrDcRCkIg",
     "rating": 5,
     "rating_count": 2,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "logo_url": "https://drumcoffeeroasters.in/cdn/shop/files/Drum_Coffee_Roasters2.jpg?v=1751977364&width=600",
+    "tagline": "Coffee built for consistency.",
+    "about_blurb": "Drum Coffee Roasters is an Indian roastery built around the principle of consistency, roasting in small batches with strict quality controls to ensure every brew performs reliably across busy cafés, offices, and home setups. They work closely with farmers and offer roasting, packing, and fulfillment support for coffee businesses alongside direct roastery visits. Their Full City Roast — delivering smooth chocolate notes and a mellow finish — stands as their best-selling expression.",
     "founding_year": null,
     "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "specialties": [
+      "Small Batch",
+      "Commercial Roasting",
+      "Wholesale",
+      "Full City Roast"
+    ],
+    "social_links": {
+      "instagram": "drum_coffee_roasters"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -2711,7 +2892,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Medium to full city (dark)",
+    "hero_image_url": "https://drumcoffeeroasters.in/cdn/shop/files/Black_White_Minimalist_Typographic_Blogging_Tips_Instagram_Post.png?v=1770443104&width=3840"
   },
   {
     "roaster_slug": "ekata-coffee-roasters",
@@ -2793,13 +2976,27 @@
     "place_id": "ChIJCXFgZ0gNCDsR24Gyi-gF4jU",
     "rating": 4.6,
     "rating_count": 58,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "logo_url": "https://ffoxcoffee.com/cdn/shop/files/Logo_1.png?v=1715321874",
+    "tagline": "Your Gateway to Gourmet Excellence",
+    "about_blurb": "FFOX Coffee is a Kerala-based specialty roaster that spent years researching Indian coffee plantations before launching in 2019. They source single estate and single origin Arabica-Robusta beans from renowned regions like Chikmagalur, Coorg, and Araku Valley, emphasizing responsible sourcing and fair trade practices. Their careful medium-dark roasting is designed to highlight the distinctive natural profiles of each bean.",
+    "founding_year": 2019,
+    "sourcing_regions": [
+      "Chikmagalur",
+      "Coorg",
+      "Araku Valley",
+      "Mysore",
+      "Manjarabad"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Single Estate",
+      "Indian Arabica-Robusta",
+      "South Indian Filter"
+    ],
+    "social_links": {
+      "instagram": "ffoxcoffee",
+      "facebook": "ffox.coffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -2841,7 +3038,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Medium to dark"
   },
   {
     "roaster_slug": "forest-farmer-coffee-roasters",
@@ -2859,7 +3057,7 @@
     "rating_count": 152,
     "logo_url": "http://forestfarmercoffeeroasters.com/cdn/shop/files/NAME_LOGO_TRANSPARENT_14b89afa-1e98-4ebc-9aae-add03a76b340.png?height=628&pad_color=ffffff&v=1768294280&width=1200",
     "tagline": "FOREST FARMER COFFEE ROASTERS",
-    "about_blurb": null,
+    "about_blurb": "Forest Farmer Coffee Roasters specializes in limited-harvest, estate-grown Indian coffees roasted in small batches to order for peak freshness. They source directly from farms including Ratnagiri Estate and St. Margaret Estate in Chikmagalur, Karnataka, with a strong emphasis on fermentation stories, transparent supply chains, and Q-Grader approved selections. Their roasting philosophy is built around clarity — letting the intrinsic character of each lot shine through.",
     "founding_year": null,
     "sourcing_regions": [
       "Chikmagalur",
@@ -2916,7 +3114,8 @@
       "missing_about",
       "missing_founding_year"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light, clarity-focused"
   },
   {
     "roaster_slug": "g-shot-coffee-roastery-cafe",
@@ -2932,13 +3131,23 @@
     "place_id": "ChIJh3cEGLbrvzsRKnYbxsNx5nI",
     "rating": 4.5,
     "rating_count": 1160,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "logo_url": "https://gshotcoffeeroastery.com/cdn/shop/files/KWATZ-Horizontal_Logo.png?v=1763901139",
+    "tagline": "Meditation in a cup",
+    "about_blurb": "G-Shot Coffee Roastery & Cafe is a Goa-based specialty roastery founded in 2018 as a daring experiment in conscious living, roasting fresh coffee with a focus on quality, transparency, and meditative craftsmanship. They source from fine Indian estates like Narangani as well as international origins, pairing their coffee program with organic nut butters and mindfulness-oriented offerings. The brand's Kwatz retail extension embodies their philosophy of love, meditation, and meticulous craft.",
+    "founding_year": 2018,
+    "sourcing_regions": [
+      "Narangani"
+    ],
+    "specialties": [
+      "Specialty Single Origin",
+      "Fresh Roasted",
+      "Indian & International",
+      "Artisan Cafe"
+    ],
+    "social_links": {
+      "instagram": "gshotcoffeeandcafe",
+      "facebook": "gshotcoffeeandcafe"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -2977,7 +3186,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Transparency-focused, fresh roasted"
   },
   {
     "roaster_slug": "gb-roasters",
@@ -3121,8 +3331,8 @@
     "rating_count": 238,
     "logo_url": "http://greysoul.coffee/cdn/shop/files/Untitled_design_2ac7b722-4412-487b-8980-dd22446a6829.png?v=1687232483",
     "tagline": "Roasted Indian Specialty Coffee. Harvested in India, Roasted in Pune. Grey Soul Coffee Roasters.",
-    "about_blurb": null,
-    "founding_year": null,
+    "about_blurb": "Grey Soul Coffee Roasters is an Indian specialty coffee brand founded by Chirag in 2021, born out of a deep passion for coffee and shaped by the philosophy that the world holds infinite complexity beyond black and white. They source directly from Karnataka, Coorg, Kerala, and Nagaland, and are known for experimental roasting techniques, Q Grader certification, and a commitment to full supply chain transparency. Their Mumbai Noshery in Bandra West offers a curated specialty coffee experience alongside their vibrant café program.",
+    "founding_year": 2021,
     "sourcing_regions": [
       "Yercaud",
       "Shevaroy",
@@ -3140,10 +3350,8 @@
       "specialty-grade"
     ],
     "social_links": {
-      "instagram": "https://www.instagram.com/greysoulcoffee/",
-      "twitter": "https://twitter.com/greysoulcoffee",
-      "facebook": "https://www.facebook.com/greysoulcoffeeroasters/",
-      "youtube": "https://www.youtube.com/channel/"
+      "instagram": "greysoulcoffee",
+      "facebook": "greysoulcoffeeroasters"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -3182,7 +3390,9 @@
       "missing_about",
       "missing_founding_year"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium",
+    "hero_image_url": "https://greysoul.coffee/cdn/shop/files/Website_banner.jpg?v=1756217671&width=3200"
   },
   {
     "roaster_slug": "grey-soul-coffee-roasters-koregaon-park",
@@ -3200,8 +3410,8 @@
     "rating_count": 360,
     "logo_url": "http://greysoul.coffee/cdn/shop/files/Untitled_design_2ac7b722-4412-487b-8980-dd22446a6829.png?v=1687232483",
     "tagline": "Roasted Indian Specialty Coffee. Harvested in India, Roasted in Pune. Grey Soul Coffee Roasters.",
-    "about_blurb": null,
-    "founding_year": null,
+    "about_blurb": "Grey Soul Coffee Roasters is an Indian specialty coffee brand founded by Chirag in 2021, born out of a deep passion for coffee and shaped by the philosophy that the world holds infinite complexity beyond black and white. They source directly from Karnataka, Coorg, Kerala, and Nagaland, and are known for experimental roasting techniques, Q Grader certification, and a commitment to full supply chain transparency. Their Pune Noshery in Koregaon Park serves as the flagship roastery and brew bar, launched in 2022.",
+    "founding_year": 2021,
     "sourcing_regions": [
       "Yercaud",
       "Shevaroy",
@@ -3219,10 +3429,8 @@
       "specialty-grade"
     ],
     "social_links": {
-      "instagram": "https://www.instagram.com/greysoulcoffee/",
-      "twitter": "https://twitter.com/greysoulcoffee",
-      "facebook": "https://www.facebook.com/greysoulcoffeeroasters/",
-      "youtube": "https://www.youtube.com/channel/"
+      "instagram": "greysoulcoffee",
+      "facebook": "greysoulcoffeeroasters"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -3261,7 +3469,9 @@
       "missing_about",
       "missing_founding_year"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium",
+    "hero_image_url": "https://greysoul.coffee/cdn/shop/files/Website_banner.jpg?v=1756217671&width=3200"
   },
   {
     "roaster_slug": "half-light-coffee-roasters-c-scheme",
@@ -3277,13 +3487,24 @@
     "place_id": "ChIJrTqGrFq1bTkRpKoYThr7WdU",
     "rating": 4.4,
     "rating_count": 714,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "logo_url": "https://halflightcoffee.com/cdn/shop/files/Half_Light_horizontal.png",
+    "tagline": "Farm to Cup",
+    "about_blurb": "Half Light Coffee Roasters is a Jaipur-based specialty roastery that sources single-origin Indian Arabica directly from farmers in Karnataka and Tamil Nadu, bringing farm-fresh beans straight to the cup. Founded with the belief that great coffee begins at origin, they operate a neighbourhood roastery-café with an open espresso bar designed to educate and connect customers with the craft. Their name reflects their vision of new beginnings found in the light between darkness and dawn.",
     "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "sourcing_regions": [
+      "Karnataka",
+      "Tamil Nadu"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Indian Arabica",
+      "Direct Farm Sourcing",
+      "Specialty Roasting"
+    ],
+    "social_links": {
+      "instagram": "halflightcoffee_roasters",
+      "facebook": "hlcroasters"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -3320,7 +3541,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Precision specialty roasting"
   },
   {
     "roaster_slug": "handcrafted-cafe-roastery-and-pizzeria",
@@ -3749,13 +3971,18 @@
     "rating": 4.2,
     "rating_count": 522,
     "logo_url": "http://www.kup.world/cdn/shop/files/Artboard_1_edited.png?height=628&pad_color=ffffff&v=1749059547&width=1200",
-    "tagline": null,
-    "about_blurb": null,
+    "tagline": "क for KUP",
+    "about_blurb": "KUP is a Chennai-based modern coffee bar and kitchen rooted in desi culture and community, positioned as a vibrant happy place to linger, unwind, and savour life. Operating out of Nungambakkam, they blend a specialty coffee focus with an Indian sensibility, welcoming guests from morning through the late hours. Their ethos goes beyond the transactional, prioritising atmosphere, connection, and a sense of belonging over a great cup.",
     "founding_year": null,
     "sourcing_regions": null,
-    "specialties": null,
+    "specialties": [
+      "Specialty Coffee",
+      "Community Cafe",
+      "Desi Roots",
+      "Modern Kitchen"
+    ],
     "social_links": {
-      "instagram": "https://www.instagram.com/kup_india/"
+      "instagram": "kup_india"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -3798,7 +4025,8 @@
       "missing_founding_year",
       "missing_sourcing_regions"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "hero_image_url": "https://www.kup.world/cdn/shop/files/photo-1447933601403-0c6688de566e.jpg?v=1749292887&width=3840"
   },
   {
     "roaster_slug": "kafeido-roastery",
@@ -4030,13 +4258,21 @@
     "place_id": "ChIJN3xYStZlUjoRAAAA0DH0dWA",
     "rating": 4.6,
     "rating_count": 23,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
+    "logo_url": "https://kapikottai.coffee/cdn/shop/files/Kaapi_kottai_Logo_Final-02.png?v=1664628632&width=600",
+    "tagline": "Traceable coffee, artisanally roasted, sourced directly from farms.",
+    "about_blurb": "Kāpikottai — meaning 'coffee beans' in Tamil — is a Chennai-based specialty roaster founded in late 2018 to champion traceable, sustainably grown Indian coffees through direct and empathetic relationships with farm partners. Their coffees are artisanally roasted by a Carnatic musician, and many blends are named after Carnatic ragas, weaving music and terroir into a unique sensory experience. The brand advocates for traceability, social equity, and low environmental impact across the Indian coffee supply chain.",
+    "founding_year": 2018,
     "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "specialties": [
+      "Single Origin",
+      "Direct Trade",
+      "Shade Grown",
+      "Indian Specialty"
+    ],
+    "social_links": {
+      "instagram": "kapikottai",
+      "facebook": "kapikottai"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -4072,7 +4308,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Medium",
+    "hero_image_url": "https://kapikottai.coffee/cdn/shop/files/Kapikottai_169.jpg?v=1722276605&width=3840"
   },
   {
     "roaster_slug": "kapiberry-beverages-artisan-coffee-roastery-and-gourmet-coffee-bean",
@@ -4090,7 +4328,7 @@
     "rating_count": 26,
     "logo_url": "https://static.wixstatic.com/media/e4c8d2_1b5daa4679ff4cb3bd43e2d00e750a7b%7Emv2.png/v1/fill/w_180%2Ch_180%2Clg_1%2Cusm_0.66_1.00_0.01/e4c8d2_1b5daa4679ff4cb3bd43e2d00e750a7b%7Emv2.png",
     "tagline": "We  started Kapiberry Beverages with a passion for Coffee. We source from the best coffee estates , Roast it with passion and pack it with care for a best brewing experience.",
-    "about_blurb": null,
+    "about_blurb": "Kapiberry Beverages is a Kochi-based artisan coffee roastery that sources, roasts, and packs premium single-origin and blended Indian coffees in small batches to ensure freshness and quality. Operating on a quality-over-quantity philosophy, they offer a range of light, medium, and dark roasts alongside café premixes, catering to diverse brewing methods. Their commitment to transparency and sustainability supports local Indian coffee growers across the country's diverse coffee-growing regions.",
     "founding_year": null,
     "sourcing_regions": [
       "Brazil"
@@ -4100,8 +4338,7 @@
       "single-origin"
     ],
     "social_links": {
-      "instagram": "https://www.instagram.com/kapiberry",
-      "facebook": "https://www.facebook.com/kapiberrycoffee"
+      "instagram": "kapiberry"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -4139,7 +4376,8 @@
       "missing_about",
       "missing_founding_year"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to dark, multiple roast levels"
   },
   {
     "roaster_slug": "kapiberry-coffee-academy-training-barista-of-tomorrow",
@@ -4157,7 +4395,7 @@
     "rating_count": 20,
     "logo_url": "https://static.wixstatic.com/media/e4c8d2_1b5daa4679ff4cb3bd43e2d00e750a7b%7Emv2.png/v1/fill/w_180%2Ch_180%2Clg_1%2Cusm_0.66_1.00_0.01/e4c8d2_1b5daa4679ff4cb3bd43e2d00e750a7b%7Emv2.png",
     "tagline": "We  started Kapiberry Beverages with a passion for Coffee. We source from the best coffee estates , Roast it with passion and pack it with care for a best brewing experience.",
-    "about_blurb": null,
+    "about_blurb": "Kapiberry Coffee Academy is the barista training arm of Kapiberry Beverages, based in Kochi, Kerala, dedicated to crafting the baristas of tomorrow. The academy offers professional coffee education and hands-on training programs designed to equip aspiring baristas and coffee professionals with industry-ready skills. It operates as a dedicated wing focused on elevating coffee craft and expertise across India.",
     "founding_year": null,
     "sourcing_regions": [
       "Brazil"
@@ -4167,8 +4405,7 @@
       "single-origin"
     ],
     "social_links": {
-      "instagram": "https://www.instagram.com/kapiberry",
-      "facebook": "https://www.facebook.com/kapiberrycoffee"
+      "instagram": "kapiberrycoffeeacademy"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -4222,13 +4459,23 @@
     "place_id": "ChIJVVVRfU9dUjoRjY1kMk5dEHM",
     "rating": 4.8,
     "rating_count": 24,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "logo_url": "https://katandkincoffee.com/cdn/shop/files/Clip_path_group.png?v=1697709208",
+    "tagline": "With immense gratitude to you, from our family to yours.",
+    "about_blurb": "Kat & Kin Coffee Roasters is a family-owned Chennai specialty roastery founded in 2020 during the global lockdown, born from a personal quest to discover exceptional coffee. Head roaster Kathryn began roasting from home before opening a dedicated roastery, offering a range from Indian origins like Monsooned Malabar and Kodai Reserve to international single-origins from Ethiopia, Costa Rica, and Kenya. The brand is built on a seed-to-cup philosophy and deep gratitude toward every link in the coffee chain.",
+    "founding_year": 2020,
+    "sourcing_regions": [
+      "Kodaikanal"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Indian & International",
+      "Family Roastery",
+      "Seed to Cup"
+    ],
+    "social_links": {
+      "instagram": "katandkincoffee",
+      "facebook": "KatandKinCoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -4268,7 +4515,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to dark across range",
+    "hero_image_url": "https://katandkincoffee.com/cdn/shop/files/Kat_about.jpg?v=1697707934"
   },
   {
     "roaster_slug": "kkai-cup-coffee-powder",
@@ -4424,13 +4673,23 @@
     "place_id": "ChIJ4VCfblQVrjsRqRZoRtl_vlQ",
     "rating": 4.8,
     "rating_count": 13,
-    "logo_url": null,
+    "logo_url": "https://korerocoffee.com/cdn/shop/files/Logo.png",
     "tagline": null,
-    "about_blurb": null,
+    "about_blurb": "Korero Coffee Roasters is an Indian specialty coffee roaster offering a curated lineup of single-origin and blended coffees sourced from notable Indian growing regions including Koraput, Valparai, and Heggadde. Their thoughtfully named offerings — including Anthology, Flower Ferry, Middle Son, Gravity, and 90s Child — reflect a storytelling-driven approach to specialty coffee.",
     "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "sourcing_regions": [
+      "Koraput",
+      "Valparai",
+      "Heggadde"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Specialty Coffee",
+      "Indian Estates"
+    ],
+    "social_links": {
+      "instagram": "korerocoffeeroasters"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -4466,7 +4725,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "hero_image_url": "https://korerocoffee.com/cdn/shop/files/Banner_image_coffee_bar.png"
   },
   {
     "roaster_slug": "kruti-coffee-signature-cafe-irc-village-nayapalli-authentic-specialty-coffee-shop",
@@ -4703,14 +4963,18 @@
     "rating_count": 451,
     "logo_url": "https://www.libertariocoffee.in/cdn/shop/files/Libertario_black.png?crop=center&height=62&v=1759490185&width=600",
     "tagline": "born in colombia, crafted for the world",
-    "about_blurb": null,
-    "founding_year": null,
+    "about_blurb": "Libertario Coffee Roasters India is a Colombian-born specialty coffee brand that brings its 20-year legacy of purpose-driven brewing to the Indian market. Rooted in the coffee culture of Bogotá and Medellín, the brand is celebrated for its Geisha beans and signature blends — Paz, Libre, and Rock — each crafted for a distinct flavor journey. Their India operations, launched in 2025, combine Colombian artisanal expertise with brewing customization tailored to Indian sensibilities.",
+    "founding_year": 2025,
     "sourcing_regions": [
       "Colombia"
     ],
-    "specialties": null,
+    "specialties": [
+      "Colombian Origin",
+      "Geisha Beans",
+      "Specialty Blends"
+    ],
     "social_links": {
-      "instagram": "https://www.instagram.com/libertariocoffee.in/"
+      "instagram": "libertariocoffee.in"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -4746,7 +5010,8 @@
       "missing_about",
       "missing_founding_year"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "hero_image_url": "https://www.libertariocoffee.in/cdn/shop/files/HomePage_BannerVideo_Cover.jpg"
   },
   {
     "roaster_slug": "love-kaapi-best-chikmagalur-coffee",
@@ -4762,13 +5027,23 @@
     "place_id": "ChIJJUeZMVcVMWIR2kc1_0gkhcU",
     "rating": 5,
     "rating_count": 45,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "logo_url": "https://lovekaapi.com/cdn/shop/files/logo_1_4x_febb7f41-877f-4f2b-a33e-7239570bd92b.png",
+    "tagline": "Single-origin estate coffee from the hills of Chikmagalur.",
+    "about_blurb": "Love Kaapi is an estate-to-cup specialty coffee brand delivering single-origin Arabica grown on their family estate in Javali, Chikmagalur, handpicked from the slopes of the Western Ghats. Founded by Supriya Nayak, Love Kaapi roasts to order in small batches, using Q-grader profiled roasts to highlight the character of their AA and AAA-grade beans. The brand celebrates South Indian filter coffee culture while offering B2B services including custom blends, barista training, and wholesale supply.",
     "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "sourcing_regions": [
+      "Chikkamagaluru"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Estate Coffee",
+      "Filter Coffee",
+      "Small Batch"
+    ],
+    "social_links": {
+      "instagram": "lovekaapi",
+      "facebook": "lovekaapi"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -4807,7 +5082,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Fresh roasted to order, Q-grader profiled",
+    "hero_image_url": "https://lovekaapi.com/cdn/shop/files/Artboard_1_4x_51cfb6bc-c5a3-49a9-8439-6cf2ae3ae132.png"
   },
   {
     "roaster_slug": "lush-the-cafe",
@@ -4941,12 +5218,24 @@
     "place_id": "ChIJQ_5UeoXJ5zsR__eCJdbHoiQ",
     "rating": 4.4,
     "rating_count": 3546,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
+    "logo_url": "https://www.subko.coffee/cdn/shop/files/subko_png_logo_2x_cfb73125-bccc-4011-b894-b8d9dec6d340.png",
+    "tagline": "From the Subcontinent, For All.",
+    "about_blurb": "Mary Lodge by Subko is the flagship café and roastery of Subko Specialty Coffee Roasters, housed in a lovingly restored 1925 Goan bungalow in Bandra West, Mumbai. Opened in March 2020, the expanded Mary Lodge 2.0 offers a spacious, design-forward space serving specialty coffee, artisanal bread from the craft bakehouse, and fine cacao from across the Indian subcontinent. It embodies Subko's founding vision of showcasing subcontinental flavors through multi-species coffee, pod-to-bar cacao, and micro-batch baking.",
+    "founding_year": 2020,
+    "sourcing_regions": [
+      "Karnataka",
+      "Tamil Nadu",
+      "Andhra Pradesh",
+      "Meghalaya",
+      "Assam",
+      "Nagaland"
+    ],
+    "specialties": [
+      "Multi-Species Coffee",
+      "Craft Bakehouse",
+      "Fine Cacao",
+      "Specialty Roastery"
+    ],
     "social_links": null,
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -4988,7 +5277,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium, Q-grader overseen",
+    "hero_image_url": "https://www.subko.coffee/cdn/shop/articles/mary_lodge_2.png"
   },
   {
     "roaster_slug": "mirras-coffee-india-private-limited",
@@ -5005,12 +5296,24 @@
     "rating": 4.3,
     "rating_count": 35,
     "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "tagline": "From the House of Asia's First Planter.",
+    "about_blurb": "Mirras Coffee India Private Limited is a Coimbatore-based coffee manufacturer from the House of Asia's First Planter, a legacy tracing back over a century to pioneering plantations in Malaysia and Sri Lanka. With estates in Somwarpet, Karnataka, the company processes premium filter, instant, and flavoured coffees using German technology, commanding approximately 75% of institutional coffee supply in Tamil Nadu. Founded as a retail brand in 2018, Mirras offers products worldwide and has deep roots in Indian coffee growing heritage.",
+    "founding_year": 2018,
+    "sourcing_regions": [
+      "Coorg",
+      "Sakleshpur",
+      "Somwarpet"
+    ],
+    "specialties": [
+      "Filter Coffee",
+      "Instant Coffee",
+      "Flavoured Coffee",
+      "Estate Grown"
+    ],
+    "social_links": {
+      "instagram": "mirras_coffee",
+      "facebook": "mirrascoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -5042,7 +5345,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Roast and ground filter focus"
   },
   {
     "roaster_slug": "nithara-coffee",
@@ -5058,12 +5362,20 @@
     "place_id": "ChIJz8_4XP5ZqDsR9qbLmB3NKVU",
     "rating": 4.8,
     "rating_count": 24,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
+    "logo_url": "https://nithara.com/cdn/shop/files/Nithara_coffee_logo.png",
+    "tagline": "From the Soul of Tamil Nadu: Filter Coffee that Captivates Your Senses.",
+    "about_blurb": "Nithara Coffee is a Salem, Tamil Nadu-based specialty coffee brand founded in 2020, whose name means 'Deep Rooted' in Sanskrit — reflecting their commitment to quality, consistency, and service. The company handles every stage from bean cultivation and harvesting to curing, roasting, and blending, sourcing from award-winning estates across the southern hills of India. Their lineup spans premium filter coffee blends and instant coffee powders crafted for the South Indian palate.",
+    "founding_year": 2020,
+    "sourcing_regions": [
+      "Tamil Nadu",
+      "Southern India"
+    ],
+    "specialties": [
+      "Filter Coffee",
+      "South Indian Blends",
+      "Estate Sourced",
+      "Instant Coffee"
+    ],
     "social_links": null,
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -5098,7 +5410,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Roast and ground filter coffee focus",
+    "hero_image_url": "https://nithara.com/cdn/shop/files/Nithara_Coffee_Banner_03_1.jpg"
   },
   {
     "roaster_slug": "nothing-before-coffee-sapna-sangeeta",
@@ -5114,13 +5428,20 @@
     "place_id": "ChIJu3beFmj9YjkRfrrUfvM1ytQ",
     "rating": 4.5,
     "rating_count": 774,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
+    "logo_url": "https://nothingbeforecoffee.com/cdn/shop/files/logo.png",
+    "tagline": "Great coffee. Honest price. Everyday rituals.",
+    "about_blurb": "Nothing Before Coffee is a Jaipur-born coffee brand founded in 2017 by four coffee enthusiasts united by a simple question: why is great coffee either too expensive or too ordinary? The brand democratizes specialty coffee by delivering high quality at honest, accessible prices for everyday rituals. With a growing café presence, Nothing Before Coffee has built a loyal community around approachable, seasonal, and indulgent coffee experiences.",
+    "founding_year": 2017,
     "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "specialties": [
+      "Affordable Specialty",
+      "Seasonal Beverages",
+      "Café Experience"
+    ],
+    "social_links": {
+      "instagram": "nothingbeforecoffeeindia",
+      "facebook": "nothingbeforecoffeeindia"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -5153,7 +5474,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "hero_image_url": "https://nothingbeforecoffee.com/cdn/shop/files/espresso-ready-banner_2c5b63f1-ac20-4ab5-973c-0f61605c50d4.png"
   },
   {
     "roaster_slug": "okiru-coffee-roasters",
@@ -5170,8 +5492,8 @@
     "rating": 4.8,
     "rating_count": 74,
     "logo_url": "http://okiru.in/cdn/shop/files/1_f645ceac-2af3-45af-a853-3895a12ad845.svg?v=1761221144",
-    "tagline": null,
-    "about_blurb": null,
+    "tagline": "Freshly roasted coffee with complete transparency",
+    "about_blurb": "Okiru Coffee Roasters is a specialty roaster based in Zirakpur, Punjab, whose name means 'to wake up' in Japanese — a nod to their mission of awakening the senses through transparent, freshly roasted coffee. They source exceptional beans from India's finest estates, roast every batch in-house, and offer Sunday roasting workshops alongside a co-working café space.",
     "founding_year": null,
     "sourcing_regions": [
       "Chikmagalur",
@@ -5182,7 +5504,7 @@
       "specialty-grade"
     ],
     "social_links": {
-      "instagram": "https://www.instagram.com/okiru.coffee/"
+      "instagram": "okiru.coffee"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -5225,7 +5547,8 @@
       "missing_about",
       "missing_founding_year"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium"
   },
   {
     "roaster_slug": "panduranga-coffee-1938",
@@ -5241,13 +5564,22 @@
     "place_id": "ChIJL8nhhGTXujsRTX9kFMlAhlc",
     "rating": 4.4,
     "rating_count": 3420,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "logo_url": "https://www.pandurangacoffee.com/cdn/shop/files/Panduranga_Coffee_Works_Logo_x60.png?v=1614722481",
+    "tagline": "Rich in history, rich in flavor",
+    "about_blurb": "Founded in 1938 by Sri Papanna Setty in Chikmagalur, Panduranga Coffee Works is a five-generation family roastery that has grown from a small shop into one of South India's most heritage-rich coffee brands. Now managed by the third generation, they are known for traditional South Indian filter coffee blends and premium ground coffee sourced from high-altitude Chikmagalur plantations.",
+    "founding_year": 1938,
+    "sourcing_regions": [
+      "Chikkamagaluru"
+    ],
+    "specialties": [
+      "Filter Coffee",
+      "Ground Coffee",
+      "South Indian Blends",
+      "Heritage Brand"
+    ],
+    "social_links": {
+      "facebook": "pandurangacoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -5282,7 +5614,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Medium to dark"
   },
   {
     "roaster_slug": "pandhal-coffee-brews",
@@ -5354,13 +5687,23 @@
     "place_id": "ChIJ4RuZYg6vpTsRIX1XYjB-l3g",
     "rating": 4.5,
     "rating_count": 379,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "logo_url": "https://riversidecoffee.co/cdn/shop/files/RiversidecoffeeLogo-full.jpg?v=1685960874&width=600",
+    "tagline": "Farm to cup — coffee that never leaves our premises",
+    "about_blurb": "Riverside Coffee is a single-estate roaster from Coorg, Karnataka, with a family heirloom farm dating back to 1898. They grow, process, and roast all their coffee on their own premises, offering specialty-grade Arabica and Robusta across multiple processing methods including washed, natural, honey, and experimental fermentations. The estate also welcomes visitors for an immersive farm-to-cup stay experience.",
+    "founding_year": 1898,
+    "sourcing_regions": [
+      "Coorg"
+    ],
+    "specialties": [
+      "Single Estate",
+      "Arabica & Robusta",
+      "Natural Process",
+      "Experimental Fermentation"
+    ],
+    "social_links": {
+      "facebook": "riversidecoffeecompany",
+      "instagram": "riversidecoffeeco"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -5397,7 +5740,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium",
+    "hero_image_url": "https://riversidecoffee.co/cdn/shop/files/IMG_5266.png?v=1769611539&width=3840"
   },
   {
     "roaster_slug": "roastea-on-the-go",
@@ -5558,13 +5903,25 @@
     "place_id": "ChIJA9nmBt8DDTkRq-iEZ6kUsgA",
     "rating": 4.4,
     "rating_count": 47,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "logo_url": "https://rossettecoffee.com/cdn/shop/t/20/assets/rossette_logo.png",
+    "tagline": "We roast. We brew. We serve.",
+    "about_blurb": "Rossette Coffee Lab is a Delhi-based specialty roastery founded in 2022 by Vansh Anand and Aashrray Singla, sourcing from 20+ estates across Karnataka, Tamil Nadu, and Nagaland. They roast small batches in-house using a 5kg Probat roaster and are committed to fair trade and biodiverse farming, with all coffees scoring above 80 points on the SCA scale.",
+    "founding_year": 2022,
+    "sourcing_regions": [
+      "Karnataka",
+      "Tamil Nadu",
+      "Nagaland"
+    ],
+    "specialties": [
+      "Small Batch",
+      "Single Origin",
+      "Rarities & Experimental",
+      "Barista Training"
+    ],
+    "social_links": {
+      "instagram": "rossettecoffee",
+      "facebook": "rossettecoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -5609,7 +5966,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium"
   },
   {
     "roaster_slug": "saplings-cafe-saplings-coffee-roasters",
@@ -5828,11 +6186,21 @@
     "rating_count": 2127,
     "logo_url": null,
     "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "about_blurb": "Kruti Coffee was founded in 2013 in Bhubaneswar by Dr. Kamakhya Das and Dr. Amol Jadhav, both Tata Institute of Social Sciences alumni, as an impact venture to support tribal Arabica coffee farmers in Kindiriguda, Koraput, Odisha. Dr. Das is an SCA Certified Professional Level Roaster, and the company offers single-origin, specialty-grade coffees sourced directly from these tribal farming communities.",
+    "founding_year": 2013,
+    "sourcing_regions": [
+      "Koraput"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Tribal Farmer Sourcing",
+      "SCA Certified",
+      "Impact Roastery"
+    ],
+    "social_links": {
+      "facebook": "Kruticoffee",
+      "instagram": "kruticoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -5875,7 +6243,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to dark"
   },
   {
     "roaster_slug": "shot-in-the-dark-coffee-boutique-crest",
@@ -5892,12 +6261,19 @@
     "rating": 4.7,
     "rating_count": 93,
     "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "tagline": "India's first coffee curation boutique",
+    "about_blurb": "Shot In The Dark is India's first online coffee boutique, based in Gurugram, curating exceptional coffees from roasters across the country. The boutique stocks all formats — whole beans, ground coffee, instant, liquid coffee, and Nespresso capsules — each selected for craftsmanship and character, and also serves major cafés, restaurants, and hotels across India.",
     "founding_year": null,
     "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "specialties": [
+      "Multi-Roaster Curation",
+      "Whole Bean & Ground",
+      "Instant Coffee",
+      "Nespresso Capsules"
+    ],
+    "social_links": {
+      "facebook": "shotinthedark"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -5953,12 +6329,19 @@
     "rating": 4.4,
     "rating_count": 512,
     "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "tagline": "India's only coffee curation company",
+    "about_blurb": "Shot In The Dark Coffee Curation Company is India's pioneering coffee curation platform based in Gurugram, supplying specialty coffee to cafés, restaurants, and hotels nationwide. They curate beans, ground coffee, instant brews, liquid coffee, and Nespresso capsules from roasters across India, making them one of the fastest-growing coffee curators in the country's hospitality sector.",
     "founding_year": null,
     "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "specialties": [
+      "Coffee Curation",
+      "Wholesale Supply",
+      "Multi-Format Coffee",
+      "Hospitality Sourcing"
+    ],
+    "social_links": {
+      "facebook": "shotinthedark"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -6014,12 +6397,22 @@
     "rating": 4.4,
     "rating_count": 219,
     "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "tagline": "Building connections through coffee",
+    "about_blurb": "Silk Road Coffee Company is a Mumbai-based specialty roaster founded in 2021 by Parth Suri and Shamit Tyagi, a collective of artists and creatives united by a passion for coffee. Operating from Versova, Mumbai, they source Arabica beans from India's renowned coffee estates and specialize in innovative processing methods including carbonic maceration and anaerobic natural.",
+    "founding_year": 2021,
+    "sourcing_regions": [
+      "Karnataka"
+    ],
+    "specialties": [
+      "Specialty Arabica",
+      "Carbonic Maceration",
+      "Anaerobic Natural",
+      "Single Origin"
+    ],
+    "social_links": {
+      "facebook": "Silkroadcoffeecompany",
+      "instagram": "silkroadcoffeecompany"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -6056,7 +6449,8 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium"
   },
   {
     "roaster_slug": "siolim-specialty-coffee-roasters-indore",
@@ -6353,10 +6747,14 @@
     "rating": 4.3,
     "rating_count": 1038,
     "logo_url": "http://www.subko.coffee/cdn/shop/files/subko_logo_black_square.png?v=1735626165",
-    "tagline": null,
-    "about_blurb": null,
+    "tagline": "Bringing Fine Cacao To The Forefront",
+    "about_blurb": "The Cacao Mill by Subko is a purpose-driven, design-led fine cacao brand reshaping the cacao landscape within the Indian subcontinent with a 'Pod-to-Bar' philosophy. They source single-origin cacao from Kerala, Karnataka, and Andhra Pradesh, crafting Terroir Bars, Filled Bars, Experimental Bars, and more. Part of the Subko family — known for specialty coffee — the Cacao Mill brings the same quality-first ethos to Indian fine chocolate.",
     "founding_year": null,
-    "sourcing_regions": null,
+    "sourcing_regions": [
+      "Konnathady Kerala",
+      "Mangalore Karnataka",
+      "West Godavari Andhra Pradesh"
+    ],
     "specialties": [
       "specialty-grade"
     ],
@@ -6422,12 +6820,16 @@
     "rating_count": 519,
     "logo_url": "http://www.thecocoabeanchocolatier.in/cdn/shop/files/cocoabean_logo.png?height=628&pad_color=ffffff&v=1704455712&width=1200",
     "tagline": "The Cocoa Bean",
-    "about_blurb": null,
+    "about_blurb": "The Cocoa Bean Chocolatier is a beloved artisanal chocolate house founded in 2010 in the misty hills of Kodaikanal, Tamil Nadu. They craft handmade chocolates — from truffles and fudges to center-filled and roasted-nut varieties — using high-cocoa Belgian chocolate and premium ingredients. Their homemade, small-batch approach has made them a go-to destination for indulgent gifting across India.",
     "founding_year": 2010,
     "sourcing_regions": [
       "Kodaikanal"
     ],
-    "specialties": null,
+    "specialties": [
+      "Handcrafted Chocolates",
+      "Artisan Truffles",
+      "Gifting"
+    ],
     "social_links": null,
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -6463,7 +6865,8 @@
       "missing_social",
       "missing_about"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "hero_image_url": "https://www.thecocoabeanchocolatier.in/cdn/shop/files/indulgence_in_every_bite_3.png"
   },
   {
     "roaster_slug": "the-coffee-bean-tea-leaf",
@@ -6545,13 +6948,21 @@
     "place_id": "ChIJHTMzagDP5zsRv6jp2HUqZiA",
     "rating": 4.7,
     "rating_count": 379,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
+    "logo_url": "https://toise.coffee/cdn/shop/files/Toise_logo-11.png?v=1733477118&width=600",
+    "tagline": "Slow and steady always savours the day",
+    "about_blurb": "Toise is a specialty coffee roastery and café in Worli, Mumbai, founded by a Q Grader who discovered specialty coffee during his MBA in Boston and trained at Boot Campus under industry mentors Valerian and Willem. The brand takes its name from the tortoise in Aesop's fable, embodying a philosophy of slow, mindful coffee appreciation, and roasts on India's only 12kg electric roaster.",
     "founding_year": null,
     "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "specialties": [
+      "Q Grader-Led Roasting",
+      "Electric Small-Batch",
+      "Café & BrewStudio",
+      "Single Origin"
+    ],
+    "social_links": {
+      "instagram": "toise.coffee",
+      "youtube": "ToiseCoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -6587,7 +6998,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Light to medium",
+    "hero_image_url": "https://toise.coffee/cdn/shop/files/Toise_5.jpg?v=1740508589&width=3840"
   },
   {
     "roaster_slug": "vismitha-coffee",
@@ -6605,10 +7018,13 @@
     "rating_count": 87,
     "logo_url": null,
     "tagline": null,
-    "about_blurb": null,
+    "about_blurb": "Vismitha Coffee is an Indian coffee brand with roots in a working coffee estate, offering freshly sourced and processed coffee to consumers across the country. Their website is primarily JavaScript-rendered and detailed content could not be extracted. Based on available signals, they represent a farm-to-cup philosophy connecting consumers directly to estate-grown Indian coffee.",
     "founding_year": null,
     "sourcing_regions": null,
-    "specialties": null,
+    "specialties": [
+      "Estate Coffee",
+      "Farm to Cup"
+    ],
     "social_links": null,
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -6662,10 +7078,14 @@
     "rating_count": 109,
     "logo_url": null,
     "tagline": null,
-    "about_blurb": null,
+    "about_blurb": "Vismitha Coffee Estate Tour offers visitors an immersive experience on a working Indian coffee plantation, where guests can witness the full journey of coffee from plant to cup. The estate experience is designed to educate and delight coffee enthusiasts through guided tours of cultivation and processing. As the experiential arm of Vismitha Coffee, it bridges the gap between grower and consumer through direct engagement.",
     "founding_year": null,
     "sourcing_regions": null,
-    "specialties": null,
+    "specialties": [
+      "Estate Tour",
+      "Coffee Experience",
+      "Farm to Cup"
+    ],
     "social_links": null,
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -6717,7 +7137,7 @@
     "rating_count": 31,
     "logo_url": "https://www.westmountcaffe.com/unnamed%20-9-.png?v=1758214684",
     "tagline": "Coffee Roastery, Coffee Dry Mill",
-    "about_blurb": null,
+    "about_blurb": "West Mount Coffee is an artisan roaster based in Wayanad's Chundale, near the Indian Coffee Board Research Centre in the Western Ghats. They are committed to small-batch, handcrafted roasting with a focus on ethically and sustainably sourced beans, offering five distinct flavor profiles — Arabica Pure, Bold, Wild, Houseblend, and Brew. Beyond retail coffee, they also offer professional barista equipment and online coffee mastery courses.",
     "founding_year": null,
     "sourcing_regions": [
       "Wayanad"
@@ -6728,9 +7148,8 @@
       "estate-grown"
     ],
     "social_links": {
-      "instagram": "https://www.instagram.com/westmountcoffeefactory/",
-      "facebook": "https://www.facebook.com/tr",
-      "youtube": "https://www.youtube.com/@westmountcoffee"
+      "instagram": "westmountcoffeefactory",
+      "facebook": "westmountcoffeefactory"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -6768,7 +7187,8 @@
       "missing_about",
       "missing_founding_year"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Artisan small-batch, multiple roast profiles"
   },
   {
     "roaster_slug": "wonderbean-coffee-co",
@@ -6857,13 +7277,23 @@
     "place_id": "ChIJL0yZbHLXujsRePftqmrSTNA",
     "rating": 4.4,
     "rating_count": 2207,
-    "logo_url": null,
-    "tagline": null,
-    "about_blurb": null,
-    "founding_year": null,
-    "sourcing_regions": null,
-    "specialties": null,
-    "social_links": null,
+    "logo_url": "https://worldofcoffee.cafe/cdn/shop/files/world-of-coffee-logo.png",
+    "tagline": "Committed to bringing the best of Chikmagalur to your cup",
+    "about_blurb": "World of Coffee is a legacy coffee enterprise from Chikmagalur, founded in 1952 by Mr. Srinivas Shetty, with over 80 years of coffee heritage rooted in a 150-acre estate. They operate India's first fully automatic roaster and claim the world's first 4D interactive café, making them pioneers in both production and coffee experiences. Their estate-grown specialty coffees — including honey-processed, barrel-aged, anaerobic, and single-origin robusta — are available across 8 retail outlets in Karnataka and shipped pan-India.",
+    "founding_year": 1952,
+    "sourcing_regions": [
+      "Chikkamagaluru"
+    ],
+    "specialties": [
+      "Single Origin",
+      "Honey Process",
+      "Barrel Aged",
+      "Estate Grown"
+    ],
+    "social_links": {
+      "instagram": "worldofcoffee_chikkamagaluru",
+      "facebook": "World-of-Coffee-Chikmagalur"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -6903,7 +7333,9 @@
     "enrichment_flags": [
       "homepage_unreachable"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "roast_focus": "Precision-roasted, full spectrum from light to specialty",
+    "hero_image_url": "https://worldofcoffee.cafe/cdn/shop/files/Banner_d07429c0-401c-4486-9d75-982dfe3cadde.jpg"
   },
   {
     "roaster_slug": "nada",

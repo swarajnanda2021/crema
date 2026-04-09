@@ -125,9 +125,9 @@ export default function RoasterDetailPage() {
   const profile = getProfile(slug, roaster?.website, roaster?.name);
   const coffees = useMemo(() => products.filter((p: any) => p.roaster_slug === slug), [products, slug]);
 
-  // Hero image: prefer roaster logo, fall back to first product image
+  // Hero image: prefer hero photo, then logo, then first product image
   const heroImageUrl = useMemo(
-    () => profile?.logo_url || coffees.find((c: any) => c.image_url)?.image_url || null,
+    () => profile?.hero_image_url || profile?.logo_url || coffees.find((c: any) => c.image_url)?.image_url || null,
     [profile, coffees]
   );
 
@@ -136,7 +136,11 @@ export default function RoasterDetailPage() {
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
   const ABOUT_LIMIT = 300;
-  const SPECIALTY_TAGS = ["Single Origin", "Estate Grown", "Specialty Grade"];
+
+  // Dynamic specialty tags from enriched profile, fallback to generic
+  const specialtyTags: string[] = (profile?.specialties && profile.specialties.length > 0)
+    ? profile.specialties.slice(0, 4)
+    : ["Single Origin", "Estate Grown", "Specialty Grade"];
 
   const filtered = useMemo(() => coffees.filter((c: any) => {
     if (selectedRoasts.length > 0 && !selectedRoasts.includes(c.roast_level)) return false;
@@ -206,19 +210,24 @@ export default function RoasterDetailPage() {
 
             <View style={{ flex: 1 }} />
 
-            {/* Tagline band — "Single origin / Estate grown / Specialty grade" */}
+            {/* Tagline band — dynamic specialties from enriched profile */}
             <View style={s.tagBand}>
               <View style={s.tagBandRule} />
-              <Text style={s.tagBandText}>Single origin / Estate grown / Specialty grade</Text>
+              <Text style={s.tagBandText}>{specialtyTags.join(" / ")}</Text>
               <View style={s.tagBandRule} />
             </View>
 
-            {/* Location + website — Figma icons, #D798DA, website icon RIGHT of text */}
+            {/* Location + founding year + website */}
             <View style={s.heroFooterRow}>
               {locationLine ? (
                 <View style={s.heroFooterItem}>
                   <MapPinIcon />
                   <Text style={s.heroFooterText}>{locationLine}</Text>
+                </View>
+              ) : null}
+              {profile?.founding_year ? (
+                <View style={s.heroFooterItem}>
+                  <Text style={s.heroFooterText}>EST. {profile.founding_year}</Text>
                 </View>
               ) : null}
               {website ? (
