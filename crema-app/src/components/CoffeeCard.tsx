@@ -234,12 +234,14 @@ const s = StyleSheet.create({
   shelfOptionText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "#351101" },
   shelfOptionTextActive: { fontFamily: fonts.bodySemiBold },
 
-  // Info section — padding matches Figma (name starts ~13px from info top)
+  // Info section — padding matches Figma, bottom radius matches card
   infoSection: {
     paddingHorizontal: 17,
     paddingTop: 13,
     paddingBottom: 12,
     backgroundColor: "#EFE9DB",
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
   },
 
   // Bottom row — price left, buttons right

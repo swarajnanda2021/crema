@@ -333,20 +333,14 @@ function RoastersList() {
 
       {isDesktop && <View style={s.verticalDivider} />}
 
-      {/* Roaster list */}
-      <ScrollView
-        style={{ flex: 1, minWidth: 0 }}
-        showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={50}
-      >
-        {/* Scroll-aware search bar */}
+      {/* Roaster list — search bar outside ScrollView so it animates, not scrolls */}
+      <View style={{ flex: 1, minWidth: 0 }}>
         <View style={[s.searchBarWrap, searchBarHidden && s.searchBarWrapHidden] as any}>
           <View style={s.stickySearchWrap}>
             <View style={s.searchBar}>
               <Search size={16} color="#A09580" />
               <TextInput
-                placeholder="Search roasters..."
+                placeholder="Search"
                 placeholderTextColor="#A09580"
                 value={roasterQuery}
                 onChangeText={setRoasterQuery}
@@ -357,8 +351,14 @@ function RoastersList() {
           </View>
         </View>
 
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={50}
+        >
         {/* Page title */}
-        <Text style={s.rPageTitle}>Explore your favourite Indian coffee roasters</Text>
+        <Text style={s.rPageTitle} numberOfLines={1}>Explore your favourite Indian coffee roasters</Text>
         <View style={s.rDivider} />
 
         {/* Rows capped at 834px, matching Figma */}
@@ -368,6 +368,7 @@ function RoastersList() {
           ))}
         </View>
       </ScrollView>
+    </View>
     </View>
   );
 }
@@ -523,8 +524,8 @@ const s = StyleSheet.create({
   // ── Roasters tab ──
   rPageTitle: {
     fontFamily: fonts.displayRegular,
-    fontSize: 35,
-    lineHeight: 42,
+    fontSize: 26,
+    lineHeight: 32,
     color: "#351101",
     paddingHorizontal: 16,
     paddingTop: 20,
