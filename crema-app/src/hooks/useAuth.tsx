@@ -12,6 +12,8 @@ interface User {
   location?: string;
   coffee_preference?: string;
   brewing_style?: string;
+  account_type?: "user" | "roaster";
+  roaster_slug?: string;
   created_at: string;
 }
 

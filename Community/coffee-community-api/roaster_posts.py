@@ -9,10 +9,12 @@ Each roaster account can post articles with:
   - published_at: ISO date string, defaults to now
 
 Endpoints:
-  POST   /api/roaster-posts                  — create (roaster accounts only)
-  GET    /api/roasters/{slug}/posts           — list posts for a roaster
-  DELETE /api/roaster-posts/{id}             — delete own post
-  GET    /api/feed                            — combined feed (notes + roaster posts)
+  POST   /api/roaster-posts                        — create (roaster accounts only)
+  GET    /api/roasters/{slug}/posts                — list all posts for a roaster
+  GET    /api/roasters/{slug}/posts/featured       — get up to 2 featured posts (public)
+  PUT    /api/roaster-posts/{id}/feature           — toggle featured status (roaster only)
+  DELETE /api/roaster-posts/{id}                   — delete own post (roaster only)
+  GET    /api/posts-timeline                       — combined feed: tasting notes + roaster posts
 """
 
 import datetime
@@ -58,6 +60,8 @@ def _row_to_post(r) -> dict:
         "cover_image_url": r["cover_image_url"],
         "published_at": r["published_at"] or r["created_at"],
         "created_at": r["created_at"],
+        "is_featured": bool(r["is_featured"]) if "is_featured" in r.keys() else False,
+        "featured_order": r["featured_order"] if "featured_order" in r.keys() else None,
     }
 
 
@@ -96,8 +100,9 @@ def create_post(req: RoasterPostRequest, user=Depends(get_current_user)):
     try:
         cursor = db.execute(
             """INSERT INTO roaster_posts
-               (roaster_slug, user_id, title, teaser, external_url, cover_image_url, published_at, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (roaster_slug, user_id, title, teaser, external_url, cover_image_url,
+                published_at, created_at, is_featured, featured_order)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)""",
             (roaster_slug, user["id"], req.title.strip(), teaser,
              req.external_url, req.cover_image_url, published_at, now),
         )
@@ -110,9 +115,27 @@ def create_post(req: RoasterPostRequest, user=Depends(get_current_user)):
         db.close()
 
 
+@router.get("/roasters/{slug}/posts/featured")
+def get_featured_posts(slug: str):
+    """Get up to 2 featured posts for a roaster (public). Ordered by featured_order."""
+    db = get_db()
+    try:
+        rows = db.execute(
+            _POST_SELECT + """
+            WHERE rp.roaster_slug = ? AND rp.is_featured = 1
+            ORDER BY rp.featured_order ASC
+            LIMIT 2
+            """,
+            (slug,),
+        ).fetchall()
+        return {"featured_posts": [_row_to_post(r) for r in rows]}
+    finally:
+        db.close()
+
+
 @router.get("/roasters/{slug}/posts")
 def get_roaster_posts(slug: str, limit: int = 20, offset: int = 0):
-    """List posts for a specific roaster, newest first."""
+    """List all posts for a specific roaster, newest first."""
     db = get_db()
     try:
         rows = db.execute(
@@ -123,6 +146,55 @@ def get_roaster_posts(slug: str, limit: int = 20, offset: int = 0):
             "SELECT COUNT(*) as c FROM roaster_posts WHERE roaster_slug = ?", (slug,)
         ).fetchone()["c"]
         return {"posts": [_row_to_post(r) for r in rows], "total": total}
+    finally:
+        db.close()
+
+
+@router.put("/roaster-posts/{post_id}/feature")
+def toggle_feature(post_id: int, user=Depends(get_current_user)):
+    """
+    Toggle featured status for a roaster post.
+    - If not featured: feature it (assign next available slot 1 or 2).
+    - If featured: unfeature it.
+    - Max 2 featured posts per roaster.
+    """
+    if user.get("account_type") != "roaster":
+        raise HTTPException(403, "Only roaster accounts can feature posts")
+
+    roaster_slug = user.get("roaster_slug")
+    db = get_db()
+    try:
+        row = db.execute("SELECT * FROM roaster_posts WHERE id = ?", (post_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Post not found")
+        if row["user_id"] != user["id"]:
+            raise HTTPException(403, "Not your post")
+
+        if row["is_featured"]:
+            # Unfeature it
+            db.execute(
+                "UPDATE roaster_posts SET is_featured = 0, featured_order = NULL WHERE id = ?",
+                (post_id,)
+            )
+            db.commit()
+            return {"featured": False, "featured_order": None}
+        else:
+            # Check current featured count
+            featured = db.execute(
+                "SELECT featured_order FROM roaster_posts WHERE roaster_slug = ? AND is_featured = 1 ORDER BY featured_order ASC",
+                (roaster_slug,)
+            ).fetchall()
+            used_orders = {r["featured_order"] for r in featured if r["featured_order"]}
+            if len(used_orders) >= 2:
+                raise HTTPException(400, "You can only feature 2 posts. Unfeature one first.")
+            # Pick the next available slot
+            next_order = 1 if 1 not in used_orders else 2
+            db.execute(
+                "UPDATE roaster_posts SET is_featured = 1, featured_order = ? WHERE id = ?",
+                (next_order, post_id)
+            )
+            db.commit()
+            return {"featured": True, "featured_order": next_order}
     finally:
         db.close()
 
@@ -144,11 +216,11 @@ def delete_post(post_id: int, user=Depends(get_current_user)):
         db.close()
 
 
-@router.get("/feed")
-def get_feed(limit: int = 30, offset: int = 0, user=Depends(get_optional_user)):
+@router.get("/posts-timeline")
+def get_posts_timeline(limit: int = 30, offset: int = 0, user=Depends(get_optional_user)):
     """
-    Combined activity feed.
-    Returns a mix of tasting_note and roaster_post items, sorted newest first.
+    Combined activity feed: tasting notes + roaster posts, sorted newest first.
+    Used by the HOME feed tab.
     """
     db = get_db()
     try:
@@ -158,7 +230,7 @@ def get_feed(limit: int = 30, offset: int = 0, user=Depends(get_optional_user)):
                    tn.brew_method, tn.drink_style,
                    tn.acidity, tn.body, tn.sweetness, tn.aftertaste,
                    tn.created_at,
-                   u.username, u.display_name, u.avatar_url
+                   u.username, u.display_name, u.avatar_url, u.location
             FROM tasting_notes tn
             JOIN users u ON tn.user_id = u.id
             ORDER BY tn.created_at DESC
@@ -184,6 +256,7 @@ def get_feed(limit: int = 30, offset: int = 0, user=Depends(get_optional_user)):
                     "username": r["username"],
                     "display_name": r["display_name"],
                     "avatar_url": r["avatar_url"],
+                    "location": r["location"],
                 },
                 "created_at": r["created_at"],
                 "sort_key": r["created_at"],
@@ -206,8 +279,6 @@ def get_feed(limit: int = 30, offset: int = 0, user=Depends(get_optional_user)):
 
         # Paginate
         paginated = combined[offset: offset + limit]
-
-        # Strip internal sort_key
         for item in paginated:
             item.pop("sort_key", None)
 

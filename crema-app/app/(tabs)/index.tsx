@@ -1,45 +1,97 @@
-import { useEffect, useState, useCallback } from "react";
-import { View, Text, TextInput, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
+/**
+ * Home Feed — combined timeline of tasting notes + roaster posts.
+ * Pulls from /api/posts-timeline (newest first, mixed types).
+ *
+ * Card types:
+ *   - "tasting_note"  → TastingNoteCard  (existing design)
+ *   - "roaster_post"  → RoasterPostCard  (new Figma design: avatar, title, cover, teaser)
+ */
+
+import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  View, Text, TextInput, Pressable, ScrollView,
+  RefreshControl, StyleSheet, Animated,
+} from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { MapPin, Coffee, ShoppingCart, MessageCircle, Send } from "lucide-react-native";
+import {
+  MapPin, Coffee, ShoppingCart, MessageCircle, Send,
+} from "lucide-react-native";
 import * as Linking from "expo-linking";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useSocial } from "../../src/hooks/useSocial";
 import { apiFetch, trackClick } from "../../src/api/client";
 import { colors, fonts, cardShadow } from "../../src/theme/colors";
-import { HeartIcon, HeartFilledIcon } from "../../src/components/icons/FigmaIcons";
+import { HeartIcon, HeartFilledIcon, HeartOutlineIcon, HeartFilledOutlineIcon } from "../../src/components/icons/FigmaIcons";
 import TastingNoteDisplay from "../../src/components/TastingNoteDisplay";
 import Chip from "../../src/components/Chip";
+
+// ── Feed page ─────────────────────────────────────────────────────────────────
 
 export default function FeedPage() {
   const { user } = useAuth();
   const { productMap } = useCoffeeData();
   const social = useSocial();
   const router = useRouter();
-  const [timeline, setTimeline] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadTimeline = async () => {
+  const loadFeed = async () => {
     try {
-      const data = await apiFetch("/feed/timeline");
-      const items = data.timeline || [];
-      // Initialize like states from server data
-      for (const item of items) {
-        const noteId = item.note?.id;
-        if (noteId) social.setInitialLikeState(noteId, item.liked_by_me || false, item.like_count || 0);
+      const data = await apiFetch("/posts-timeline?limit=40");
+      const feedItems = data.items || [];
+      // Initialise like state for tasting notes
+      for (const item of feedItems) {
+        if (item.type === "tasting_note") {
+          social.setInitialLikeState(item.id, item.liked_by_me || false, item.like_count || 0);
+        }
       }
-      setTimeline(items);
-    } catch { setTimeline([]); }
+      setItems(feedItems);
+    } catch {
+      // Fall back to old timeline if posts-timeline unavailable
+      try {
+        const data = await apiFetch("/feed/timeline");
+        const timeline = (data.timeline || []).map((item: any) => ({
+          ...item,
+          type: "tasting_note",
+          id: item.note?.id,
+          product_id: item.product_id || item.note?.product_id,
+          author: item.user,
+          created_at: item.note?.created_at,
+          comment: item.note?.comment,
+          flavor_tags: item.note?.flavor_tags
+            ? (typeof item.note.flavor_tags === "string"
+              ? JSON.parse(item.note.flavor_tags)
+              : item.note.flavor_tags)
+            : null,
+          brew_method: item.note?.brew_method,
+          drink_style: item.note?.drink_style,
+          acidity: item.note?.acidity,
+          body: item.note?.body,
+          sweetness: item.note?.sweetness,
+          aftertaste: item.note?.aftertaste,
+        }));
+        for (const item of timeline) {
+          social.setInitialLikeState(item.id, item.liked_by_me || false, item.like_count || 0);
+        }
+        setItems(timeline);
+      } catch { setItems([]); }
+    }
   };
 
-  useEffect(() => { loadTimeline().finally(() => setLoading(false)); }, []);
-  const onRefresh = async () => { setRefreshing(true); await loadTimeline(); setRefreshing(false); };
+  useEffect(() => { loadFeed().finally(() => setLoading(false)); }, []);
+  const onRefresh = async () => { setRefreshing(true); await loadFeed(); setRefreshing(false); };
 
   if (loading) {
-    return <View style={s.loadingContainer}><Text style={{ fontFamily: fonts.bodyRegular, color: colors.textSecondary }}>Loading feed...</Text></View>;
+    return (
+      <View style={s.loadingContainer}>
+        <Text style={{ fontFamily: fonts.bodyRegular, color: colors.textSecondary }}>
+          Loading feed…
+        </Text>
+      </View>
+    );
   }
 
   return (
@@ -50,33 +102,235 @@ export default function FeedPage() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
       >
-        {timeline.length === 0 ? (
-          <Text style={s.emptyText}>No tasting notes yet. Be the first to write one!</Text>
+        {items.length === 0 ? (
+          <Text style={s.emptyText}>Nothing in the feed yet. Taste some coffees!</Text>
         ) : (
-          timeline.map((item: any) => (
-            <FeedCard
-              key={item.note?.id}
-              item={item}
-              productMap={productMap}
-              router={router}
-              social={social}
-              isLoggedIn={!!user}
-            />
-          ))
+          items.map((item: any, idx: number) => {
+            if (item.type === "roaster_post") {
+              return (
+                <RoasterPostFeedCard
+                  key={`rp-${item.id}-${idx}`}
+                  post={item}
+                  router={router}
+                />
+              );
+            }
+            return (
+              <TastingNoteCard
+                key={`tn-${item.id}-${idx}`}
+                item={item}
+                productMap={productMap}
+                router={router}
+                social={social}
+                isLoggedIn={!!user}
+              />
+            );
+          })
         )}
       </ScrollView>
     </View>
   );
 }
 
-function FeedCard({ item, productMap, router, social, isLoggedIn }: {
-  item: any; productMap: any; router: any; social: ReturnType<typeof useSocial>; isLoggedIn: boolean;
+// ── Roaster Post Feed Card (Figma-faithful) ───────────────────────────────────
+
+function timeAgo(dateStr: string): string {
+  try {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const h = Math.floor(diff / 3600000);
+    if (h < 1) return "just now";
+    if (h < 24) return `${h}h`;
+    const d = Math.floor(h / 24);
+    if (d < 30) return `${d}d`;
+    return new Date(dateStr).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+  } catch { return ""; }
+}
+
+function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const pulse = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 1.25, duration: 100, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const handleLike = () => {
+    pulse();
+    setLiked((l) => !l);
+    setLikeCount((c) => liked ? c - 1 : c + 1);
+  };
+
+  const handleOpen = () => {
+    if (post.external_url) Linking.openURL(post.external_url);
+  };
+
+  const goToRoaster = () => {
+    if (post.roaster_slug) router.push(`/roaster/${post.roaster_slug}`);
+  };
+
+  return (
+    <View style={rp.card}>
+      {/* Header */}
+      <Pressable onPress={goToRoaster} style={rp.header}>
+        <View style={rp.avatarWrap}>
+          {post.author_avatar_url ? (
+            <Image
+              source={{ uri: post.author_avatar_url }}
+              style={rp.avatar}
+              contentFit="cover"
+            />
+          ) : (
+            <View style={[rp.avatar, rp.avatarFallback]}>
+              <Text style={rp.avatarLetter}>
+                {(post.author_display_name || "R")[0].toUpperCase()}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={rp.headerText}>
+          <View style={rp.nameRow}>
+            <Text style={rp.authorName}>{post.author_display_name}</Text>
+            <Text style={rp.timestamp}>{timeAgo(post.published_at)}</Text>
+          </View>
+          <Text style={rp.subtitle}>Posted about an article</Text>
+        </View>
+      </Pressable>
+
+      {/* Title */}
+      <Pressable onPress={handleOpen} style={rp.titleWrap}>
+        <Text style={rp.title}>{post.title}</Text>
+      </Pressable>
+
+      {/* Cover image */}
+      {post.cover_image_url ? (
+        <Pressable onPress={handleOpen} style={rp.coverWrap}>
+          <Image
+            source={{ uri: post.cover_image_url }}
+            style={rp.coverImage}
+            contentFit="cover"
+          />
+        </Pressable>
+      ) : null}
+
+      {/* Teaser */}
+      <Text style={rp.teaser} numberOfLines={4}>{post.teaser}</Text>
+
+      {/* Action bar */}
+      <View style={rp.actionBar}>
+        <Pressable onPress={handleLike} style={rp.actionBtn}>
+          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            {liked
+              ? <HeartFilledOutlineIcon size={16} color={colors.like} />
+              : <HeartOutlineIcon size={16} color={colors.textMuted} />}
+          </Animated.View>
+          {likeCount > 0 && (
+            <Text style={[rp.actionCount, liked && { color: colors.like }]}>{likeCount}</Text>
+          )}
+        </Pressable>
+        <View style={rp.actionBtn}>
+          <MessageCircle size={16} color={colors.textMuted} strokeWidth={2} />
+        </View>
+        {post.external_url && (
+          <Pressable onPress={handleOpen} style={[rp.actionBtn, { marginLeft: "auto" as any }]}>
+            <Text style={rp.readMore}>Read article →</Text>
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const rp = StyleSheet.create({
+  card: {
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 20,
+    backgroundColor: colors.cardFront,
+    ...cardShadow,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+  },
+  avatarWrap: {},
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    overflow: "hidden",
+  } as any,
+  avatarFallback: {
+    backgroundColor: "#351101",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarLetter: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: "#FAF8F0" },
+  headerText: { flex: 1 },
+  nameRow: { flexDirection: "row", alignItems: "baseline", gap: 6 },
+  authorName: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.textPrimary },
+  timestamp: { fontFamily: fonts.bodyRegular, fontSize: 10, color: colors.textMuted },
+  subtitle: { fontFamily: fonts.bodyMedium, fontSize: 10, color: colors.textSecondary, marginTop: 1 },
+  titleWrap: { paddingHorizontal: 16, marginBottom: 10 },
+  title: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 17,
+    color: colors.textPrimary,
+    lineHeight: 23,
+  },
+  coverWrap: { marginBottom: 12 },
+  coverImage: {
+    width: "100%" as any,
+    height: 220,
+  },
+  teaser: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 17,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  actionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
+  actionCount: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.textMuted },
+  readMore: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: colors.textPrimary,
+    textDecorationLine: "underline",
+  },
+});
+
+// ── Tasting Note Card (unchanged visual design) ───────────────────────────────
+
+function TastingNoteCard({ item, productMap, router, social, isLoggedIn }: {
+  item: any;
+  productMap: any;
+  router: any;
+  social: ReturnType<typeof useSocial>;
+  isLoggedIn: boolean;
 }) {
   const note = item.note || item;
-  const author = item.user || {};
-  const productId = item.product_id || note.product_id;
+  const author = item.author || item.user || {};
+  const productId = item.product_id || note?.product_id;
   const coffee = productMap?.get(productId);
-  const noteId = note.id;
+  const noteId = item.id || note?.id;
 
   const likeState = social.getLikeState(noteId);
   const [showComments, setShowComments] = useState(false);
@@ -133,7 +387,7 @@ function FeedCard({ item, productMap, router, social, isLoggedIn }: {
         </View>
       </View>
 
-      {/* Two-column: coffee image left | tasting note right */}
+      {/* Coffee image + tasting note */}
       {coffee && (
         <View style={fc.contentRow}>
           <View style={fc.coffeeCol}>
@@ -162,7 +416,6 @@ function FeedCard({ item, productMap, router, social, isLoggedIn }: {
               <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 10, color: colors.accent }}>Buy</Text>
             </Pressable>
           </View>
-
           <View style={fc.noteCol}>
             <TastingNoteDisplay note={note} />
           </View>
@@ -201,7 +454,7 @@ function FeedCard({ item, productMap, router, social, isLoggedIn }: {
               <TextInput
                 value={commentText}
                 onChangeText={setCommentText}
-                placeholder="Write a comment..."
+                placeholder="Write a comment…"
                 placeholderTextColor={colors.textMuted}
                 style={fc.commentInput}
                 onSubmitEditing={handleSubmitComment}
@@ -217,12 +470,14 @@ function FeedCard({ item, productMap, router, social, isLoggedIn }: {
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const s = StyleSheet.create({
   loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
   container: { flex: 1, backgroundColor: colors.bg },
   feedScroll: { flex: 1 },
   feedContent: {
-    maxWidth: 700,
+    maxWidth: 720,
     alignSelf: "center" as any,
     width: "100%" as any,
     paddingHorizontal: 16,
@@ -276,8 +531,6 @@ const fc = StyleSheet.create({
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 6 },
   buyLink: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 },
   noteCol: { flex: 1, minWidth: 0, paddingHorizontal: 16, paddingBottom: 16 },
-
-  // Interaction bar
   interactionBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -287,29 +540,15 @@ const fc = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: colors.borderLight,
   },
-  interactionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  interactionCount: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-
-  // Comments
+  interactionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+  interactionCount: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.textMuted },
   commentsSection: {
     borderTopWidth: 1,
     borderColor: colors.borderLight,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  commentRow: {
-    flexDirection: "row",
-    gap: 6,
-    marginBottom: 6,
-  },
+  commentRow: { flexDirection: "row", gap: 6, marginBottom: 6 },
   commentAuthor: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.textPrimary },
   commentText: { fontFamily: fonts.bodyRegular, fontSize: 13, color: colors.textSecondary, flex: 1 },
   commentInputRow: {

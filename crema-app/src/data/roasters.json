@@ -7156,7 +7156,7 @@
     "place_id": "ChIJo_03XeHBvzsRbVdhSkdIB9o",
     "rating": 4.7,
     "rating_count": 71,
-    "logo_url": "https://static.wixstatic.com/media/7f8371_30feeb61aadd4a5e9a7f6d4181efdbfd%7Emv2.png/v1/fill/w_180%2Ch_180%2Clg_1%2Cusm_0.66_1.00_0.01/7f8371_30feeb61aadd4a5e9a7f6d4181efdbfd%7Emv2.png",
+    "logo_url": "http://localhost:8000/uploads/nada/avatar.jpg",
     "tagline": "Less but better — Nada celebrates mindful living, elevate everyday rituals through coffee, ceramics, and timeless design",
     "about_blurb": "Nada Coffee is a specialty coffee brand inspired by simplicity and substance. They source carefully, roast intentionally, and present their coffees without pretense — because they believe the coffee itself is the story. Their range features single-origin Indian coffees that highlight the remarkable diversity of flavor achievable within the subcontinent alone.",
     "founding_year": null,
@@ -7207,7 +7207,8 @@
     "enrichment_flags": [
       "missing_founding_year"
     ],
-    "cataloged_at": "2026-04-02T12:12:55Z"
+    "cataloged_at": "2026-04-02T12:12:55Z",
+    "hero_image_url": "http://localhost:8000/uploads/nada/hero.jpg"
   },
   {
     "roaster_slug": "marcs-coffees-coffee-ideas",

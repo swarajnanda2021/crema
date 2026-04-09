@@ -132,6 +132,10 @@ _MIGRATIONS = [
     )""",
     "CREATE INDEX IF NOT EXISTS idx_rposts_slug ON roaster_posts(roaster_slug)",
     "CREATE INDEX IF NOT EXISTS idx_rposts_user ON roaster_posts(user_id)",
+    # Featured post columns
+    "ALTER TABLE roaster_posts ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE roaster_posts ADD COLUMN featured_order INTEGER",
+    "CREATE INDEX IF NOT EXISTS idx_rposts_featured ON roaster_posts(roaster_slug, is_featured)",
 ]
 
 

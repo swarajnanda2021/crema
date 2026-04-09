@@ -104,6 +104,41 @@ export function CartIcon({ size = 31 }: IconProps) {
 }
 
 /**
+ * Heart outline — inline heart, no circle. For post action bars.
+ */
+export function HeartOutlineIcon({ size = 14, color = "#A09580" }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 16 15" fill="none">
+      <Path
+        d="M8 13.5L2.1 7.6C1.4 6.9 1 5.9 1 4.9C1 2.8 2.7 1 4.8 1C5.9 1 6.9 1.5 7.6 2.2L8 2.7L8.4 2.2C9.1 1.5 10.1 1 11.2 1C13.3 1 15 2.8 15 4.9C15 5.9 14.6 6.9 13.9 7.6L8 13.5Z"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/**
+ * Heart filled inline — for post action bars when liked.
+ */
+export function HeartFilledOutlineIcon({ size = 14, color = "#D798DA" }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 16 15" fill="none">
+      <Path
+        d="M8 13.5L2.1 7.6C1.4 6.9 1 5.9 1 4.9C1 2.8 2.7 1 4.8 1C5.9 1 6.9 1.5 7.6 2.2L8 2.7L8.4 2.2C9.1 1.5 10.1 1 11.2 1C13.3 1 15 2.8 15 4.9C15 5.9 14.6 6.9 13.9 7.6L8 13.5Z"
+        fill={color}
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/**
  * Users icon — two people silhouette for friends badge.
  * Figma: stroke #351101, no background.
  */
