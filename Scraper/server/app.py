@@ -40,13 +40,16 @@ _scrape_lock = threading.Lock()
 
 @app.get("/api/products")
 def get_products():
-    """Return current quality-gated products from the last scrape run."""
-    path = os.path.join(_OUTPUT_DIR, "products.json")
-    if not os.path.exists(path):
-        return []
-    with open(path, encoding="utf-8") as f:
-        all_products = json.load(f)
-    return all_products
+    """
+    Return products. Prefers products_enriched.json (LLM-enriched) when it
+    exists; falls back to products.json (raw scrape output).
+    """
+    for filename in ("products_enriched.json", "products.json"):
+        path = os.path.join(_OUTPUT_DIR, filename)
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+    return []
 
 
 @app.get("/api/roasters")

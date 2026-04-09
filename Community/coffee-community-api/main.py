@@ -116,11 +116,13 @@ def get_products():
     """Serve scraped products + manual products + corrections."""
     products = []
 
-    # Scraped products
-    path = os.path.join(_SCRAPER_OUTPUT, "products.json")
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
-            products = json.load(f)
+    # Scraped products — prefer LLM-enriched file if available
+    for _fname in ("products_enriched.json", "products.json"):
+        path = os.path.join(_SCRAPER_OUTPUT, _fname)
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                products = json.load(f)
+            break
 
     # Manual products (for Wix/JS sites)
     manual_path = os.path.join(_BASE, "Scraper", "input", "manual_products.json")

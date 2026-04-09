@@ -1,6 +1,7 @@
-import { useMemo, useState, useEffect } from "react";
-import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
-import { Search, X, ChevronDown, ChevronUp, Bean, Users as UsersIcon } from "lucide-react-native";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
+import { Image } from "expo-image";
+import { Search, X, ArrowRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { colors, fonts } from "../../src/theme/colors";
@@ -19,6 +20,7 @@ export default function BrowsePage() {
   const [selectedRoasters, setSelectedRoasters] = useState<string[]>([]);
   const [selectedRoasts, setSelectedRoasts] = useState<string[]>([]);
   const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
+  const [searchBarHidden, setSearchBarHidden] = useState(false);
 
   useEffect(() => { apiFetch("/products/popularity").then(setPopularity).catch(() => {}); }, []);
 
@@ -45,6 +47,10 @@ export default function BrowsePage() {
     return result;
   }, [products, filters, popularity, sortBy]);
 
+  const filteredRoasterCount = useMemo(() => {
+    return new Set(filtered.map((p: any) => p.roaster_slug)).size;
+  }, [filtered]);
+
   const hasActiveFilters = selectedRoasters.length > 0 || selectedRoasts.length > 0 || selectedProcesses.length > 0 || !!query;
 
   const toggleArray = (arr: string[], setter: (v: string[]) => void, val: string) => {
@@ -53,16 +59,18 @@ export default function BrowsePage() {
 
   const clearAll = () => { setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]); setQuery(""); };
 
+  const handleScrollDirection = useCallback((dir: "up" | "down") => {
+    setSearchBarHidden(dir === "down");
+  }, []);
+
   return (
     <View style={s.container}>
-      {/* Sub-tabs — Figma "Sticky Tabs" */}
+      {/* Sub-tabs */}
       <View style={s.tabBar}>
         <View style={s.tabBarInner}>
-          {/* Left: "LOOKING FOR" aligned with filter sidebar */}
           <View style={s.tabBarLeft}>
             <Text style={s.lookingForLabel}>LOOKING FOR</Text>
           </View>
-          {/* Right: tabs aligned with card grid */}
           <View style={s.tabBarRight}>
             <TabButton label="BEANS" active={activeTab === "beans"} onPress={() => setActiveTab("beans")} />
             <TabButton label="ROASTERS" active={activeTab === "roasters"} onPress={() => setActiveTab("roasters")} />
@@ -73,27 +81,31 @@ export default function BrowsePage() {
 
       {activeTab === "beans" ? (
         <View style={s.browseLayout}>
-          {/* Narrow filter sidebar — ~200px, not 50% */}
           {isDesktop && (
             <ScrollView
               style={s.sidebar}
-              contentContainerStyle={{ padding: 16 }}
+              contentContainerStyle={{ paddingRight: 16, paddingTop: 20, paddingBottom: 60 }}
               showsVerticalScrollIndicator={false}
             >
-              <Text style={s.sidebarTitle}>{filtered.length} COFFEES</Text>
+              {/* Count — top of sidebar */}
+              <Text style={s.sidebarCount}>
+                <Text style={s.sidebarCountBold}>{filtered.length}</Text> coffees from{" "}
+                <Text style={s.sidebarCountBold}>{filteredRoasterCount}</Text> roasters
+              </Text>
+
               {hasActiveFilters && (
                 <Pressable onPress={clearAll} style={{ marginBottom: 12 }}>
                   <Text style={s.clearText}>Clear all</Text>
                 </Pressable>
               )}
-              {/* Sort By — radio buttons */}
+
               <View style={s.filterSection}>
                 <Text style={s.filterTitle}>Sort By</Text>
                 {[
                   { key: "featured", label: "Featured" },
                   { key: "newest", label: "Newest" },
-                  { key: "price_low", label: "Price: Low-High" },
-                  { key: "price_high", label: "Price: High-Low" },
+                  { key: "price_low", label: "Price: Low–High" },
+                  { key: "price_high", label: "Price: High–Low" },
                 ].map(opt => (
                   <Pressable key={opt.key} onPress={() => setSortBy(opt.key)} style={s.radioRow}>
                     <View style={[s.radio, sortBy === opt.key && s.radioSelected]}>
@@ -106,42 +118,39 @@ export default function BrowsePage() {
               <View style={s.filterDivider} />
               <FilterSection title="Roasters" items={roasters.map((r: any) => ({ key: r.slug, label: r.name }))} selected={selectedRoasters} onToggle={v => toggleArray(selectedRoasters, setSelectedRoasters, v)} maxVisible={20} />
               <View style={s.filterDivider} />
-              <FilterSection title="Process" items={(processes as string[]).map(p => ({ key: p, label: p }))} selected={selectedProcesses} onToggle={v => toggleArray(selectedProcesses, setSelectedProcesses, v)} />
+              <FilterSection title="Roast" items={roastLevels.map((l: string) => ({ key: l, label: l }))} selected={selectedRoasts} onToggle={v => toggleArray(selectedRoasts, setSelectedRoasts, v)} />
+              <View style={s.filterDivider} />
+              <FilterSection title="Process" items={processes.map((p: string) => ({ key: p, label: p }))} selected={selectedProcesses} onToggle={v => toggleArray(selectedProcesses, setSelectedProcesses, v)} />
             </ScrollView>
           )}
 
-          {/* Vertical divider between sidebar and cards */}
           {isDesktop && <View style={s.verticalDivider} />}
 
-          {/* Card grid */}
           <View style={{ flex: 1, minWidth: 0 }}>
-            {/* Sticky search bar */}
-            <View style={s.stickySearchWrap}>
-              <View style={s.searchBar}>
-                <Search size={16} color={colors.textMuted} />
-                <TextInput
-                  placeholder="Search"
-                  placeholderTextColor={colors.textMuted}
-                  value={query}
-                  onChangeText={setQuery}
-                  style={s.searchInput}
-                />
-                {query ? <Pressable onPress={() => setQuery("")}><X size={16} color={colors.textSecondary} /></Pressable> : null}
+            {/* Scroll-aware search bar */}
+            <View style={[s.searchBarWrap, searchBarHidden && s.searchBarWrapHidden] as any}>
+              <View style={s.stickySearchWrap}>
+                <View style={s.searchBar}>
+                  <Search size={16} color="#A09580" />
+                  <TextInput
+                    placeholder="Search"
+                    placeholderTextColor="#A09580"
+                    value={query}
+                    onChangeText={setQuery}
+                    style={s.searchInput}
+                  />
+                  {query ? <Pressable onPress={() => setQuery("")}><X size={16} color="#A09580" /></Pressable> : null}
+                </View>
               </View>
             </View>
 
             <CoffeeList
               coffees={filtered}
               popularity={popularity}
+              onScrollDirection={handleScrollDirection}
               ListHeaderComponent={
-                <View style={s.listHeader}>
-                  {/* Count */}
-                  <Text style={s.countText}>
-                    <Text style={s.countBold}>{filtered.length}</Text> coffees from{" "}
-                    <Text style={s.countBold}>{roasters.length}</Text> roasters
-                  </Text>
-                  {/* Active filter chips */}
-                  {hasActiveFilters && (
+                hasActiveFilters ? (
+                  <View style={s.listHeader}>
                     <View style={s.activeChips}>
                       {selectedRoasts.map(v => <ActiveChip key={v} label={v} onRemove={() => toggleArray(selectedRoasts, setSelectedRoasts, v)} />)}
                       {selectedProcesses.map(v => <ActiveChip key={v} label={v} onRemove={() => toggleArray(selectedProcesses, setSelectedProcesses, v)} />)}
@@ -150,8 +159,8 @@ export default function BrowsePage() {
                         return <ActiveChip key={slug} label={r?.name || slug} onRemove={() => toggleArray(selectedRoasters, setSelectedRoasters, slug)} />;
                       })}
                     </View>
-                  )}
-                </View>
+                  </View>
+                ) : null
               }
             />
           </View>
@@ -180,7 +189,10 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
   );
 }
 
-function FilterSection({ title, items, selected, onToggle, maxVisible = 10 }: { title: string; items: { key: string; label: string }[]; selected: string[]; onToggle: (key: string) => void; maxVisible?: number }) {
+function FilterSection({ title, items, selected, onToggle, maxVisible = 10 }: {
+  title: string; items: { key: string; label: string }[];
+  selected: string[]; onToggle: (key: string) => void; maxVisible?: number;
+}) {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? items : items.slice(0, maxVisible);
   const hasMore = items.length > maxVisible;
@@ -205,48 +217,171 @@ function FilterSection({ title, items, selected, onToggle, maxVisible = 10 }: { 
   );
 }
 
-function RoastersList() {
-  const { roasters } = useCoffeeData();
+// ─── Roasters tab ────────────────────────────────────────────────────────────
+
+function RoasterRow({ roaster, imageUrl }: { roaster: any; imageUrl: string | undefined }) {
   const router = useRouter();
-  const [search, setSearch] = useState("");
-  const filtered = useMemo(() => {
-    if (!search) return roasters;
-    const q = search.toLowerCase();
-    return roasters.filter((r: any) => r.name.toLowerCase().includes(q) || (r.city || "").toLowerCase().includes(q));
-  }, [roasters, search]);
+  const [hovered, setHovered] = useState(false);
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ maxWidth: 800, alignSelf: "center" as any, width: "100%" as any, padding: 16 }}>
-      <View style={s.searchBar}>
-        <Search size={16} color={colors.textMuted} />
-        <TextInput placeholder="Search roasters..." placeholderTextColor={colors.textMuted} value={search} onChangeText={setSearch} style={s.searchInput} />
-      </View>
-      {filtered.map((r: any) => (
-        <Pressable key={r.slug} onPress={() => router.push(`/roaster/${r.slug}`)} style={s.roasterRow}>
-          <View style={s.roasterAvatar}>
-            <Text style={s.roasterAvatarText}>{(r.name || "?")[0]}</Text>
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={s.roasterName}>{r.name}</Text>
-            {r.city && <Text style={s.roasterCity}>{r.city}{r.state ? `, ${r.state}` : ""}</Text>}
-          </View>
-          <View style={s.roasterCountBadge}>
-            <Text style={s.roasterCountText}>{r.coffeeCount}</Text>
-          </View>
-        </Pressable>
-      ))}
-    </ScrollView>
+    <>
+      <Pressable
+        onPress={() => router.push(`/roaster/${roaster.slug}`)}
+        style={[s.rRow, hovered && s.rRowHovered] as any}
+        onHoverIn={() => setHovered(true)}
+        onHoverOut={() => setHovered(false)}
+      >
+        {/* Thumbnail */}
+        <View style={s.rImage}>
+          {imageUrl ? (
+            <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFillObject as any} contentFit="cover" />
+          ) : (
+            <View style={[StyleSheet.absoluteFillObject as any, { alignItems: "center", justifyContent: "center" }]}>
+              <Text style={{ fontFamily: fonts.displayRegular, fontSize: 28, color: "#A09580" }}>
+                {(roaster.name || "?")[0]}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Info */}
+        <View style={s.rInfo}>
+          <Text style={s.rName} numberOfLines={1}>{roaster.name}</Text>
+          <Text style={s.rSub} numberOfLines={1}>
+            {[roaster.city, roaster.state].filter(Boolean).join(", ")}
+            {roaster.coffeeCount ? `  ·  ${roaster.coffeeCount} coffees` : ""}
+          </Text>
+        </View>
+
+        {/* Arrow button */}
+        <View style={[s.rArrowBtn, hovered && s.rArrowBtnHovered] as any}>
+          <ArrowRight size={18} color={hovered ? "#351101" : "#A09580"} strokeWidth={1.5} />
+        </View>
+      </Pressable>
+      <View style={s.rDivider} />
+    </>
   );
 }
+
+function RoastersList() {
+  const { roasters, products } = useCoffeeData();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 1024;
+  const [roasterQuery, setRoasterQuery] = useState("");
+  const [selectedCities, setSelectedCities] = useState<string[]>([]);
+  const [searchBarHidden, setSearchBarHidden] = useState(false);
+  const lastScrollY = useRef(0);
+
+  const roasterImages = useMemo(() => {
+    const map: Record<string, string> = {};
+    (products as any[]).forEach((p: any) => {
+      if (p.image_url && !map[p.roaster_slug]) map[p.roaster_slug] = p.image_url;
+    });
+    return map;
+  }, [products]);
+
+  const cities = useMemo(() => {
+    const set = new Set<string>();
+    (roasters as any[]).forEach((r: any) => { if (r.city) set.add(r.city); });
+    return Array.from(set).sort();
+  }, [roasters]);
+
+  const filteredRoasters = useMemo(() => {
+    let result = roasters as any[];
+    if (roasterQuery) {
+      const q = roasterQuery.toLowerCase();
+      result = result.filter((r: any) => r.name.toLowerCase().includes(q) || (r.city || "").toLowerCase().includes(q));
+    }
+    if (selectedCities.length > 0) {
+      result = result.filter((r: any) => selectedCities.includes(r.city));
+    }
+    return result;
+  }, [roasters, roasterQuery, selectedCities]);
+
+  const toggleCity = (city: string) => {
+    setSelectedCities(prev => prev.includes(city) ? prev.filter(c => c !== city) : [...prev, city]);
+  };
+
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const currentY = e.nativeEvent.contentOffset.y;
+    setSearchBarHidden(currentY > lastScrollY.current && currentY > 10);
+    lastScrollY.current = currentY;
+  }, []);
+
+  return (
+    <View style={s.browseLayout}>
+      {/* City filter sidebar */}
+      {isDesktop && (
+        <ScrollView
+          style={s.sidebar}
+          contentContainerStyle={{ paddingRight: 16, paddingTop: 20, paddingBottom: 60 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={s.sidebarCount}>
+            <Text style={s.sidebarCountBold}>{filteredRoasters.length}</Text> roasters
+          </Text>
+          <View style={s.filterDivider} />
+          <FilterSection
+            title="Location"
+            items={cities.map(c => ({ key: c, label: c }))}
+            selected={selectedCities}
+            onToggle={toggleCity}
+            maxVisible={20}
+          />
+        </ScrollView>
+      )}
+
+      {isDesktop && <View style={s.verticalDivider} />}
+
+      {/* Roaster list */}
+      <ScrollView
+        style={{ flex: 1, minWidth: 0 }}
+        showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={50}
+      >
+        {/* Scroll-aware search bar */}
+        <View style={[s.searchBarWrap, searchBarHidden && s.searchBarWrapHidden] as any}>
+          <View style={s.stickySearchWrap}>
+            <View style={s.searchBar}>
+              <Search size={16} color="#A09580" />
+              <TextInput
+                placeholder="Search roasters..."
+                placeholderTextColor="#A09580"
+                value={roasterQuery}
+                onChangeText={setRoasterQuery}
+                style={s.searchInput}
+              />
+              {roasterQuery ? <Pressable onPress={() => setRoasterQuery("")}><X size={16} color="#A09580" /></Pressable> : null}
+            </View>
+          </View>
+        </View>
+
+        {/* Page title */}
+        <Text style={s.rPageTitle}>Explore your favourite Indian coffee roasters</Text>
+        <View style={s.rDivider} />
+
+        {/* Rows capped at 834px, matching Figma */}
+        <View style={{ maxWidth: 834 }}>
+          {filteredRoasters.map((r: any) => (
+            <RoasterRow key={r.slug} roaster={r} imageUrl={roasterImages[r.slug]} />
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
-  // Sub-tabs — Figma "Sticky Tabs" (node 8:644)
+  // Tab bar
   tabBar: {
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: "#D7D1C4",
+    borderColor: "rgba(215,209,196,0.5)",
     backgroundColor: "#FAF8F0",
     height: 80,
     justifyContent: "center",
@@ -254,19 +389,13 @@ const s = StyleSheet.create({
   tabBarInner: {
     flexDirection: "row",
     alignItems: "center",
-    paddingLeft: 90,
-    paddingRight: 90,
-    maxWidth: 1600,
-    alignSelf: "center" as any,
+    paddingLeft: "6.25%" as any,
+    paddingRight: "6.25%" as any,
     width: "100%" as any,
   },
-  // sidebar content starts at padding 16 inside the 195px sidebar → left=88+16=104
-  // cards start at 88+195=283 but with the grid's 16px pad → content at 299
-  // tab left should match the sidebar padding start
   tabBarLeft: {
     width: 195,
     flexShrink: 0,
-    paddingLeft: 16,
     justifyContent: "center",
   } as any,
   tabBarRight: {
@@ -276,7 +405,6 @@ const s = StyleSheet.create({
     paddingLeft: 16,
     gap: 48,
   } as any,
-  // Inter Medium 14px, #351101, uppercase — vertically aligned with tab text
   lookingForLabel: {
     fontFamily: fonts.bodyMedium,
     fontSize: 14,
@@ -286,59 +414,50 @@ const s = StyleSheet.create({
     borderBottomWidth: 4,
     borderBottomColor: "transparent",
   } as any,
-  tabBtn: {
-    paddingVertical: 10,
-    borderBottomWidth: 4,
-    borderBottomColor: "transparent",
-  },
+  tabBtn: { paddingVertical: 10, borderBottomWidth: 4, borderBottomColor: "transparent" },
   tabBtnActive: { borderBottomColor: "#351101" },
   tabLabel: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#A09580" },
   tabLabelActive: { fontFamily: fonts.bodySemiBold, color: "#351101" },
-  greyTab: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#A09580", paddingVertical: 10, borderBottomWidth: 4, borderBottomColor: "transparent" },
+  greyTab: {
+    fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#A09580",
+    paddingVertical: 10, borderBottomWidth: 4, borderBottomColor: "transparent",
+  },
 
-  // Browse layout — Figma: filters start at x=88, cards start at x=330
+  // Browse layout
   browseLayout: {
     flex: 1,
     flexDirection: "row",
-    maxWidth: 1600,
-    alignSelf: "center" as any,
-    width: "100%" as any,
-    paddingLeft: 90,
-    paddingRight: 90,
+    paddingLeft: "6.25%" as any,
+    paddingRight: "6.25%" as any,
+    paddingTop: 63,
   },
 
-  // Vertical divider between sidebar and cards
+  // Vertical divider
   verticalDivider: {
     width: 1,
-    backgroundColor: "#D7D1C4",
-    marginHorizontal: 0,
+    backgroundColor: "rgba(215,209,196,0.5)",
   } as any,
 
-  // Filter sidebar — Figma: width 195px
+  // Sidebar
   sidebar: {
     width: 195,
     minWidth: 195,
     maxWidth: 195,
     flexShrink: 0,
     flexGrow: 0,
-    position: "sticky" as any,
-    top: 56,
-    height: "calc(100vh - 100px)" as any,
-    overflow: "hidden" as any,
   },
-  // Figma: "472 COFFEES" Inter Semi Bold 14px #351101 uppercase
-  sidebarTitle: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 14,
+  sidebarCount: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
     color: "#351101",
-    textTransform: "uppercase",
-    marginBottom: 20,
-  } as any,
-  clearText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.accent },
-  // Figma: 1px line, #D7D1C4, width 193px
-  filterDivider: { height: 1, backgroundColor: "#D7D1C4", marginVertical: 12 },
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  sidebarCountBold: { fontFamily: fonts.bodySemiBold },
+
+  clearText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: "#D798DA", marginBottom: 12 },
+  filterDivider: { height: 1, backgroundColor: "rgba(215,209,196,0.5)", marginVertical: 12 },
   filterSection: { marginBottom: 8 },
-  // Figma: Inter Semi Bold 15px, #351101, tracking -0.375px
   filterTitle: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 15,
@@ -346,125 +465,127 @@ const s = StyleSheet.create({
     color: "#351101",
     marginBottom: 12,
   },
-  // Figma: 14px gap checkbox→label, 4px between rows
-  checkRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 14,
-    minHeight: 24,
-    marginBottom: 4,
-  },
-  // Figma: 20px checkbox, border #D7D1C4, 1.5px, rounded 6px, bg white
+  checkRow: { flexDirection: "row", alignItems: "flex-start", gap: 14, minHeight: 24, marginBottom: 4 },
   checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: "#D7D1C4",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-    marginTop: 1,
+    width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: "#D7D1C4",
+    alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF", marginTop: 1,
   },
   checkboxChecked: { backgroundColor: "#351101", borderColor: "#351101" },
   checkmark: { color: "white", fontSize: 11, fontWeight: "700" as any },
-  // Figma: Inter Regular 14px, #351101, tracking -0.336px, lineHeight 1.5 (21px)
   checkLabel: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 14,
-    letterSpacing: -0.336,
-    color: "#351101",
-    flex: 1,
-    lineHeight: 21,
+    fontFamily: fonts.bodyRegular, fontSize: 14, letterSpacing: -0.336,
+    color: "#351101", flex: 1, lineHeight: 21,
   },
-  showMoreText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.accent, marginTop: 6 },
+  showMoreText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: "#D798DA", marginTop: 6 },
 
-  // Radio buttons for Sort By — Figma: 20px circle, #351101 fill when selected
-  radioRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    height: 32,
-  },
+  radioRow: { flexDirection: "row", alignItems: "center", gap: 14, height: 32 },
   radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: "#D7D1C4",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
+    width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: "#D7D1C4",
+    alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF",
   },
-  radioSelected: {
-    borderColor: "#351101",
-  },
-  radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#351101",
-  },
+  radioSelected: { borderColor: "#351101" },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#351101" },
 
-  // Search bar above card grid
-  stickySearchWrap: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+  // Search bar — Figma: white, #D7D1C4 border, 20px radius, 38px height, 500px wide
+  stickySearchWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
+  searchBarWrap: {
+    overflow: "hidden",
+    maxHeight: 58,
+    opacity: 1,
+    transitionProperty: "max-height, opacity",
+    transitionDuration: "240ms, 180ms",
+    transitionTimingFunction: "ease, ease",
   },
-  // List header — same paddingHorizontal as card grid (GRID_PAD=16)
-  listHeader: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 },
+  searchBarWrapHidden: { maxHeight: 0, opacity: 0 },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 8,
-    backgroundColor: colors.cardFront,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    height: 38,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: "#D7D1C4",
+    alignSelf: "flex-start" as any,
+    width: 500,
+    maxWidth: "100%" as any,
   },
-  searchInput: { flex: 1, marginLeft: 8, fontFamily: fonts.bodyRegular, fontSize: 13, color: colors.textPrimary },
-  countText: { fontFamily: fonts.bodySemiBold, fontSize: 14, marginBottom: 8, color: colors.textPrimary },
-  countBold: { fontFamily: fonts.bodySemiBold, color: colors.textPrimary },
+  searchInput: { flex: 1, marginLeft: 8, fontFamily: fonts.bodyRegular, fontSize: 13, color: "#351101" },
+
+  listHeader: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 },
   activeChips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8, marginTop: 4 },
   activeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: colors.tagBg,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.tagBg,
   },
   activeChipText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.tagText },
 
-  // Roasters list
-  roasterRow: {
+  // ── Roasters tab ──
+  rPageTitle: {
+    fontFamily: fonts.displayRegular,
+    fontSize: 35,
+    lineHeight: 42,
+    color: "#351101",
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 20,
+  } as any,
+
+  rDivider: {
+    height: 1,
+    backgroundColor: "rgba(160,149,128,0.5)",
+    marginLeft: 16,
+  } as any,
+
+  rRow: {
+    height: 104,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: colors.borderLight,
+    paddingHorizontal: 16,
+    gap: 16,
+    backgroundColor: "transparent",
+    transitionProperty: "background-color",
+    transitionDuration: "150ms",
+    transitionTimingFunction: "ease",
+  } as any,
+  rRowHovered: { backgroundColor: "#D798DA" } as any,
+
+  rImage: {
+    width: 167,
+    height: 76,
+    borderRadius: 2,
+    overflow: "hidden",
+    flexShrink: 0,
+    backgroundColor: "#EFE9DB",
+  } as any,
+
+  rInfo: { flex: 1, minWidth: 0, justifyContent: "center", gap: 4 },
+
+  rName: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 25,
+    lineHeight: 30,
+    color: "#351101",
   },
-  roasterAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+  rSub: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 14,
+    lineHeight: 22,
+    color: "#684F44",
+  },
+
+  rArrowBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1.5,
+    borderColor: "#A09580",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.tagBg,
-  },
-  roasterAvatarText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.tagText },
-  roasterName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.textPrimary },
-  roasterCity: { fontFamily: fonts.bodyRegular, fontSize: 12, color: colors.textMuted, marginTop: 1 },
-  roasterCountBadge: {
-    backgroundColor: colors.tagBg,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  roasterCountText: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.tagText },
+    flexShrink: 0,
+    transitionProperty: "border-color",
+    transitionDuration: "150ms",
+    transitionTimingFunction: "ease",
+  } as any,
+  rArrowBtnHovered: { borderColor: "transparent" } as any,
 });

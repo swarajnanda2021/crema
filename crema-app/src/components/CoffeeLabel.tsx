@@ -2,8 +2,9 @@
  * CoffeeLabel — Info section for product card.
  * All values from Figma node 8:1615 at exact px sizes.
  */
-import { View, Text, StyleSheet, Platform } from "react-native";
-import { colors, fonts } from "../theme/colors";
+import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { useRouter } from "expo-router";
+import { fonts } from "../theme/colors";
 
 const canelaNumeral = Platform.OS === "web"
   ? { fontFeatureSettings: "'lnum', 'pnum'" } as any
@@ -13,6 +14,7 @@ interface CoffeeLabelProps {
   coffee_name: string;
   roast_level: string;
   tasting_notes: string | null;
+  flavor_notes: string[] | null;
   origin: string | null;
   process: string | null;
   varietal: string | null;
@@ -20,6 +22,8 @@ interface CoffeeLabelProps {
   price_inr: number;
   weight_grams: number;
   roaster_name: string;
+  roaster_slug: string | null;
+  bean_type: string | null;
 }
 
 function formatINR(n: number): string {
@@ -27,34 +31,67 @@ function formatINR(n: number): string {
   return "\u20B9" + n.toLocaleString("en-IN");
 }
 
+const BAD_ESTATE_PREFIX = /^(and|our|both|this|single|the|sourced|grown|washed|from|at|a|all)\b/i;
+function extractEstate(origin: string | null): string | null {
+  if (!origin) return null;
+  const t = origin.trim();
+  if (!/\s+Estates?$/i.test(t)) return null;
+  if (BAD_ESTATE_PREFIX.test(t)) return null;
+  if (t.split(/\s+/).length > 5) return null;
+  return t;
+}
+
 function CoffeeLabel({
-  coffee_name, roast_level, tasting_notes, process,
-  roaster_name,
+  coffee_name, roast_level, tasting_notes, flavor_notes, process,
+  roaster_name, roaster_slug, bean_type, origin,
 }: CoffeeLabelProps) {
+  const router = useRouter();
   const roastClean = roast_level && roast_level !== "Unknown" ? roast_level : null;
   const processClean = process || null;
 
+  const estate = extractEstate(origin);
+  const displayName = estate || coffee_name;
+
   const roastProcessLine = [
-    roastClean ? `${roastClean} Roast` : null,
     processClean ? `${processClean} Process` : null,
+    roastClean ? `${roastClean} Roast` : null,
   ].filter(Boolean).join(" \u2022 ");
+
+  const tastingDisplay = (flavor_notes && flavor_notes.length > 0)
+    ? flavor_notes.slice(0, 3).join(", ")
+    : tasting_notes || null;
 
   return (
     <View style={s.container}>
-      {/* Coffee name — Canela Text 22.722px */}
+      {/* Display name — estate or coffee name — Canela Text 22.722px */}
       <Text style={s.coffeeName} numberOfLines={2}>
-        {coffee_name}
+        {displayName}
       </Text>
 
-      {/* Roaster — Inter Regular 10.891px */}
-      <Text style={s.roasterName} numberOfLines={1}>
-        By {roaster_name}
-      </Text>
+      {/* Roaster — "By " plain + tappable name */}
+      <View style={s.roasterRow}>
+        <Text style={s.roasterLabel}>By </Text>
+        <Pressable
+          onPress={roaster_slug ? () => router.push(`/roaster/${roaster_slug}` as any) : undefined}
+          disabled={!roaster_slug}
+          style={s.roasterLinkPressable}
+        >
+          <Text style={s.roasterLabel} numberOfLines={1}>{roaster_name}</Text>
+        </Pressable>
+      </View>
 
       {/* Divider */}
       <View style={s.divider} />
 
-      {/* Roast + Process — Inter Regular 10.165px */}
+      {/* Bean type — Arabica / Robusta / Blend */}
+      {bean_type ? (
+        <>
+          <Text style={s.beanTypeText} numberOfLines={1}>{bean_type}</Text>
+          <View style={s.divider} />
+        </>
+      ) : null}
+
+      {/* Process • Roast */}
       {roastProcessLine ? (
         <>
           <Text style={s.detailText} numberOfLines={1}>{roastProcessLine}</Text>
@@ -62,10 +99,10 @@ function CoffeeLabel({
         </>
       ) : null}
 
-      {/* Tasting notes — Inter Regular 10.165px, lineHeight 14.521px */}
-      {tasting_notes ? (
+      {/* Tasting keywords */}
+      {tastingDisplay ? (
         <>
-          <Text style={s.tastingText} numberOfLines={2}>{tasting_notes}</Text>
+          <Text style={s.tastingText} numberOfLines={1}>{tastingDisplay}</Text>
           <View style={s.divider} />
         </>
       ) : null}
@@ -99,12 +136,21 @@ const s = StyleSheet.create({
     ...canelaNumeral,
   },
 
-  // Inter Regular, 10.891px, #684F44
-  roasterName: {
+  // Roaster row — "By " plain + tappable name
+  roasterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    overflow: "hidden",
+  },
+  roasterLabel: {
     fontFamily: fonts.bodyRegular,
     fontSize: 10.9,
     color: "#684F44",
-    marginTop: 4,
+  },
+  roasterLinkPressable: {
+    flexShrink: 1,
+    overflow: "hidden",
   },
 
   // 1px line, #C7BAA5
@@ -115,6 +161,13 @@ const s = StyleSheet.create({
     marginBottom: 7,
   },
 
+  // Bean type — Inter Regular 10.165px, #684F44
+  beanTypeText: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 10.2,
+    color: "#684F44",
+  },
+
   // Inter Regular, 10.165px, #684F44
   detailText: {
     fontFamily: fonts.bodyRegular,
@@ -123,7 +176,7 @@ const s = StyleSheet.create({
     ...canelaNumeral,
   },
 
-  // Inter Regular, 10.165px, #684F44, lineHeight 14.521px
+  // Inter Regular, 10.165px, #684F44
   tastingText: {
     fontFamily: fonts.bodyRegular,
     fontSize: 10.2,

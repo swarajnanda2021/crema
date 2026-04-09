@@ -36,9 +36,18 @@ export function CoffeeDataProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Normalise products: detect barrel-aged by name, stamp process field
+  const BARREL_RE = /barrel[\s-]aged|rum[\s-]aged|whiskey[\s-]barrel|rum[\s-]barrel|wine[\s-]barrel|agave[\s-]barrel|cask[\s-]reserve/i;
+  const normalisedProducts = useMemo(() => products.map((p) => {
+    if (BARREL_RE.test(p.coffee_name || "")) {
+      return { ...p, process: "Barrel-Aged" };
+    }
+    return p;
+  }), [products]);
+
   const derived = useMemo(() => {
     const roasterMap = new Map();
-    products.forEach((p) => {
+    normalisedProducts.forEach((p) => {
       if (!roasterMap.has(p.roaster_slug)) {
         roasterMap.set(p.roaster_slug, {
           slug: p.roaster_slug,
@@ -56,15 +65,17 @@ export function CoffeeDataProvider({ children }: { children: ReactNode }) {
     const roasters = Array.from(roasterMap.values()).sort((a: any, b: any) =>
       a.name.localeCompare(b.name)
     );
-    const roastLevels = [...new Set(products.map((p) => p.roast_level).filter(Boolean))].sort();
-    const origins = [...new Set(products.map((p) => p.origin).filter(Boolean))].sort();
-    const processes = [...new Set(products.map((p) => p.process).filter(Boolean))].sort();
-    const productMap = new Map(products.map((p) => [p.product_id, p]));
+    const roastLevels = [...new Set(normalisedProducts.map((p) => p.roast_level).filter(Boolean))]
+      .filter((l) => l !== "Unknown")
+      .sort();
+    const origins = [...new Set(normalisedProducts.map((p) => p.origin).filter(Boolean))].sort();
+    const processes = [...new Set(normalisedProducts.map((p) => p.process).filter(Boolean))].sort();
+    const productMap = new Map(normalisedProducts.map((p) => [p.product_id, p]));
     return { roasters, roastLevels, origins, processes, productMap };
-  }, [products]);
+  }, [normalisedProducts]);
 
   return (
-    <CoffeeDataContext.Provider value={{ products, loading, fetchProducts, appendProducts, ...derived }}>
+    <CoffeeDataContext.Provider value={{ products: normalisedProducts, loading, fetchProducts, appendProducts, ...derived }}>
       {children}
     </CoffeeDataContext.Provider>
   );

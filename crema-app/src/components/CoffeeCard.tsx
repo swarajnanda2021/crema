@@ -102,6 +102,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
           coffee_name={coffee.coffee_name}
           roast_level={coffee.roast_level || "Unknown"}
           tasting_notes={coffee.tasting_notes}
+          flavor_notes={coffee.flavor_notes}
           origin={coffee.origin}
           process={coffee.process}
           varietal={coffee.varietal}
@@ -109,6 +110,8 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
           price_inr={coffee.price_inr}
           weight_grams={coffee.weight_grams}
           roaster_name={coffee.roaster_name}
+          roaster_slug={coffee.roaster_slug}
+          bean_type={coffee.bean_type}
         />
 
         {/* Bottom row: price left, share+cart right — same baseline */}
@@ -236,6 +239,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 17,
     paddingTop: 13,
     paddingBottom: 12,
+    backgroundColor: "#EFE9DB",
   },
 
   // Bottom row — price left, buttons right

@@ -1,10 +1,4 @@
 import { useFonts } from "expo-font";
-import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from "@expo-google-fonts/inter";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
@@ -42,13 +36,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    // Canela Text — local OTF for card headings & prices
     CanelaText_Regular: require("../assets/fonts/CanelaText-Regular.otf"),
-    // Inter — Google Font for all UI text
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+    Inter_400Regular: require("../assets/fonts/Inter_400Regular.ttf"),
+    Inter_500Medium: require("../assets/fonts/Inter_500Medium.ttf"),
+    Inter_600SemiBold: require("../assets/fonts/Inter_600SemiBold.ttf"),
+    Inter_700Bold: require("../assets/fonts/Inter_700Bold.ttf"),
   });
 
   useEffect(() => {

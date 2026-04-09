@@ -23,7 +23,7 @@ HEADERS = {
 }
 TIMEOUT = 20
 MAX_SITE_SECONDS = 30
-MAX_PRODUCTS = 30
+MAX_PRODUCTS = 100
 
 
 # ── Selectors ─────────────────────────────────────────────────────────────────

@@ -1,26 +1,61 @@
-import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
-import { Image } from "expo-image";
+import { useMemo, useState, useCallback } from "react";
+import { View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { useLocalSearchParams, Stack } from "expo-router";
 import * as Linking from "expo-linking";
-import { MapPin, Star, Calendar, Globe } from "lucide-react-native";
+import { MapPin, Globe } from "lucide-react-native";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { colors, fonts } from "../../src/theme/colors";
-import Chip from "../../src/components/Chip";
-import CoffeeCard from "../../src/components/CoffeeCard";
+import CoffeeList from "../../src/components/CoffeeList";
+
+const H_PAD = "6.25%";
 
 export default function RoasterDetailPage() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { products, roasters } = useCoffeeData();
   const { getProfile } = useRoasterProfiles();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 1024;
 
   const roaster = roasters.find((r: any) => r.slug === slug);
   const profile = getProfile(slug, roaster?.website, roaster?.name);
-  const coffees = products.filter((p: any) => p.roaster_slug === slug);
+  const coffees = useMemo(() => products.filter((p: any) => p.roaster_slug === slug), [products, slug]);
+
+  const [selectedRoasts, setSelectedRoasts] = useState<string[]>([]);
+  const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
+  const [searchBarHidden, setSearchBarHidden] = useState(false);
+
+  const roastLevels = useMemo(() => {
+    const levels = new Set<string>();
+    coffees.forEach((c: any) => { if (c.roast_level && c.roast_level !== "Unknown") levels.add(c.roast_level); });
+    return Array.from(levels);
+  }, [coffees]);
+
+  const processes = useMemo(() => {
+    const procs = new Set<string>();
+    coffees.forEach((c: any) => { if (c.process) procs.add(c.process); });
+    return Array.from(procs);
+  }, [coffees]);
+
+  const filtered = useMemo(() => {
+    return coffees.filter((c: any) => {
+      if (selectedRoasts.length > 0 && !selectedRoasts.includes(c.roast_level)) return false;
+      if (selectedProcesses.length > 0 && !selectedProcesses.includes(c.process)) return false;
+      return true;
+    });
+  }, [coffees, selectedRoasts, selectedProcesses]);
+
+  const toggleArray = (arr: string[], setter: (v: string[]) => void, val: string) => {
+    setter(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
+  };
+
+  const handleScrollDirection = useCallback((dir: "up" | "down") => {
+    setSearchBarHidden(dir === "down");
+  }, []);
 
   if (!roaster) {
     return (
-      <View style={styles.notFound}>
+      <View style={s.notFound}>
         <Text>Roaster not found</Text>
       </View>
     );
@@ -28,186 +63,216 @@ export default function RoasterDetailPage() {
 
   return (
     <>
-      <Stack.Screen options={{ title: roaster.name, headerTintColor: colors.accent }} />
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            {profile?.logo_url ? (
-              <Image source={{ uri: profile.logo_url }} style={{ width: 56, height: 56, borderRadius: 12 }} contentFit="contain" />
-            ) : (
-              <View style={styles.logoFallback}>
-                <Text style={styles.logoLetter}>{(roaster.name || "?")[0]}</Text>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={s.container}>
+        {/* Hero */}
+        <View style={s.hero}>
+          <View style={{ paddingHorizontal: H_PAD as any }}>
+            <Text style={s.roasterName}>{roaster.name}</Text>
+            {(roaster.city || profile?.city) && (
+              <View style={s.locationRow}>
+                <MapPin size={11} color="#A09580" />
+                <Text style={s.locationText}>
+                  {roaster.city || profile?.city}{(roaster.state || profile?.state) ? `, ${roaster.state || profile?.state}` : ""}
+                </Text>
               </View>
             )}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.roasterName}>{roaster.name}</Text>
-              {(roaster.city || profile?.city) && (
-                <View style={styles.locationRow}>
-                  <MapPin size={12} color={colors.textSecondary} />
-                  <Text style={styles.locationText}>
-                    {roaster.city || profile?.city}{(roaster.state || profile?.state) ? `, ${roaster.state || profile?.state}` : ""}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {profile?.tagline && <Text style={styles.tagline}>{profile.tagline}</Text>}
-
-          {/* Meta row */}
-          <View style={styles.metaRow}>
-            {profile?.rating && (
-              <View style={styles.metaItem}>
-                <Star size={14} color="#E8C07A" fill="#E8C07A" />
-                <Text style={styles.metaRating}>{profile.rating}</Text>
-              </View>
-            )}
-            {profile?.founding_year && (
-              <View style={styles.metaItem}>
-                <Calendar size={14} color={colors.textSecondary} />
-                <Text style={styles.metaText}>Est. {profile.founding_year}</Text>
-              </View>
+            {profile?.about_blurb && (
+              <Text style={s.heroAbout} numberOfLines={3}>{profile.about_blurb}</Text>
             )}
             {(roaster.website || profile?.website) && (
-              <Pressable onPress={() => Linking.openURL(roaster.website || profile.website)} style={styles.metaItem}>
-                <Globe size={14} color={colors.accent} />
-                <Text style={styles.metaLink}>Website</Text>
+              <Pressable onPress={() => Linking.openURL(roaster.website || profile.website)} style={s.websiteBtn}>
+                <Globe size={12} color={colors.accent} />
+                <Text style={s.websiteText}>Visit website</Text>
               </Pressable>
             )}
           </View>
-
-          {/* Specialties */}
-          {profile?.specialties?.length > 0 && (
-            <View style={styles.specialtiesRow}>
-              {profile.specialties.map((s: string) => <Chip key={s}>{s.replace(/-/g, " ")}</Chip>)}
-            </View>
-          )}
-
-          {profile?.about_blurb && (
-            <Text style={styles.aboutText} numberOfLines={6}>{profile.about_blurb}</Text>
-          )}
         </View>
 
-        {/* Coffees */}
-        <View style={styles.coffeesSection}>
-          <Text style={styles.coffeesTitle}>
-            {coffees.length} {coffees.length === 1 ? "coffee" : "coffees"}
-          </Text>
-          {coffees.map((c: any) => (
-            <View key={c.product_id} style={{ alignItems: "center", marginBottom: 16 }}>
-              <CoffeeCard coffee={c} />
-            </View>
-          ))}
+        {/* Body: sidebar + grid */}
+        <View style={[s.body, { paddingHorizontal: H_PAD as any }]}>
+          {isDesktop && (
+            <ScrollView
+              style={s.sidebar}
+              contentContainerStyle={{ paddingTop: 20, paddingBottom: 40 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={s.sidebarCount}>{filtered.length} COFFEES</Text>
+
+              {roastLevels.length > 0 && (
+                <View style={s.filterSection}>
+                  <View style={s.filterDivider} />
+                  <Text style={s.filterTitle}>Roast</Text>
+                  {roastLevels.map(level => (
+                    <Pressable key={level} onPress={() => toggleArray(selectedRoasts, setSelectedRoasts, level)} style={s.checkRow}>
+                      <View style={[s.checkbox, selectedRoasts.includes(level) && s.checkboxChecked]}>
+                        {selectedRoasts.includes(level) && <Text style={s.checkmark}>✓</Text>}
+                      </View>
+                      <Text style={s.checkLabel}>{level}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+
+              {processes.length > 0 && (
+                <View style={s.filterSection}>
+                  <View style={s.filterDivider} />
+                  <Text style={s.filterTitle}>Process</Text>
+                  {processes.map(proc => (
+                    <Pressable key={proc} onPress={() => toggleArray(selectedProcesses, setSelectedProcesses, proc)} style={s.checkRow}>
+                      <View style={[s.checkbox, selectedProcesses.includes(proc) && s.checkboxChecked]}>
+                        {selectedProcesses.includes(proc) && <Text style={s.checkmark}>✓</Text>}
+                      </View>
+                      <Text style={s.checkLabel}>{proc}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          )}
+
+          {isDesktop && <View style={s.verticalDivider} />}
+
+          {/* Coffee grid */}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <CoffeeList
+              coffees={filtered}
+              onScrollDirection={handleScrollDirection}
+              ListHeaderComponent={
+                <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
+                  <Text style={s.gridCount}>{filtered.length} {filtered.length === 1 ? "coffee" : "coffees"}</Text>
+                </View>
+              }
+            />
+          </View>
         </View>
-        <View style={{ height: 100 }} />
-      </ScrollView>
+      </View>
     </>
   );
 }
 
-const styles = StyleSheet.create({
-  notFound: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+const s = StyleSheet.create({
+  notFound: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: colors.bg },
+
+  // Hero
+  hero: {
+    paddingTop: 48,
+    paddingBottom: 36,
     backgroundColor: colors.bg,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 24,
-    backgroundColor: colors.cardFront,
     borderBottomWidth: 1,
-    borderColor: colors.border,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  logoFallback: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.tagBg,
-  },
-  logoLetter: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: colors.tagText,
+    borderColor: "#D7D1C4",
   },
   roasterName: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 22,
-    color: colors.textPrimary,
+    fontFamily: fonts.displayRegular,
+    fontSize: 52,
+    color: "#351101",
+    lineHeight: 58,
   },
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: 2,
+    marginTop: 8,
   },
   locationText: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 11,
+    color: "#A09580",
+  },
+  heroAbout: {
+    fontFamily: fonts.bodyRegular,
     fontSize: 14,
-    color: colors.textSecondary,
+    color: "#684F44",
+    marginTop: 16,
+    lineHeight: 22,
   },
-  tagline: {
-    fontSize: 14,
-    marginTop: 12,
-    fontStyle: "italic",
-    color: colors.textSecondary,
-  },
-  metaRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
-    marginTop: 12,
-  },
-  metaItem: {
+  websiteBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
+    marginTop: 16,
   },
-  metaRating: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: colors.textPrimary,
-  },
-  metaText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  metaLink: {
-    fontSize: 14,
+  websiteText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
     color: colors.accent,
   },
-  specialtiesRow: {
+
+  // Body
+  body: {
+    flex: 1,
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 12,
   },
-  aboutText: {
-    fontSize: 14,
-    marginTop: 12,
-    lineHeight: 20,
-    color: colors.textPrimary,
+
+  // Sidebar
+  sidebar: {
+    width: 195,
+    minWidth: 195,
+    maxWidth: 195,
+    flexShrink: 0,
+    flexGrow: 0,
+    position: "sticky" as any,
+    top: 0,
+    height: "calc(100vh - 200px)" as any,
+    overflow: "hidden" as any,
   },
-  coffeesSection: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  coffeesTitle: {
+  sidebarCount: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 18,
-    marginBottom: 12,
-    color: colors.textPrimary,
+    fontSize: 13,
+    color: "#351101",
+    textTransform: "uppercase" as any,
+    marginBottom: 4,
+  },
+  filterDivider: { height: 1, backgroundColor: "#D7D1C4", marginVertical: 12 },
+  filterSection: { marginBottom: 8 },
+  filterTitle: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 15,
+    letterSpacing: -0.375,
+    color: "#351101",
+    marginBottom: 10,
+  },
+  checkRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 14,
+    minHeight: 24,
+    marginBottom: 4,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: "#D7D1C4",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    marginTop: 1,
+  },
+  checkboxChecked: { backgroundColor: "#351101", borderColor: "#351101" },
+  checkmark: { color: "white", fontSize: 11, fontWeight: "700" as any },
+  checkLabel: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 14,
+    letterSpacing: -0.336,
+    color: "#351101",
+    flex: 1,
+    lineHeight: 21,
+  },
+
+  // Vertical divider
+  verticalDivider: {
+    width: 1,
+    backgroundColor: "#D7D1C4",
+  } as any,
+
+  // Grid header
+  gridCount: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: "#351101",
+    marginBottom: 8,
   },
 });

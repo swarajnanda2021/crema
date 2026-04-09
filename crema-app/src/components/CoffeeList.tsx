@@ -1,12 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { View, Text, ScrollView, StyleSheet, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
 import { colors, fonts } from "../theme/colors";
 import CoffeeCard from "./CoffeeCard";
 
 const PAGE_SIZE = 24;
 const GAP = 20;                    // Figma: 20px between cards
-const MIN_CARD_W = 220;            // allows 4 cols at typical widths
-const CARD_ASPECT = 372 / 240;     // exact Figma ratio
+const TARGET_CARD_W = 240;         // Figma target card width
+const CARD_ASPECT = 400 / 240;     // Figma 372 + ~28px for bean_type row
 const GRID_PAD = 16;
 
 interface CoffeeListProps {
@@ -14,11 +14,13 @@ interface CoffeeListProps {
   popularity?: Record<string, number>;
   compact?: boolean;
   ListHeaderComponent?: React.ReactElement | null;
+  onScrollDirection?: (direction: "up" | "down", scrollY: number) => void;
 }
 
-export default function CoffeeList({ coffees, popularity = {}, compact, ListHeaderComponent }: CoffeeListProps) {
+export default function CoffeeList({ coffees, popularity = {}, compact, ListHeaderComponent, onScrollDirection }: CoffeeListProps) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [containerW, setContainerW] = useState(0);
+  const lastScrollY = useRef(0);
   const visible = coffees.slice(0, visibleCount);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
@@ -26,17 +28,26 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
   }, []);
 
   const availableWidth = containerW > 0 ? containerW - GRID_PAD * 2 : 960;
-  const numCols = Math.max(1, Math.floor((availableWidth + GAP) / (MIN_CARD_W + GAP)));
+  const numCols = Math.max(1, Math.min(5, Math.round((availableWidth + GAP) / (TARGET_CARD_W + GAP))));
   const cardWidth = Math.floor((availableWidth - GAP * (numCols - 1)) / numCols);
   const cardHeight = Math.floor(cardWidth * CARD_ASPECT);
 
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    const currentY = contentOffset.y;
+
+    // Scroll direction detection
+    if (onScrollDirection) {
+      const direction = currentY > lastScrollY.current ? "down" : "up";
+      onScrollDirection(direction, currentY);
+    }
+    lastScrollY.current = currentY;
+
+    const distanceFromBottom = contentSize.height - layoutMeasurement.height - currentY;
     if (distanceFromBottom < 400 && visibleCount < coffees.length) {
       setVisibleCount(prev => Math.min(prev + PAGE_SIZE, coffees.length));
     }
-  }, [visibleCount, coffees.length]);
+  }, [visibleCount, coffees.length, onScrollDirection]);
 
   if (coffees.length === 0) {
     return (
@@ -54,7 +65,7 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{ paddingBottom: 100 }}
       onScroll={handleScroll}
-      scrollEventThrottle={200}
+      scrollEventThrottle={50}
     >
       {ListHeaderComponent}
       <View style={[s.grid, { gap: GAP, paddingHorizontal: GRID_PAD }]}>
