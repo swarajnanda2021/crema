@@ -303,11 +303,10 @@ def _scrape_single_roaster(roaster: dict) -> tuple:
             if product is None:
                 continue
 
-            # Stage 2: structural check — does it have the attributes
-            # that only real coffee beans have (roast, process, origin, etc.)?
+            # Stage 2: structural check — flag products that look uncertain
+            # but do NOT drop them; the LLM enrichment pass makes the final call.
             if not is_confirmed_coffee_bean(product):
-                excluded += 1
-                continue
+                product.setdefault("scrape_flags", []).append("needs_llm_review")
 
             extra = rp.get("_extra_flags", [])
             if extra:

@@ -43,6 +43,7 @@ from shelves import router as shelves_router
 from tasting_notes import router as notes_router
 from click_tracking import router as clicks_router
 from dictionary import router as dictionary_router
+from social import router as social_router
 
 app = FastAPI(
     title="Crema API",
@@ -64,6 +65,7 @@ app.include_router(shelves_router)
 app.include_router(notes_router)
 app.include_router(clicks_router)
 app.include_router(dictionary_router)
+app.include_router(social_router)
 
 # Initialize database on startup
 init_db()
@@ -114,11 +116,13 @@ def get_products():
     """Serve scraped products + manual products + corrections."""
     products = []
 
-    # Scraped products
-    path = os.path.join(_SCRAPER_OUTPUT, "products.json")
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
-            products = json.load(f)
+    # Scraped products — prefer LLM-enriched file if available
+    for _fname in ("products_enriched.json", "products.json"):
+        path = os.path.join(_SCRAPER_OUTPUT, _fname)
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                products = json.load(f)
+            break
 
     # Manual products (for Wix/JS sites)
     manual_path = os.path.join(_BASE, "Scraper", "input", "manual_products.json")
@@ -377,21 +381,43 @@ def get_recommendations(
 
 
 @app.get("/api/feed/timeline")
-def get_feed_timeline():
+def get_feed_timeline(authorization: str = Header(None)):
     """
     Temporal feed: individual tasting notes sorted by time (newest first).
-    Each entry includes the user who wrote it and the coffee it's about.
+    Each entry includes like_count, comment_count, and liked_by_me.
     """
+    from auth import get_current_user as _get_user
     db = get_db()
     try:
-        # Get all tasting notes across all users, sorted by time
+        current_user_id = None
+        if authorization and authorization.startswith("Bearer "):
+            try:
+                u = _get_user(authorization)
+                current_user_id = u["id"]
+            except Exception:
+                pass
+
         rows = db.execute("""
-            SELECT tn.*, u.username, u.display_name, u.avatar_url, u.location
+            SELECT tn.*, u.username, u.display_name, u.avatar_url, u.location,
+                   (SELECT COUNT(*) FROM note_likes nl WHERE nl.note_id = tn.id) as like_count,
+                   (SELECT COUNT(*) FROM note_comments nc WHERE nc.note_id = tn.id) as comment_count
             FROM tasting_notes tn
             JOIN users u ON tn.user_id = u.id
             ORDER BY tn.created_at DESC
             LIMIT 50
         """).fetchall()
+
+        # Batch check which notes the current user liked
+        liked_note_ids = set()
+        if current_user_id:
+            note_ids = [r["id"] for r in rows]
+            if note_ids:
+                placeholders = ",".join("?" * len(note_ids))
+                liked_rows = db.execute(
+                    f"SELECT note_id FROM note_likes WHERE user_id = ? AND note_id IN ({placeholders})",
+                    [current_user_id] + note_ids
+                ).fetchall()
+                liked_note_ids = {r["note_id"] for r in liked_rows}
 
         timeline = []
         for r in rows:
@@ -406,6 +432,9 @@ def get_feed_timeline():
                     "location": r["location"] if "location" in r.keys() else None,
                 },
                 "product_id": r["product_id"],
+                "like_count": r["like_count"],
+                "comment_count": r["comment_count"],
+                "liked_by_me": r["id"] in liked_note_ids,
                 "note": {
                     "id": r["id"],
                     "user": {"username": r["username"], "display_name": r["display_name"]},

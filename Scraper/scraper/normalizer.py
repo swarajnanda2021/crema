@@ -360,9 +360,10 @@ def normalize_shopify_product(raw: dict, roaster: dict) -> Optional[dict]:
             "grind": grind_label,
         })
 
-    # ── Skip fully sold-out products ───────────────────────────────────────
-    if normalized_variants and not any(v["available"] for v in normalized_variants):
-        return None
+    # ── Overall availability (keep sold-out; mark available=False) ────────
+    is_available = bool(
+        normalized_variants and any(v["available"] for v in normalized_variants)
+    )
 
     # ── Primary variant: first available, else first ───────────────────────
     primary = next(
@@ -413,7 +414,7 @@ def normalize_shopify_product(raw: dict, roaster: dict) -> Optional[dict]:
         "grind_options": grind_options,
         "image_url": image_url,
         "product_url": product_url,
-        "available": True,  # at least one variant is available (guaranteed above)
+        "available": is_available,
         "variants": normalized_variants,
         "tags": tags,
         "description_raw": body_text[:2000],
@@ -486,10 +487,6 @@ def normalize_woocommerce_product(raw: dict, roaster: dict) -> Optional[dict]:
     if available is None:
         available = raw.get("in_stock", True)
     available = bool(available)
-
-    # Skip fully sold out
-    if not available:
-        return None
 
     # ── Categories / tags → string tags ────────────────────────────────────
     # WooCommerce returns these as lists of dicts: [{id, name, slug, link}, ...]
@@ -568,7 +565,7 @@ def normalize_woocommerce_product(raw: dict, roaster: dict) -> Optional[dict]:
         "grind_options": grind_options,
         "image_url": image_url,
         "product_url": product_url,
-        "available": True,
+        "available": available,
         "variants": [],
         "tags": tag_names,
         "description_raw": body_text[:2000],
@@ -598,9 +595,6 @@ def normalize_custom_product(raw: dict, roaster: dict) -> Optional[dict]:
     image_url = clean_image_url(raw.get("image_raw") or "") or None
     product_url = raw.get("_product_url") or ""
     available = bool(raw.get("available", True))
-
-    if not available:
-        return None
 
     ppg = round(price / weight_g, 2) if price and weight_g else None
 
@@ -651,7 +645,7 @@ def normalize_custom_product(raw: dict, roaster: dict) -> Optional[dict]:
         "grind_options": [],
         "image_url": image_url,
         "product_url": product_url,
-        "available": True,
+        "available": available,
         "variants": [],
         "tags": raw.get("tags") or [],
         "description_raw": body_text[:2000],

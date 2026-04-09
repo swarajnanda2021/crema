@@ -114,7 +114,8 @@
     "scraped_at": "2026-04-06T04:47:32Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffeeverse_hydro-honey",
@@ -232,7 +233,8 @@
     "flavor_notes": [
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffeeverse_koraput-black-honey",
@@ -352,7 +354,8 @@
       "Fruity",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffeeverse_kolli-berri-naturals",
@@ -471,7 +474,8 @@
       "Sweet",
       "Complex"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffeeverse_blossom-naturals",
@@ -584,7 +588,8 @@
     "scraped_at": "2026-04-06T04:47:32Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "bombay-island-coffee-company_full-city-roast-medium-dark-roast-gooseberry-molasses-roasted-hazelnuts",
@@ -595,7 +600,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bombayisland.com",
-    "coffee_name": "Full City Roast - Medium Dark Roast - Gooseberry, Molasses & Roasted Hazelnuts",
+    "coffee_name": "Full City Roast",
     "coffee_slug": "full-city-roast-medium-dark-roast-gooseberry-molasses-roasted-hazelnuts",
     "roast_level": "Medium-Dark",
     "tasting_notes": "Medley of fruity and nutty flavour notes with a sweet aftertaste, smooth and medium acidic brew.",
@@ -894,7 +899,9 @@
       "Fruity",
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Full City Roast"
   },
   {
     "product_id": "bombay-island-coffee-company_dark-roast-taster-pack-3-packs-x-75-gm-each-20-off-on-checkout",
@@ -905,7 +912,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bombayisland.com",
-    "coffee_name": "Dark Roast Taster Pack - (3 packs x 75 gm each) | 20% Off on Checkout",
+    "coffee_name": "Dark Roast Taster Pack",
     "coffee_slug": "dark-roast-taster-pack-3-packs-x-75-gm-each-20-off-on-checkout",
     "roast_level": "Dark",
     "tasting_notes": "Collection of dark roast coffees with notes of Spice, Dark Chocolate, Nuts, Smoke, Wood, and smoky dark chocolate aroma.",
@@ -1034,7 +1041,9 @@
       "Smoke",
       "Wood"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Dark Roast Taster Pack"
   },
   {
     "product_id": "bombay-island-coffee-company_medium-dark-roast-taster-pack-4-packs-x-75-gm-each-20-off-on-checkout",
@@ -1045,7 +1054,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bombayisland.com",
-    "coffee_name": "Medium-Dark Roast Taster Pack - (4 packs x 75 gm each) | 20% Off on Checkout",
+    "coffee_name": "Medium-Dark Roast Taster Pack",
     "coffee_slug": "medium-dark-roast-taster-pack-4-packs-x-75-gm-each-20-off-on-checkout",
     "roast_level": "Medium-Dark",
     "tasting_notes": "Collection of medium-dark roast coffees with notes of Toffee, Chocolate, Nuts, Cocoa, Caramel, and Cocoa Berry.",
@@ -1174,7 +1183,9 @@
       "Cocoa",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Medium-Dark Roast Taster Pack"
   },
   {
     "product_id": "bombay-island-coffee-company_medium-roast-taster-pack-2-packs-x-75-gm-each-20-off-on-checkout",
@@ -1185,7 +1196,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bombayisland.com",
-    "coffee_name": "Medium Roast Taster Pack - (2 packs x 75 gm each) | 20% Off on Checkout",
+    "coffee_name": "Medium Roast Taster Pack",
     "coffee_slug": "medium-roast-taster-pack-2-packs-x-75-gm-each-20-off-on-checkout",
     "roast_level": "Medium",
     "tasting_notes": "Collection of medium roast coffees with notes of Citrus, Orange Blossom, Candy, and fruity caramel.",
@@ -1314,7 +1325,9 @@
       "Caramel",
       "Fruity"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Medium Roast Taster Pack"
   },
   {
     "product_id": "bombay-island-coffee-company_assorted-taster-packs-3-packs-x-75-gm-each-20-off-on-checkout",
@@ -1325,7 +1338,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bombayisland.com",
-    "coffee_name": "Assorted Taster Packs - (3 packs x 75 gm each) | 20% Off on Checkout",
+    "coffee_name": "Assorted Taster Packs",
     "coffee_slug": "assorted-taster-packs-3-packs-x-75-gm-each-20-off-on-checkout",
     "roast_level": "Medium-Dark",
     "tasting_notes": "Assorted collection spanning all roast types with notes of Citrus, Orange Blossom, Candy, Cocoa, Caramel, Spice, Dark Chocolate and Nuts.",
@@ -1457,7 +1470,9 @@
       "Dark Chocolate",
       "Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Assorted Taster Packs"
   },
   {
     "product_id": "bombay-island-coffee-company_breakfast-blend-medium-roast-stoned-fruits-with-caramel-overtones",
@@ -1468,7 +1483,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bombayisland.com",
-    "coffee_name": "Breakfast Blend - Medium Roast - Stoned fruits with caramel overtones",
+    "coffee_name": "Breakfast Blend",
     "coffee_slug": "breakfast-blend-medium-roast-stoned-fruits-with-caramel-overtones",
     "roast_level": "Medium",
     "tasting_notes": "Interesting fruity notes and sweet aroma with stoned fruits and caramel overtones giving a balanced mouthfeel and texture.",
@@ -1764,7 +1779,9 @@
       "Stoned Fruits",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Breakfast Blend"
   },
   {
     "product_id": "bombay-island-coffee-company_vienna-roast-dark-roast-dark-chocolate-bittersweet-smoke",
@@ -1775,7 +1792,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bombayisland.com",
-    "coffee_name": "Vienna Roast - Dark Roast - Dark Chocolate, Bittersweet & Smoke",
+    "coffee_name": "Vienna Roast",
     "coffee_slug": "vienna-roast-dark-roast-dark-chocolate-bittersweet-smoke",
     "roast_level": "Dark",
     "tasting_notes": "Richly textured with dark chocolate flavour notes and smoky aroma.",
@@ -2070,7 +2087,9 @@
       "Dark Chocolate",
       "Smoke"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Vienna Roast"
   },
   {
     "product_id": "bombay-island-coffee-company_thogarihunkal-estate-medium-roast-citrus-orange-blossom-candy",
@@ -2081,7 +2100,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bombayisland.com",
-    "coffee_name": "Thogarihunkal Estate - Medium Roast - Citrus, Orange Blossom & Candy",
+    "coffee_name": "Thogarihunkal Estate",
     "coffee_slug": "thogarihunkal-estate-medium-roast-citrus-orange-blossom-candy",
     "roast_level": "Medium",
     "tasting_notes": "Citrus tanginess with sweetness; notes of Citrus, Orange Blossom and Candy.",
@@ -2378,7 +2397,9 @@
       "Orange Blossom",
       "Candy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Thogarihunkal Estate"
   },
   {
     "product_id": "bombay-island-coffee-company_mysore-nuggets-extra-bold-dark-roast-spice-dark-chocolate-nuts",
@@ -2389,7 +2410,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bombayisland.com",
-    "coffee_name": "Mysore Nuggets Extra Bold - Dark Roast - Spice, Dark Chocolate & Nuts",
+    "coffee_name": "Mysore Nuggets Extra Bold",
     "coffee_slug": "mysore-nuggets-extra-bold-dark-roast-spice-dark-chocolate-nuts",
     "roast_level": "Dark",
     "tasting_notes": "Strong and bold with flavour notes of Spice, Dark Chocolate and Nut; low acidity with balanced sweetness.",
@@ -2686,7 +2707,9 @@
       "Dark Chocolate",
       "Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Mysore Nuggets Extra Bold"
   },
   {
     "product_id": "bombay-island-coffee-company_community-blend-dark-roast-dark-chocolate-smoke-wood",
@@ -2697,7 +2720,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bombayisland.com",
-    "coffee_name": "Community Blend - Dark Roast - Dark Chocolate, Smoke & Wood",
+    "coffee_name": "Community Blend",
     "coffee_slug": "community-blend-dark-roast-dark-chocolate-smoke-wood",
     "roast_level": "Dark",
     "tasting_notes": "Notes of Smoke, Wood and Dark Chocolate with a very balanced taste.",
@@ -2994,7 +3017,9 @@
       "Wood",
       "Dark Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Community Blend"
   },
   {
     "product_id": "bombay-island-coffee-company_bynemara-estate-medium-dark-roast-toffee-chocolate-nut",
@@ -3005,7 +3030,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bombayisland.com",
-    "coffee_name": "Bynemara Estate - Medium Dark Roast - Toffee, Chocolate & Nut",
+    "coffee_name": "Bynemara Estate",
     "coffee_slug": "bynemara-estate-medium-dark-roast-toffee-chocolate-nut",
     "roast_level": "Medium-Dark",
     "tasting_notes": "Flavour notes of Toffee, Chocolate and Nut with rich texture and aroma; balanced, low acidic and medium strong.",
@@ -3302,7 +3327,9 @@
       "Chocolate",
       "Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Bynemara Estate"
   },
   {
     "product_id": "bili-hu-coffee_balur-estate-robusta",
@@ -3397,7 +3424,9 @@
     "flavor_notes": [
       "Roasted Popcorn"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta",
+    "coffee_name_clean": "Balur Estate - Robusta"
   },
   {
     "product_id": "bili-hu-coffee_balur-estate",
@@ -3532,7 +3561,9 @@
     "scraped_at": "2026-04-06T04:47:32Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Balur Estate"
   },
   {
     "product_id": "bili-hu-coffee_arabica-blend-dark-roast",
@@ -3543,7 +3574,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bilihu.in",
-    "coffee_name": "Arabica Blend (Dark Roast)",
+    "coffee_name": "Arabica Blend",
     "coffee_slug": "arabica-blend-dark-roast",
     "roast_level": "Dark",
     "tasting_notes": "Smoky and cherry-like flavor profile with layered, subtle nuance; smooth finish and strong character.",
@@ -3668,7 +3699,9 @@
       "Smoky",
       "Cherry"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Arabica Blend"
   },
   {
     "product_id": "bili-hu-coffee_aghora-estate",
@@ -3801,7 +3834,9 @@
     "scraped_at": "2026-04-06T04:47:32Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Aghora Estate"
   },
   {
     "product_id": "bili-hu-coffee_krishna-estate",
@@ -3894,7 +3929,9 @@
     "scraped_at": "2026-04-06T04:47:32Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Krishna Estate"
   },
   {
     "product_id": "bili-hu-coffee_balur-estate-dark-roast",
@@ -3905,7 +3942,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bilihu.in",
-    "coffee_name": "Balur Estate (Dark Roast)",
+    "coffee_name": "Balur Estate",
     "coffee_slug": "balur-estate-dark-roast",
     "roast_level": "Dark",
     "tasting_notes": null,
@@ -4027,7 +4064,9 @@
     "scraped_at": "2026-04-06T04:47:32Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Balur Estate"
   },
   {
     "product_id": "bili-hu-coffee_lot-19-kalledevarapura-estate",
@@ -4122,7 +4161,9 @@
       "Candied Mango",
       "Apricot"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta",
+    "coffee_name_clean": "Lot 19 Kalledevarapura Estate"
   },
   {
     "product_id": "bili-hu-coffee_whiskey-barrel-aged-coffee",
@@ -4261,7 +4302,9 @@
       "Oak",
       "Irish Cream"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Whiskey Barrel Aged Coffee"
   },
   {
     "product_id": "bili-hu-coffee_colombian-decaf-coffee",
@@ -4355,7 +4398,9 @@
     "scraped_at": "2026-04-06T04:47:32Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Colombian Decaf Coffee"
   },
   {
     "product_id": "bili-hu-coffee_the-daily-drip",
@@ -4402,7 +4447,9 @@
     "scraped_at": "2026-04-06T04:47:32Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "The Daily Drip"
   },
   {
     "product_id": "bili-hu-coffee_85-15-arabica-robusta-blend",
@@ -4543,7 +4590,9 @@
       "Roasted Nuts",
       "Maple Syrup"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "85 15 Arabica Robusta Blend"
   },
   {
     "product_id": "bili-hu-coffee_arabica-blend-medium-roast",
@@ -4554,7 +4603,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://bilihu.in",
-    "coffee_name": "Arabica Blend (Medium Roast)",
+    "coffee_name": "Arabica Blend",
     "coffee_slug": "arabica-blend-medium-roast",
     "roast_level": "Medium",
     "tasting_notes": "Dark chocolate richness with fermented berry-like sweetness in the aftertaste; medium acidity and full body.",
@@ -4680,7 +4729,9 @@
       "Sweet Berries",
       "Roasted Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Arabica Blend"
   },
   {
     "product_id": "bili-hu-coffee_monsooned-malabar",
@@ -4819,7 +4870,9 @@
       "Earthy",
       "Petrichor"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Monsooned Malabar"
   },
   {
     "product_id": "bili-hu-coffee_mysore-nuggets-extra-bold",
@@ -4957,7 +5010,9 @@
       "Chocolate",
       "Milk Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Mysore Nuggets Extra Bold"
   },
   {
     "product_id": "bili-hu-coffee_cold-brew-blend",
@@ -5022,7 +5077,9 @@
       "Dark Chocolate",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "Cold Brew Blend"
   },
   {
     "product_id": "bili-hu-coffee_80-20-arabica-robusta-blend",
@@ -5161,7 +5218,9 @@
       "Roasted Nuts",
       "Maple Syrup"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "80 20 Arabica Robusta Blend"
   },
   {
     "product_id": "bili-hu-coffee_70-30-arabica-robusta-blend",
@@ -5298,7 +5357,9 @@
       "Roasted Nuts",
       "Maple Syrup"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "70 30 Arabica Robusta Blend"
   },
   {
     "product_id": "bili-hu-coffee_vietnamese-style-coffee-blend",
@@ -5362,7 +5423,9 @@
       "Chocolate",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "Vietnamese Style Coffee Blend"
   },
   {
     "product_id": "bili-hu-coffee_kalledevarapura-estate",
@@ -5500,7 +5563,9 @@
       "Orange",
       "Jaggery"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Kalledevarapura Estate"
   },
   {
     "product_id": "black-baza-coffee_kombucha-honey",
@@ -5596,7 +5661,8 @@
       "Caramel",
       "Sparkling Acidity"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "black-baza-coffee_frogmouth",
@@ -5744,7 +5810,8 @@
       "Amla",
       "Walnuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "black-baza-coffee_luna",
@@ -5891,7 +5958,8 @@
       "Tobacco",
       "Spice"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "black-baza-coffee_jumping-ant",
@@ -6035,7 +6103,8 @@
       "Nutty",
       "Honey"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "black-baza-coffee_potter-wasp",
@@ -6180,7 +6249,8 @@
       "Jaggery",
       "Dried Berries"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "black-baza-coffee_chukki",
@@ -6326,7 +6396,8 @@
       "Roasted Almonds",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "black-baza-coffee_draco",
@@ -6471,7 +6542,8 @@
     "flavor_notes": [
       "Cardamom"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "black-baza-coffee_tiger-beetle",
@@ -6618,7 +6690,8 @@
       "Fruity",
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "black-baza-coffee_galaxy-frog",
@@ -6767,7 +6840,8 @@
       "Green Grapes",
       "Molasses"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "black-baza-coffee_loris",
@@ -6914,7 +6988,8 @@
       "Dark Chocolate",
       "Burnt Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "black-baza-coffee_whistling-schoolboy",
@@ -6977,7 +7052,8 @@
       "Roasted Almonds",
       "Hazelnut"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "black-baza-coffee_otter",
@@ -7077,7 +7153,8 @@
       "Caramel",
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "black-baza-coffee_wanderoo",
@@ -7224,7 +7301,8 @@
       "Dark Chocolate",
       "Brown Sugar"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "black-baza-coffee_ficus",
@@ -7372,7 +7450,8 @@
       "Cacao Bitters",
       "Roasted Almond"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "blue-tokai-coffee-roasters_winter-blend",
@@ -7708,7 +7787,8 @@
       "Raisins",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "blue-tokai-coffee-roasters_half-caff",
@@ -7775,7 +7855,8 @@
       "Roasted Hazelnut",
       "Malt"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "blue-tokai-coffee-roasters_monsoon-malabar-aa-hoysala-estate",
@@ -8138,7 +8219,8 @@
       "Butter Biscuit",
       "Cocoa"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "blue-tokai-coffee-roasters_attikan-estate",
@@ -8218,7 +8300,8 @@
       "Fruity",
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "blue-tokai-coffee-roasters_baarbara-estate",
@@ -8592,7 +8675,8 @@
       "Dried Apricot",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "blue-tokai-coffee-roasters_amaltas-blend",
@@ -8954,7 +9038,8 @@
       "Milk Chocolate",
       "Citrus"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "blue-tokai-coffee-roasters_kalledevarapura-estate-pulp-sun-dried",
@@ -9331,7 +9416,8 @@
       "Roasted Almond",
       "Raisin"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "blue-tokai-coffee-roasters_silver-oak-cafe-blend",
@@ -9693,7 +9779,8 @@
     "scraped_at": "2026-04-06T04:47:32Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "blue-tokai-coffee-roasters_cold-brew-blend-bold",
@@ -10055,7 +10142,8 @@
       "Toffee",
       "Roasted Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "blue-tokai-coffee-roasters_st-joseph-estate",
@@ -10394,7 +10482,8 @@
       "Toffee",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "blue-tokai-coffee-roasters_basankhan-estate",
@@ -10736,7 +10825,8 @@
     "flavor_notes": [
       "Dark Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "blue-tokai-coffee-roasters_french-roast",
@@ -11099,7 +11189,8 @@
     "flavor_notes": [
       "Bittersweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "blue-tokai-coffee-roasters_vienna-roast",
@@ -11467,7 +11558,8 @@
     "flavor_notes": [
       "Bittersweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "blue-tokai-coffee-roasters_dhak-blend",
@@ -11832,7 +11924,8 @@
       "Fruit Jam",
       "Cocoa"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "leo-coffee_leo-estate-single-origin",
@@ -12161,7 +12254,9 @@
     "scraped_at": "2026-04-06T04:47:32Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Leo Estate Single Origin"
   },
   {
     "product_id": "leo-coffee_special-peaberry-special-a-5050-mix",
@@ -12172,7 +12267,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://leocoffee.co.in",
-    "coffee_name": "Special Peaberry + Special \"A\" 50:50 Mix",
+    "coffee_name": "Peaberry & Special A Blend",
     "coffee_slug": "special-peaberry-special-a-5050-mix",
     "roast_level": "Medium",
     "tasting_notes": null,
@@ -12488,7 +12583,9 @@
     "scraped_at": "2026-04-06T04:47:33Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "Peaberry & Special A Blend"
   },
   {
     "product_id": "leo-coffee_top-blend",
@@ -12815,7 +12912,9 @@
     "scraped_at": "2026-04-06T04:47:33Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "Top Blend"
   },
   {
     "product_id": "leo-coffee_special-peaberry-coffee-blend",
@@ -12826,7 +12925,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://leocoffee.co.in",
-    "coffee_name": "Special Peaberry Coffee Blend",
+    "coffee_name": "Peaberry Blend",
     "coffee_slug": "special-peaberry-coffee-blend",
     "roast_level": "Light",
     "tasting_notes": "rich aroma, full-bodied taste with well-balanced acidity and a sweeter cup",
@@ -13145,7 +13244,9 @@
       "Full-Bodied",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "Peaberry Blend"
   },
   {
     "product_id": "leo-coffee_special-a-coffee-blend",
@@ -13156,7 +13257,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://leocoffee.co.in",
-    "coffee_name": "Special \"A\" Coffee Blend",
+    "coffee_name": "Special A Blend",
     "coffee_slug": "special-a-coffee-blend",
     "roast_level": "Medium",
     "tasting_notes": "medium-bodied and medium acidity",
@@ -13472,7 +13573,9 @@
     "scraped_at": "2026-04-06T04:47:33Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "Special A Blend"
   },
   {
     "product_id": "leo-coffee_house-blend",
@@ -13802,7 +13905,9 @@
       "Full-Bodied",
       "Bitter"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "House Blend"
   },
   {
     "product_id": "leo-coffee_special-a-coffee-beans-unique-blend-5-kg-bag",
@@ -13813,7 +13918,7 @@
     "roaster_lat": 0,
     "roaster_lng": 0,
     "roaster_website": "https://leocoffee.co.in",
-    "coffee_name": "Special \"A\" Coffee Beans Unique Blend - 5 Kg Bag",
+    "coffee_name": "Special A Blend",
     "coffee_slug": "special-a-coffee-beans-unique-blend-5-kg-bag",
     "roast_level": "Medium",
     "tasting_notes": null,
@@ -13849,7 +13954,9 @@
     "scraped_at": "2026-04-06T04:47:33Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "Special A Blend"
   },
   {
     "product_id": "leo-coffee_breakfast-blend-60-40",
@@ -13966,7 +14073,9 @@
       "Full-Bodied",
       "Creamy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "Breakfast Blend 60-40"
   },
   {
     "product_id": "leo-coffee_caffe-blend",
@@ -14293,7 +14402,9 @@
     "scraped_at": "2026-04-06T04:47:33Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "Caffé Blend"
   },
   {
     "product_id": "maverick-farmer-coffee_modur-naturals",
@@ -14573,7 +14684,8 @@
       "Green Apple",
       "Sweet Cherry"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "maverick-farmer-coffee_what-the-ale",
@@ -14694,7 +14806,8 @@
       "Stout",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "maverick-farmer-coffee_parama-dark",
@@ -14973,7 +15086,8 @@
       "Chocolate",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "maverick-farmer-coffee_cold-brew-light-bright",
@@ -15058,7 +15172,8 @@
       "Fresh Fruit",
       "Citrus"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "maverick-farmer-coffee_cold-brew-dark-fruity",
@@ -15144,7 +15259,8 @@
       "Shiraz",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "maverick-farmer-coffee_cold-brew-new-orleans-style",
@@ -15229,7 +15345,8 @@
       "Chocolate",
       "Toffee"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "maverick-farmer-coffee_clouds-in-my-coffee",
@@ -15509,7 +15626,8 @@
       "Spice",
       "Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "maverick-farmer-coffee_ol-smoky-cold-smoked-coffee",
@@ -15631,7 +15749,8 @@
       "Fruity",
       "Smoky"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "maverick-farmer-coffee_deep-bliss",
@@ -15910,7 +16029,8 @@
       "Dark Chocolate",
       "Earthy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "maverick-farmer-coffee_tall-dark-handsome",
@@ -16189,7 +16309,8 @@
       "Smoky",
       "Bittersweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "maverick-farmer-coffee_sunkissed",
@@ -16469,7 +16590,8 @@
       "Citrus",
       "Buttercup"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "maverick-farmer-coffee_say-hello-to-mellow",
@@ -16748,7 +16870,8 @@
       "Banana",
       "Berries"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "maverick-farmer-coffee_parama",
@@ -17027,7 +17150,8 @@
       "Chocolate",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "maverick-farmer-coffee_rohan-bopannas-masterblend",
@@ -17306,7 +17430,8 @@
       "Toffee",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "roastery-coffee-house_mooleh-manay-estate-excelsa",
@@ -17355,7 +17480,8 @@
       "Dark Berries",
       "Citrus"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "roastery-coffee-house_mooleh-manay-estate-sln-795",
@@ -17405,7 +17531,8 @@
       "Green Grapes",
       "Brown Sugar"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "roastery-coffee-house_cappuccino-blend",
@@ -17459,7 +17586,8 @@
       "Cocoa",
       "Jaggery"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "roastery-coffee-house_mandalkhan-estate",
@@ -17509,7 +17637,8 @@
       "Chocolate",
       "Orange Berry"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "roastery-coffee-house_baarbara-estate-frozen-cherry",
@@ -17562,7 +17691,8 @@
       "Mango",
       "Dates"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "roastery-coffee-house_baarbara-estate-hsd",
@@ -17612,7 +17742,8 @@
       "Orange",
       "Cacao"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "roastery-coffee-house_baarbara-estate-pineapple",
@@ -17664,7 +17795,8 @@
       "Dried Apricot",
       "Honey"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "roastery-coffee-house_harley-estate-robusta",
@@ -17717,7 +17849,8 @@
       "Mandarin Orange",
       "Black Grapes"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "roastery-coffee-house_basan-khan-estate",
@@ -17765,7 +17898,8 @@
     "scraped_at": "2026-04-06T04:47:37Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "roastery-coffee-house_cold-brew-blend",
@@ -17821,7 +17955,8 @@
       "Caramel",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "roastery-coffee-house_monsoon-malabar",
@@ -17878,7 +18013,8 @@
       "Earthy",
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "savorworks-coffee-chocolate_godfather-indian-grown-brown-tip-panama-geisha",
@@ -17995,7 +18131,8 @@
       "Kiwi",
       "Floral"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "savorworks-coffee-chocolate_iceberg-naturals",
@@ -18170,7 +18307,8 @@
       "Plum Blossom",
       "Persimmon"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "savorworks-coffee-chocolate_vienna-dark-roast",
@@ -18362,7 +18500,8 @@
       "Dark Chocolate",
       "Raisin"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "savorworks-coffee-chocolate_bosss-wife-house-blend",
@@ -18555,7 +18694,8 @@
       "Jaggery",
       "Roasted Almond"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "savorworks-coffee-chocolate_riverdale-medium-to-dark-roast",
@@ -18750,7 +18890,8 @@
       "Toffee",
       "Dark Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "sleepy-owl-coffee_ground-coffee-hazelnut",
@@ -18863,7 +19004,8 @@
       "Chocolate",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "sleepy-owl-coffee_ground-coffee-dark-roast",
@@ -18996,7 +19138,8 @@
       "Bold",
       "Rich"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "subko-coffee-roasters_agave-barrel-aged-washed-gandha-andhra-pradesh-arabica-medium-roast",
@@ -19122,7 +19265,8 @@
       "Peach",
       "Jaggery"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "subko-coffee-roasters_project-pearl-ratnagiri-estate-karnataka-sca-86-culture-naturals-anaerobic-naturals-filter-roast-light",
@@ -19262,7 +19406,8 @@
       "Dragon Fruit",
       "Peach Tea"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "subko-coffee-roasters_project-salawara-bros-lot-336-salawara-estate-karnataka-naturals-omniroast-medium-dark",
@@ -19388,7 +19533,8 @@
       "Dark Cocoa",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "subko-coffee-roasters_project-360-badra-estates-karnataka-black-honey-filter-roast-medium-light",
@@ -19527,7 +19673,8 @@
       "Plum Jam",
       "Nutmeg"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "third-wave-coffee-roasters_ratnagiri-estate",
@@ -19634,7 +19781,8 @@
       "Raisin",
       "Cocoa"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "third-wave-coffee-roasters_speciality-single-origin-chikmagalur-region",
@@ -19745,7 +19893,8 @@
       "Raisin",
       "Peach"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "third-wave-coffee-roasters_speciality-single-origin-bababudangiri-region",
@@ -19855,7 +20004,8 @@
       "Pineapple",
       "Molasses"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "third-wave-coffee-roasters_signature-south-indian-filter",
@@ -19968,7 +20118,8 @@
       "Milk Chocolate",
       "Roasted Almonds"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "third-wave-coffee-roasters_french-roast",
@@ -20081,7 +20232,8 @@
       "Roasted Hazelnut",
       "Cocoa Nibs"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_thermal-shock-ratnagiri-estate",
@@ -20560,7 +20712,8 @@
     "scraped_at": "2026-04-06T04:47:40Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_kuttin-khan-estate-processing-anaerobic",
@@ -21044,7 +21197,8 @@
       "Winy",
       "Tangy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_fruit-fermented-coffee-sample-pack-100gms-x-2",
@@ -21202,7 +21356,8 @@
       "Pineapple",
       "Fruity"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_baarbara-estate-coffee",
@@ -21685,7 +21840,8 @@
       "Cocoa",
       "Honey"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_south-indian-traditional-filter-coffee-dark-roast-free-brass-dabara-set",
@@ -21756,7 +21912,8 @@
       "Sweet",
       "Rich"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_ethiopia-coffee-from-yirgacheffe",
@@ -22211,7 +22368,8 @@
     "scraped_at": "2026-04-06T04:47:40Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_brazil-cerrado-coffee-latin-america",
@@ -22660,7 +22818,8 @@
     "scraped_at": "2026-04-06T04:47:40Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_blueberry-mocha-speciality-blend",
@@ -23144,7 +23303,8 @@
       "Fruity",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_honey-caramel-blend",
@@ -23597,7 +23757,8 @@
       "Honey",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_mullayangiri-estate-coffee",
@@ -24049,7 +24210,8 @@
       "Lemon",
       "Pineapple"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_annanas-pineapple-fermented-coffee",
@@ -24503,7 +24665,8 @@
       "Honey",
       "Fruity"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_tangerine-orange-fermented-coffee",
@@ -24956,7 +25119,8 @@
       "Citrus",
       "Fruity"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_medium-dark-dark-roast-sampler-pack-100gms-x-2",
@@ -25108,7 +25272,8 @@
       "Smoky",
       "Earthy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_best-seller-coffee-sample-pack-100gms-x-3",
@@ -25265,7 +25430,8 @@
       "Chocolate",
       "Smoky"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_light-medium-roast-sample-pack-100gms-x-3",
@@ -25413,7 +25579,8 @@
       "Caramel",
       "Fruity"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_holiday-blend-coffee",
@@ -25867,7 +26034,8 @@
       "Honey",
       "Layered"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_blonde-caramel-speciality-blend",
@@ -26236,7 +26404,8 @@
       "Caramel",
       "Fruity"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_cabernet-sauvignon-wine-barrel-aged-coffee",
@@ -26691,7 +26860,8 @@
       "Wine",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_single-malt-whiskey-barrel-aged-coffee",
@@ -27147,7 +27317,8 @@
       "Green Apple",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_peaberry-coffee-medium-roast",
@@ -27597,7 +27768,8 @@
       "Sweet",
       "Complex"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_south-indian-traditional-filter-coffee-dark-roast",
@@ -27674,7 +27846,8 @@
       "Sweet",
       "Rich"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_mysore-nuggets-speciality-blend",
@@ -28157,7 +28330,8 @@
       "Smoky",
       "Earthy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_baba-budangiri-estate-coffee",
@@ -28641,7 +28815,8 @@
       "Earthy",
       "Dark Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toffee-coffee-roasters_thippanahalli-estate-coffee",
@@ -29095,7 +29270,8 @@
       "Nutty",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "7000-steps-indias-most-remote-coffee_7000-steps-go-brew",
@@ -29155,7 +29331,8 @@
       "Stone Fruit",
       "Cocoa Nibs"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "7000-steps-indias-most-remote-coffee_northeast-fusion-250g",
@@ -29331,7 +29508,8 @@
       "Nutty",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "7000-steps-indias-most-remote-coffee_assam-speciality-arabica-coffee-250g",
@@ -29425,7 +29603,8 @@
       "Dark Chocolate",
       "Stone Fruit"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "7000-steps-indias-most-remote-coffee_meghalaya-speciality-arabica-coffee-250g",
@@ -29518,7 +29697,8 @@
       "Grapefruit",
       "Refreshing"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "7000-steps-indias-most-remote-coffee_northeast-wild-robusta-250g",
@@ -29715,7 +29895,8 @@
       "Nutty",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "7000-steps-indias-most-remote-coffee_single-origin-arabica-assam-250g",
@@ -29801,7 +29982,8 @@
       "Sweet",
       "Sour"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "7000-steps-indias-most-remote-coffee_northeast-peak-250g",
@@ -29999,7 +30181,8 @@
       "Citrus",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_maillard8217s-dream-8211-kerehaklu-62h-mosto-culture-naturals-8211-fine-robusta",
@@ -30067,7 +30250,8 @@
       "Butter Cookies",
       "Cashew"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "naivo-coffee-company_evanescence-8211-kerehaklu-37h-culture-washed",
@@ -30132,7 +30316,8 @@
       "Nectarine",
       "Tea Rose"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_pichia-parables-harley-36h-pichia-yeast-naturals",
@@ -30199,7 +30384,8 @@
       "Walnut",
       "Syrupy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_kraken-jam-8211-orchardale-naturals",
@@ -30265,7 +30451,8 @@
       "Papaya",
       "Wild Honey"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_sweet-illusions-8211-bewild-permaculture-180h-anoxic-naturals-8211-fine-robusta",
@@ -30333,7 +30520,8 @@
       "Champakali",
       "Floral"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "naivo-coffee-company_the-nut-job-8211-mooleh-manay-120h-carbonic-naturals-8211-fine-robusta",
@@ -30399,7 +30587,8 @@
       "Roasted Jackfruit Seed",
       "Floral"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "naivo-coffee-company_currant-affairs-8211-karadykan-naturals",
@@ -30465,7 +30654,8 @@
       "Blackberries",
       "Hazelnut"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_indravathi-honey",
@@ -30529,7 +30719,8 @@
       "Raisins",
       "Dried Fruit"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_berry-dawn-8211-baarbara-dual-phase-naturals",
@@ -30595,7 +30786,8 @@
       "Strawberry",
       "Clove"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_tropical-splash-8211-baarbara-pineapple-fermented",
@@ -30663,7 +30855,8 @@
       "Mosambi",
       "Pineapple"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_kolli-berri-washed",
@@ -30723,7 +30916,8 @@
       "Malt",
       "Prunes"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_dragon-jam-8211-kolli-berri-anaerobic-naturals",
@@ -30788,7 +30982,8 @@
       "Jamun",
       "Mixed Fruit Jam"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_ratnagiri-estate-8211-robusta-mosto-naturals",
@@ -30854,7 +31049,8 @@
       "Nutmeg",
       "Sweet Cream"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "naivo-coffee-company_ratnagiri-estate-8211-lab-process-naturals",
@@ -30920,7 +31116,8 @@
       "Prunes",
       "Starfruit"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_ratnagiri-estate-8211-double-washed-classic",
@@ -30985,7 +31182,8 @@
       "Roasted Pecan",
       "Tea Rose"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_ratnagiri-estate-8211-dark-room-naturals",
@@ -31049,7 +31247,8 @@
       "Green Apple",
       "Pink Guava"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_mondul-estate-aa-washed",
@@ -31111,7 +31310,8 @@
       "Wood Apple",
       "Floral"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_seethargundu-estate-washed",
@@ -31173,7 +31373,8 @@
       "Sweet",
       "Walnut"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_skia-red-honey-8211-fine-robusta",
@@ -31235,7 +31436,8 @@
       "Cumin",
       "Vanilla"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "naivo-coffee-company_dunduga-estate-naturals",
@@ -31297,7 +31499,8 @@
       "Pistachio",
       "Tutti Frutti"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_dunduga-estate-washed",
@@ -31360,7 +31563,8 @@
       "Tobacco",
       "Smoky"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_venkids-valley-washed-8211-fine-robusta",
@@ -31422,7 +31626,8 @@
       "Dark Chocolate",
       "Nutmeg"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "naivo-coffee-company_harley-kaapi-royale-8211-fine-robusta",
@@ -31486,7 +31691,8 @@
       "Milk Chocolate",
       "Sweet Cream"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "naivo-coffee-company_unakki-estate-washed",
@@ -31548,7 +31754,8 @@
       "Cane Sugar",
       "Honey"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_unakki-dark-honey",
@@ -31609,7 +31816,8 @@
       "Lychee",
       "Stone Fruit"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_balanoor-chandragiri-washed",
@@ -31667,7 +31875,8 @@
       "Gooseberries",
       "Floral"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_attikan-white-mist",
@@ -31729,7 +31938,8 @@
       "Nutty",
       "Cedar"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "naivo-coffee-company_bewild-anoxic-naturals-8211-fine-robusta",
@@ -31792,7 +32002,8 @@
       "Jackfruit",
       "Nutmeg"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "93-degrees-coffee-roasters_pina-colada-coffee-medium-roast-flavour-notes-pineapple-tropical-fruit-lemon-coffee-blossom",
@@ -31990,7 +32201,8 @@
       "Lemon",
       "Coffee Blossom"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "93-degrees-coffee-roasters_mocha-specialty-coffee-medium-dark-roast-flavour-notes-dark-chocolate-roasted-coffee-brown-sugar",
@@ -32187,7 +32399,8 @@
       "Roasted Coffee",
       "Brown Sugar"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "93-degrees-coffee-roasters_house-pour-over-coffee-medium-roast-flavour-notes-green-apple-raspberry-cherry-and-peach",
@@ -32379,7 +32592,8 @@
       "Cherry",
       "Peach"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "93-degrees-coffee-roasters_mimosa-medium-light-roast-flavour-notes-orange-assorted-nuts-and-mild-nutmeg",
@@ -32575,7 +32789,8 @@
       "Nuts",
       "Nutmeg"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "93-degrees-coffee-roasters_citrus-upside-down-coffee-medium-light-roast-flavour-notes-mandarin-peach-mild-toffee",
@@ -32771,7 +32986,8 @@
       "Peach",
       "Toffee"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "93-degrees-coffee-roasters_cold-brew-blend-coffee-medium-dark-roast-flavour-notes-blueberry-brown-sugar-and-black-cherry",
@@ -32962,7 +33178,8 @@
       "Brown Sugar",
       "Black Cherry"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "araku-coffee_summer-edit",
@@ -33055,7 +33272,8 @@
       "Cashew Butter",
       "Pepper"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "araku-coffee_anniversary-edit",
@@ -33147,7 +33365,8 @@
       "Honey",
       "White Floral"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "araku-coffee_taste-the-terroir-coffee-sampler-pack",
@@ -33233,7 +33452,8 @@
     "scraped_at": "2026-04-06T04:47:48Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "aromas-of-coorg_soul-mate",
@@ -33280,7 +33500,8 @@
       "Rich",
       "Full-Bodied"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "aromas-of-coorg_monsoon-magic",
@@ -33327,7 +33548,8 @@
       "Fruity",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "aromas-of-coorg_bombay-blues",
@@ -33374,7 +33596,8 @@
       "Smooth",
       "Mild"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "aromas-of-coorg_malabar-pearl",
@@ -33423,7 +33646,8 @@
       "Full-Bodied",
       "Bold"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "aromas-of-coorg_bold-038-beautiful",
@@ -33470,7 +33694,8 @@
       "Bold",
       "Smooth"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "aromas-of-coorg_signature-blend",
@@ -33514,7 +33739,8 @@
       "Smooth",
       "Mild"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "aromas-of-coorg_mysore-memoirs",
@@ -33558,7 +33784,8 @@
       "Tangy",
       "Smooth"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "aromas-of-coorg_hyderabad-royale",
@@ -33602,7 +33829,8 @@
       "Rich",
       "Mild Bitterness"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "aromas-of-coorg_malgudi-bliss",
@@ -33646,7 +33874,8 @@
       "Heavy Body",
       "Strong Aftertaste"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "aromas-of-coorg_chennai8217s-tradition",
@@ -33691,7 +33920,8 @@
       "Mild Bitterness",
       "Aromatic"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "aromas-of-coorg_kumbakonam-degree",
@@ -33735,7 +33965,8 @@
       "Rich",
       "Strong"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "aromas-of-coorg_bengaluru-pride",
@@ -33779,7 +34010,8 @@
       "Smoky",
       "Smooth"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "aromas-of-coorg_nirvana",
@@ -33827,7 +34059,8 @@
       "Smooth",
       "Buttery"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "aromas-of-coorg_revalenta-arabica",
@@ -33874,7 +34107,8 @@
       "Rich",
       "Delicate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "aromas-of-coorg_penchant-peaberry",
@@ -33921,7 +34155,8 @@
       "Smooth",
       "Aromatic"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "aromas-of-coorg_coorg-planters-choice",
@@ -33965,7 +34200,8 @@
       "Rich",
       "Smooth"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "black-fuel-roastery_valley-sunrise-pour-02",
@@ -34065,7 +34301,8 @@
     "flavor_notes": [
       "Clean"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "black-fuel-roastery_araku-dawn-pour-01",
@@ -34163,7 +34400,8 @@
     "scraped_at": "2026-04-06T04:48:03Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "black-fuel-roastery_black-valley-extract-01",
@@ -34263,7 +34501,8 @@
     "flavor_notes": [
       "Clean"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "black-fuel-roastery_black-fuel-blend-extract-3",
@@ -34361,7 +34600,8 @@
     "scraped_at": "2026-04-06T04:48:03Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "black-fuel-roastery_valley-red-honey-extract-02",
@@ -34459,7 +34699,8 @@
     "scraped_at": "2026-04-06T04:48:03Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_kolli-berry-estate-naturals-chikmagalur-light-roast",
@@ -34470,7 +34711,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Kolli Berry Estate - Naturals - Chikmagalur - Light Roast",
+    "coffee_name": "Kolli Berry Estate - Naturals",
     "coffee_slug": "kolli-berry-estate-naturals-chikmagalur-light-roast",
     "roast_level": "Light",
     "tasting_notes": "Raspberry, White Chocolate and Fresh Stone Fruit.",
@@ -34571,7 +34812,9 @@
       "White Chocolate",
       "Stone Fruit"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Kolli Berry Estate - Naturals"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_attikan-estate-wild-mandarin-washed-br-hills-light-roast",
@@ -34582,7 +34825,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Attikan estate - Wild Mandarin (Washed) - BR Hills - Light Roast",
+    "coffee_name": "Attikan Estate - Wild Mandarin (Washed)",
     "coffee_slug": "attikan-estate-wild-mandarin-washed-br-hills-light-roast",
     "roast_level": "Light",
     "tasting_notes": "Raisins, Papaya, Citrus Fruits and Floral.",
@@ -34684,7 +34927,9 @@
       "Citrus",
       "Floral"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta",
+    "coffee_name_clean": "Attikan Estate - Wild Mandarin (Washed)"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_salawara-estate-anaerobic-yellow-honey-sakleshpur-light-roast",
@@ -34695,7 +34940,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Salawara estate - Anaerobic Yellow Honey - Sakleshpur - Light Roast",
+    "coffee_name": "Salawara Estate - Anaerobic Yellow Honey",
     "coffee_slug": "salawara-estate-anaerobic-yellow-honey-sakleshpur-light-roast",
     "roast_level": "Medium-Light",
     "tasting_notes": "Tropical Fruits, Milk Chocolate, and Hazelnuts.",
@@ -34796,7 +35041,9 @@
       "Milk Chocolate",
       "Hazelnuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Salawara Estate - Anaerobic Yellow Honey"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_udaigiri-estate-naturals-chikmagalur-light-roast",
@@ -34807,7 +35054,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Udaigiri Estate - Naturals - Chikmagalur - Light Roast",
+    "coffee_name": "Udaigiri Estate - Naturals",
     "coffee_slug": "udaigiri-estate-naturals-chikmagalur-light-roast",
     "roast_level": "Light",
     "tasting_notes": "Mulberries, Candied Nuts and Milk Chocolate.",
@@ -34908,7 +35155,9 @@
       "Candied Nuts",
       "Milk Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta",
+    "coffee_name_clean": "Udaigiri Estate - Naturals"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_kelachandra-estate-naturals-chikmagalur-light-roast",
@@ -34919,7 +35168,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Kelachandra estate - Naturals - Chikmagalur - Light Roast",
+    "coffee_name": "Kelachandra Estate - Naturals",
     "coffee_slug": "kelachandra-estate-naturals-chikmagalur-light-roast",
     "roast_level": "Light",
     "tasting_notes": "Stone Fruit, Cacao and Floral.",
@@ -35020,7 +35269,9 @@
       "Cacao",
       "Floral"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Kelachandra Estate - Naturals"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_salawara-estate-bio-reactor-naturals-sakleshpur-light-roast",
@@ -35031,7 +35282,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Salawara estate - Bio-Reactor Naturals - Sakleshpur - Light Roast",
+    "coffee_name": "Salawara Estate - Bio-Reactor Naturals",
     "coffee_slug": "salawara-estate-bio-reactor-naturals-sakleshpur-light-roast",
     "roast_level": "Light",
     "tasting_notes": "Pineapple, Citrus Fruits and Cocoa.",
@@ -35132,7 +35383,9 @@
       "Citrus",
       "Cocoa"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Salawara Estate - Bio-Reactor Naturals"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_salawara-estate-yeast-washed-sakleshpur-light-roast",
@@ -35143,7 +35396,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Salawara estate - Yeast Washed - Sakleshpur - Light Roast",
+    "coffee_name": "Salawara Estate - Yeast Washed",
     "coffee_slug": "salawara-estate-yeast-washed-sakleshpur-light-roast",
     "roast_level": "Light",
     "tasting_notes": "Peaches, White Chocolate and Butterscotch.",
@@ -35244,7 +35497,9 @@
       "White Chocolate",
       "Butterscotch"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Salawara Estate - Yeast Washed"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_kelachandra-estate-honey-sugarcane-co-ferment-chikmagalur-light-roast",
@@ -35255,7 +35510,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Kelachandra estate - Honey (Sugarcane Co-Ferment) - Chikmagalur - Light Roast",
+    "coffee_name": "Kelachandra Estate - Honey (Sugarcane Co-Ferment)",
     "coffee_slug": "kelachandra-estate-honey-sugarcane-co-ferment-chikmagalur-light-roast",
     "roast_level": "Light",
     "tasting_notes": "Plum, Milk Chocolate and Fresh Tropical Fruits.",
@@ -35358,7 +35613,9 @@
       "Milk Chocolate",
       "Tropical Fruits"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Kelachandra Estate - Honey (Sugarcane Co-Ferment)"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_harley-estate-vienna-roast-naturals-sakleshpur",
@@ -35369,7 +35626,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Harley Estate - Vienna Roast (Naturals) - Sakleshpur",
+    "coffee_name": "Harley Estate - Vienna Roast (Naturals)",
     "coffee_slug": "harley-estate-vienna-roast-naturals-sakleshpur",
     "roast_level": "Dark",
     "tasting_notes": "Blackberry Jam, Caramel and Cacao.",
@@ -35470,7 +35727,9 @@
       "Caramel",
       "Cacao"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta",
+    "coffee_name_clean": "Harley Estate - Vienna Roast (Naturals)"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_hoysala-estate-naturals-chikmagalur-light-roast",
@@ -35481,7 +35740,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Hoysala Estate - Naturals - Chikmagalur - Light Roast",
+    "coffee_name": "Hoysala Estate - Naturals",
     "coffee_slug": "hoysala-estate-naturals-chikmagalur-light-roast",
     "roast_level": "Light",
     "tasting_notes": "Orange Marmalade, Dried Apricots and Dark Chocolate.",
@@ -35574,7 +35833,9 @@
       "Dried Apricots",
       "Dark Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Hoysala Estate - Naturals"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_salawara-estate-red-honey-sakleshpur-light-roast",
@@ -35585,7 +35846,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Salawara Estate - Red Honey - Sakleshpur - Light Roast",
+    "coffee_name": "Salawara Estate - Red Honey",
     "coffee_slug": "salawara-estate-red-honey-sakleshpur-light-roast",
     "roast_level": "Light",
     "tasting_notes": "Amla, Kinnow and Jaggery.",
@@ -35685,7 +35946,9 @@
       "Kinnow",
       "Jaggery"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Salawara Estate - Red Honey"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_anai-kadu-naturals-coorg-light-roast",
@@ -35696,7 +35959,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Anai Kadu - Naturals - Coorg - Light Roast",
+    "coffee_name": "Anai Kadu - Naturals",
     "coffee_slug": "anai-kadu-naturals-coorg-light-roast",
     "roast_level": "Light",
     "tasting_notes": "Plum, Bakers Chocolate and Orange.",
@@ -35797,7 +36060,9 @@
       "Bakers Chocolate",
       "Orange"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Anai Kadu - Naturals"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_kid-dynamite-dark-roast",
@@ -35808,7 +36073,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Kid Dynamite - Dark Roast",
+    "coffee_name": "Kid Dynamite",
     "coffee_slug": "kid-dynamite-dark-roast",
     "roast_level": "Dark",
     "tasting_notes": "Super chocolate and sweet notes from the Robusta naturals.",
@@ -35974,7 +36239,9 @@
       "Chocolate",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Kid Dynamite"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_hoysala-estate-washed-chikmagalur-light-roast",
@@ -35985,7 +36252,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Hoysala Estate - Washed - Chikmagalur - Light Roast",
+    "coffee_name": "Hoysala Estate - Washed",
     "coffee_slug": "hoysala-estate-washed-chikmagalur-light-roast",
     "roast_level": "Light",
     "tasting_notes": "Coffee Blossom, Stone Fruit and Oranges.",
@@ -36078,7 +36345,9 @@
       "Stone Fruit",
       "Oranges"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Hoysala Estate - Washed"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_venkids-valley-estate-the-red-honey-light-roast",
@@ -36089,7 +36358,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Venkids Valley Estate - The Red Honey - Light Roast",
+    "coffee_name": "Venkids Valley Estate - The Red Honey",
     "coffee_slug": "venkids-valley-estate-the-red-honey-light-roast",
     "roast_level": "Light",
     "tasting_notes": "Mango, Hibiscus and Butterscotch.",
@@ -36190,7 +36459,9 @@
       "Hibiscus",
       "Butterscotch"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Venkids Valley Estate - The Red Honey"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_meera-medium-light-roast",
@@ -36201,7 +36472,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Meera - Medium Light Roast",
+    "coffee_name": "Meera",
     "coffee_slug": "meera-medium-light-roast",
     "roast_level": "Medium-Light",
     "tasting_notes": "Caramel, Bakers Chocolate, Berries and Vanilla.",
@@ -36366,7 +36637,9 @@
       "Berries",
       "Vanilla"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Meera"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_balanoor-plantations-kents-washed-chikmagalur-medium-roast",
@@ -36377,7 +36650,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Balanoor Plantations - Kents (Washed) - Chikmagalur - Medium Roast",
+    "coffee_name": "Balanoor Plantations - Kents (Washed)",
     "coffee_slug": "balanoor-plantations-kents-washed-chikmagalur-medium-roast",
     "roast_level": "Medium",
     "tasting_notes": "Rich milk chocolate, subtle citrus acidity and plum.",
@@ -36543,7 +36816,9 @@
       "Citrus",
       "Plum"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Balanoor Plantations - Kents (Washed)"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_pulney-coffee-washed-pulney-hills-medium-roast",
@@ -36554,7 +36829,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Pulney Coffee (Washed) - Pulney Hills - Medium Roast",
+    "coffee_name": "Pulney Coffee (Washed)",
     "coffee_slug": "pulney-coffee-washed-pulney-hills-medium-roast",
     "roast_level": "Medium",
     "tasting_notes": "Citrus Fruits, Cherries and Nuts.",
@@ -36720,7 +36995,9 @@
       "Cherries",
       "Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Pulney Coffee (Washed)"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_papakuchi-coffee-washed-coorg-light-roast",
@@ -36731,7 +37008,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Papakuchi Coffee (Washed) - Coorg (Light Roast)",
+    "coffee_name": "Papakuchi Coffee (Washed)",
     "coffee_slug": "papakuchi-coffee-washed-coorg-light-roast",
     "roast_level": "Light",
     "tasting_notes": "Sweet notes of Red Apple and Pomegranate juice with subtle acidity and a rich body.",
@@ -36897,7 +37174,9 @@
       "Red Apple",
       "Pomegranate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Papakuchi Coffee (Washed)"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_venkids-valley-estate-washed-coorg-medium-dark-roast",
@@ -36908,7 +37187,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Venkids Valley Estate (Washed) – Coorg - Medium Dark Roast",
+    "coffee_name": "Venkids Valley Estate (Washed)",
     "coffee_slug": "venkids-valley-estate-washed-coorg-medium-dark-roast",
     "roast_level": "Medium-Dark",
     "tasting_notes": "Mexican chocolate, Caramel and Orange Zest.",
@@ -37074,7 +37353,9 @@
       "Caramel",
       "Orange Zest"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Venkids Valley Estate (Washed)"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_salawara-estate-chikmaglur-dark-roast",
@@ -37085,7 +37366,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Salawara Estate – Chikmaglur - Dark Roast",
+    "coffee_name": "Salawara Estate",
     "coffee_slug": "salawara-estate-chikmaglur-dark-roast",
     "roast_level": "Dark",
     "tasting_notes": "Caramel, milk chocolate and subtle hints of citrus.",
@@ -37251,7 +37532,9 @@
       "Milk Chocolate",
       "Citrus"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Salawara Estate"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_satchmo-dark-roast",
@@ -37262,7 +37545,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Satchmo - Dark Roast",
+    "coffee_name": "Satchmo",
     "coffee_slug": "satchmo-dark-roast",
     "roast_level": "Medium-Dark",
     "tasting_notes": "Chocolate, Dark Caramel and hints of Citrus.",
@@ -37428,7 +37711,9 @@
       "Dark Caramel",
       "Citrus"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Satchmo"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_vin-van-gogh-medium-roast",
@@ -37439,7 +37724,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Vin Van Gogh - Medium Roast",
+    "coffee_name": "Vin Van Gogh",
     "coffee_slug": "vin-van-gogh-medium-roast",
     "roast_level": "Medium-Dark",
     "tasting_notes": "Berries, almonds and spiced chocolate.",
@@ -37605,7 +37890,9 @@
       "Almonds",
       "Spiced Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Vin Van Gogh"
   },
   {
     "product_id": "bloom-coffee-roasters-head-office_ro-busta-rhymes-dark-roast",
@@ -37616,7 +37903,7 @@
     "roaster_lat": 30.7177732,
     "roaster_lng": 76.8507577,
     "roaster_website": "https://bloomcoffeeroasters.in",
-    "coffee_name": "Ro-Busta Rhymes - Dark Roast",
+    "coffee_name": "Ro-Busta Rhymes",
     "coffee_slug": "ro-busta-rhymes-dark-roast",
     "roast_level": "Medium-Dark",
     "tasting_notes": "Super tasty blend with notable acidity and sweetness from the Robusta.",
@@ -37782,7 +38069,9 @@
       "Acidity",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Ro-Busta Rhymes"
   },
   {
     "product_id": "caarabi-coffee-roasters_fruit-floral-duo",
@@ -37931,7 +38220,8 @@
       "Floral",
       "Jammy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caarabi-coffee-roasters_yc-culture-naturals-ratnagiri-estate",
@@ -38080,7 +38370,8 @@
       "Cascara",
       "Peppermint"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caarabi-coffee-roasters_the-light-roast-edit",
@@ -38225,7 +38516,8 @@
       "Clean",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "caarabi-coffee-roasters_anaerobic-naturals-ammikulavi-estate",
@@ -38373,7 +38665,8 @@
       "Strawberry",
       "Cacao Nibs"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caarabi-coffee-roasters_cosy-af",
@@ -38524,7 +38817,8 @@
       "Jasmine",
       "Coconut"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caarabi-coffee-roasters_ratnagiri-estate-yeast-carbonic-naturals",
@@ -38672,7 +38966,8 @@
       "Mulberry",
       "Nougat"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caarabi-coffee-roasters_man-on-mars-blend",
@@ -38819,7 +39114,8 @@
       "Caramel",
       "Nougat"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caarabi-coffee-roasters_ratnagiri-estate-whiskey-barrel-aged",
@@ -38967,7 +39263,8 @@
       "Caramel",
       "Liquorice"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caarabi-coffee-roasters_ratnagiri-estate-rum-barrel-aged",
@@ -39116,7 +39413,8 @@
       "Vanilla",
       "Rum"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caarabi-coffee-roasters_melkodige-estate-wine-yeast-fermented-anaerobic-naturals",
@@ -39264,7 +39562,8 @@
       "Mango",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caarabi-coffee-roasters_melkodige-estate-chandragiri-washed",
@@ -39412,7 +39711,8 @@
       "Milk Chocolate",
       "Lemon Zest"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caarabi-coffee-roasters_attikan-estate-cultured-naturals",
@@ -39561,7 +39861,8 @@
       "Black Grapes",
       "Chamomile"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "caarabi-coffee-roasters_french-roast",
@@ -39708,7 +40009,8 @@
       "Bold",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caarabi-coffee-roasters_espresso-sunshine-blend",
@@ -39856,7 +40158,8 @@
       "Oak",
       "Vanilla"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caarabi-coffee-roasters_vienna-roast",
@@ -40004,7 +40307,8 @@
       "Oak",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caarabi-coffee-roasters_baarbara-washed-aa",
@@ -40153,7 +40457,8 @@
       "Cherry",
       "Raisins"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caffena-coffee_einsteins-assorted-dip-n-sip-pack",
@@ -40209,7 +40514,8 @@
     "scraped_at": "2026-04-06T04:48:13Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caffena-coffee_nikola-dip-n-sip-bags-light-med-roast-ct-estate-naturals-100-arabica-coffee",
@@ -40262,7 +40568,8 @@
     "scraped_at": "2026-04-06T04:48:13Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caffena-coffee_da-vinci-dip-n-sip-bags-med-dark-roast-baarbara-estate-washed-100-arabica-coffee",
@@ -40313,7 +40620,8 @@
     "scraped_at": "2026-04-06T04:48:13Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caffena-coffee_newton-dip-n-sip-bags-med-roast-honey-sun-dried-attikan-estate-100-arabica-coffee",
@@ -40365,7 +40673,8 @@
     "scraped_at": "2026-04-06T04:48:13Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caffena-coffee_da-vinci-med-dark-roast-baarbara-estate-washed-100-arabica-coffee",
@@ -40531,7 +40840,8 @@
       "Almonds",
       "Pepper"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caffena-coffee_newton-med-roast-honey-sun-dried-attikan-estate-100-arabica-coffee",
@@ -40695,7 +41005,8 @@
       "Apple",
       "Honey"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caffena-coffee_nikola-light-med-roast-ct-estate-naturals-100-arabica-coffee",
@@ -40861,7 +41172,8 @@
       "Orange",
       "Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "caffena-coffee_houseblend-82-blend-80-arabica-mysore-nuggets-ct-estate-with-20-robusta-from-baarbara-estate-coffee",
@@ -41010,7 +41322,8 @@
       "Dark Chocolate",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "caffena-coffee_houseblend-73-blend-70-arabica-mysore-nuggets-ct-estate-with-30-robusta-from-baarbara-estate-coffee",
@@ -41168,7 +41481,8 @@
       "Cocoa",
       "Almonds"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "chariot-coffee_chariot-new-york-espresso-coffee-beans",
@@ -41224,7 +41538,8 @@
       "Dark Chocolate",
       "Cedar"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "chariot-coffee_premium-arabica-coffee-beans-caramel-dark-chocolate-walnut-vanilla-notes-medium-roast-whole-bean-coffee",
@@ -41361,7 +41676,8 @@
       "Walnut",
       "Vanilla"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "chariot-coffee_signature-anaerobic-fermented-arabica-coffee-beans-baarbara-estate-lightmedium-roast",
@@ -41496,7 +41812,8 @@
       "Fruity",
       "Silky"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-culture_colombia-azahar-medium-light-roast",
@@ -41640,7 +41957,8 @@
       "Chocolate",
       "Floral"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-culture_ratnagiri-whiskey-barrel-aged-light-roast-nanolot",
@@ -41785,7 +42103,8 @@
       "Vanilla",
       "Malt"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-culture_baarbara-mixed-fruit-fermentation-medium-light-roast-microlot",
@@ -41931,7 +42250,8 @@
       "Black Tea",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-culture_baarbara-intenso-naturals-light-roast-microlot",
@@ -42075,7 +42395,8 @@
       "Raw Cacao",
       "Marigold"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-culture_attikan-culture-process-light-roast-microlot",
@@ -42220,7 +42541,8 @@
       "Chamomile",
       "Grapes"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-culture_ratnagiri-yeast-carbonic-naturals-light-roast-microlot",
@@ -42365,7 +42687,8 @@
       "Lemon Peel",
       "Nougat"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-culture-reserve_colombia-azahar-medium-light-roast",
@@ -42509,7 +42832,8 @@
       "Chocolate",
       "Floral"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-culture-reserve_ratnagiri-whiskey-barrel-aged-light-roast-nanolot",
@@ -42654,7 +42978,8 @@
       "Vanilla",
       "Malt"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-culture-reserve_baarbara-mixed-fruit-fermentation-medium-light-roast-microlot",
@@ -42800,7 +43125,8 @@
       "Black Tea",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-culture-reserve_baarbara-intenso-naturals-light-roast-microlot",
@@ -42944,7 +43270,8 @@
       "Raw Cacao",
       "Marigold"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-culture-reserve_attikan-culture-process-light-roast-microlot",
@@ -43089,7 +43416,8 @@
       "Chamomile",
       "Grapes"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-culture-reserve_ratnagiri-yeast-carbonic-naturals-light-roast-microlot",
@@ -43234,7 +43562,8 @@
       "Lemon Peel",
       "Nougat"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-sutra-c-scheme_ratnagiri-cultural-naturals",
@@ -43283,7 +43612,8 @@
     "scraped_at": "2026-04-06T04:48:28Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-sutra-c-scheme_ratnagiri-intenso",
@@ -43333,7 +43663,8 @@
     "scraped_at": "2026-04-06T04:48:28Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-sutra-c-scheme_ratnagiri-thermal-shock",
@@ -43383,7 +43714,8 @@
     "scraped_at": "2026-04-06T04:48:28Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "coffee-sutra-c-scheme_krishnagiri-lactic-washed",
@@ -43434,7 +43766,8 @@
     "scraped_at": "2026-04-06T04:48:28Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-sutra-c-scheme_decaf",
@@ -43485,7 +43818,8 @@
     "scraped_at": "2026-04-06T04:48:28Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffee-sutra-c-scheme_twilight",
@@ -43536,7 +43870,8 @@
     "scraped_at": "2026-04-06T04:48:28Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "coffeeverse-experience-centre_rc-7-naturals",
@@ -43653,7 +43988,8 @@
     "scraped_at": "2026-04-06T04:48:29Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffeeverse-experience-centre_hydro-honey",
@@ -43769,7 +44105,8 @@
     "scraped_at": "2026-04-06T04:48:29Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffeeverse-experience-centre_koraput-black-honey",
@@ -43886,7 +44223,8 @@
     "scraped_at": "2026-04-06T04:48:29Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffeeverse-experience-centre_kolli-berri-naturals",
@@ -44002,7 +44340,8 @@
     "scraped_at": "2026-04-06T04:48:29Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "coffeeverse-experience-centre_blossom-naturals",
@@ -44115,7 +44454,8 @@
     "scraped_at": "2026-04-06T04:48:29Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_kuchally-estate-washed",
@@ -44473,7 +44813,8 @@
       "Betel Leaf",
       "Cloves"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_salawara-estate-bioreactor-naturals",
@@ -44831,7 +45172,8 @@
       "Dried Apple",
       "Cranberry"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_gungegiri-estate-culture-naturals",
@@ -45189,7 +45531,8 @@
       "Stone Fruits",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_salawara-estate-carbonic-maceration",
@@ -45547,7 +45890,8 @@
       "Orange Blossom",
       "Damson Plum"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_basankhan-estate",
@@ -45904,7 +46248,8 @@
       "Green Apple",
       "Muskmelon"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_attikan-estate-red-honey",
@@ -46262,7 +46607,8 @@
       "Banana",
       "Elderflower"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_melkodige-estate-saccharomyces-72hrs-naturals",
@@ -46618,7 +46964,8 @@
       "Pink Guava",
       "Golden Raisin"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_baarbara-estate-washed-process",
@@ -46975,7 +47322,8 @@
       "Clove",
       "White Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_barista-forte-blend",
@@ -47338,7 +47686,8 @@
       "Nutmeg",
       "Bayleaf"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_cold-brew-blend-bold",
@@ -47697,7 +48046,8 @@
       "Dark Chocolate",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_lean-blend",
@@ -48058,7 +48408,8 @@
       "Cinnamon",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_sampler-pack",
@@ -48217,7 +48568,8 @@
       "Apricot",
       "Orange Zest"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_brm-blend",
@@ -48579,7 +48931,8 @@
       "Roasted Hazelnut",
       "Brown Sugar"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "corridor-seven-coffee-roasters_ratnagiri-estate-washed-process",
@@ -48937,7 +49290,8 @@
       "Brown Sugar",
       "Green Apple"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_august-rush-blend",
@@ -49297,7 +49651,8 @@
       "Prunes",
       "Toasted Almonds"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_cold-brew-blend-regular-march-mellow",
@@ -49655,7 +50010,8 @@
       "Apricot",
       "Orange Zest"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_vienna-roast",
@@ -50011,7 +50367,8 @@
       "Cacao Nibs",
       "Dark Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasters_french-roast",
@@ -50367,7 +50724,8 @@
       "Bold",
       "Smokey"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_kuchally-estate-washed",
@@ -50725,7 +51083,8 @@
       "Betel Leaf",
       "Cloves"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_salawara-estate-bioreactor-naturals",
@@ -51083,7 +51442,8 @@
       "Dried Apple",
       "Cranberry"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_gungegiri-estate-culture-naturals",
@@ -51441,7 +51801,8 @@
       "Stone Fruits",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_salawara-estate-carbonic-maceration",
@@ -51799,7 +52160,8 @@
       "Orange Blossom",
       "Damson Plum"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_basankhan-estate",
@@ -52156,7 +52518,8 @@
       "Green Apple",
       "Muskmelon"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_attikan-estate-red-honey",
@@ -52514,7 +52877,8 @@
       "Banana",
       "Elderflower"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_melkodige-estate-saccharomyces-72hrs-naturals",
@@ -52870,7 +53234,8 @@
       "Pink Guava",
       "Golden Raisin"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_baarbara-estate-washed-process",
@@ -53227,7 +53592,8 @@
       "Clove",
       "White Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_barista-forte-blend",
@@ -53590,7 +53956,8 @@
       "Nutmeg",
       "Bayleaf"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_cold-brew-blend-bold",
@@ -53949,7 +54316,8 @@
       "Dark Chocolate",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_lean-blend",
@@ -54310,7 +54678,8 @@
       "Cinnamon",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_sampler-pack",
@@ -54469,7 +54838,8 @@
       "Apricot",
       "Orange Zest"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_brm-blend",
@@ -54831,7 +55201,8 @@
       "Roasted Hazelnut",
       "Brown Sugar"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_ratnagiri-estate-washed-process",
@@ -55189,7 +55560,8 @@
       "Brown Sugar",
       "Green Apple"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_august-rush-blend",
@@ -55549,7 +55921,8 @@
       "Prunes",
       "Toasted Almonds"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_cold-brew-blend-regular-march-mellow",
@@ -55907,7 +56280,8 @@
       "Apricot",
       "Orange Zest"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_vienna-roast",
@@ -56263,7 +56637,8 @@
       "Cacao Nibs",
       "Dark Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-coffee-roasterystanding-room_french-roast",
@@ -56619,7 +56994,8 @@
       "Bold",
       "Smokey"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_kuchally-estate-washed",
@@ -56977,7 +57353,8 @@
       "Betel Leaf",
       "Cloves"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_salawara-estate-bioreactor-naturals",
@@ -57335,7 +57712,8 @@
       "Dried Apple",
       "Cranberry"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_gungegiri-estate-culture-naturals",
@@ -57693,7 +58071,8 @@
       "Stone Fruits",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_salawara-estate-carbonic-maceration",
@@ -58051,7 +58430,8 @@
       "Orange Blossom",
       "Damson Plum"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_basankhan-estate",
@@ -58408,7 +58788,8 @@
       "Green Apple",
       "Muskmelon"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_attikan-estate-red-honey",
@@ -58766,7 +59147,8 @@
       "Banana",
       "Elderflower"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "corridor-seven-lean_melkodige-estate-saccharomyces-72hrs-naturals",
@@ -59122,7 +59504,8 @@
       "Pink Guava",
       "Golden Raisin"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "corridor-seven-lean_baarbara-estate-washed-process",
@@ -59479,7 +59862,8 @@
       "Clove",
       "White Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_barista-forte-blend",
@@ -59842,7 +60226,8 @@
       "Nutmeg",
       "Bayleaf"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_cold-brew-blend-bold",
@@ -60201,7 +60586,8 @@
       "Dark Chocolate",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_lean-blend",
@@ -60562,7 +60948,8 @@
       "Cinnamon",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_sampler-pack",
@@ -60721,7 +61108,8 @@
       "Apricot",
       "Orange Zest"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "corridor-seven-lean_brm-blend",
@@ -61083,7 +61471,8 @@
       "Roasted Hazelnut",
       "Brown Sugar"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "corridor-seven-lean_ratnagiri-estate-washed-process",
@@ -61441,7 +61830,8 @@
       "Brown Sugar",
       "Green Apple"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_august-rush-blend",
@@ -61801,7 +62191,8 @@
       "Prunes",
       "Toasted Almonds"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_cold-brew-blend-regular-march-mellow",
@@ -62159,7 +62550,8 @@
       "Apricot",
       "Orange Zest"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_vienna-roast",
@@ -62515,7 +62907,8 @@
       "Cacao Nibs",
       "Dark Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "corridor-seven-lean_french-roast",
@@ -62871,7 +63264,8 @@
       "Smokey",
       "Bold"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "cothas-coffee-chikkamagaluru-karnataka_nova-blend",
@@ -62933,7 +63327,8 @@
       "Aromatic",
       "Natural Sweetness"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "cothas-coffee-chikkamagaluru-karnataka_coffee-rich-500g",
@@ -62989,7 +63384,8 @@
       "Aromatic",
       "Rich"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "curious-life-coffee-roasters-blue_honnametti-estate-8211-washed-espresso",
@@ -63036,7 +63432,8 @@
       "Sweet Fruits",
       "Spices"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_brazil-santos-cerrado-dulce",
@@ -63307,7 +63704,8 @@
       "Roasted Hazelnuts",
       "Cereals"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_black-honey-coffee",
@@ -63496,7 +63894,8 @@
       "Fruity",
       "Balanced Acidity"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_arabica-peaberry-dark-roast-coffee",
@@ -63707,7 +64106,8 @@
       "Floral",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_arabica-plantation-aaa-coffee-dark-roast",
@@ -63913,7 +64313,8 @@
       "Buttery",
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_arabica-peaberry-coffee",
@@ -64132,7 +64533,8 @@
       "Aromatic",
       "Smooth"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_lodhi-blend",
@@ -64352,7 +64754,8 @@
       "Earthy",
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_colombian-arabica-coffee",
@@ -64624,7 +65027,8 @@
       "Honey",
       "Spice"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_arabica-plantation-aa-coffee",
@@ -64832,7 +65236,8 @@
       "Spice",
       "Full Body"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_robusta-kaapi-royale",
@@ -65044,7 +65449,8 @@
       "Spice",
       "Full Body"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_oriental-espresso-blend",
@@ -65261,7 +65667,8 @@
       "Spice",
       "Bitter"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_viennese-blend",
@@ -65475,7 +65882,8 @@
       "Spicy",
       "Aromatic"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_arabica-french-roast-coffee",
@@ -65689,7 +66097,8 @@
       "Smoky",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_organic-arabica-coffee",
@@ -65903,7 +66312,8 @@
       "Aromatic",
       "Spicy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_arabica-plantation-aaa-mysore-nuggets-extra-bold",
@@ -66108,7 +66518,8 @@
       "Buttery",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_special-blend",
@@ -66321,7 +66732,8 @@
       "Spicy",
       "Aromatic"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "devans-south-indian-coffee-and-tea-pvt-ltd_monsooned-malabar-arabica-aa",
@@ -66527,7 +66939,8 @@
       "Chocolate",
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "dope-coffee-roasters_buzz-blend",
@@ -66676,7 +67089,9 @@
       "Molasses",
       "Toasted Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend",
+    "coffee_name_clean": "Buzz Blend"
   },
   {
     "product_id": "dope-coffee-roasters_most-wanted-dope",
@@ -66687,7 +67102,7 @@
     "roaster_lat": 18.999142,
     "roaster_lng": 72.829836,
     "roaster_website": "http://www.dopecoffee.in",
-    "coffee_name": "MOST WANTED DOPE 🚨🚨🚨",
+    "coffee_name": "Most Wanted Dope 🚨🚨🚨",
     "coffee_slug": "most-wanted-dope",
     "roast_level": "Dark",
     "tasting_notes": null,
@@ -66818,7 +67233,9 @@
     "scraped_at": "2026-04-06T04:48:45Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null,
+    "coffee_name_clean": "Most Wanted Dope 🚨🚨🚨"
   },
   {
     "product_id": "dope-coffee-roasters_mysore-nuggets",
@@ -66829,7 +67246,7 @@
     "roaster_lat": 18.999142,
     "roaster_lng": 72.829836,
     "roaster_website": "http://www.dopecoffee.in",
-    "coffee_name": "MYSORE NUGGETS",
+    "coffee_name": "Mysore Nuggets",
     "coffee_slug": "mysore-nuggets",
     "roast_level": "Medium-Light",
     "tasting_notes": "Full-bodied with a powerful aroma.",
@@ -66964,7 +67381,9 @@
       "Full Body",
       "Aromatic"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Mysore Nuggets"
   },
   {
     "product_id": "dope-coffee-roasters_kalledevarapura-estate",
@@ -66975,7 +67394,7 @@
     "roaster_lat": 18.999142,
     "roaster_lng": 72.829836,
     "roaster_website": "http://www.dopecoffee.in",
-    "coffee_name": "KALLEDEVARAPURA ESTATE",
+    "coffee_name": "Kalledevarapura Estate",
     "coffee_slug": "kalledevarapura-estate",
     "roast_level": "Medium-Light",
     "tasting_notes": "Complex flavours with smooth natural sweetness.",
@@ -67109,7 +67528,9 @@
       "Natural Sweetness",
       "Complex"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Kalledevarapura Estate"
   },
   {
     "product_id": "dope-coffee-roasters_nilgiri",
@@ -67120,7 +67541,7 @@
     "roaster_lat": 18.999142,
     "roaster_lng": 72.829836,
     "roaster_website": "http://www.dopecoffee.in",
-    "coffee_name": "NILGIRI",
+    "coffee_name": "Nilgiri",
     "coffee_slug": "nilgiri",
     "roast_level": "Medium",
     "tasting_notes": "Modern and distinct flavours from coffee grown alongside sugarcane, orange, and eucalyptus in the Nilgiri hills.",
@@ -67252,7 +67673,9 @@
     "scraped_at": "2026-04-06T04:48:45Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Nilgiri"
   },
   {
     "product_id": "dope-coffee-roasters_polaris-cold-brew-blend",
@@ -67263,7 +67686,7 @@
     "roaster_lat": 18.999142,
     "roaster_lng": 72.829836,
     "roaster_website": "http://www.dopecoffee.in",
-    "coffee_name": "POLARIS COLD BREW BLEND",
+    "coffee_name": "Polaris Cold Brew Blend",
     "coffee_slug": "polaris-cold-brew-blend",
     "roast_level": "Medium",
     "tasting_notes": "Smooth, mellow, and round — an astral blend for cold brewing.",
@@ -67398,7 +67821,9 @@
       "Smooth",
       "Mellow"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica",
+    "coffee_name_clean": "Polaris Cold Brew Blend"
   },
   {
     "product_id": "dope-coffee-roasters_roaring-robusta",
@@ -67409,7 +67834,7 @@
     "roaster_lat": 18.999142,
     "roaster_lng": 72.829836,
     "roaster_website": "http://www.dopecoffee.in",
-    "coffee_name": "ROARING ROBUSTA",
+    "coffee_name": "Roaring Robusta",
     "coffee_slug": "roaring-robusta",
     "roast_level": "Dark",
     "tasting_notes": "Rich dark chocolate, a dash of oaky intrigue, and a nutty surprise with an intense caffeine surge.",
@@ -67545,7 +67970,9 @@
       "Oaky",
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta",
+    "coffee_name_clean": "Roaring Robusta"
   },
   {
     "product_id": "drum-coffee-roasters_desita-espresso-roast-250g-roasted-for-short-structured-extractions-whole-beans-or-ground",
@@ -67606,7 +68033,8 @@
       "Dark Chocolate",
       "Toasted Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "drum-coffee-roasters_desita-south-indian-filter-coffee-250g-roasted-and-ground-for-traditional-filter-brewing",
@@ -67660,7 +68088,8 @@
       "Bold Roast",
       "Full Body"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "drum-coffee-roasters_desita-americano-roast-250g-designed-for-longer-black-coffee-whole-beans-or-ground",
@@ -67722,7 +68151,8 @@
       "Mild Acidity",
       "Clean"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "drum-coffee-roasters_desita-latte-roast-250g-developed-for-milk-based-brewing-whole-beans-or-ground",
@@ -67785,7 +68215,8 @@
       "Dark Chocolate",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "drum-coffee-roasters_desita-cold-brew-roast-250g-roasted-for-slow-cold-extraction-whole-beans-or-ground",
@@ -67847,7 +68278,8 @@
       "Low Acidity",
       "Smooth"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "drum-coffee-roasters_house-blend-80-arabica-20-robusta-coffee-beans-medium-dark-roast-dependable-blend-for-volume-and-consistency-creamy-texture-bold-flavour-smooth-finish-and-reliable-performance-across-cafes-offices-and-home",
@@ -67984,7 +68416,8 @@
       "Creamy",
       "Bold"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "ekata-coffee-roasters_north-east-coffee-series-wild-flora",
@@ -68101,7 +68534,8 @@
     "scraped_at": "2026-04-06T04:48:47Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "ekata-coffee-roasters_rocket-fuel",
@@ -68347,7 +68781,8 @@
       "Rum",
       "Dry Raisins"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "ekata-coffee-roasters_black-panther",
@@ -68593,7 +69028,8 @@
       "Dark Chocolate",
       "Dried Fruit"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "ffox-coffee_ffox-royale",
@@ -68712,7 +69148,8 @@
       "Dry Fruits",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "ffox-coffee_ffox-cafe-grande",
@@ -68829,7 +69266,8 @@
       "Dry Fruits",
       "Toasted Bread"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "ffox-coffee_ffox-intenso",
@@ -68946,7 +69384,8 @@
       "Chocolate",
       "Bittersweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "ffox-coffee_ffox-speciale",
@@ -69063,7 +69502,8 @@
     "flavor_notes": [
       "Spicy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "ffox-coffee_ffox-das-fox-kaffee",
@@ -69183,7 +69623,8 @@
       "Fruity",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "ffox-coffee_ffox-arabesco",
@@ -69301,7 +69742,8 @@
       "Citrus",
       "Orange Peel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "ffox-coffee_ffox-vigoroso",
@@ -69419,7 +69861,8 @@
       "Cocoa",
       "Vanilla"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "ffox-coffee_ffox-guchi",
@@ -69546,7 +69989,8 @@
       "Dark Chocolate",
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "forest-farmer-coffee-roasters_sun-fruit-yeast-nitrogen",
@@ -69596,7 +70040,8 @@
       "Tropical Sweetness",
       "Layered Acidity"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "forest-farmer-coffee-roasters_green-carbon-yeast-carbonic",
@@ -69646,7 +70091,8 @@
       "Fruity",
       "Aromatic"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "forest-farmer-coffee-roasters_berry-meadows-fruity-floral-coffee-blend",
@@ -69697,7 +70143,8 @@
       "Floral",
       "Berry"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "g-shot-coffee-roastery-cafe_baarbara-estate-extended-ferment-washed",
@@ -69894,7 +70341,8 @@
       "Almond",
       "Cocoa Nibs"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "g-shot-coffee-roastery-cafe_baarbara-estate-intenso-yeast-natural-microlot",
@@ -70092,7 +70540,8 @@
       "Red Grape",
       "Cocoa Nibs"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "g-shot-coffee-roastery-cafe_harangal-estate-fermented-washed-microlot",
@@ -70288,7 +70737,8 @@
       "Red Apple",
       "Cotton Candy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "g-shot-coffee-roastery-cafe_decaf-colombia-huila",
@@ -70437,7 +70887,8 @@
       "Orange",
       "Hazelnut"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "g-shot-coffee-roastery-cafe_melkodige-estate-pichia-yeast-natural-microlot",
@@ -70633,7 +71084,8 @@
       "Red Apple",
       "Muskmelon"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "g-shot-coffee-roastery-cafe_melkodige-estate-washed",
@@ -70829,7 +71281,8 @@
       "Milk Chocolate",
       "Pecan"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "grey-soul-coffee-roasters-bandra-west_summer-in-kodaikanal-light-roast",
@@ -70931,7 +71384,8 @@
       "Tropical Fruit",
       "Cacao"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "grey-soul-coffee-roasters-bandra-west_shevaroys-washed-light-med-roast",
@@ -71032,7 +71486,8 @@
       "Pomegranate",
       "Cacao Nibs"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "grey-soul-coffee-roasters-bandra-west_the-yellow-lot",
@@ -71134,7 +71589,8 @@
       "Milk Chocolate",
       "Subtropical Fruit"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "grey-soul-coffee-roasters-bandra-west_mogra",
@@ -71227,7 +71683,8 @@
       "Sweet Lime",
       "Jasmine"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "grey-soul-coffee-roasters-bandra-west_raspberry-in-loop",
@@ -71328,7 +71785,8 @@
       "Milk Chocolate",
       "Mandarin"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "grey-soul-coffee-roasters-bandra-west_strawberry-in-loop",
@@ -71430,7 +71888,8 @@
       "Milk Chocolate",
       "Raspberry"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "grey-soul-coffee-roasters-bandra-west_roasters-espresso-med-roast",
@@ -71533,7 +71992,8 @@
       "Chocolate Buttercream",
       "Red Berries"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "curious-life-coffee-roasters-red_honnametti-estate-8211-washed-espresso",
@@ -71580,7 +72040,8 @@
       "Sweet Fruits",
       "Spices"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "grey-soul-coffee-roasters-koregaon-park_summer-in-kodaikanal-light-roast",
@@ -71682,7 +72143,8 @@
       "Tropical Fruit",
       "Cacao"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "grey-soul-coffee-roasters-koregaon-park_shevaroys-washed-light-med-roast",
@@ -71783,7 +72245,8 @@
       "Pomegranate",
       "Cacao Nibs"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "grey-soul-coffee-roasters-koregaon-park_the-yellow-lot",
@@ -71885,7 +72348,8 @@
       "Milk Chocolate",
       "Subtropical Fruit"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "grey-soul-coffee-roasters-koregaon-park_mogra",
@@ -71978,7 +72442,8 @@
       "Sweet Lime",
       "Jasmine"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "grey-soul-coffee-roasters-koregaon-park_raspberry-in-loop",
@@ -72079,7 +72544,8 @@
       "Milk Chocolate",
       "Mandarin"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "grey-soul-coffee-roasters-koregaon-park_strawberry-in-loop",
@@ -72181,7 +72647,8 @@
       "Milk Chocolate",
       "Raspberry"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "grey-soul-coffee-roasters-koregaon-park_roasters-espresso-med-roast",
@@ -72284,7 +72751,8 @@
       "Chocolate Buttercream",
       "Red Berries"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "home-blend-coffee-roasters-gk-2_ground-coffee-italian-roast-extra-dark-roast-100-arabica-pack-of-250g",
@@ -72456,7 +72924,8 @@
       "Bitter",
       "Smokey"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "home-blend-coffee-roasters-gk-2_ground-coffee-decaf-boothangudi-estate-decaffeinated-pack-of-250g",
@@ -72878,7 +73347,8 @@
     "flavor_notes": [
       "Milk Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "home-blend-coffee-roasters-gk-2_whole-bean-decaf-boothangudi-estate-decaffeinated-pack-of-250g",
@@ -72953,7 +73423,8 @@
     "flavor_notes": [
       "Milk Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "home-blend-coffee-roasters-gk-2_ground-coffee-araku-valley-pack-of-250g",
@@ -73373,7 +73844,8 @@
       "Milk Chocolate",
       "Citrus"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "home-blend-coffee-roasters-gk-2_whole-bean-araku-valley-pack-of-250g",
@@ -73448,7 +73920,8 @@
       "Milk Chocolate",
       "Citrus"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "home-blend-coffee-roasters-gk-2_cask-reserve-barrel-aged-coffee-medium-roast",
@@ -73612,7 +74085,8 @@
       "Spice",
       "Cocoa"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "home-blend-coffee-roasters-gk-2_ground-coffee-french-roast-very-dark-roast-100-arabica-pack-of-250g",
@@ -73776,7 +74250,8 @@
       "Oaky",
       "Bittersweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "home-blend-coffee-roasters-gk-2_whole-bean-custom-roast-arabica-aaa-cherry-aaa-pack-of-1-kg",
@@ -73839,7 +74314,8 @@
       "Smooth",
       "Balanced"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "home-blend-coffee-roasters-gk-2_ground-coffee-mysore-nuggets-extra-bold-aaa-indian-specialty-arabica-pack-of-250g",
@@ -74256,7 +74732,8 @@
       "Citrus",
       "Cocoa"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "home-blend-coffee-roasters-gk-2_ground-coffee-custom-roast-arabica-aaa-cherry-aaa-pack-of-250g",
@@ -74679,7 +75156,8 @@
       "Smooth",
       "Balanced"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "home-blend-coffee-roasters-gk-2_whole-bean-custom-roast-arabica-aaa-cherry-aaa-pack-of-250g",
@@ -74755,7 +75233,8 @@
       "Smooth",
       "Balanced"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "ikkis-coffee-roasters_flavor-flight",
@@ -74948,7 +75427,8 @@
       "Raisins",
       "Black Tea"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "ikkis-coffee-roasters_deep-desire",
@@ -75139,7 +75619,8 @@
       "Plum",
       "Brown Sugar"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "ikkis-coffee-roasters_berry-bliss",
@@ -75329,7 +75810,8 @@
     "scraped_at": "2026-04-06T04:49:19Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "ikkis-coffee-roasters_golden-glow",
@@ -75522,7 +76004,8 @@
       "Apricot",
       "Brown Sugar"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "ikkis-coffee-roasters_orange-octave",
@@ -75715,7 +76198,8 @@
       "Milk Chocolate",
       "Cashew"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "ikkis-coffee-roasters_morning-mist",
@@ -75906,7 +76390,8 @@
       "Apricot",
       "Grapes"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "ikkis-coffee-roasters_mulberry-melt",
@@ -76097,7 +76582,8 @@
       "Mulberries",
       "Jaggery"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "ikkis-coffee-roasters_citrus-cloak",
@@ -76288,7 +76774,8 @@
       "Cocoa Nibs",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kup-coffee-roasters-nungambakkam_love-you-berry-much-coffee-100-arabica-medium-roast-beans-250-grams",
@@ -76374,7 +76861,8 @@
       "Dark Chocolate",
       "Earthy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kafeido-roastery_ratnagiri-estate-naturals-dark-room-medium-light-roast",
@@ -76441,7 +76929,8 @@
     "scraped_at": "2026-04-06T04:49:20Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kafeido-roastery_ratnagiri-estate-naturals-anaerobic-thermal-shock-medium-roast",
@@ -76508,7 +76997,8 @@
     "scraped_at": "2026-04-06T04:49:20Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kaffa-cerrado-the-roastery_nepal-kavrepalanchok",
@@ -76727,7 +77217,8 @@
       "Grapefruit",
       "Maple Syrup"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kaffa-cerrado-the-roastery_colombia-supremo",
@@ -76945,7 +77436,8 @@
       "Sweet",
       "Mellow"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kaffa-cerrado-the-roastery_indonesia-mandheling",
@@ -77165,7 +77657,8 @@
       "Plum",
       "Caramelised Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kaffa-cerrado-the-roastery_salvador-shg",
@@ -77384,7 +77877,8 @@
       "Dark Chocolate",
       "Tropical Fruits"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kaffa-cerrado-the-roastery_nicaragua-shg",
@@ -77606,7 +78100,8 @@
       "Praline",
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kapi-kottai_purnashadjam",
@@ -77795,7 +78290,8 @@
     "scraped_at": "2026-04-06T04:49:22Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "kapi-kottai_devagandhari",
@@ -77986,7 +78482,8 @@
     "flavor_notes": [
       "Floral"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kat-kin-coffee-roasters_kodai-reserve",
@@ -78155,7 +78652,8 @@
       "Berry",
       "Fruity"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kat-kin-coffee-roasters_the-south-indian-filter-blend",
@@ -78228,7 +78726,8 @@
       "Woody",
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "kat-kin-coffee-roasters_dark-moon",
@@ -78392,7 +78891,8 @@
       "Cherry",
       "Cocoa"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kat-kin-coffee-roasters_kodai-natural",
@@ -78556,7 +79056,8 @@
       "Hazelnut",
       "Molasses"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kat-kin-coffee-roasters_espresso-blend",
@@ -78720,7 +79221,8 @@
       "Spices",
       "Grapefruit"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kat-kin-coffee-roasters_monsooned-malabar",
@@ -78882,7 +79384,8 @@
       "Cocoa",
       "Spices"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kat-kin-coffee-roasters_ethiopian-heirloom",
@@ -79045,7 +79548,8 @@
       "Floral",
       "Citrus"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kallucoppa-coffee-pvt-ltd-factory_black-cardamom-whole",
@@ -79086,7 +79590,8 @@
     "scraped_at": "2026-04-06T04:49:25Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "kallucoppa-coffee-pvt-ltd-factory_roasted-robusta-coffee-beans-aa-8211-washed",
@@ -79127,7 +79632,8 @@
     "scraped_at": "2026-04-06T04:49:25Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "kallucoppa-coffee-pvt-ltd-factory_roasted-robusta-coffee-beans-aa-8211-natural-drying-process",
@@ -79168,7 +79674,8 @@
     "scraped_at": "2026-04-06T04:49:25Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "kallucoppa-coffee-pvt-ltd-factory_espresso-roasted-coffee-beans-blend",
@@ -79211,7 +79718,8 @@
     "scraped_at": "2026-04-06T04:49:25Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "kallucoppa-coffee-pvt-ltd-factory_green-cardamom-whole",
@@ -79252,7 +79760,8 @@
     "scraped_at": "2026-04-06T04:49:25Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "korebi-gourmet-hq_the-bourbon-limited-edition",
@@ -79315,7 +79824,8 @@
       "Bourbon",
       "Oak"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korebi-gourmet-hq_tropical-haze-medium-roast-coffee",
@@ -79378,7 +79888,8 @@
       "Floral",
       "Silky"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korebi-gourmet-hq_wabi-medium-dark-roast-coffee",
@@ -79441,7 +79952,8 @@
       "Mulberry",
       "Apricot"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korebi-gourmet-hq_the-dark-side-dark-roast-coffee",
@@ -79505,7 +80017,8 @@
       "Burnt Caramel",
       "Toasted Walnuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korebi-gourmet-hq_cold-brew-blend-medium-dark-roast",
@@ -79564,7 +80077,8 @@
     "scraped_at": "2026-04-06T04:49:26Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korebi-gourmet-hq_espresso-intenso-80-arabica-20-robusta",
@@ -79626,7 +80140,8 @@
     "flavor_notes": [
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "korebi-gourmet-hq_kanabi-limited-edition-hemp-seed-oil-coffee",
@@ -79688,7 +80203,8 @@
     "scraped_at": "2026-04-06T04:49:26Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korebi-gourmet-hq_golden-toast-brew",
@@ -79747,7 +80263,8 @@
     "scraped_at": "2026-04-06T04:49:26Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korebi-gourmet-hq_pineapple-express",
@@ -79812,7 +80329,8 @@
       "Fruity",
       "Vibrant"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korebi-gourmet-hq_sidrigavi-estate",
@@ -79879,7 +80397,8 @@
       "Raisin",
       "Cocoa"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korebi-gourmet-hq_moganad-estate-honey-sundried",
@@ -79943,7 +80462,8 @@
     "scraped_at": "2026-04-06T04:49:26Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korebi-gourmet-hq_doppio-signature-liquid-coffee-combo-hazelnut-irish-cream-original",
@@ -80008,7 +80528,8 @@
     "scraped_at": "2026-04-06T04:49:26Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korero-coffee-roasters-private-limited_gravity",
@@ -80348,7 +80869,8 @@
       "Marmalade",
       "Walnut"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korero-coffee-roasters-private-limited_flower-ferry",
@@ -80688,7 +81210,8 @@
       "Green Tea",
       "Floral"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korero-coffee-roasters-private-limited_anthology",
@@ -81029,7 +81552,8 @@
       "White Chocolate",
       "Apple"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korero-coffee-roasters-private-limited_middle-son",
@@ -81360,7 +81884,8 @@
       "Cocoa",
       "Honey"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "korero-coffee-roasters-private-limited_90s-child",
@@ -81692,7 +82217,8 @@
       "Lime Zest",
       "Cacao"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kruti-coffee-signature-cafe-irc-village-nayapalli-authentic-specialty-coffee-shop_koraput-light-single-origin-100-g",
@@ -81811,7 +82337,8 @@
       "Honey",
       "Nutmeg"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kruti-coffee-signature-cafe-irc-village-nayapalli-authentic-specialty-coffee-shop_kalinga-gold-signature-blend-250-g",
@@ -81937,7 +82464,8 @@
       "Orange Peel",
       "Dark Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kruti-coffee-signature-cafe-irc-village-nayapalli-authentic-specialty-coffee-shop_madhu-agro-honey-sundried-single-origin-microlot-koraput-medium-roast-250-g",
@@ -82059,7 +82587,8 @@
       "Brown Sugar",
       "Strawberry"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "kruti-coffee-signature-cafe-irc-village-nayapalli-authentic-specialty-coffee-shop_koraput-arabica-blend-signature-blend-250-g",
@@ -82184,7 +82713,8 @@
       "Roasted Almonds",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kruti-coffee-signature-cafe-irc-village-nayapalli-authentic-specialty-coffee-shop_bhubaneswar-blend-signature-blend-250-g",
@@ -82309,7 +82839,8 @@
       "Dark Chocolate",
       "Hazelnut"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kruti-coffee-signature-cafe-irc-village-nayapalli-authentic-specialty-coffee-shop_paraja-strong-single-origin-250g",
@@ -82431,7 +82962,8 @@
       "Cherries",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kruti-coffee-marigold_koraput-light-single-origin-100-g",
@@ -82550,7 +83082,8 @@
       "Honey",
       "Nutmeg"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kruti-coffee-marigold_kalinga-gold-signature-blend-250-g",
@@ -82676,7 +83209,8 @@
       "Orange Peel",
       "Dark Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kruti-coffee-marigold_madhu-agro-honey-sundried-single-origin-microlot-koraput-medium-roast-250-g",
@@ -82798,7 +83332,8 @@
       "Brown Sugar",
       "Strawberry"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "kruti-coffee-marigold_koraput-arabica-blend-signature-blend-250-g",
@@ -82923,7 +83458,8 @@
       "Roasted Almonds",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kruti-coffee-marigold_bhubaneswar-blend-signature-blend-250-g",
@@ -83048,7 +83584,8 @@
       "Dark Chocolate",
       "Hazelnut"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "kruti-coffee-marigold_paraja-strong-single-origin-250g",
@@ -83170,7 +83707,8 @@
       "Cherries",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "la-cuppa-coffee_8211-altaghat-plantation-8211",
@@ -83223,7 +83761,8 @@
     "scraped_at": "2026-04-06T04:49:29Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "la-cuppa-coffee_8211-tribal-picks-8211",
@@ -83277,7 +83816,8 @@
     "scraped_at": "2026-04-06T04:49:29Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "la-cuppa-coffee_8211-gourmet-8211",
@@ -83321,7 +83861,8 @@
     "scraped_at": "2026-04-06T04:49:29Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "la-cuppa-coffee_8211-fine-arabica-8211",
@@ -83367,7 +83908,8 @@
     "scraped_at": "2026-04-06T04:49:29Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "la-cuppa-coffee_8211-madras-blend-8211",
@@ -83412,7 +83954,8 @@
     "scraped_at": "2026-04-06T04:49:29Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "la-cuppa-coffee_8211-fine-arabica-roasted-bean-8211",
@@ -83458,7 +84001,8 @@
     "scraped_at": "2026-04-06T04:49:29Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "la-cuppa-coffee_8211-classic-filter-8211",
@@ -83503,7 +84047,8 @@
     "scraped_at": "2026-04-06T04:49:29Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "la-cuppa-coffee_8211-high-range-arabica-8211",
@@ -83549,7 +84094,8 @@
     "scraped_at": "2026-04-06T04:49:29Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "love-kaapi-best-chikmagalur-coffee_medley",
@@ -83597,7 +84143,8 @@
     "scraped_at": "2026-04-06T04:49:30Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "love-kaapi-best-chikmagalur-coffee_mysore-melody-rich-blend-kaapi",
@@ -83644,7 +84191,8 @@
     "scraped_at": "2026-04-06T04:49:30Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "love-kaapi-best-chikmagalur-coffee_bangalore-bylanes",
@@ -83691,7 +84239,8 @@
     "scraped_at": "2026-04-06T04:49:30Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "love-kaapi-best-chikmagalur-coffee_pure-kaapi",
@@ -83741,7 +84290,8 @@
       "Berries",
       "Citrus"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "okiru-coffee-roasters_sensei",
@@ -84066,7 +84616,8 @@
     "scraped_at": "2026-04-06T04:49:35Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "okiru-coffee-roasters_kujaku",
@@ -84391,7 +84942,8 @@
     "scraped_at": "2026-04-06T04:49:35Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "okiru-coffee-roasters_tora",
@@ -84717,7 +85269,8 @@
     "scraped_at": "2026-04-06T04:49:35Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "panduranga-coffee-1938_new-launch-whiskey-barrel-aged-coffee",
@@ -84774,7 +85327,8 @@
     "scraped_at": "2026-04-06T04:49:35Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "panduranga-coffee-1938_once-upon-a-farm-mylemoney-single-origin-coffee",
@@ -84847,7 +85401,8 @@
       "Toasted Nuts",
       "Cinnamon"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "panduranga-coffee-1938_monkey-coffee-filter-coffee",
@@ -84901,7 +85456,8 @@
     "scraped_at": "2026-04-06T04:49:35Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "panduranga-coffee-1938_wild-coffee",
@@ -84964,7 +85520,8 @@
     "scraped_at": "2026-04-06T04:49:35Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "panduranga-coffee-1938_green-bean-powder-for-weight-loss",
@@ -85011,7 +85568,8 @@
     "scraped_at": "2026-04-06T04:49:35Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "panduranga-coffee-1938_made-in-chikmagalur-80-premium-coffee-20-chicory",
@@ -85079,7 +85637,8 @@
       "Fruity",
       "Butter"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "panduranga-coffee-1938_happy-day-grand-aroma-pure-coffee-without-chicory-for-black-coffeewith-milk-consumers",
@@ -85150,7 +85709,8 @@
     "scraped_at": "2026-04-06T04:49:35Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "panduranga-coffee-1938_french-blend-filter-coffee",
@@ -85222,7 +85782,8 @@
     "scraped_at": "2026-04-06T04:49:35Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "panduranga-coffee-1938_grand-aroma-filter-coffee-85-premium-coffee-15-chicory",
@@ -85278,7 +85839,8 @@
     "scraped_at": "2026-04-06T04:49:35Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "roastery-of-vui_robusta-dark",
@@ -85407,7 +85969,8 @@
     "scraped_at": "2026-04-06T04:49:49Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "roastery-of-vui_espresso-blend-dark",
@@ -85542,7 +86105,8 @@
     "scraped_at": "2026-04-06T04:49:49Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "roastery-of-vui_filter-blend-dark",
@@ -85677,7 +86241,8 @@
     "scraped_at": "2026-04-06T04:49:49Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "roastery-of-vui_double-ferment-light-medium",
@@ -85798,7 +86363,8 @@
     "flavor_notes": [
       "Wild Honey"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "roastery-of-vui_washed-dark",
@@ -86007,7 +86573,8 @@
     "flavor_notes": [
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "roastery-of-vui_black-honey-medium-dark",
@@ -86218,7 +86785,8 @@
       "Fruit",
       "Nutty"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "rossette-coffee-lab-roastery-premium-specialty-coffee-roasters-wholesalers-in-delhi-india_harley-rum-aged-sca-87",
@@ -86342,7 +86910,8 @@
       "Blueberry",
       "Citrus"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "rossette-coffee-lab-roastery-premium-specialty-coffee-roasters-wholesalers-in-delhi-india_rosselle-blend-sca-88",
@@ -86544,7 +87113,8 @@
     "scraped_at": "2026-04-06T04:49:50Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "rossette-coffee-lab-roastery-premium-specialty-coffee-roasters-wholesalers-in-delhi-india_ratnagiri-hydro-honey-sca-86",
@@ -86751,7 +87321,8 @@
       "Sugarcane",
       "Stone Fruit"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "rossette-coffee-lab-roastery-premium-specialty-coffee-roasters-wholesalers-in-delhi-india_ratnagiri-nitrogen-maceration-pacamara-nanolot-sca-85",
@@ -86954,7 +87525,8 @@
     "scraped_at": "2026-04-06T04:49:50Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "rossette-coffee-lab-roastery-premium-specialty-coffee-roasters-wholesalers-in-delhi-india_dusk-cold-brew-blend",
@@ -87159,7 +87731,8 @@
       "Dark Chocolate",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "rossette-coffee-lab-roastery-premium-specialty-coffee-roasters-wholesalers-in-delhi-india_ratnagiri-rum-barrel-aged-naturals-sca-87",
@@ -87366,7 +87939,8 @@
       "Rum",
       "Vanilla"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "rossette-coffee-lab-roastery-premium-specialty-coffee-roasters-wholesalers-in-delhi-india_harley-whiskey-barrel-aged-sca-87",
@@ -87490,7 +88064,8 @@
       "Stone Fruit",
       "Spice"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "rossette-coffee-lab-roastery-premium-specialty-coffee-roasters-wholesalers-in-delhi-india_ratnagiri-whiskey-barrel-aged-naturals-sca-87",
@@ -87698,7 +88273,8 @@
       "Caramel",
       "Plum Cake"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "rossette-coffee-lab-roastery-premium-specialty-coffee-roasters-wholesalers-in-delhi-india_colombian-huila-decaf",
@@ -87873,7 +88449,8 @@
     "scraped_at": "2026-04-06T04:49:50Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "rossette-coffee-lab-roastery-premium-specialty-coffee-roasters-wholesalers-in-delhi-india_wave",
@@ -88080,7 +88657,8 @@
       "Butter Biscuits",
       "Caramel"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "rossette-coffee-lab-roastery-premium-specialty-coffee-roasters-wholesalers-in-delhi-india_midnight-blues",
@@ -88286,7 +88864,8 @@
       "Sweet Spices",
       "Toasted Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "rossette-coffee-lab-roastery-premium-specialty-coffee-roasters-wholesalers-in-delhi-india_attikan-pichia-culture-washed-sca-84",
@@ -88467,7 +89046,8 @@
       "Brown Sugar",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "select-by-kruti-coffee_koraput-light-single-origin-100-g",
@@ -88586,7 +89166,8 @@
       "Honey",
       "Nutmeg"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "select-by-kruti-coffee_kalinga-gold-signature-blend-250-g",
@@ -88712,7 +89293,8 @@
       "Orange Peel",
       "Dark Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "select-by-kruti-coffee_madhu-agro-honey-sundried-single-origin-microlot-koraput-medium-roast-250-g",
@@ -88834,7 +89416,8 @@
       "Brown Sugar",
       "Strawberry"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "select-by-kruti-coffee_koraput-arabica-blend-signature-blend-250-g",
@@ -88958,7 +89541,8 @@
     "flavor_notes": [
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "select-by-kruti-coffee_bhubaneswar-blend-signature-blend-250-g",
@@ -89083,7 +89667,8 @@
       "Dark Chocolate",
       "Hazelnut"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "select-by-kruti-coffee_paraja-strong-single-origin-250g",
@@ -89205,7 +89790,8 @@
       "Cherries",
       "Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "siolim-specialty-coffee-roasters-indore_morjim-blend",
@@ -89426,7 +90012,8 @@
       "Cherry",
       "Almond"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "siolim-specialty-coffee-roasters-indore_rum-barrel-aged",
@@ -89646,7 +90233,8 @@
       "Rum",
       "Sweetness"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "siolim-specialty-coffee-roasters-indore_ratnagiri-estate-washed-coffee",
@@ -89865,7 +90453,8 @@
       "Cherry",
       "Raisins"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "takaraa-specialty-coffees_manual-brew-coffee-tasting-kit-explore-indias-finest-single-origins",
@@ -89918,7 +90507,8 @@
     "scraped_at": "2026-04-06T04:50:06Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "takaraa-specialty-coffees_espresso-blends-tasting-set-explore-indias-finest-specialty-coffee",
@@ -89971,7 +90561,8 @@
     "scraped_at": "2026-04-06T04:50:06Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "takaraa-specialty-coffees_luna-light-premium-manual-brew-coffee-nellikad-estate-india",
@@ -90047,7 +90638,8 @@
       "Berry",
       "Creamy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "takaraa-specialty-coffees_comet-crisp-premium-manual-brew-coffee-nellikad-estate-india",
@@ -90124,7 +90716,8 @@
       "Green Apple",
       "Citrus"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "takaraa-specialty-coffees_meteor-blaze-premium-manual-brew-coffee-nellikad-estate-india",
@@ -90202,7 +90795,8 @@
       "Toffee",
       "Pineapple"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "takaraa-specialty-coffees_vortex-spice-premium-indian-espresso-blend-nellikad-estate",
@@ -90280,7 +90874,8 @@
       "Toffee",
       "Spice"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "takaraa-specialty-coffees_solar-horizon-premium-indian-espresso-blend-nellikad-estate",
@@ -90358,7 +90953,8 @@
       "Smoke",
       "Baked Apple"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "takaraa-specialty-coffees_nebula-berry-premium-manual-brew-coffee-ratnagiri-estate-india",
@@ -90437,7 +91033,8 @@
       "Wild Berries",
       "Wine-like"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "takaraa-specialty-coffees_eclipse-dark-premium-indian-espresso-blend-ratnagiri-estate",
@@ -90516,7 +91113,8 @@
       "Raisin",
       "Pear"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "takaraa-specialty-coffees_ruby-vault-specialty-coffee-washed-process",
@@ -90594,7 +91192,8 @@
       "Cherry",
       "Raisin"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "takaraa-specialty-coffees_maple-jasper-festive-coffee-blend-maple-spice",
@@ -90676,7 +91275,8 @@
       "Baking Spice",
       "Maple"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "takaraa-specialty-coffees_barrel-aged-coral-rum-coffee-alcohol-free",
@@ -90761,7 +91361,8 @@
       "Vanilla",
       "Oak"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "takaraa-specialty-coffees_emerald-dive-coffee-blend-dark-chocolate-cherry",
@@ -90843,7 +91444,8 @@
       "Cherry",
       "Toasted Almond"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "takaraa-specialty-coffees_arabica-roasted-beans-smooth-aromatic",
@@ -90941,7 +91543,8 @@
       "Naturally Sweet",
       "Velvety"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toise-coffee-roastery-brewstudio_the-oddball",
@@ -91071,7 +91674,8 @@
       "Spiced",
       "Fruity"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toise-coffee-roastery-brewstudio_the-riddler",
@@ -91277,7 +91881,8 @@
       "Hibiscus",
       "Apricot"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "toise-coffee-roastery-brewstudio_live-wire",
@@ -91482,7 +92087,8 @@
       "Pineapple",
       "Tropical Fruit"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "toise-coffee-roastery-brewstudio_the-classic",
@@ -91688,7 +92294,8 @@
       "Orange",
       "Silky"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "the-bean-co-roasters_decaf-freshly-roasted-coffee",
@@ -91743,7 +92350,8 @@
       "Smooth",
       "Balanced"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "the-bean-co-roasters_coffee-combo-pack-arabica-blend-espresso-blend-038-mysore-nuggets-aaa-premium-roasted-coffee-beansground-pack-of-3-x-150g",
@@ -91794,7 +92402,8 @@
     "scraped_at": "2026-04-06T04:50:26Z",
     "is_coffee_bean": false,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Blend"
   },
   {
     "product_id": "the-bean-co-roasters_plantation-aa-monsooned-robusta-coffee-beans-gi-tagged-medium-roast",
@@ -91845,7 +92454,8 @@
     "scraped_at": "2026-04-06T04:50:26Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "the-bean-co-roasters_pulp-sundried-coffee-beans-100-arabica",
@@ -91899,7 +92509,8 @@
       "Fruity",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "the-bean-co-roasters_plantation-aaa-single-origin-coffee-beans-medium-roast",
@@ -91950,7 +92561,8 @@
     "scraped_at": "2026-04-06T04:50:26Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "the-bean-co-roasters_plantation-aaa-mysore-nuggets-extra-bold-roasted-ground-coffee",
@@ -92003,7 +92615,8 @@
       "Toasted Nuts",
       "Citrus"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "the-bean-co-roasters_espresso-blend-roasted-coffee-beans",
@@ -92056,7 +92669,8 @@
       "Rich Body",
       "Balanced"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "the-bean-co-roasters_robusta-kaapi-royale-roasted-coffee-beans",
@@ -92110,7 +92724,8 @@
       "Full-Bodied",
       "Rich Crema"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "the-bean-co-roasters_araku-valley-roasted-coffee-beans",
@@ -92161,7 +92776,8 @@
     "scraped_at": "2026-04-06T04:50:26Z",
     "is_coffee_bean": true,
     "flavor_notes": [],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "wonderbean-coffee-co_st-margaret-estate-robusta-koji",
@@ -92269,7 +92885,8 @@
       "Mixed Berries",
       "Bubblegum"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   },
   {
     "product_id": "wonderbean-coffee-co_south-indian-filter-coffee-classic-medium-strong-b2b",
@@ -92336,7 +92953,8 @@
       "Roasted Nuts",
       "Earthy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "wonderbean-coffee-co_south-indian-filter-coffee-mist-smooth-b2b",
@@ -92403,7 +93021,8 @@
       "Roasted Nuts",
       "Earthy"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "wonderbean-coffee-co_vienna-roast",
@@ -92511,7 +93130,8 @@
       "Caramel",
       "Dark Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": null
   },
   {
     "product_id": "wonderbean-coffee-co_malnad-roast",
@@ -92620,7 +93240,8 @@
       "Smoky",
       "Roasted Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "wonderbean-coffee-co_vijaya-estate-naturals",
@@ -92728,7 +93349,8 @@
       "Berry",
       "Raisin"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "wonderbean-coffee-co_hadagu-bio-estate-yeast-fermented-naturals",
@@ -92835,7 +93457,8 @@
       "Honey",
       "Floral"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "wonderbean-coffee-co_highland-gold",
@@ -92945,7 +93568,8 @@
       "Caramel",
       "Milk Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "wonderbean-coffee-co_whispering-ghats",
@@ -93055,7 +93679,8 @@
       "Caramel",
       "Milk Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "wonderbean-coffee-co_highland-gold-b2b",
@@ -93124,7 +93749,8 @@
       "Caramel",
       "Milk Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "wonderbean-coffee-co_malnad-roast-b2b",
@@ -93193,7 +93819,8 @@
       "Smoky",
       "Roasted Nuts"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "wonderbean-coffee-co_whispering-ghats-b2b",
@@ -93262,7 +93889,8 @@
       "Caramel",
       "Milk Chocolate"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Arabica"
   },
   {
     "product_id": "world-of-coffee-experience-cafe_yellow-honey-sun-dried-robusta-250g",
@@ -93681,6 +94309,7 @@
       "Creamy",
       "Sweet"
     ],
-    "llm_enriched": true
+    "llm_enriched": true,
+    "bean_type": "Robusta"
   }
 ]
