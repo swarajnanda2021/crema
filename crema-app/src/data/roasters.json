@@ -5578,7 +5578,9 @@
       "Heritage Brand"
     ],
     "social_links": {
-      "facebook": "pandurangacoffee"
+      "facebook": "pandurangacoffee",
+      "logo_url": "https://www.pandurangacoffee.com/cdn/shop/files/Panduranga_Coffee_Works_Logo_x60.png",
+      "instagram": "pandurangacoffee"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -5906,7 +5908,7 @@
     "logo_url": "https://rossettecoffee.com/cdn/shop/t/20/assets/rossette_logo.png",
     "tagline": "We roast. We brew. We serve.",
     "about_blurb": "Rossette Coffee Lab is a Delhi-based specialty roastery founded in 2022 by Vansh Anand and Aashrray Singla, sourcing from 20+ estates across Karnataka, Tamil Nadu, and Nagaland. They roast small batches in-house using a 5kg Probat roaster and are committed to fair trade and biodiverse farming, with all coffees scoring above 80 points on the SCA scale.",
-    "founding_year": 2022,
+    "founding_year": 2021,
     "sourcing_regions": [
       "Karnataka",
       "Tamil Nadu",
@@ -5967,7 +5969,8 @@
       "homepage_unreachable"
     ],
     "cataloged_at": "2026-04-02T12:12:55Z",
-    "roast_focus": "Light to medium"
+    "roast_focus": "Light to medium",
+    "hero_image_url": "https://rossettecoffee.com/cdn/shop/t/20/assets/about-1.webp"
   },
   {
     "roaster_slug": "saplings-cafe-saplings-coffee-roasters",
@@ -6186,7 +6189,7 @@
     "rating_count": 2127,
     "logo_url": null,
     "tagline": null,
-    "about_blurb": "Kruti Coffee was founded in 2013 in Bhubaneswar by Dr. Kamakhya Das and Dr. Amol Jadhav, both Tata Institute of Social Sciences alumni, as an impact venture to support tribal Arabica coffee farmers in Kindiriguda, Koraput, Odisha. Dr. Das is an SCA Certified Professional Level Roaster, and the company offers single-origin, specialty-grade coffees sourced directly from these tribal farming communities.",
+    "about_blurb": "Kruti Coffee was founded in 2013 to support tribal coffee growers in Koraput, Odisha, and has grown into one of India's fastest-growing specialty coffee brands. Their signature forest coffees are sourced directly from 40 tribal families in Kindiriguda village at 3,000 ft altitude, with fair-trade principles at their core — a mission that earned their Kindiriguda Naturals the 'Fine Cup Award 2023' as India's No. 1 Arabica Naturals.",
     "founding_year": 2013,
     "sourcing_regions": [
       "Koraput"
@@ -6397,9 +6400,9 @@
     "rating": 4.4,
     "rating_count": 219,
     "logo_url": null,
-    "tagline": "Building connections through coffee",
+    "tagline": "Big Bean Energy.",
     "about_blurb": "Silk Road Coffee Company is a Mumbai-based specialty roaster founded in 2021 by Parth Suri and Shamit Tyagi, a collective of artists and creatives united by a passion for coffee. Operating from Versova, Mumbai, they source Arabica beans from India's renowned coffee estates and specialize in innovative processing methods including carbonic maceration and anaerobic natural.",
-    "founding_year": 2021,
+    "founding_year": 2020,
     "sourcing_regions": [
       "Karnataka"
     ],
@@ -6952,7 +6955,13 @@
     "tagline": "Slow and steady always savours the day",
     "about_blurb": "Toise is a specialty coffee roastery and café in Worli, Mumbai, founded by a Q Grader who discovered specialty coffee during his MBA in Boston and trained at Boot Campus under industry mentors Valerian and Willem. The brand takes its name from the tortoise in Aesop's fable, embodying a philosophy of slow, mindful coffee appreciation, and roasts on India's only 12kg electric roaster.",
     "founding_year": null,
-    "sourcing_regions": null,
+    "sourcing_regions": [
+      "Coorg",
+      "Chikmagalur",
+      "Wayanad",
+      "Araku Valley",
+      "Nilgiris"
+    ],
     "specialties": [
       "Q Grader-Led Roasting",
       "Electric Small-Batch",
