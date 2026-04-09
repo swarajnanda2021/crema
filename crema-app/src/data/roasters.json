@@ -109,7 +109,8 @@
     ],
     "social_links": {
       "instagram": "7000stepscoffee",
-      "facebook": "7000stepscoffee"
+      "facebook": "7000stepscoffee",
+      "youtube": "@7000StepsCoffee"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -314,7 +315,7 @@
     "logo_url": "https://www.arakucoffee.in/cdn/shop/files/logo-araku_300x.svg?v=1686736125",
     "tagline": "India's first coffee to shape the complete seed-to-cup journey.",
     "about_blurb": "ARAKU Coffee is India's pioneering seed-to-cup specialty brand, sourcing 100% Arabica from the world's largest certified organic plantation in the Araku Valley of the Eastern Ghats, Andhra Pradesh. Built on 'Arakunomics,' their equitable farmer model — endorsed by The Rockefeller Foundation's Food System Vision 2050 Prize — eliminates middlemen and ensures tribal farming communities share in the value chain. With flagship stores in Paris and Bangalore and cupping scores of 91 points, ARAKU has placed Indian specialty coffee on the global map.",
-    "founding_year": null,
+    "founding_year": 2015,
     "sourcing_regions": [
       "Araku Valley"
     ],
@@ -387,7 +388,7 @@
     "logo_url": null,
     "tagline": "Shade-grown, bird-friendly single-origin coffee from Coorg.",
     "about_blurb": "Agastya Coffee is a women-led specialty coffee enterprise based in Madikeri, Coorg, celebrating the dedication of small farms on Coorg's lush hill slopes by blending age-old traditions with the modern advantage of direct trade. Their single-origin coffees are shade-grown, selectively hand-picked, and bird-friendly, sourced in partnership with small farms across Kodagu. Beyond roasting, Agastya runs an all-day café and coffee tasting experience center in Madikeri, making them a destination for both locals and visitors.",
-    "founding_year": null,
+    "founding_year": 2019,
     "sourcing_regions": [
       "Coorg",
       "Kodagu"
@@ -650,7 +651,7 @@
     "logo_url": "https://beachvillecoffee.com/cdn/shop/files/beachville-logo.png?v=1743059891",
     "tagline": "Make Every Coffee Special.",
     "about_blurb": "Beachville Coffee Roasters is an Indian specialty roaster focused on estate-driven, single-origin coffees that highlight the natural terroir of South Indian growing regions. Their lineup spans carefully curated nano-lots — including limited fermented naturals from Kerehaklu Estate — through to espresso and filter blends sourced from estates in Chikmaglur and Yercaud. Roasts range from light to medium-dark, tailored to showcase the fruit, chocolate, and caramel notes inherent to each origin.",
-    "founding_year": null,
+    "founding_year": 2018,
     "sourcing_regions": [
       "Chikkamagaluru",
       "Yercaud"
@@ -725,7 +726,7 @@
     "logo_url": "http://blackfuel.coffee/cdn/shop/files/Copy_of_Shadow_Black.png?height=628&pad_color=ffffff&v=1754550549&width=1200",
     "tagline": "Black Fuel Roastery – small-batch specialty coffee sourced from India’s small farms. Micro-lots, espresso blends, and curated coffee subscriptions.",
     "about_blurb": "Black Fuel Roastery is a specialty micro-roastery and café nestled in Jubilee Hills, Hyderabad, born from a commitment to sourcing rare microlots from tribal farms that preserve ancient growing practices. Each lot of green beans is carefully cupped and roast-profiled to highlight the unique characteristics of its origin, with a primary focus on Araku Valley and South Indian specialty estates. Set in their co-founder's backyard, they serve only what they themselves savour, creating an honest and personal coffee experience.",
-    "founding_year": null,
+    "founding_year": 2023,
     "sourcing_regions": [
       "Araku"
     ],
@@ -734,7 +735,8 @@
       "specialty-grade"
     ],
     "social_links": {
-      "instagram": "blackfuelcoffee.india"
+      "instagram": "blackfuelcoffee.india",
+      "youtube": "@BlackFuelRoastery"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
@@ -1063,7 +1065,7 @@
     "logo_url": "https://caarabicoffee.com/cdn/shop/files/Caarabi_Logo_Red.png?v=1763546065",
     "tagline": "Fresh Roasted Coffee to perfection, just for you!",
     "about_blurb": "Caarabi Coffee Roasters — whose name is an anagram of 'Arabica' — was founded with a singular purpose: to roast coffee that is genuinely satisfying to drink, staying true to the soul of each bean through equitable and sustainable farm partnerships. Their catalog spans Global Drops, Microlots, Nanolots, and a Dark Roast Series, with Indian estate partners including Ratnagiri Estate and Melkodige Estate in Chandragiri. The roastery champions traceability and craft, believing nothing is more important than the pursuit of a great cup.",
-    "founding_year": null,
+    "founding_year": 2024,
     "sourcing_regions": [
       "Ratnagiri",
       "Chandragiri"
@@ -1074,7 +1076,10 @@
       "Dark Roast",
       "Specialty Blends"
     ],
-    "social_links": null,
+    "social_links": {
+      "instagram": "caarabicoffee",
+      "facebook": "caarabicoffee"
+    },
     "verification_class": "VERIFIED",
     "verification_evidence": {
       "coffee_terms_found": [
@@ -2178,7 +2183,7 @@
     "logo_url": "https://corridorseven.coffee/cdn/shop/files/corridorseven.coffee_logo_black.png?v=1773230844",
     "tagline": "India's finest single-estate coffees, roasted fresh twice a week.",
     "about_blurb": "Corridor Seven Coffee Roasters is an Indian specialty roaster dedicated entirely to single-estate Indian coffees, sourcing from renowned estates such as Kuchally, Salawara, Gungegiri, Basankhan, Attikan, Melkodige, and Riverdale. Their lineup showcases advanced processing methods including bioreactor naturals, carbonic maceration, and saccharomyces fermentation, alongside accessible blends like BR!M and Cold Brew BOLD. Roasting freshly every Monday and Thursday, they bring a rigorous farm-to-cup philosophy to the Indian specialty coffee scene.",
-    "founding_year": null,
+    "founding_year": 2017,
     "sourcing_regions": [
       "Chikkamagaluru",
       "Coorg",
@@ -2192,7 +2197,8 @@
     ],
     "social_links": {
       "instagram": "corridorsevencoffee",
-      "facebook": "corridorsevencoffee"
+      "facebook": "corridorsevencoffee",
+      "twitter": "corridor_seven"
     },
     "verification_class": "VERIFIED",
     "verification_evidence": {
