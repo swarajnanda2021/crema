@@ -71,7 +71,16 @@ export default function Navbar() {
               <Search size={24} color="#E7D5B8" strokeWidth={1.5} />
             </Pressable>
             {user ? (
-              <Pressable onPress={() => router.push("/profile")} style={s.iconBtn}>
+              <Pressable
+                onPress={() => {
+                  if (user.account_type === "roaster" && user.roaster_slug) {
+                    router.push(`/roaster/${user.roaster_slug}`);
+                  } else {
+                    router.push("/profile");
+                  }
+                }}
+                style={s.iconBtn}
+              >
                 <User size={24} color="#E7D5B8" strokeWidth={1.5} />
               </Pressable>
             ) : backendAvailable ? (

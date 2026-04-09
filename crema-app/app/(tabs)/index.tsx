@@ -10,12 +10,12 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, TextInput, Pressable, ScrollView,
-  RefreshControl, StyleSheet, Animated,
+  RefreshControl, StyleSheet, Animated, ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import {
-  MapPin, Coffee, ShoppingCart, MessageCircle, Send,
+  MapPin, Coffee, ShoppingCart, MessageCircle, Send, Plus, X, ChevronDown,
 } from "lucide-react-native";
 import * as Linking from "expo-linking";
 import { useAuth } from "../../src/hooks/useAuth";
@@ -37,12 +37,15 @@ export default function FeedPage() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // ALL hooks must be declared before any early returns
+  const [showRoasterCompose, setShowRoasterCompose] = useState(false);
 
-  const loadFeed = async () => {
+  const isRoaster = user?.account_type === "roaster";
+
+  const loadFeed = useCallback(async () => {
     try {
       const data = await apiFetch("/posts-timeline?limit=40");
       const feedItems = data.items || [];
-      // Initialise like state for tasting notes
       for (const item of feedItems) {
         if (item.type === "tasting_note") {
           social.setInitialLikeState(item.id, item.liked_by_me || false, item.like_count || 0);
@@ -50,7 +53,6 @@ export default function FeedPage() {
       }
       setItems(feedItems);
     } catch {
-      // Fall back to old timeline if posts-timeline unavailable
       try {
         const data = await apiFetch("/feed/timeline");
         const timeline = (data.timeline || []).map((item: any) => ({
@@ -79,10 +81,23 @@ export default function FeedPage() {
         setItems(timeline);
       } catch { setItems([]); }
     }
-  };
+  }, []);
 
   useEffect(() => { loadFeed().finally(() => setLoading(false)); }, []);
   const onRefresh = async () => { setRefreshing(true); await loadFeed(); setRefreshing(false); };
+
+  const handleRoasterPost = useCallback(async (data: any) => {
+    try {
+      await apiFetch("/roaster-posts", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      setShowRoasterCompose(false);
+      await loadFeed();
+    } catch (e: any) {
+      console.warn("Post error:", e.message);
+    }
+  }, [loadFeed]);
 
   if (loading) {
     return (
@@ -102,6 +117,38 @@ export default function FeedPage() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
       >
+        {/* Roaster compose card — top of feed for roaster accounts */}
+        {isRoaster && (
+          <>
+            {showRoasterCompose ? (
+              <RoasterComposeCard
+                onSubmit={handleRoasterPost}
+                onCancel={() => setShowRoasterCompose(false)}
+              />
+            ) : (
+              <Pressable
+                onPress={() => setShowRoasterCompose(true)}
+                style={s.composePrompt}
+              >
+                <View style={s.composePromptAvatar}>
+                  {user?.avatar_url ? (
+                    <Image source={{ uri: user.avatar_url }} style={s.composePromptAvatarImg} contentFit="cover" />
+                  ) : (
+                    <View style={[s.composePromptAvatarImg, s.composePromptAvatarFallback]}>
+                      <Text style={s.composePromptInitial}>{(user?.display_name || "N")[0].toUpperCase()}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={s.composePromptText}>Share an article with the community…</Text>
+                <View style={s.composePromptIcon}>
+                  <Plus size={14} color="#A09580" />
+                </View>
+              </Pressable>
+            )}
+            <View style={s.feedDivider} />
+          </>
+        )}
+
         {items.length === 0 ? (
           <Text style={s.emptyText}>Nothing in the feed yet. Taste some coffees!</Text>
         ) : (
@@ -131,6 +178,174 @@ export default function FeedPage() {
     </View>
   );
 }
+
+// ── Roaster compose card ───────────────────────────────────────────────────────
+
+function RoasterComposeCard({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (data: any) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [teaser, setTeaser] = useState("");
+  const [url, setUrl] = useState("");
+  const [coverUrl, setCoverUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const canSubmit = title.trim().length > 0 && teaser.trim().length > 0 && teaser.trim().length <= 300;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setLoading(true);
+    try {
+      await onSubmit({
+        title: title.trim(),
+        teaser: teaser.trim(),
+        external_url: url.trim() || null,
+        cover_image_url: coverUrl.trim() || null,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={rc.wrap}>
+      <View style={rc.topRow}>
+        <Text style={rc.heading}>Post an article</Text>
+        <Pressable onPress={onCancel} hitSlop={10}>
+          <X size={16} color="#A09580" />
+        </Pressable>
+      </View>
+
+      <Text style={rc.label}>Title *</Text>
+      <TextInput
+        style={rc.input}
+        value={title}
+        onChangeText={setTitle}
+        placeholder="Article title…"
+        placeholderTextColor="#C7BAA5"
+      />
+
+      <Text style={rc.label}>
+        Teaser * <Text style={rc.labelCount}>{teaser.length}/300</Text>
+      </Text>
+      <TextInput
+        style={[rc.input, rc.textarea]}
+        value={teaser}
+        onChangeText={setTeaser}
+        placeholder="A short description shown in the feed (max 300 chars)…"
+        placeholderTextColor="#C7BAA5"
+        multiline
+        numberOfLines={3}
+      />
+
+      <Text style={rc.label}>Article URL</Text>
+      <TextInput
+        style={rc.input}
+        value={url}
+        onChangeText={setUrl}
+        placeholder="https://…"
+        placeholderTextColor="#C7BAA5"
+        autoCapitalize="none"
+        keyboardType="url"
+      />
+
+      <Text style={rc.label}>Cover image URL</Text>
+      <TextInput
+        style={rc.input}
+        value={coverUrl}
+        onChangeText={setCoverUrl}
+        placeholder="https://…"
+        placeholderTextColor="#C7BAA5"
+        autoCapitalize="none"
+        keyboardType="url"
+      />
+
+      <View style={rc.actions}>
+        <Pressable onPress={onCancel} style={rc.cancelBtn}>
+          <Text style={rc.cancelText}>Cancel</Text>
+        </Pressable>
+        <Pressable
+          onPress={handleSubmit}
+          style={[rc.submitBtn, (!canSubmit || loading) && rc.submitBtnDisabled]}
+          disabled={!canSubmit || loading}
+        >
+          {loading
+            ? <ActivityIndicator size="small" color="#FAF8F0" />
+            : <Text style={rc.submitText}>Post to feed</Text>
+          }
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const rc = StyleSheet.create({
+  wrap: {
+    marginHorizontal: 28,
+    marginTop: 20,
+    marginBottom: 4,
+    padding: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+    backgroundColor: "#FFFEFB",
+  },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  heading: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#351101" },
+  label: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    color: "#684F44",
+    marginBottom: 5,
+    marginTop: 12,
+  },
+  labelCount: { fontFamily: fonts.bodyRegular, color: "#A09580" },
+  input: {
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+    borderRadius: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
+    color: "#351101",
+    backgroundColor: "#FEFDFB",
+  } as any,
+  textarea: { minHeight: 68, textAlignVertical: "top" as any },
+  actions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+    justifyContent: "flex-end" as any,
+  },
+  cancelBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+  },
+  cancelText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "#684F44" },
+  submitBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+    backgroundColor: "#351101",
+    minWidth: 100,
+    alignItems: "center" as any,
+  },
+  submitBtnDisabled: { backgroundColor: "#A09580" },
+  submitText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: "#FAF8F0" },
+});
 
 // ── Roaster Post Feed Card (Figma-faithful) ───────────────────────────────────
 
@@ -485,6 +700,40 @@ const s = StyleSheet.create({
     paddingBottom: 100,
   },
   emptyText: { textAlign: "center", paddingVertical: 64, fontFamily: fonts.bodyRegular, fontSize: 14, color: colors.textSecondary },
+
+  // Roaster compose prompt (collapsed state)
+  composePrompt: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: 28,
+    marginTop: 20,
+    marginBottom: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+    backgroundColor: "#FFFEFB",
+  } as any,
+  composePromptAvatar: {},
+  composePromptAvatarImg: { width: 28, height: 28, borderRadius: 14, overflow: "hidden" } as any,
+  composePromptAvatarFallback: {
+    backgroundColor: "#351101",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  composePromptInitial: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: "#FAF8F0" },
+  composePromptText: { flex: 1, fontFamily: fonts.bodyRegular, fontSize: 13, color: "#A09580" },
+  composePromptIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#F0EBE1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  feedDivider: { height: 1, backgroundColor: "#D7D1C4", marginTop: 16 },
 });
 
 const fc = StyleSheet.create({

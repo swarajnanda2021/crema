@@ -1,29 +1,23 @@
 /**
- * Roaster Profile Page — Figma: "Crema – Beans" (node 96:7742)
+ * Roaster Profile Page — unified for all visitors + roaster owner mode.
  *
- * Layout:
- *   [Navbar 72px]
- *   [Left sticky panel (dark #2a0d00, ~42%) | Right scrollable (#FAF8F0, ~58%)]
+ * Public visitor:  left panel (about, meta, Follow) + right scroll (hero, featured posts, coffee grid)
+ * Owner (isOwner): same page, NO Follow button, + star-toggle management, + compose new post form
  *
- * Left panel: roaster name, about blurb, specialty tags, website / followers / city,
- *             follow button. Sticky for the full page height.
- *
- * Right scroll: hero image → featured post cards (2 max) → coffee grid (no filters).
- *
- * Roaster login: below featured posts, shows all their posts with feature/unfeature
- *                toggles and a compose CTA if they have no posts at all.
+ * Navbar user-icon already routes roaster accounts here instead of /profile.
  */
 
 import { useMemo, useState, useCallback, useEffect } from "react";
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
-  useWindowDimensions, LayoutChangeEvent, Platform, Animated,
+  LayoutChangeEvent, Platform, Animated, TextInput, ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, Stack, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import Svg, { Path } from "react-native-svg";
-import { MessageCircle } from "lucide-react-native";
+import { Plus, X } from "lucide-react-native";
 
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
@@ -34,47 +28,42 @@ import CoffeeCard from "../../src/components/CoffeeCard";
 import Navbar from "../../src/components/Navbar";
 import { HeartOutlineIcon, HeartFilledOutlineIcon } from "../../src/components/icons/FigmaIcons";
 
-// ── Platform helpers ──────────────────────────────────────────────────────────
 const liningNumerals = Platform.OS === "web"
   ? { fontFeatureSettings: "'lnum', 'pnum'" } as any
   : {};
 
+// ── Figma MCP localhost SVG assets (Rectangle 234 / Frame 722, node 96:8655 / 163:2328) ──
+// These are served by the Figma Desktop MCP and match the design exactly.
+const FIGMA_BACK_ARROW     = "http://localhost:3845/assets/258b4df2171b8c3fd18f751b3cd93df5e9bc0e3a.svg";
+const FIGMA_SHARE_ICON     = "http://localhost:3845/assets/73a3490dfe017b6c6d09ffe81f7fa967b808e05e.svg";
+const FIGMA_WEBSITE_ICON   = "http://localhost:3845/assets/c8b1c717f262fb5c8267b41ffb94e03f9f30e3a2.svg";
+const FIGMA_FOLLOWERS_ICON = "http://localhost:3845/assets/24115d6a26d4b35414125e4d31aa30ab00a5efc0.svg";
+const FIGMA_CITY_ICON      = "http://localhost:3845/assets/34b74a6440e0a03457339dd5236601f37c6a31c8.svg";
+const FIGMA_PLUS_ICON      = "http://localhost:3845/assets/f9b31cb40af6488f3e9140aca17c71a98e3f3c64.svg";
+
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
+// Figma imgVector4 — back chevron from Rectangle 234
 function BackArrowIcon() {
-  return (
-    <Svg width={9} height={16} viewBox="0 0 9 16" fill="none">
-      <Path d="M8 15L1 8L8 1" stroke="#C7BAA5" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
+  return <Image source={{ uri: FIGMA_BACK_ARROW }} style={{ width: 7, height: 14 }} contentFit="contain" />;
 }
 
-function MapPinIcon({ color = "#D798DA" }: { color?: string }) {
-  return (
-    <Svg width={11} height={14} viewBox="0 0 13.9 17.2" fill="none">
-      <Path d="M0.75 6.89C0.75 11.2 4.52 14.76 6.18 16.12C6.42 16.32 6.54 16.42 6.72 16.47C6.86 16.51 7.06 16.51 7.2 16.47C7.38 16.42 7.5 16.32 7.74 16.12C9.41 14.76 13.17 11.2 13.17 6.89C13.17 5.26 12.52 3.7 11.35 2.55C10.19 1.4 8.61 0.75 6.96 0.75C5.31 0.75 3.73 1.4 2.57 2.55C1.4 3.7 0.75 5.26 0.75 6.89Z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-      <Path d="M5.19 6.07C5.19 7.05 5.98 7.85 6.96 7.85C7.94 7.85 8.74 7.05 8.74 6.07C8.74 5.09 7.94 4.3 6.96 4.3C5.98 4.3 5.19 5.09 5.19 6.07Z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
+// Figma imgVector3 — map pin from Rectangle 234
+function MapPinIcon() {
+  return <Image source={{ uri: FIGMA_CITY_ICON }} style={{ width: 12, height: 16 }} contentFit="contain" />;
 }
 
-function ExternalLinkIcon({ color = "#D798DA" }: { color?: string }) {
-  return (
-    <Svg width={13} height={13} viewBox="0 0 15.5 15.5" fill="none">
-      <Path d="M5.42 1.68H3.74C2.69 1.68 2.17 1.68 1.77 1.89C1.42 2.07 1.13 2.35 0.95 2.7C0.75 3.1 0.75 3.62 0.75 4.67V11.76C0.75 12.81 0.75 13.33 0.95 13.73C1.13 14.08 1.42 14.37 1.77 14.55C2.17 14.75 2.69 14.75 3.73 14.75H10.83C11.88 14.75 12.4 14.75 12.8 14.55C13.15 14.37 13.43 14.08 13.61 13.73C13.82 13.33 13.82 12.81 13.82 11.77V10.08M14.75 5.42V0.75M14.75 0.75H10.08M14.75 0.75L8.22 7.28" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
+// Figma imgVector1 — external link / website icon from Rectangle 234
+function ExternalLinkIcon() {
+  return <Image source={{ uri: FIGMA_WEBSITE_ICON }} style={{ width: 14, height: 14 }} contentFit="contain" />;
 }
 
-function UsersIcon({ color = "#D798DA" }: { color?: string }) {
-  return (
-    <Svg width={18} height={15} viewBox="0 0 20 17" fill="none">
-      <Path d="M14 1C15.66 1 17 2.34 17 4C17 5.66 15.66 7 14 7M16 14C17.78 14 19 13.1 19 12C19 10.9 17.78 10 16 10M1 12C1 10.34 3.24 9 6 9C8.76 9 11 10.34 11 12C11 13.66 8.76 15 6 15C3.24 15 1 13.66 1 12ZM10 4C10 5.66 8.21 7 6 7C3.79 7 2 5.66 2 4C2 2.34 3.79 1 6 1C8.21 1 10 2.34 10 4Z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
+// Figma imgVector2 — users / followers icon from Rectangle 234
+function UsersIcon() {
+  return <Image source={{ uri: FIGMA_FOLLOWERS_ICON }} style={{ width: 18, height: 15 }} contentFit="contain" />;
 }
 
-function ShareIcon({ color = "#351101" }: { color?: string }) {
+function ShareInlineIcon({ color = "#A09580" }: { color?: string }) {
   return (
     <Svg width={12} height={14} viewBox="0 0 14 16" fill="none">
       <Path d="M12 5.5C13.1 5.5 14 4.6 14 3.5C14 2.4 13.1 1.5 12 1.5C10.9 1.5 10 2.4 10 3.5C10 4.6 10.9 5.5 12 5.5ZM2 9.5C3.1 9.5 4 8.6 4 7.5C4 6.4 3.1 5.5 2 5.5C0.9 5.5 0 6.4 0 7.5C0 8.6 0.9 9.5 2 9.5ZM12 13.5C13.1 13.5 14 12.6 14 11.5C14 10.4 13.1 9.5 12 9.5C10.9 9.5 10 10.4 10 11.5C10 12.6 10.9 13.5 12 13.5ZM3.7 8.5L10.3 11.5M10.3 3.5L3.7 6.5" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
@@ -82,12 +71,43 @@ function ShareIcon({ color = "#351101" }: { color?: string }) {
   );
 }
 
-function StarIcon({ filled = false }: { filled?: boolean }) {
+// Figma imgShareIcon — upload/share icon from Rectangle 234 (SHARE row in left panel)
+function LeftPanelShareIcon() {
+  return <Image source={{ uri: FIGMA_SHARE_ICON }} style={{ width: 14, height: 16 }} contentFit="contain" />;
+}
+
+// Comment bubble icon for post action bar — matches Figma design style
+function CommentIcon({ color = "#A09580" }: { color?: string }) {
   return (
-    <Svg width={14} height={14} viewBox="0 0 24 24" fill={filled ? "#E8C07A" : "none"}>
-      <Path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke={filled ? "#E8C07A" : "#A09580"} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    <Svg width={14} height={13} viewBox="0 0 14 13" fill="none">
+      <Path
+        d="M7 1C3.69 1 1 3.24 1 6C1 7.35 1.6 8.58 2.6 9.5L2 12L4.87 10.5C5.55 10.83 6.26 11 7 11C10.31 11 13 8.76 13 6C13 3.24 10.31 1 7 1Z"
+        stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
+      />
     </Svg>
   );
+}
+
+function StarIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <Svg width={14} height={14} viewBox="0 0 24 24" fill={filled ? "#D798DA" : "none"}>
+      <Path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke={filled ? "#D798DA" : "#A09580"} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function timeAgo(dateStr: string): string {
+  try {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const h = Math.floor(diff / 3600000);
+    if (h < 1) return "just now";
+    if (h < 24) return `${h}h`;
+    const d = Math.floor(h / 24);
+    if (d < 30) return `${d}d`;
+    return new Date(dateStr).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+  } catch { return ""; }
 }
 
 // ── Coffee grid ───────────────────────────────────────────────────────────────
@@ -131,19 +151,7 @@ const cg = StyleSheet.create({
   emptyText: { fontFamily: fonts.bodyRegular, fontSize: 14, color: "#684F44" },
 });
 
-// ── Roaster Post Card — Figma-faithful ────────────────────────────────────────
-
-function timeAgo(dateStr: string): string {
-  try {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const h = Math.floor(diff / 3600000);
-    if (h < 1) return "just now";
-    if (h < 24) return `${h}h`;
-    const d = Math.floor(h / 24);
-    if (d < 30) return `${d}d`;
-    return new Date(dateStr).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
-  } catch { return ""; }
-}
+// ── Roaster Post Card ─────────────────────────────────────────────────────────
 
 function RoasterPostCard({
   post,
@@ -163,7 +171,6 @@ function RoasterPostCard({
   const scaleAnim = useState(new Animated.Value(1))[0];
 
   const handleLike = () => {
-    // Animate pulse
     Animated.sequence([
       Animated.timing(scaleAnim, { toValue: 1.3, duration: 100, useNativeDriver: true }),
       Animated.timing(scaleAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
@@ -178,7 +185,7 @@ function RoasterPostCard({
 
   return (
     <View style={pc.card}>
-      {/* Header: avatar | name + timestamp | subtitle */}
+      {/* Header: avatar | name + time | subtitle + feature toggle */}
       <View style={pc.header}>
         <View style={pc.avatarWrap}>
           {avatarUrl ? (
@@ -198,11 +205,15 @@ function RoasterPostCard({
           </View>
           <Text style={pc.subtitle}>Posted about an article</Text>
         </View>
-        {/* Feature toggle (owner only) */}
+        {/* Star toggle — owner only */}
         {isOwner && onFeatureToggle && (
-          <Pressable onPress={() => onFeatureToggle(post.id)} style={pc.featureBtn} hitSlop={8}>
+          <Pressable
+            onPress={() => onFeatureToggle(post.id)}
+            style={[pc.featureBtn, post.is_featured && pc.featureBtnActive]}
+            hitSlop={8}
+          >
             <StarIcon filled={post.is_featured} />
-            <Text style={[pc.featureBtnText, post.is_featured && pc.featureBtnActive]}>
+            <Text style={[pc.featureBtnText, post.is_featured && pc.featureBtnTextActive]}>
               {post.is_featured ? `Featured #${post.featured_order}` : "Feature"}
             </Text>
           </Pressable>
@@ -214,7 +225,7 @@ function RoasterPostCard({
         <Text style={pc.title}>{post.title}</Text>
       </Pressable>
 
-      {/* Cover image — full width, 298px tall */}
+      {/* Cover image */}
       {post.cover_image_url ? (
         <Pressable onPress={handleOpen} style={pc.coverWrap}>
           <Image
@@ -225,10 +236,10 @@ function RoasterPostCard({
         </Pressable>
       ) : null}
 
-      {/* Teaser text */}
+      {/* Teaser */}
       <Text style={pc.teaser} numberOfLines={3}>{post.teaser}</Text>
 
-      {/* Action bar: likes | comments | share */}
+      {/* Action bar */}
       <View style={pc.actionBar}>
         <Pressable onPress={handleLike} style={pc.actionBtn}>
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
@@ -241,10 +252,10 @@ function RoasterPostCard({
           )}
         </Pressable>
         <View style={pc.actionBtn}>
-          <MessageCircle size={14} color="#A09580" strokeWidth={2} />
+          <CommentIcon color="#A09580" />
         </View>
         <Pressable onPress={handleOpen} style={pc.actionBtn}>
-          <ShareIcon color="#A09580" />
+          <ShareInlineIcon color="#A09580" />
         </Pressable>
         {post.external_url && (
           <Pressable onPress={handleOpen} style={pc.readMore}>
@@ -302,17 +313,22 @@ const pc = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 4,
-    backgroundColor: "rgba(232,192,122,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(160,149,128,0.3)",
+  },
+  featureBtnActive: {
+    borderColor: "rgba(215,152,218,0.4)",
+    backgroundColor: "rgba(215,152,218,0.08)",
   },
   featureBtnText: {
     fontFamily: fonts.bodyMedium,
     fontSize: 10,
     color: "#A09580",
   },
-  featureBtnActive: {
-    color: "#E8C07A",
+  featureBtnTextActive: {
+    color: "#D798DA",
   },
   titleWrap: { marginBottom: 12 },
   title: {
@@ -362,70 +378,23 @@ const pc = StyleSheet.create({
   },
 });
 
-// ── CTA for roasters with no posts ───────────────────────────────────────────
+// ── Follow button ─────────────────────────────────────────────────────────────
 
-function PostCTA({ onPress }: { onPress?: () => void }) {
+// Figma imgVector — the "+" icon in the Follow button (from Rectangle 234)
+function FigmaPlusIcon() {
   return (
-    <View style={cta.wrap}>
-      <Text style={cta.title}>Share your story</Text>
-      <Text style={cta.body}>
-        Feature up to two posts on your profile — link to a journal entry, press feature, or anything worth reading.
-        Post from the{" "}
-        <Text style={cta.emph}>Home feed</Text>
-        {" "}and star your favourites here.
-      </Text>
-      {onPress && (
-        <Pressable onPress={onPress} style={cta.btn}>
-          <Text style={cta.btnText}>Go to feed →</Text>
-        </Pressable>
-      )}
-    </View>
+    <Image
+      source={{ uri: FIGMA_PLUS_ICON }}
+      style={{ width: 8, height: 8, transform: [{ rotate: "45deg" }] }}
+      contentFit="contain"
+    />
   );
 }
-
-const cta = StyleSheet.create({
-  wrap: {
-    marginHorizontal: 28,
-    marginVertical: 24,
-    padding: 20,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#D7D1C4",
-    backgroundColor: "#FFFEFB",
-  },
-  title: {
-    fontFamily: fonts.displayRegular,
-    fontSize: 20,
-    color: "#351101",
-    marginBottom: 8,
-  },
-  body: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 13,
-    color: "#684F44",
-    lineHeight: 19,
-  },
-  emph: { fontFamily: fonts.bodySemiBold, color: "#351101" },
-  btn: {
-    marginTop: 14,
-    alignSelf: "flex-start" as any,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: "#351101",
-  },
-  btnText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "#351101" },
-});
-
-// ── Follow button ─────────────────────────────────────────────────────────────
 
 function FollowButton({ following, onToggle }: { following: boolean; onToggle: () => void }) {
   return (
     <Pressable onPress={onToggle} style={[fb.btn, following && fb.btnFollowing]}>
-      {!following && (
-        <Text style={fb.plus}>+</Text>
-      )}
+      {!following && <FigmaPlusIcon />}
       <Text style={[fb.text, following && fb.textFollowing]}>
         {following ? "Following" : "Follow"}
       </Text>
@@ -434,114 +403,293 @@ function FollowButton({ following, onToggle }: { following: boolean; onToggle: (
 }
 
 const fb = StyleSheet.create({
+  // Figma: Follow button exactly 71×27px, border 1.5px #faf8f0, border-radius 2px
   btn: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 4,
+    width: 71,
     height: 27,
-    paddingHorizontal: 12,
     borderRadius: 2,
     borderWidth: 1.5,
     borderColor: "#FAF8F0",
   },
-  btnFollowing: {
-    backgroundColor: "#FAF8F0",
+  btnFollowing: { backgroundColor: "#FAF8F0" },
+  plus: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: "#FAF8F0", lineHeight: 17 },
+  text: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: "#FAF8F0", lineHeight: 15 },
+  textFollowing: { color: "#351101" },
+});
+
+// ── New Post compose form (owner only) ────────────────────────────────────────
+
+function ComposePostForm({
+  onSubmit,
+  onCancel,
+  loading,
+}: {
+  onSubmit: (data: { title: string; teaser: string; external_url: string; cover_image_url: string }) => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  const [title, setTitle] = useState("");
+  const [teaser, setTeaser] = useState("");
+  const [url, setUrl] = useState("");
+  const [coverUrl, setCoverUrl] = useState("");
+
+  const canSubmit = title.trim().length > 0 && teaser.trim().length > 0 && teaser.trim().length <= 300;
+
+  return (
+    <View style={cf.wrap}>
+      <View style={cf.header}>
+        <Text style={cf.heading}>New article post</Text>
+        <Pressable onPress={onCancel} hitSlop={8}>
+          <X size={16} color="#A09580" />
+        </Pressable>
+      </View>
+
+      <Text style={cf.label}>Title *</Text>
+      <TextInput
+        style={cf.input}
+        value={title}
+        onChangeText={setTitle}
+        placeholder="e.g. Gangecool Estate"
+        placeholderTextColor="#C7BAA5"
+      />
+
+      <Text style={cf.label}>
+        Teaser * <Text style={cf.labelMeta}>{teaser.length}/300</Text>
+      </Text>
+      <TextInput
+        style={[cf.input, cf.textarea]}
+        value={teaser}
+        onChangeText={setTeaser}
+        placeholder="A short description (up to 300 chars) that appears in the feed…"
+        placeholderTextColor="#C7BAA5"
+        multiline
+        numberOfLines={3}
+      />
+
+      <Text style={cf.label}>Article URL</Text>
+      <TextInput
+        style={cf.input}
+        value={url}
+        onChangeText={setUrl}
+        placeholder="https://…"
+        placeholderTextColor="#C7BAA5"
+        autoCapitalize="none"
+        keyboardType="url"
+      />
+
+      <Text style={cf.label}>Cover image URL</Text>
+      <TextInput
+        style={cf.input}
+        value={coverUrl}
+        onChangeText={setCoverUrl}
+        placeholder="https://…"
+        placeholderTextColor="#C7BAA5"
+        autoCapitalize="none"
+        keyboardType="url"
+      />
+
+      <View style={cf.actions}>
+        <Pressable onPress={onCancel} style={cf.cancelBtn}>
+          <Text style={cf.cancelText}>Cancel</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => canSubmit && onSubmit({ title: title.trim(), teaser: teaser.trim(), external_url: url.trim(), cover_image_url: coverUrl.trim() })}
+          style={[cf.submitBtn, !canSubmit && cf.submitBtnDisabled]}
+          disabled={!canSubmit || loading}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color="#FAF8F0" />
+          ) : (
+            <Text style={cf.submitText}>Post to feed</Text>
+          )}
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const cf = StyleSheet.create({
+  wrap: {
+    marginHorizontal: 28,
+    marginVertical: 20,
+    padding: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+    backgroundColor: "#FFFEFB",
   },
-  plus: {
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  heading: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 13,
-    color: "#FAF8F0",
-    lineHeight: 17,
-  },
-  text: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 12,
-    color: "#FAF8F0",
-    lineHeight: 15,
-  },
-  textFollowing: {
+    fontSize: 14,
     color: "#351101",
   },
+  label: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    color: "#684F44",
+    marginBottom: 5,
+    marginTop: 12,
+  },
+  labelMeta: {
+    fontFamily: fonts.bodyRegular,
+    color: "#A09580",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+    borderRadius: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
+    color: "#351101",
+    backgroundColor: "#FEFDFB",
+  } as any,
+  textarea: {
+    minHeight: 72,
+    textAlignVertical: "top" as any,
+  },
+  actions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+    justifyContent: "flex-end" as any,
+  },
+  cancelBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+  },
+  cancelText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "#684F44" },
+  submitBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+    backgroundColor: "#351101",
+  },
+  submitBtnDisabled: { backgroundColor: "#A09580" },
+  submitText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: "#FAF8F0" },
 });
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+const NAVBAR_H = 72;
+
 export default function RoasterDetailPage() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { products, roasters } = useCoffeeData();
   const { getProfile } = useRoasterProfiles();
-  const { width } = useWindowDimensions();
+  const { height: winH } = useWindowDimensions();
 
-  const roaster = roasters.find((r: any) => r.slug === slug);
-  const profile = getProfile(slug, roaster?.website, roaster?.name);
+  // Primary lookup: roasters derived from the product catalog
+  const productRoaster = roasters.find((r: any) => r.slug === slug);
+  // Secondary lookup: rich profile data from roasters.json / API
+  const profile = getProfile(slug, productRoaster?.website, productRoaster?.name);
+
+  // Synthesise a roaster object from whichever source has data
+  const roaster = productRoaster ?? (profile ? {
+    slug: profile.roaster_slug ?? slug,
+    name: profile.name ?? slug,
+    city: profile.city ?? null,
+    website: profile.website ?? null,
+  } : null);
+
   const coffees = useMemo(() => products.filter((p: any) => p.roaster_slug === slug), [products, slug]);
 
-  // Is the logged-in user the owner of this roaster page?
   const isOwner = user?.account_type === "roaster" && user?.roaster_slug === slug;
 
-  // Featured posts (public)
+  // Posts state
   const [featuredPosts, setFeaturedPosts] = useState<any[]>([]);
-  // All posts (shown only to owner for management)
   const [allPosts, setAllPosts] = useState<any[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
 
+  // Follow state
   const [following, setFollowing] = useState(false);
+
+  // Compose form
+  const [showCompose, setShowCompose] = useState(false);
+  const [composing, setComposing] = useState(false);
+
+  // About expand
+  const [aboutExpanded, setAboutExpanded] = useState(false);
+  const ABOUT_LIMIT = 260;
 
   const heroImageUrl = useMemo(
     () => profile?.hero_image_url || coffees.find((c: any) => c.image_url)?.image_url || null,
     [profile, coffees]
   );
-
   const logoUrl = profile?.logo_url ?? null;
-
   const specialtyTags: string[] = (profile?.specialties && profile.specialties.length > 0)
     ? profile.specialties.slice(0, 4)
     : ["Single Origin", "Estate Grown", "Specialty Grade"];
-
   const city = roaster?.city || profile?.city || null;
   const website = roaster?.website || profile?.website || null;
   const aboutBlurb = profile?.about_blurb || null;
-  const [aboutExpanded, setAboutExpanded] = useState(false);
-  const ABOUT_LIMIT = 260;
 
-  // Load posts
-  useEffect(() => {
-    (async () => {
-      try {
-        setPostsLoading(true);
-        // Always fetch featured posts for public display
-        const fp = await apiFetch(`/roasters/${slug}/posts/featured`);
-        setFeaturedPosts(fp.featured_posts || []);
-        // If owner, also fetch all posts for management
-        if (isOwner) {
-          const all = await apiFetch(`/roasters/${slug}/posts`);
-          setAllPosts(all.posts || []);
-        }
-      } catch {
-        setFeaturedPosts([]);
-        setAllPosts([]);
-      } finally {
-        setPostsLoading(false);
+  const loadPosts = useCallback(async () => {
+    try {
+      setPostsLoading(true);
+      const fp = await apiFetch<any>(`/roasters/${slug}/posts/featured`);
+      setFeaturedPosts(fp.featured_posts || []);
+      // Owner always loads all posts for management
+      if (isOwner) {
+        const all = await apiFetch<any>(`/roasters/${slug}/posts`);
+        setAllPosts(all.posts || []);
       }
-    })();
+    } catch (e) {
+      console.warn("Posts load error:", e);
+      setFeaturedPosts([]);
+      setAllPosts([]);
+    } finally {
+      setPostsLoading(false);
+    }
   }, [slug, isOwner]);
+
+  useEffect(() => { loadPosts(); }, [loadPosts]);
 
   const handleFeatureToggle = useCallback(async (postId: number) => {
     try {
       await apiFetch(`/roaster-posts/${postId}/feature`, { method: "PUT" });
-      // Refresh
-      const [fp, all] = await Promise.all([
-        apiFetch(`/roasters/${slug}/posts/featured`),
-        apiFetch(`/roasters/${slug}/posts`),
-      ]);
-      setFeaturedPosts(fp.featured_posts || []);
-      setAllPosts(all.posts || []);
+      await loadPosts();
     } catch (e: any) {
       console.warn("Feature toggle error:", e.message);
     }
-  }, [slug]);
+  }, [loadPosts]);
+
+  const handleCreatePost = useCallback(async (data: any) => {
+    try {
+      setComposing(true);
+      await apiFetch("/roaster-posts", {
+        method: "POST",
+        body: JSON.stringify({
+          title: data.title,
+          teaser: data.teaser,
+          external_url: data.external_url || null,
+          cover_image_url: data.cover_image_url || null,
+        }),
+      });
+      setShowCompose(false);
+      await loadPosts();
+    } catch (e: any) {
+      console.warn("Create post error:", e.message);
+    } finally {
+      setComposing(false);
+    }
+  }, [loadPosts]);
 
   if (!roaster) {
     return (
@@ -555,25 +703,27 @@ export default function RoasterDetailPage() {
     );
   }
 
-  // Non-featured posts (for owner management view)
+  // For owner management: non-featured posts shown below
   const nonFeaturedPosts = allPosts.filter((p) => !p.is_featured);
+  const featuredInAllPosts = allPosts.filter((p) => p.is_featured);
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <Navbar />
 
-      <View style={s.pageContainer}>
+      <View style={[s.pageContainer, { height: winH - NAVBAR_H }]}>
 
-        {/* ── LEFT STICKY PANEL ─────────────────────────────────────────── */}
-        <View style={s.leftPanel}>
+        {/* ── LEFT PANEL (sticky, dark) ──────────────────────────────── */}
+        <View style={[s.leftPanel, { height: winH - NAVBAR_H }]}>
+
           {/* Back */}
           <Pressable onPress={() => router.back()} style={s.backBtn}>
             <BackArrowIcon />
             <Text style={s.backText}>Back</Text>
           </Pressable>
 
-          {/* SHARE */}
+          {/* Share */}
           <Pressable
             onPress={() => {
               if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard) {
@@ -583,7 +733,7 @@ export default function RoasterDetailPage() {
             style={s.shareRow}
           >
             <Text style={s.shareText}>SHARE</Text>
-            <ExternalLinkIcon color="#C7BAA5" />
+            <LeftPanelShareIcon color="#C7BAA5" />
           </Pressable>
 
           {/* Roaster name */}
@@ -605,7 +755,7 @@ export default function RoasterDetailPage() {
             </View>
           ) : null}
 
-          {/* Spacer pushes footer to bottom */}
+          {/* Push footer to bottom */}
           <View style={{ flex: 1 }} />
 
           {/* Specialty tags with rules */}
@@ -615,23 +765,23 @@ export default function RoasterDetailPage() {
             <View style={s.rule} />
           </View>
 
-          {/* Metadata row: website | followers | city */}
+          {/* Meta row: website | followers | city */}
           <View style={s.metaRow}>
             {website ? (
               <Pressable onPress={() => Linking.openURL(website)} style={s.metaItem}>
-                <ExternalLinkIcon color="#FAF8F0" />
+                <ExternalLinkIcon />
                 <Text style={s.metaText}>Website</Text>
               </Pressable>
             ) : null}
             <View style={s.metaItem}>
-              <UsersIcon color="#FAF8F0" />
+              <UsersIcon />
               <Text style={s.metaText}>
                 {following ? "1 follower" : "0 followers"}
               </Text>
             </View>
             {city ? (
               <View style={s.metaItem}>
-                <MapPinIcon color="#FAF8F0" />
+                <MapPinIcon />
                 <Text style={s.metaText}>{city}</Text>
               </View>
             ) : null}
@@ -639,13 +789,32 @@ export default function RoasterDetailPage() {
 
           <View style={s.rule} />
 
-          {/* Follow button */}
-          <View style={s.followRow}>
-            <FollowButton following={following} onToggle={() => setFollowing((f) => !f)} />
-          </View>
+          {/* Follow button — hidden for owner */}
+          {!isOwner ? (
+            <View style={s.followRow}>
+              <FollowButton following={following} onToggle={() => setFollowing((f) => !f)} />
+            </View>
+          ) : (
+            /* Owner: "New Post" + "Sign out" buttons in the follow slot */
+            <View style={[s.followRow, { flexDirection: "row", gap: 10 }]}>
+              <Pressable
+                onPress={() => setShowCompose(true)}
+                style={s.newPostBtn}
+              >
+                <Plus size={13} color="#2a0d00" strokeWidth={2.5} />
+                <Text style={s.newPostBtnText}>New Post</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => { logout(); router.replace("/"); }}
+                style={s.signOutBtn}
+              >
+                <Text style={s.signOutBtnText}>Sign out</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
-        {/* ── RIGHT SCROLLABLE CONTENT ──────────────────────────────────── */}
+        {/* ── RIGHT SCROLLABLE CONTENT ──────────────────────────────── */}
         <ScrollView
           style={s.rightScroll}
           contentContainerStyle={s.rightContent}
@@ -664,8 +833,20 @@ export default function RoasterDetailPage() {
             )}
           </View>
 
-          {/* ── Featured posts ──────────────────────────────────────────── */}
-          {!postsLoading && featuredPosts.length > 0 && (
+          {/* ── Compose form (owner only) ────────────────────────────── */}
+          {isOwner && showCompose && (
+            <>
+              <View style={s.divider} />
+              <ComposePostForm
+                onSubmit={handleCreatePost}
+                onCancel={() => setShowCompose(false)}
+                loading={composing}
+              />
+            </>
+          )}
+
+          {/* ── Featured posts (public visitors only — owners see everything in "All your posts") */}
+          {!postsLoading && !isOwner && featuredPosts.length > 0 && (
             <>
               <View style={s.divider} />
               {featuredPosts.map((post, i) => (
@@ -674,8 +855,7 @@ export default function RoasterDetailPage() {
                     post={post}
                     roasterName={roaster.name}
                     avatarUrl={logoUrl}
-                    isOwner={isOwner}
-                    onFeatureToggle={isOwner ? handleFeatureToggle : undefined}
+                    isOwner={false}
                   />
                   {i < featuredPosts.length - 1 && <View style={s.divider} />}
                 </View>
@@ -683,38 +863,45 @@ export default function RoasterDetailPage() {
             </>
           )}
 
-          {/* ── Roaster CTA (owner, no featured posts) ──────────────────── */}
-          {!postsLoading && isOwner && featuredPosts.length === 0 && (
-            <>
-              <View style={s.divider} />
-              <PostCTA onPress={() => router.push("/")} />
-            </>
-          )}
-
-          {/* ── Owner: manage all posts ─────────────────────────────────── */}
+          {/* ── Owner: all posts with star-toggle (no separate Featured duplication) */}
           {isOwner && allPosts.length > 0 && (
             <>
               <View style={s.divider} />
-              <View style={s.allPostsHeader}>
-                <Text style={s.allPostsTitle}>Your posts</Text>
-                <Text style={s.allPostsHint}>★ Star up to 2 to feature on your profile</Text>
+              <View style={s.sectionHeader}>
+                <Text style={s.sectionHint}>★ Star up to 2 to feature on your profile</Text>
               </View>
-              {nonFeaturedPosts.map((post) => (
+              {allPosts.map((post, i) => (
                 <View key={post.id}>
                   <RoasterPostCard
                     post={post}
                     roasterName={roaster.name}
                     avatarUrl={logoUrl}
-                    isOwner={isOwner}
+                    isOwner
                     onFeatureToggle={handleFeatureToggle}
                   />
-                  <View style={s.dividerLight} />
+                  {i < allPosts.length - 1 && <View style={s.dividerLight} />}
                 </View>
               ))}
             </>
           )}
 
-          {/* ── Coffee grid ─────────────────────────────────────────────── */}
+          {/* ── Owner: no posts yet ──────────────────────────────────── */}
+          {isOwner && !postsLoading && allPosts.length === 0 && !showCompose && (
+            <>
+              <View style={s.divider} />
+              <View style={s.emptyPostsWrap}>
+                <Text style={s.emptyPostsTitle}>Share your story</Text>
+                <Text style={s.emptyPostsBody}>
+                  Feature up to two posts on your profile — link to a journal entry, press coverage, or anything worth reading.
+                </Text>
+                <Pressable onPress={() => setShowCompose(true)} style={s.emptyPostsBtn}>
+                  <Text style={s.emptyPostsBtnText}>Write your first post →</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+
+          {/* ── Coffee grid ──────────────────────────────────────────── */}
           <View style={s.divider} />
           <Text style={[s.gridHeading, liningNumerals]}>
             {`Explore ${coffees.length} ${coffees.length === 1 ? "coffee" : "coffees"} from ${roaster.name}`}
@@ -739,46 +926,40 @@ const s = StyleSheet.create({
   },
   notFoundText: { fontFamily: fonts.bodyRegular, fontSize: 16, color: "#351101" },
 
-  // Page container — full height flex row
+  // Two-column layout — height set dynamically via winH - NAVBAR_H
   pageContainer: {
-    flex: 1,
     flexDirection: "row",
     overflow: "hidden",
   } as any,
 
-  // ── Left sticky panel ─────────────────────────────────────────────
+  // Left panel — height set dynamically, scrolls internally if content overflows
+  // Figma: 603px wide, Back at y=126, SHARE at y=227 → paddingTop matches y=126
   leftPanel: {
     width: "42%" as any,
     backgroundColor: "#2a0d00",
     paddingHorizontal: "6.25%" as any,
-    paddingTop: 40,
+    paddingTop: 126,
     paddingBottom: 32,
     flexDirection: "column",
-    // Web sticky: stays in place while right side scrolls
-    position: "sticky" as any,
-    top: 0,
-    alignSelf: "flex-start" as any,
-    height: "100vh" as any,
     overflowY: "auto" as any,
+    flexShrink: 0,
   } as any,
 
+  // Back at y=126, SHARE at y=227 → gap between bottom of Back and top of SHARE ≈ 85px
   backBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 24,
+    marginBottom: 85,
   },
-  backText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 14,
-    color: "#C7BAA5",
-  },
+  backText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: "#C7BAA5" },
 
+  // SHARE text at y=227, roaster name at y=249 → 22px gap (14px text + 8px margin)
   shareRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   shareText: {
     fontFamily: fonts.bodyMedium,
@@ -803,16 +984,14 @@ const s = StyleSheet.create({
     color: "#C7BAA5",
     lineHeight: 18,
   },
-  aboutMore: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 12,
-    color: "#FAF8F0",
-  },
+  aboutMore: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: "#FAF8F0" },
 
-  // Specialty tags with horizontal rules
   tagBand: { marginBottom: 14 },
+  // Figma: rules are 280px wide, left-aligned (x=91 within panel)
   rule: {
     height: 1,
+    width: 280,
+    alignSelf: "flex-start" as any,
     backgroundColor: "rgba(250,248,240,0.25)",
     marginVertical: 0,
   },
@@ -824,37 +1003,66 @@ const s = StyleSheet.create({
     paddingVertical: 8,
   },
 
-  // Metadata: website | followers | city
+  // Figma: meta row at y=537, specialty band bottom ~y=532 → 5px gap
   metaRow: {
     flexDirection: "row",
     flexWrap: "wrap" as any,
     gap: 20,
-    marginTop: 12,
-    marginBottom: 12,
+    marginTop: 5,
+    marginBottom: 9,
   },
   metaItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
-  metaText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 14,
-    color: "#FAF8F0",
-  },
+  metaText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: "#FAF8F0" },
 
   followRow: { marginTop: 14 },
 
-  // ── Right scrollable ──────────────────────────────────────────────
+  // "New Post" button for owner
+  newPostBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 27,
+    paddingHorizontal: 14,
+    borderRadius: 2,
+    backgroundColor: "#FAF8F0",
+    alignSelf: "flex-start" as any,
+  },
+  newPostBtnText: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 12,
+    color: "#2a0d00",
+  },
+  // "Sign out" button — outlined, same height as New Post
+  signOutBtn: {
+    height: 27,
+    paddingHorizontal: 12,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: "rgba(199,186,165,0.5)",
+    alignSelf: "flex-start" as any,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  signOutBtnText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: "#C7BAA5",
+  },
+
+  // Right scrollable column — flex:1 fills remaining width; height from parent
   rightScroll: {
     flex: 1,
     backgroundColor: "#FAF8F0",
   },
   rightContent: {
-    // no extra padding — cards handle their own padding
+    flexGrow: 1,
   },
 
-  // Hero image: spans full right column, 334px tall (Figma spec)
+  // Hero image
   heroImageWrap: {
     width: "100%" as any,
     height: 334,
@@ -863,45 +1071,73 @@ const s = StyleSheet.create({
     overflow: "hidden",
   } as any,
 
+  // Section headers
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 10,
+    paddingHorizontal: 28,
+    paddingTop: 20,
+    paddingBottom: 4,
+  },
+  sectionLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    color: "#A09580",
+    textTransform: "uppercase" as any,
+    letterSpacing: 0.8,
+  },
+  sectionHint: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 10.5,
+    color: "#A09580",
+  },
+
+  // Empty posts state (owner)
+  emptyPostsWrap: {
+    marginHorizontal: 28,
+    marginVertical: 24,
+    padding: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+    backgroundColor: "#FFFEFB",
+  },
+  emptyPostsTitle: {
+    fontFamily: fonts.displayRegular,
+    fontSize: 20,
+    color: "#351101",
+    marginBottom: 8,
+  },
+  emptyPostsBody: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
+    color: "#684F44",
+    lineHeight: 19,
+  },
+  emptyPostsBtn: {
+    marginTop: 14,
+    alignSelf: "flex-start" as any,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#351101",
+  },
+  emptyPostsBtnText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "#351101" },
+
   // Dividers
-  divider: {
-    height: 1,
-    backgroundColor: "#D7D1C4",
-    marginVertical: 0,
-  },
-  dividerLight: {
-    height: 1,
-    backgroundColor: "#EDE8E1",
-  },
+  divider: { height: 1, backgroundColor: "#D7D1C4" },
+  dividerLight: { height: 1, backgroundColor: "#EDE8E1" },
 
   // Grid heading
   gridHeading: {
     fontFamily: fonts.displayRegular,
-    fontSize: 22,
+    fontSize: 20,
     color: "#351101",
     lineHeight: 28,
     paddingHorizontal: 28,
-    paddingTop: 28,
-    paddingBottom: 20,
-  },
-
-  // Owner post management
-  allPostsHeader: {
-    paddingHorizontal: 28,
     paddingTop: 24,
-    paddingBottom: 12,
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 12,
-  },
-  allPostsTitle: {
-    fontFamily: fonts.displayRegular,
-    fontSize: 18,
-    color: "#351101",
-  },
-  allPostsHint: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 11,
-    color: "#A09580",
+    paddingBottom: 20,
   },
 });
