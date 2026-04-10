@@ -995,7 +995,7 @@ export default function RoasterDetailPage() {
             </>
           )}
 
-          {/* ── Featured posts (public visitors only — owners see everything in "All your posts") */}
+          {/* ── Public visitor: featured posts ───────────────────────── */}
           {!postsLoading && !isOwner && featuredPosts.length > 0 && (
             <>
               <View style={s.divider} />
@@ -1014,28 +1014,45 @@ export default function RoasterDetailPage() {
             </>
           )}
 
-          {/* ── Owner: all posts with star-toggle (no separate Featured duplication) */}
-          {isOwner && allPosts.length > 0 && (
-            <>
-              <View style={s.divider} />
-              <View style={s.sectionHeader}>
-                <Text style={s.sectionHint}>★ Star up to 2 to feature on your profile</Text>
-              </View>
-              {allPosts.map((post, i) => (
-                <View key={post.id}>
-                  <RoasterPostCard
-                    post={post}
-                    roasterName={roaster.name}
-                    avatarUrl={logoUrl}
-                    city={city}
-                    isOwner
-                    onFeatureToggle={handleFeatureToggle}
-                  />
-                  {i < allPosts.length - 1 && <View style={s.dividerLight} />}
-                </View>
-              ))}
-            </>
-          )}
+          {/* ── Owner: featured posts first, then rest ────────────────── */}
+          {isOwner && !postsLoading && allPosts.length > 0 && (() => {
+            const featured = allPosts.filter((p) => p.is_featured).sort((a, b) => (a.featured_order ?? 9) - (b.featured_order ?? 9));
+            const rest = allPosts.filter((p) => !p.is_featured);
+            const slotsLeft = 3 - featured.length;
+            const hint = featured.length === 0
+              ? "No featured posts yet — star up to 3 to pin them here."
+              : slotsLeft === 1
+              ? `${slotsLeft} featured slot remaining.`
+              : slotsLeft >= 2
+              ? `${slotsLeft} featured slots remaining.`
+              : null;
+            const ordered = [...featured, ...rest];
+            return (
+              <>
+                <View style={s.divider} />
+                {hint && (
+                  <View style={s.featureHintRow}>
+                    <Text style={s.featureHint}>{hint}</Text>
+                  </View>
+                )}
+                {ordered.map((post, i) => (
+                  <View key={post.id}>
+                    <RoasterPostCard
+                      post={post}
+                      roasterName={roaster.name}
+                      avatarUrl={logoUrl}
+                      city={city}
+                      isOwner
+                      onFeatureToggle={handleFeatureToggle}
+                    />
+                    {i < ordered.length - 1 && (
+                      <View style={post.is_featured ? s.divider : s.dividerLight} />
+                    )}
+                  </View>
+                ))}
+              </>
+            );
+          })()}
 
           {/* ── Owner: no posts yet ──────────────────────────────────── */}
           {isOwner && !postsLoading && allPosts.length === 0 && !showCompose && (
@@ -1044,7 +1061,7 @@ export default function RoasterDetailPage() {
               <View style={s.emptyPostsWrap}>
                 <Text style={s.emptyPostsTitle}>Share your story</Text>
                 <Text style={s.emptyPostsBody}>
-                  Feature up to two posts on your profile — link to a journal entry, press coverage, or anything worth reading.
+                  Feature up to 3 posts on your profile — link to a journal entry, press coverage, or anything worth reading.
                 </Text>
                 <Pressable onPress={() => setShowCompose(true)} style={s.emptyPostsBtn}>
                   <Text style={s.emptyPostsBtnText}>Write your first post →</Text>
@@ -1238,6 +1255,17 @@ const s = StyleSheet.create({
     color: "#A09580",
     textTransform: "uppercase" as any,
     letterSpacing: 0.8,
+  },
+  featureHintRow: {
+    paddingHorizontal: 28,
+    paddingTop: 14,
+    paddingBottom: 4,
+  },
+  featureHint: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 11,
+    color: "#A09580",
+    fontStyle: "italic" as any,
   },
   sectionHint: {
     fontFamily: fonts.bodyRegular,

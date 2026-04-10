@@ -145,14 +145,14 @@ def create_post(req: RoasterPostRequest, user=Depends(get_current_user)):
 
 @router.get("/roasters/{slug}/posts/featured")
 def get_featured_posts(slug: str):
-    """Get up to 2 featured posts for a roaster (public). Ordered by featured_order."""
+    """Get up to 3 featured posts for a roaster (public). Ordered by featured_order."""
     db = get_db()
     try:
         rows = db.execute(
             _POST_SELECT + """
             WHERE rp.roaster_slug = ? AND rp.is_featured = 1
             ORDER BY rp.featured_order ASC
-            LIMIT 2
+            LIMIT 3
             """,
             (slug,),
         ).fetchall()
@@ -213,10 +213,10 @@ def toggle_feature(post_id: int, user=Depends(get_current_user)):
                 (roaster_slug,)
             ).fetchall()
             used_orders = {r["featured_order"] for r in featured if r["featured_order"]}
-            if len(used_orders) >= 2:
-                raise HTTPException(400, "You can only feature 2 posts. Unfeature one first.")
-            # Pick the next available slot
-            next_order = 1 if 1 not in used_orders else 2
+            if len(used_orders) >= 3:
+                raise HTTPException(400, "You can only feature 3 posts. Unfeature one first.")
+            # Pick the next available slot (1, 2, or 3)
+            next_order = next(s for s in (1, 2, 3) if s not in used_orders)
             db.execute(
                 "UPDATE roaster_posts SET is_featured = 1, featured_order = ? WHERE id = ?",
                 (next_order, post_id)
