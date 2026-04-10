@@ -54,7 +54,15 @@ def get_products():
 
 @app.get("/api/roasters")
 def get_roasters():
-    """Return enriched roaster profiles from the catalog pipeline."""
+    """Return enriched roaster profiles from the crema-app data file."""
+    # Primary: enriched roasters.json maintained in crema-app
+    primary_path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "crema-app", "src", "data", "roasters.json"
+    )
+    if os.path.exists(primary_path):
+        with open(primary_path, encoding="utf-8") as f:
+            return json.load(f)
+    # Fallback: old catalog pipeline output
     catalog_path = os.path.join(
         os.path.dirname(__file__), "..", "coffee-catalog", "output",
         "verified_roasters_catalog.json"
