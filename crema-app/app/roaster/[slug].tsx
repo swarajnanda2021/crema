@@ -33,13 +33,18 @@ const liningNumerals = Platform.OS === "web"
   : {};
 
 // ── Figma MCP localhost SVG assets (Rectangle 234 / Frame 722, node 96:8655 / 163:2328) ──
-// These are served by the Figma Desktop MCP and match the design exactly.
 const FIGMA_BACK_ARROW     = "http://localhost:3845/assets/258b4df2171b8c3fd18f751b3cd93df5e9bc0e3a.svg";
 const FIGMA_SHARE_ICON     = "http://localhost:3845/assets/73a3490dfe017b6c6d09ffe81f7fa967b808e05e.svg";
 const FIGMA_WEBSITE_ICON   = "http://localhost:3845/assets/c8b1c717f262fb5c8267b41ffb94e03f9f30e3a2.svg";
 const FIGMA_FOLLOWERS_ICON = "http://localhost:3845/assets/24115d6a26d4b35414125e4d31aa30ab00a5efc0.svg";
 const FIGMA_CITY_ICON      = "http://localhost:3845/assets/34b74a6440e0a03457339dd5236601f37c6a31c8.svg";
 const FIGMA_PLUS_ICON      = "http://localhost:3845/assets/f9b31cb40af6488f3e9140aca17c71a98e3f3c64.svg";
+
+// ── Figma MCP localhost SVG assets (Frame 720 — post card) ──────────────────
+const FIGMA_POST_HEART     = "http://localhost:3845/assets/3e92b5cd93aafa2a17dd1b9b331c5338e18ac639.svg";
+const FIGMA_POST_COMMENT   = "http://localhost:3845/assets/71167aa5e804a3f44c93add7f2445f77d514d0af.svg";
+const FIGMA_POST_SHARE     = "http://localhost:3845/assets/12186c3d643c443d0ef02bb899348e1c0cdf0973.svg";
+const FIGMA_POST_MAPPIN    = "http://localhost:3845/assets/e5bb5db86d84a07e96f6d7e2803da172dc94dd29.svg";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -153,21 +158,26 @@ const cg = StyleSheet.create({
 
 // ── Roaster Post Card ─────────────────────────────────────────────────────────
 
+// ── Roaster Post Card (Frame 720 design) ─────────────────────────────────────
+
 function RoasterPostCard({
   post,
   roasterName,
   avatarUrl,
+  city,
   onFeatureToggle,
   isOwner,
 }: {
   post: any;
   roasterName: string;
   avatarUrl?: string | null;
+  city?: string | null;
   onFeatureToggle?: (id: number) => void;
   isOwner?: boolean;
 }) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
+  const [commentCount] = useState(0);
   const scaleAnim = useState(new Animated.Value(1))[0];
 
   const handleLike = () => {
@@ -185,16 +195,15 @@ function RoasterPostCard({
 
   return (
     <View style={pc.card}>
-      {/* Header: avatar | name + time | subtitle + feature toggle */}
+
+      {/* ── Header: avatar + name + timestamp + subtitle ── */}
       <View style={pc.header}>
-        <View style={pc.avatarWrap}>
+        <View>
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} style={pc.avatar} contentFit="cover" />
           ) : (
-            <View style={[pc.avatar, { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" }]}>
-              <Text style={{ color: "#FAF8F0", fontSize: 11, fontFamily: fonts.bodySemiBold }}>
-                {(roasterName || "R")[0].toUpperCase()}
-              </Text>
+            <View style={[pc.avatar, pc.avatarFallback]}>
+              <Text style={pc.avatarLetter}>{(roasterName || "R")[0].toUpperCase()}</Text>
             </View>
           )}
         </View>
@@ -203,7 +212,7 @@ function RoasterPostCard({
             <Text style={pc.authorName}>{roasterName}</Text>
             <Text style={pc.timestamp}>{timeAgo(post.published_at)}</Text>
           </View>
-          <Text style={pc.subtitle}>Posted about an article</Text>
+          <Text style={pc.subtitle}>{post.post_type === "note" ? "Posted a note" : "Posted about an article"}</Text>
         </View>
         {/* Star toggle — owner only */}
         {isOwner && onFeatureToggle && (
@@ -220,46 +229,57 @@ function RoasterPostCard({
         )}
       </View>
 
-      {/* Title */}
-      <Pressable onPress={handleOpen} style={pc.titleWrap}>
-        <Text style={pc.title}>{post.title}</Text>
+      {/* ── Body text (teaser at Figma 16.764px) ── */}
+      <Pressable onPress={handleOpen}>
+        <Text style={pc.body}>{post.teaser}</Text>
       </Pressable>
 
-      {/* Cover image */}
+      {/* ── Location row ── */}
+      {(post.location || city) ? (
+        <View style={pc.locationRow}>
+          <Image source={{ uri: FIGMA_POST_MAPPIN }} style={pc.mapPinIcon} contentFit="contain" />
+          <Text style={pc.locationText}>{post.location || city}</Text>
+        </View>
+      ) : null}
+
+      {/* ── Cover photo ── */}
       {post.cover_image_url ? (
-        <Pressable onPress={handleOpen} style={pc.coverWrap}>
-          <Image
-            source={{ uri: post.cover_image_url }}
-            style={pc.coverImage}
-            contentFit="cover"
-          />
+        <Pressable onPress={handleOpen} style={pc.photoWrap}>
+          <Image source={{ uri: post.cover_image_url }} style={pc.photo} contentFit="cover" />
         </Pressable>
       ) : null}
 
-      {/* Teaser */}
-      <Text style={pc.teaser} numberOfLines={3}>{post.teaser}</Text>
-
-      {/* Action bar */}
+      {/* ── Action bar (heart + count | comment + count | share) ── */}
       <View style={pc.actionBar}>
+        {/* Heart */}
         <Pressable onPress={handleLike} style={pc.actionBtn}>
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
             {liked
-              ? <HeartFilledOutlineIcon size={14} />
-              : <HeartOutlineIcon size={14} color="#A09580" />}
+              ? <HeartFilledOutlineIcon size={16} color="#D798DA" />
+              : <Image source={{ uri: FIGMA_POST_HEART }} style={pc.actionIcon} contentFit="contain" />}
           </Animated.View>
-          {likeCount > 0 && (
-            <Text style={[pc.actionCount, liked && { color: "#D798DA" }]}>{likeCount}</Text>
-          )}
+          <Text style={[pc.actionCount, liked && { color: "#D798DA" }]}>{likeCount}</Text>
         </Pressable>
+        {/* Comment */}
         <View style={pc.actionBtn}>
-          <CommentIcon color="#A09580" />
+          <Image source={{ uri: FIGMA_POST_COMMENT }} style={pc.actionIcon} contentFit="contain" />
+          <Text style={pc.actionCount}>{commentCount}</Text>
         </View>
-        <Pressable onPress={handleOpen} style={pc.actionBtn}>
-          <ShareInlineIcon color="#A09580" />
+        {/* Share */}
+        <Pressable
+          onPress={() => {
+            if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard) {
+              navigator.clipboard.writeText(post.external_url || window.location.href);
+            }
+          }}
+          style={pc.actionBtn}
+        >
+          <Image source={{ uri: FIGMA_POST_SHARE }} style={pc.shareIcon} contentFit="contain" />
         </Pressable>
+        {/* Article link */}
         {post.external_url && (
           <Pressable onPress={handleOpen} style={pc.readMore}>
-            <Text style={pc.readMoreText}>Read article →</Text>
+            <Text style={pc.readMoreText}>Read →</Text>
           </Pressable>
         )}
       </View>
@@ -268,114 +288,80 @@ function RoasterPostCard({
 }
 
 const pc = StyleSheet.create({
+  // Figma: white card, generous padding
   card: {
     backgroundColor: "#FAF8F0",
     paddingHorizontal: 28,
-    paddingVertical: 24,
+    paddingTop: 20,
+    paddingBottom: 20,
   },
+  // Header
   header: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 10,
     marginBottom: 14,
   },
-  avatarWrap: {},
   avatar: {
     width: 30,
     height: 30,
     borderRadius: 15,
     overflow: "hidden",
   } as any,
-  headerMeta: { flex: 1 },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 6,
-  },
-  authorName: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 11.8,
-    color: "#351101",
-  },
-  timestamp: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 10,
-    color: "#A09580",
-  },
-  subtitle: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 10,
-    color: "#684F44",
-    marginTop: 2,
-  },
-  featureBtn: {
-    flexDirection: "row",
+  avatarFallback: {
+    backgroundColor: "#351101",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: "rgba(160,149,128,0.3)",
+    justifyContent: "center",
+  } as any,
+  avatarLetter: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: "#FAF8F0" },
+  headerMeta: { flex: 1 },
+  nameRow: { flexDirection: "row", alignItems: "baseline", gap: 5 },
+  // Figma: Inter Medium 11.848px #351101
+  authorName: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
+  // Figma: Inter Medium 10.058px #A09580
+  timestamp: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#A09580" },
+  // Figma: Inter Medium 10.058px #684F44
+  subtitle: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#684F44", marginTop: 2 },
+  // Feature star badge
+  featureBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 5,
+    borderRadius: 4, borderWidth: 1, borderColor: "rgba(160,149,128,0.3)",
   },
-  featureBtnActive: {
-    borderColor: "rgba(215,152,218,0.4)",
-    backgroundColor: "rgba(215,152,218,0.08)",
-  },
-  featureBtnText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 10,
-    color: "#A09580",
-  },
-  featureBtnTextActive: {
-    color: "#D798DA",
-  },
-  titleWrap: { marginBottom: 12 },
-  title: {
+  featureBtnActive: { borderColor: "rgba(215,152,218,0.4)", backgroundColor: "rgba(215,152,218,0.08)" },
+  featureBtnText: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#A09580" },
+  featureBtnTextActive: { color: "#D798DA" },
+  // Body text: Figma Inter Regular 16.764px #351101 line-height 23.469px
+  body: {
     fontFamily: fonts.bodyRegular,
     fontSize: 16.8,
     color: "#351101",
     lineHeight: 23.5,
+    marginBottom: 10,
   },
-  coverWrap: {
-    borderRadius: 5,
-    overflow: "hidden",
-    marginBottom: 12,
-  },
-  coverImage: {
-    width: "100%" as any,
-    height: 298,
-    borderRadius: 5,
-  },
-  teaser: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 10.9,
-    color: "#684F44",
-    lineHeight: 15.1,
+  // Location row: Figma map pin + Inter Medium 11.848px #351101
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     marginBottom: 14,
   },
-  actionBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  actionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  actionCount: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 11.8,
-    color: "#351101",
-  },
+  mapPinIcon: { width: 11, height: 14 },
+  locationText: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
+  // Photo: Figma 311px tall, rounded 5px
+  photoWrap: { borderRadius: 5, overflow: "hidden", marginBottom: 16 } as any,
+  photo: { width: "100%" as any, height: 311, borderRadius: 5 },
+  // Action bar: Figma icons + counts side by side
+  actionBar: { flexDirection: "row", alignItems: "center", gap: 20 },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+  // Figma heart: 15.998×14.185px
+  actionIcon: { width: 16, height: 14 },
+  // Figma share: 11.874×14.249px
+  shareIcon: { width: 12, height: 14 },
+  // Figma count: Inter Medium 11.848px #351101
+  actionCount: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
   readMore: { marginLeft: "auto" as any },
-  readMoreText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 11,
-    color: "#351101",
-    textDecorationLine: "underline",
-  },
+  readMoreText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#351101", textDecorationLine: "underline" },
 });
 
 // ── Follow button ─────────────────────────────────────────────────────────────
@@ -428,58 +414,99 @@ function ComposePostForm({
   onCancel,
   loading,
 }: {
-  onSubmit: (data: { title: string; teaser: string; external_url: string; cover_image_url: string }) => void;
+  onSubmit: (data: { title: string; teaser: string; external_url: string; cover_image_url: string; post_type: string; location: string }) => void;
   onCancel: () => void;
   loading: boolean;
 }) {
+  const [postType, setPostType] = useState<"article" | "note">("article");
   const [title, setTitle] = useState("");
   const [teaser, setTeaser] = useState("");
   const [url, setUrl] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
+  const [location, setLocation] = useState("");
 
-  const canSubmit = title.trim().length > 0 && teaser.trim().length > 0 && teaser.trim().length <= 300;
+  const isNote = postType === "note";
+  const canSubmit = teaser.trim().length > 0 && teaser.trim().length <= 300 &&
+    (isNote || title.trim().length > 0);
 
   return (
     <View style={cf.wrap}>
       <View style={cf.header}>
-        <Text style={cf.heading}>New article post</Text>
+        <Text style={cf.heading}>New post</Text>
         <Pressable onPress={onCancel} hitSlop={8}>
           <X size={16} color="#A09580" />
         </Pressable>
       </View>
 
-      <Text style={cf.label}>Title *</Text>
-      <TextInput
-        style={cf.input}
-        value={title}
-        onChangeText={setTitle}
-        placeholder="e.g. Gangecool Estate"
-        placeholderTextColor="#C7BAA5"
-      />
+      {/* Post type toggle */}
+      <View style={cf.typeRow}>
+        <Pressable
+          onPress={() => setPostType("article")}
+          style={[cf.typeBtn, !isNote && cf.typeBtnActive]}
+        >
+          <Text style={[cf.typeBtnText, !isNote && cf.typeBtnTextActive]}>Article</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setPostType("note")}
+          style={[cf.typeBtn, isNote && cf.typeBtnActive]}
+        >
+          <Text style={[cf.typeBtnText, isNote && cf.typeBtnTextActive]}>Note</Text>
+        </Pressable>
+      </View>
+
+      {!isNote && (
+        <>
+          <Text style={cf.label}>Title *</Text>
+          <TextInput
+            style={cf.input}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="e.g. Gangecool Estate"
+            placeholderTextColor="#C7BAA5"
+          />
+        </>
+      )}
 
       <Text style={cf.label}>
-        Teaser * <Text style={cf.labelMeta}>{teaser.length}/300</Text>
+        {isNote ? "Note *" : "Teaser *"} <Text style={cf.labelMeta}>{teaser.length}/300</Text>
       </Text>
       <TextInput
         style={[cf.input, cf.textarea]}
         value={teaser}
         onChangeText={setTeaser}
-        placeholder="A short description (up to 300 chars) that appears in the feed…"
+        placeholder={isNote ? "What's on your mind…" : "A short description (up to 300 chars) that appears in the feed…"}
         placeholderTextColor="#C7BAA5"
         multiline
         numberOfLines={3}
       />
 
-      <Text style={cf.label}>Article URL</Text>
-      <TextInput
-        style={cf.input}
-        value={url}
-        onChangeText={setUrl}
-        placeholder="https://…"
-        placeholderTextColor="#C7BAA5"
-        autoCapitalize="none"
-        keyboardType="url"
-      />
+      {isNote && (
+        <>
+          <Text style={cf.label}>Location</Text>
+          <TextInput
+            style={cf.input}
+            value={location}
+            onChangeText={setLocation}
+            placeholder="e.g. Nada, Anjuna"
+            placeholderTextColor="#C7BAA5"
+          />
+        </>
+      )}
+
+      {!isNote && (
+        <>
+          <Text style={cf.label}>Article URL</Text>
+          <TextInput
+            style={cf.input}
+            value={url}
+            onChangeText={setUrl}
+            placeholder="https://…"
+            placeholderTextColor="#C7BAA5"
+            autoCapitalize="none"
+            keyboardType="url"
+          />
+        </>
+      )}
 
       <Text style={cf.label}>Cover image URL</Text>
       <TextInput
@@ -497,7 +524,14 @@ function ComposePostForm({
           <Text style={cf.cancelText}>Cancel</Text>
         </Pressable>
         <Pressable
-          onPress={() => canSubmit && onSubmit({ title: title.trim(), teaser: teaser.trim(), external_url: url.trim(), cover_image_url: coverUrl.trim() })}
+          onPress={() => canSubmit && onSubmit({
+            title: isNote ? (teaser.trim().slice(0, 60) || "Note") : title.trim(),
+            teaser: teaser.trim(),
+            external_url: url.trim(),
+            cover_image_url: coverUrl.trim(),
+            post_type: postType,
+            location: location.trim(),
+          })}
           style={[cf.submitBtn, !canSubmit && cf.submitBtnDisabled]}
           disabled={!canSubmit || loading}
         >
@@ -533,6 +567,25 @@ const cf = StyleSheet.create({
     fontSize: 14,
     color: "#351101",
   },
+  typeRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 4,
+  },
+  typeBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+    backgroundColor: "#FEFDFB",
+  },
+  typeBtnActive: {
+    borderColor: "#351101",
+    backgroundColor: "#351101",
+  },
+  typeBtnText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: "#684F44" },
+  typeBtnTextActive: { color: "#FAF8F0" },
   label: {
     fontFamily: fonts.bodyMedium,
     fontSize: 11,
@@ -680,6 +733,8 @@ export default function RoasterDetailPage() {
           teaser: data.teaser,
           external_url: data.external_url || null,
           cover_image_url: data.cover_image_url || null,
+          post_type: data.post_type || "article",
+          location: data.location || null,
         }),
       });
       setShowCompose(false);
@@ -855,6 +910,7 @@ export default function RoasterDetailPage() {
                     post={post}
                     roasterName={roaster.name}
                     avatarUrl={logoUrl}
+                    city={city}
                     isOwner={false}
                   />
                   {i < featuredPosts.length - 1 && <View style={s.divider} />}
@@ -876,6 +932,7 @@ export default function RoasterDetailPage() {
                     post={post}
                     roasterName={roaster.name}
                     avatarUrl={logoUrl}
+                    city={city}
                     isOwner
                     onFeatureToggle={handleFeatureToggle}
                   />

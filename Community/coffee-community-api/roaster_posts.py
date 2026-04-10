@@ -37,6 +37,8 @@ class RoasterPostRequest(BaseModel):
     external_url: Optional[str] = None
     cover_image_url: Optional[str] = None
     published_at: Optional[str] = None  # ISO date string; defaults to now
+    post_type: Optional[str] = "article"  # "article" or "note"
+    location: Optional[str] = None       # for note posts
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -62,6 +64,8 @@ def _row_to_post(r) -> dict:
         "created_at": r["created_at"],
         "is_featured": bool(r["is_featured"]) if "is_featured" in r.keys() else False,
         "featured_order": r["featured_order"] if "featured_order" in r.keys() else None,
+        "post_type": r["post_type"] if "post_type" in r.keys() else "article",
+        "location": r["location"] if "location" in r.keys() else None,
     }
 
 
@@ -98,13 +102,15 @@ def create_post(req: RoasterPostRequest, user=Depends(get_current_user)):
 
     db = get_db()
     try:
+        post_type = req.post_type if req.post_type in ("article", "note") else "article"
         cursor = db.execute(
             """INSERT INTO roaster_posts
                (roaster_slug, user_id, title, teaser, external_url, cover_image_url,
-                published_at, created_at, is_featured, featured_order)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)""",
+                published_at, created_at, is_featured, featured_order, post_type, location)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)""",
             (roaster_slug, user["id"], req.title.strip(), teaser,
-             req.external_url, req.cover_image_url, published_at, now),
+             req.external_url, req.cover_image_url, published_at, now,
+             post_type, req.location),
         )
         db.commit()
         row = db.execute(

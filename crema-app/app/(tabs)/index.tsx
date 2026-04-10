@@ -15,8 +15,14 @@ import {
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import {
-  MapPin, Coffee, ShoppingCart, MessageCircle, Send, Plus, X, ChevronDown,
+  MapPin, Coffee, ShoppingCart, Send, Plus, X, ChevronDown, MessageCircle,
 } from "lucide-react-native";
+
+// ── Figma Frame 720 post card assets ─────────────────────────────────────────
+const FIGMA_POST_HEART   = "http://localhost:3845/assets/3e92b5cd93aafa2a17dd1b9b331c5338e18ac639.svg";
+const FIGMA_POST_COMMENT = "http://localhost:3845/assets/71167aa5e804a3f44c93add7f2445f77d514d0af.svg";
+const FIGMA_POST_SHARE   = "http://localhost:3845/assets/12186c3d643c443d0ef02bb899348e1c0cdf0973.svg";
+const FIGMA_POST_MAPPIN  = "http://localhost:3845/assets/e5bb5db86d84a07e96f6d7e2803da172dc94dd29.svg";
 import * as Linking from "expo-linking";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
@@ -90,7 +96,11 @@ export default function FeedPage() {
     try {
       await apiFetch("/roaster-posts", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          post_type: data.post_type || "article",
+          location: data.location || null,
+        }),
       });
       setShowRoasterCompose(false);
       await loadFeed();
@@ -139,7 +149,7 @@ export default function FeedPage() {
                     </View>
                   )}
                 </View>
-                <Text style={s.composePromptText}>Share an article with the community…</Text>
+                <Text style={s.composePromptText}>Share a note or article with the community…</Text>
                 <View style={s.composePromptIcon}>
                   <Plus size={14} color="#A09580" />
                 </View>
@@ -188,23 +198,29 @@ function RoasterComposeCard({
   onSubmit: (data: any) => Promise<void>;
   onCancel: () => void;
 }) {
+  const [postType, setPostType] = useState<"article" | "note">("article");
   const [title, setTitle] = useState("");
   const [teaser, setTeaser] = useState("");
   const [url, setUrl] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
+  const [location, setLocation] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const canSubmit = title.trim().length > 0 && teaser.trim().length > 0 && teaser.trim().length <= 300;
+  const isNote = postType === "note";
+  const canSubmit = teaser.trim().length > 0 && teaser.trim().length <= 300 &&
+    (isNote || title.trim().length > 0);
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setLoading(true);
     try {
       await onSubmit({
-        title: title.trim(),
+        title: isNote ? (teaser.trim().slice(0, 60) || "Note") : title.trim(),
         teaser: teaser.trim(),
         external_url: url.trim() || null,
         cover_image_url: coverUrl.trim() || null,
+        post_type: postType,
+        location: location.trim() || null,
       });
     } finally {
       setLoading(false);
@@ -214,44 +230,75 @@ function RoasterComposeCard({
   return (
     <View style={rc.wrap}>
       <View style={rc.topRow}>
-        <Text style={rc.heading}>Post an article</Text>
+        <Text style={rc.heading}>New post</Text>
         <Pressable onPress={onCancel} hitSlop={10}>
           <X size={16} color="#A09580" />
         </Pressable>
       </View>
 
-      <Text style={rc.label}>Title *</Text>
-      <TextInput
-        style={rc.input}
-        value={title}
-        onChangeText={setTitle}
-        placeholder="Article title…"
-        placeholderTextColor="#C7BAA5"
-      />
+      {/* Post type toggle */}
+      <View style={rc.typeRow}>
+        <Pressable onPress={() => setPostType("article")} style={[rc.typeBtn, !isNote && rc.typeBtnActive]}>
+          <Text style={[rc.typeBtnText, !isNote && rc.typeBtnTextActive]}>Article</Text>
+        </Pressable>
+        <Pressable onPress={() => setPostType("note")} style={[rc.typeBtn, isNote && rc.typeBtnActive]}>
+          <Text style={[rc.typeBtnText, isNote && rc.typeBtnTextActive]}>Note</Text>
+        </Pressable>
+      </View>
+
+      {!isNote && (
+        <>
+          <Text style={rc.label}>Title *</Text>
+          <TextInput
+            style={rc.input}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Article title…"
+            placeholderTextColor="#C7BAA5"
+          />
+        </>
+      )}
 
       <Text style={rc.label}>
-        Teaser * <Text style={rc.labelCount}>{teaser.length}/300</Text>
+        {isNote ? "Note *" : "Teaser *"} <Text style={rc.labelCount}>{teaser.length}/300</Text>
       </Text>
       <TextInput
         style={[rc.input, rc.textarea]}
         value={teaser}
         onChangeText={setTeaser}
-        placeholder="A short description shown in the feed (max 300 chars)…"
+        placeholder={isNote ? "What's on your mind…" : "A short description shown in the feed (max 300 chars)…"}
         placeholderTextColor="#C7BAA5"
         multiline
         numberOfLines={3}
       />
 
-      <Text style={rc.label}>Article URL</Text>
-      <TextInput
-        style={rc.input}
-        value={url}
-        onChangeText={setUrl}
-        placeholder="https://…"
-        placeholderTextColor="#C7BAA5"
-        autoCapitalize="none"
-        keyboardType="url"
-      />
+      {isNote && (
+        <>
+          <Text style={rc.label}>Location</Text>
+          <TextInput
+            style={rc.input}
+            value={location}
+            onChangeText={setLocation}
+            placeholder="e.g. Nada, Anjuna"
+            placeholderTextColor="#C7BAA5"
+          />
+        </>
+      )}
+
+      {!isNote && (
+        <>
+          <Text style={rc.label}>Article URL</Text>
+          <TextInput
+            style={rc.input}
+            value={url}
+            onChangeText={setUrl}
+            placeholder="https://…"
+            placeholderTextColor="#C7BAA5"
+            autoCapitalize="none"
+            keyboardType="url"
+          />
+        </>
+      )}
 
       <Text style={rc.label}>Cover image URL</Text>
       <TextInput
@@ -301,6 +348,14 @@ const rc = StyleSheet.create({
     marginBottom: 14,
   },
   heading: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#351101" },
+  typeRow: { flexDirection: "row", gap: 8, marginBottom: 4 },
+  typeBtn: {
+    paddingHorizontal: 14, paddingVertical: 6,
+    borderRadius: 4, borderWidth: 1, borderColor: "#D7D1C4", backgroundColor: "#FEFDFB",
+  },
+  typeBtnActive: { borderColor: "#351101", backgroundColor: "#351101" },
+  typeBtnText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: "#684F44" },
+  typeBtnTextActive: { color: "#FAF8F0" },
   label: {
     fontFamily: fonts.bodyMedium,
     fontSize: 11,
@@ -361,20 +416,19 @@ function timeAgo(dateStr: string): string {
   } catch { return ""; }
 }
 
+// ── Roaster post feed card — Frame 720 design ─────────────────────────────────
+
 function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
+  const [commentCount] = useState(0);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const pulse = () => {
+  const handleLike = () => {
     Animated.sequence([
       Animated.timing(scaleAnim, { toValue: 1.25, duration: 100, useNativeDriver: true }),
       Animated.timing(scaleAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
     ]).start();
-  };
-
-  const handleLike = () => {
-    pulse();
     setLiked((l) => !l);
     setLikeCount((c) => liked ? c - 1 : c + 1);
   };
@@ -387,71 +441,74 @@ function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
     if (post.roaster_slug) router.push(`/roaster/${post.roaster_slug}`);
   };
 
+  // Post type label: note vs article
+  const postTypeLabel = post.post_type === "note" ? "Posted a note" : "Posted about an article";
+
   return (
     <View style={rp.card}>
-      {/* Header */}
+
+      {/* ── Header ── */}
       <Pressable onPress={goToRoaster} style={rp.header}>
-        <View style={rp.avatarWrap}>
-          {post.author_avatar_url ? (
-            <Image
-              source={{ uri: post.author_avatar_url }}
-              style={rp.avatar}
-              contentFit="cover"
-            />
-          ) : (
-            <View style={[rp.avatar, rp.avatarFallback]}>
-              <Text style={rp.avatarLetter}>
-                {(post.author_display_name || "R")[0].toUpperCase()}
-              </Text>
-            </View>
-          )}
-        </View>
+        {post.author_avatar_url ? (
+          <Image source={{ uri: post.author_avatar_url }} style={rp.avatar} contentFit="cover" />
+        ) : (
+          <View style={[rp.avatar, rp.avatarFallback]}>
+            <Text style={rp.avatarLetter}>{(post.author_display_name || "R")[0].toUpperCase()}</Text>
+          </View>
+        )}
         <View style={rp.headerText}>
           <View style={rp.nameRow}>
             <Text style={rp.authorName}>{post.author_display_name}</Text>
             <Text style={rp.timestamp}>{timeAgo(post.published_at)}</Text>
           </View>
-          <Text style={rp.subtitle}>Posted about an article</Text>
+          <Text style={rp.subtitle}>{postTypeLabel}</Text>
         </View>
       </Pressable>
 
-      {/* Title */}
-      <Pressable onPress={handleOpen} style={rp.titleWrap}>
-        <Text style={rp.title}>{post.title}</Text>
+      {/* ── Body text (teaser at Figma 16.764px) ── */}
+      <Pressable onPress={handleOpen}>
+        <Text style={rp.body}>{post.teaser}</Text>
       </Pressable>
 
-      {/* Cover image */}
+      {/* ── Location row ── */}
+      {post.location ? (
+        <View style={rp.locationRow}>
+          <Image source={{ uri: FIGMA_POST_MAPPIN }} style={rp.mapPinIcon} contentFit="contain" />
+          <Text style={rp.locationText}>{post.location}</Text>
+        </View>
+      ) : null}
+
+      {/* ── Cover photo ── */}
       {post.cover_image_url ? (
-        <Pressable onPress={handleOpen} style={rp.coverWrap}>
-          <Image
-            source={{ uri: post.cover_image_url }}
-            style={rp.coverImage}
-            contentFit="cover"
-          />
+        <Pressable onPress={handleOpen} style={rp.photoWrap}>
+          <Image source={{ uri: post.cover_image_url }} style={rp.photo} contentFit="cover" />
         </Pressable>
       ) : null}
 
-      {/* Teaser */}
-      <Text style={rp.teaser} numberOfLines={4}>{post.teaser}</Text>
-
-      {/* Action bar */}
+      {/* ── Action bar ── */}
       <View style={rp.actionBar}>
+        {/* Heart + count */}
         <Pressable onPress={handleLike} style={rp.actionBtn}>
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
             {liked
-              ? <HeartFilledOutlineIcon size={16} color={colors.like} />
-              : <HeartOutlineIcon size={16} color={colors.textMuted} />}
+              ? <HeartFilledOutlineIcon size={16} color="#D798DA" />
+              : <Image source={{ uri: FIGMA_POST_HEART }} style={rp.heartIcon} contentFit="contain" />}
           </Animated.View>
-          {likeCount > 0 && (
-            <Text style={[rp.actionCount, liked && { color: colors.like }]}>{likeCount}</Text>
-          )}
+          <Text style={[rp.actionCount, liked && { color: "#D798DA" }]}>{likeCount}</Text>
         </Pressable>
+        {/* Comment + count */}
         <View style={rp.actionBtn}>
-          <MessageCircle size={16} color={colors.textMuted} strokeWidth={2} />
+          <Image source={{ uri: FIGMA_POST_COMMENT }} style={rp.commentIcon} contentFit="contain" />
+          <Text style={rp.actionCount}>{commentCount}</Text>
         </View>
+        {/* Share */}
+        <View style={rp.actionBtn}>
+          <Image source={{ uri: FIGMA_POST_SHARE }} style={rp.shareIcon} contentFit="contain" />
+        </View>
+        {/* Article link */}
         {post.external_url && (
-          <Pressable onPress={handleOpen} style={[rp.actionBtn, { marginLeft: "auto" as any }]}>
-            <Text style={rp.readMore}>Read article →</Text>
+          <Pressable onPress={handleOpen} style={{ marginLeft: "auto" as any }}>
+            <Text style={rp.readMore}>Read →</Text>
           </Pressable>
         )}
       </View>
@@ -460,76 +517,74 @@ function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
 }
 
 const rp = StyleSheet.create({
+  // Figma: white card, subtle border, rounded
   card: {
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: "hidden",
     marginBottom: 20,
     backgroundColor: colors.cardFront,
     ...cardShadow,
   },
+  // Header: avatar + name row + subtitle
   header: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 10,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
-  avatarWrap: {},
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    overflow: "hidden",
-  } as any,
-  avatarFallback: {
-    backgroundColor: "#351101",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarLetter: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: "#FAF8F0" },
+  avatar: { width: 30, height: 30, borderRadius: 15, overflow: "hidden" } as any,
+  avatarFallback: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,
+  avatarLetter: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: "#FAF8F0" },
   headerText: { flex: 1 },
-  nameRow: { flexDirection: "row", alignItems: "baseline", gap: 6 },
-  authorName: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.textPrimary },
-  timestamp: { fontFamily: fonts.bodyRegular, fontSize: 10, color: colors.textMuted },
-  subtitle: { fontFamily: fonts.bodyMedium, fontSize: 10, color: colors.textSecondary, marginTop: 1 },
-  titleWrap: { paddingHorizontal: 16, marginBottom: 10 },
-  title: {
+  nameRow: { flexDirection: "row", alignItems: "baseline", gap: 5 },
+  // Figma: Inter Medium 11.848px #351101
+  authorName: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
+  // Figma: Inter Medium 10.058px #A09580
+  timestamp: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#A09580" },
+  // Figma: Inter Medium 10.058px #684F44
+  subtitle: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#684F44", marginTop: 2 },
+  // Body: Figma Inter Regular 16.764px #351101 line-height 23.469px
+  body: {
     fontFamily: fonts.bodyRegular,
-    fontSize: 17,
-    color: colors.textPrimary,
-    lineHeight: 23,
+    fontSize: 16.8,
+    color: "#351101",
+    lineHeight: 23.5,
+    paddingHorizontal: 20,
+    marginBottom: 10,
   },
-  coverWrap: { marginBottom: 12 },
-  coverImage: {
-    width: "100%" as any,
-    height: 220,
+  // Location: Figma map pin + Inter Medium 11.848px #351101
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 20,
+    marginBottom: 14,
   },
-  teaser: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 17,
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
+  mapPinIcon: { width: 11, height: 14 },
+  locationText: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
+  // Photo: Figma 311px tall, rounded 5px
+  photoWrap: { marginHorizontal: 20, borderRadius: 5, overflow: "hidden", marginBottom: 14 } as any,
+  photo: { width: "100%" as any, height: 240, borderRadius: 5 },
+  // Action bar
   actionBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    gap: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderColor: colors.borderLight,
   },
-  actionBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
-  actionCount: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.textMuted },
-  readMore: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 12,
-    color: colors.textPrimary,
-    textDecorationLine: "underline",
-  },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+  // Figma icon sizes
+  heartIcon: { width: 16, height: 14 },
+  commentIcon: { width: 14, height: 14 },
+  shareIcon: { width: 12, height: 14 },
+  // Figma: Inter Medium 11.848px #351101
+  actionCount: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
+  readMore: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#351101", textDecorationLine: "underline" },
 });
 
 // ── Tasting Note Card (unchanged visual design) ───────────────────────────────

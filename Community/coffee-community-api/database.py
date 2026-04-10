@@ -136,6 +136,9 @@ _MIGRATIONS = [
     "ALTER TABLE roaster_posts ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE roaster_posts ADD COLUMN featured_order INTEGER",
     "CREATE INDEX IF NOT EXISTS idx_rposts_featured ON roaster_posts(roaster_slug, is_featured)",
+    # Post type and location for note posts
+    "ALTER TABLE roaster_posts ADD COLUMN post_type TEXT NOT NULL DEFAULT 'article'",
+    "ALTER TABLE roaster_posts ADD COLUMN location TEXT",
 ]
 
 
