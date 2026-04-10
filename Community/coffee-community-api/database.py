@@ -139,6 +139,8 @@ _MIGRATIONS = [
     # Post type and location for note posts
     "ALTER TABLE roaster_posts ADD COLUMN post_type TEXT NOT NULL DEFAULT 'article'",
     "ALTER TABLE roaster_posts ADD COLUMN location TEXT",
+    # Multiple images support
+    "ALTER TABLE roaster_posts ADD COLUMN images_json TEXT",
 ]
 
 

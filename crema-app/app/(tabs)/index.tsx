@@ -202,7 +202,7 @@ function RoasterComposeCard({
   const [title, setTitle] = useState("");
   const [teaser, setTeaser] = useState("");
   const [url, setUrl] = useState("");
-  const [coverUrl, setCoverUrl] = useState("");
+  const [imageUrls, setImageUrls] = useState<string[]>([""]);
   const [location, setLocation] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -210,17 +210,25 @@ function RoasterComposeCard({
   const canSubmit = teaser.trim().length > 0 && teaser.trim().length <= 300 &&
     (isNote || title.trim().length > 0);
 
+  const addImageField = () => setImageUrls((prev) => [...prev, ""]);
+  const updateImageUrl = (idx: number, val: string) =>
+    setImageUrls((prev) => prev.map((u, i) => (i === idx ? val : u)));
+  const removeImageUrl = (idx: number) =>
+    setImageUrls((prev) => prev.filter((_, i) => i !== idx));
+
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setLoading(true);
+    const imgs = imageUrls.map((u) => u.trim()).filter(Boolean);
     try {
       await onSubmit({
         title: isNote ? (teaser.trim().slice(0, 60) || "Note") : title.trim(),
         teaser: teaser.trim(),
         external_url: url.trim() || null,
-        cover_image_url: coverUrl.trim() || null,
+        cover_image_url: imgs[0] || null,
         post_type: postType,
         location: location.trim() || null,
+        images: imgs,
       });
     } finally {
       setLoading(false);
@@ -300,16 +308,31 @@ function RoasterComposeCard({
         </>
       )}
 
-      <Text style={rc.label}>Cover image URL</Text>
-      <TextInput
-        style={rc.input}
-        value={coverUrl}
-        onChangeText={setCoverUrl}
-        placeholder="https://…"
-        placeholderTextColor="#C7BAA5"
-        autoCapitalize="none"
-        keyboardType="url"
-      />
+      <Text style={rc.label}>
+        Images <Text style={rc.labelCount}>(portrait for notes · scroll beyond 3)</Text>
+      </Text>
+      {imageUrls.map((val, idx) => (
+        <View key={idx} style={rc.imageRow}>
+          <TextInput
+            style={[rc.input, { flex: 1 }]}
+            value={val}
+            onChangeText={(v) => updateImageUrl(idx, v)}
+            placeholder="https://…"
+            placeholderTextColor="#C7BAA5"
+            autoCapitalize="none"
+            keyboardType="url"
+          />
+          {imageUrls.length > 1 && (
+            <Pressable onPress={() => removeImageUrl(idx)} hitSlop={8} style={rc.removeBtn}>
+              <X size={13} color="#A09580" />
+            </Pressable>
+          )}
+        </View>
+      ))}
+      <Pressable onPress={addImageField} style={rc.addImageBtn}>
+        <Plus size={11} color="#684F44" strokeWidth={2} />
+        <Text style={rc.addImageText}>Add image</Text>
+      </Pressable>
 
       <View style={rc.actions}>
         <Pressable onPress={onCancel} style={rc.cancelBtn}>
@@ -400,6 +423,66 @@ const rc = StyleSheet.create({
   },
   submitBtnDisabled: { backgroundColor: "#A09580" },
   submitText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: "#FAF8F0" },
+  imageRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 } as any,
+  removeBtn: { padding: 4 },
+  addImageBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    marginTop: 4, marginBottom: 2,
+    paddingVertical: 5, alignSelf: "flex-start" as any,
+  },
+  addImageText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#684F44" },
+});
+
+// ── Photo gallery ─────────────────────────────────────────────────────────────
+
+function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => void }) {
+  if (!images || images.length === 0) return null;
+
+  if (images.length === 1) {
+    return (
+      <Pressable onPress={onPress} style={pg.singleWrap}>
+        <Image source={{ uri: images[0] }} style={pg.singleImg} contentFit="cover" />
+      </Pressable>
+    );
+  }
+
+  if (images.length <= 3) {
+    return (
+      <View style={pg.rowWrap}>
+        {images.map((uri, i) => (
+          <Pressable key={i} onPress={onPress} style={pg.colWrap}>
+            <Image source={{ uri }} style={pg.colImg} contentFit="cover" />
+          </Pressable>
+        ))}
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={pg.scrollWrap}
+      contentContainerStyle={pg.scrollContent}
+    >
+      {images.map((uri, i) => (
+        <Pressable key={i} onPress={onPress}>
+          <Image source={{ uri }} style={pg.scrollImg} contentFit="cover" />
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
+const pg = StyleSheet.create({
+  singleWrap: { marginHorizontal: 20, marginBottom: 14, overflow: "hidden" } as any,
+  singleImg: { width: "100%" as any, height: 240, borderRadius: 5 },
+  rowWrap: { flexDirection: "row", gap: 4, marginHorizontal: 20, marginBottom: 14, overflow: "hidden" } as any,
+  colWrap: { flex: 1, overflow: "hidden", borderRadius: 5 } as any,
+  colImg: { width: "100%" as any, height: 240, borderRadius: 5 },
+  scrollWrap: { marginBottom: 14, paddingLeft: 20 },
+  scrollContent: { gap: 4, paddingRight: 20 } as any,
+  scrollImg: { width: 160, height: 240, borderRadius: 5 },
 });
 
 // ── Roaster Post Feed Card (Figma-faithful) ───────────────────────────────────
@@ -478,12 +561,8 @@ function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
         </View>
       ) : null}
 
-      {/* ── Cover photo ── */}
-      {post.cover_image_url ? (
-        <Pressable onPress={handleOpen} style={rp.photoWrap}>
-          <Image source={{ uri: post.cover_image_url }} style={rp.photo} contentFit="cover" />
-        </Pressable>
-      ) : null}
+      {/* ── Photo gallery ── */}
+      <PhotoGallery images={post.images || (post.cover_image_url ? [post.cover_image_url] : [])} onPress={handleOpen} />
 
       {/* ── Action bar ── */}
       <View style={rp.actionBar}>

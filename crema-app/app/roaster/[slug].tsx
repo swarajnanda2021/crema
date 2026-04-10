@@ -115,6 +115,71 @@ function timeAgo(dateStr: string): string {
   } catch { return ""; }
 }
 
+// ── Photo gallery ─────────────────────────────────────────────────────────────
+// 1 image  → full-width landscape (height 240)
+// 2 images → side-by-side portrait (height 280), gap 4
+// 3 images → three portrait columns (height 280), gap 4
+// 4+ images → horizontal scroll, each 160px wide × 260px tall
+
+function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => void }) {
+  if (!images || images.length === 0) return null;
+
+  if (images.length === 1) {
+    return (
+      <Pressable onPress={onPress} style={pg.singleWrap}>
+        <Image source={{ uri: images[0] }} style={pg.singleImg} contentFit="cover" />
+      </Pressable>
+    );
+  }
+
+  if (images.length <= 3) {
+    return (
+      <View style={pg.rowWrap}>
+        {images.map((uri, i) => (
+          <Pressable key={i} onPress={onPress} style={pg.colWrap}>
+            <Image source={{ uri }} style={pg.colImg} contentFit="cover" />
+          </Pressable>
+        ))}
+      </View>
+    );
+  }
+
+  // 4+ → horizontal scroll with peek
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={pg.scrollWrap}
+      contentContainerStyle={pg.scrollContent}
+    >
+      {images.map((uri, i) => (
+        <Pressable key={i} onPress={onPress}>
+          <Image source={{ uri }} style={pg.scrollImg} contentFit="cover" />
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
+const pg = StyleSheet.create({
+  // 1 image — landscape
+  singleWrap: { marginBottom: 16, overflow: "hidden" } as any,
+  singleImg: { width: "100%" as any, height: 280, borderRadius: 5 },
+  // 2–3 images — portrait row, gap 4
+  rowWrap: {
+    flexDirection: "row",
+    gap: 4,
+    marginBottom: 16,
+    overflow: "hidden",
+  } as any,
+  colWrap: { flex: 1, overflow: "hidden", borderRadius: 5 } as any,
+  colImg: { width: "100%" as any, height: 280, borderRadius: 5 },
+  // 4+ — horizontal scroll
+  scrollWrap: { marginBottom: 16 },
+  scrollContent: { gap: 4, paddingRight: 20 } as any,
+  scrollImg: { width: 160, height: 260, borderRadius: 5 },
+});
+
 // ── Coffee grid ───────────────────────────────────────────────────────────────
 
 const GAP = 20;
@@ -242,12 +307,8 @@ function RoasterPostCard({
         </View>
       ) : null}
 
-      {/* ── Cover photo ── */}
-      {post.cover_image_url ? (
-        <Pressable onPress={handleOpen} style={pc.photoWrap}>
-          <Image source={{ uri: post.cover_image_url }} style={pc.photo} contentFit="cover" />
-        </Pressable>
-      ) : null}
+      {/* ── Photo gallery ── */}
+      <PhotoGallery images={post.images || (post.cover_image_url ? [post.cover_image_url] : [])} onPress={handleOpen} />
 
       {/* ── Action bar (heart + count | comment + count | share) ── */}
       <View style={pc.actionBar}>
@@ -414,7 +475,7 @@ function ComposePostForm({
   onCancel,
   loading,
 }: {
-  onSubmit: (data: { title: string; teaser: string; external_url: string; cover_image_url: string; post_type: string; location: string }) => void;
+  onSubmit: (data: { title: string; teaser: string; external_url: string; cover_image_url: string; post_type: string; location: string; images: string[] }) => void;
   onCancel: () => void;
   loading: boolean;
 }) {
@@ -422,12 +483,18 @@ function ComposePostForm({
   const [title, setTitle] = useState("");
   const [teaser, setTeaser] = useState("");
   const [url, setUrl] = useState("");
-  const [coverUrl, setCoverUrl] = useState("");
+  const [imageUrls, setImageUrls] = useState<string[]>([""]);
   const [location, setLocation] = useState("");
 
   const isNote = postType === "note";
   const canSubmit = teaser.trim().length > 0 && teaser.trim().length <= 300 &&
     (isNote || title.trim().length > 0);
+
+  const addImageField = () => setImageUrls((prev) => [...prev, ""]);
+  const updateImageUrl = (idx: number, val: string) =>
+    setImageUrls((prev) => prev.map((u, i) => (i === idx ? val : u)));
+  const removeImageUrl = (idx: number) =>
+    setImageUrls((prev) => prev.filter((_, i) => i !== idx));
 
   return (
     <View style={cf.wrap}>
@@ -508,30 +575,49 @@ function ComposePostForm({
         </>
       )}
 
-      <Text style={cf.label}>Cover image URL</Text>
-      <TextInput
-        style={cf.input}
-        value={coverUrl}
-        onChangeText={setCoverUrl}
-        placeholder="https://…"
-        placeholderTextColor="#C7BAA5"
-        autoCapitalize="none"
-        keyboardType="url"
-      />
+      <Text style={cf.label}>
+        Images <Text style={cf.labelMeta}>(portrait for notes · max 3 visible, scroll beyond)</Text>
+      </Text>
+      {imageUrls.map((val, idx) => (
+        <View key={idx} style={cf.imageRow}>
+          <TextInput
+            style={[cf.input, { flex: 1 }]}
+            value={val}
+            onChangeText={(v) => updateImageUrl(idx, v)}
+            placeholder="https://…"
+            placeholderTextColor="#C7BAA5"
+            autoCapitalize="none"
+            keyboardType="url"
+          />
+          {imageUrls.length > 1 && (
+            <Pressable onPress={() => removeImageUrl(idx)} hitSlop={8} style={cf.removeBtn}>
+              <X size={13} color="#A09580" />
+            </Pressable>
+          )}
+        </View>
+      ))}
+      <Pressable onPress={addImageField} style={cf.addImageBtn}>
+        <Plus size={11} color="#684F44" strokeWidth={2} />
+        <Text style={cf.addImageText}>Add image</Text>
+      </Pressable>
 
       <View style={cf.actions}>
         <Pressable onPress={onCancel} style={cf.cancelBtn}>
           <Text style={cf.cancelText}>Cancel</Text>
         </Pressable>
         <Pressable
-          onPress={() => canSubmit && onSubmit({
-            title: isNote ? (teaser.trim().slice(0, 60) || "Note") : title.trim(),
-            teaser: teaser.trim(),
-            external_url: url.trim(),
-            cover_image_url: coverUrl.trim(),
-            post_type: postType,
-            location: location.trim(),
-          })}
+          onPress={() => {
+            const imgs = imageUrls.map((u) => u.trim()).filter(Boolean);
+            canSubmit && onSubmit({
+              title: isNote ? (teaser.trim().slice(0, 60) || "Note") : title.trim(),
+              teaser: teaser.trim(),
+              external_url: url.trim(),
+              cover_image_url: imgs[0] || "",
+              post_type: postType,
+              location: location.trim(),
+              images: imgs,
+            });
+          }}
           style={[cf.submitBtn, !canSubmit && cf.submitBtnDisabled]}
           disabled={!canSubmit || loading}
         >
@@ -634,6 +720,14 @@ const cf = StyleSheet.create({
   },
   submitBtnDisabled: { backgroundColor: "#A09580" },
   submitText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: "#FAF8F0" },
+  imageRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 } as any,
+  removeBtn: { padding: 4 },
+  addImageBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    marginTop: 4, marginBottom: 2,
+    paddingVertical: 5, alignSelf: "flex-start" as any,
+  },
+  addImageText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#684F44" },
 });
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -735,6 +829,7 @@ export default function RoasterDetailPage() {
           cover_image_url: data.cover_image_url || null,
           post_type: data.post_type || "article",
           location: data.location || null,
+          images: data.images || [],
         }),
       });
       setShowCompose(false);

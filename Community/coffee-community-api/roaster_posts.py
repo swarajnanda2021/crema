@@ -39,12 +39,28 @@ class RoasterPostRequest(BaseModel):
     published_at: Optional[str] = None  # ISO date string; defaults to now
     post_type: Optional[str] = "article"  # "article" or "note"
     location: Optional[str] = None       # for note posts
+    images: Optional[list] = None        # list of image URLs (up to N)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _now():
     return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _parse_images(r) -> list:
+    """Return images list: from images_json if present, else fallback to cover_image_url."""
+    keys = r.keys() if hasattr(r, "keys") else []
+    if "images_json" in keys and r["images_json"]:
+        try:
+            imgs = json.loads(r["images_json"])
+            if isinstance(imgs, list) and imgs:
+                return imgs
+        except Exception:
+            pass
+    # Fallback: single cover image
+    cover = r["cover_image_url"] if "cover_image_url" in keys else None
+    return [cover] if cover else []
 
 
 def _row_to_post(r) -> dict:
@@ -66,6 +82,7 @@ def _row_to_post(r) -> dict:
         "featured_order": r["featured_order"] if "featured_order" in r.keys() else None,
         "post_type": r["post_type"] if "post_type" in r.keys() else "article",
         "location": r["location"] if "location" in r.keys() else None,
+        "images": _parse_images(r),
     }
 
 
@@ -103,14 +120,19 @@ def create_post(req: RoasterPostRequest, user=Depends(get_current_user)):
     db = get_db()
     try:
         post_type = req.post_type if req.post_type in ("article", "note") else "article"
+        # Build images: use req.images if provided, else fall back to cover_image_url
+        images = [u for u in (req.images or []) if u and u.strip()]
+        images_json_str = json.dumps(images) if images else None
+        # cover_image_url: first image for backward compat
+        cover = images[0] if images else req.cover_image_url
         cursor = db.execute(
             """INSERT INTO roaster_posts
                (roaster_slug, user_id, title, teaser, external_url, cover_image_url,
-                published_at, created_at, is_featured, featured_order, post_type, location)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)""",
+                published_at, created_at, is_featured, featured_order, post_type, location, images_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?)""",
             (roaster_slug, user["id"], req.title.strip(), teaser,
-             req.external_url, req.cover_image_url, published_at, now,
-             post_type, req.location),
+             req.external_url, cover, published_at, now,
+             post_type, req.location, images_json_str),
         )
         db.commit()
         row = db.execute(
