@@ -15,7 +15,7 @@ import {
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import {
-  MapPin, Coffee, ShoppingCart, Send, Plus, X, ChevronDown, MessageCircle,
+  MapPin, Send, Plus, X, MessageCircle,
 } from "lucide-react-native";
 
 // ── Figma Frame 720 post card assets ─────────────────────────────────────────
@@ -27,11 +27,11 @@ import * as Linking from "expo-linking";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useSocial } from "../../src/hooks/useSocial";
-import { apiFetch, trackClick } from "../../src/api/client";
+import { apiFetch } from "../../src/api/client";
 import { colors, fonts, cardShadow } from "../../src/theme/colors";
 import { HeartIcon, HeartFilledIcon, HeartOutlineIcon, HeartFilledOutlineIcon } from "../../src/components/icons/FigmaIcons";
 import TastingNoteDisplay from "../../src/components/TastingNoteDisplay";
-import Chip from "../../src/components/Chip";
+import CoffeeCard from "../../src/components/CoffeeCard";
 
 // ── Feed page ─────────────────────────────────────────────────────────────────
 
@@ -736,35 +736,12 @@ function TastingNoteCard({ item, productMap, router, social, isLoggedIn }: {
         </View>
       </View>
 
-      {/* Coffee image + tasting note */}
+      {/* Coffee card + tasting note */}
       {coffee && (
         <View style={fc.contentRow}>
-          <View style={fc.coffeeCol}>
-            <Pressable onPress={() => router.push(`/coffee/${coffee.product_id}`)}>
-              {coffee.image_url ? (
-                <Image source={{ uri: coffee.image_url }} style={fc.coffeeImage} contentFit="cover" />
-              ) : (
-                <View style={[fc.coffeeImage, { backgroundColor: colors.tagBg, alignItems: "center", justifyContent: "center" }]}>
-                  <Coffee size={20} color={colors.border} />
-                </View>
-              )}
-            </Pressable>
-            <Pressable onPress={() => router.push(`/coffee/${coffee.product_id}`)}>
-              <Text style={fc.coffeeName} numberOfLines={2}>{coffee.coffee_name}</Text>
-            </Pressable>
-            <Text style={fc.roasterName}>{coffee.roaster_name}</Text>
-            <View style={fc.chipRow}>
-              {coffee.roast_level && coffee.roast_level !== "Unknown" && <Chip>{coffee.roast_level}</Chip>}
-              {coffee.process && <Chip>{coffee.process}</Chip>}
-            </View>
-            <Pressable
-              onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "feed"); Linking.openURL(coffee.product_url); }}
-              style={fc.buyLink}
-            >
-              <ShoppingCart size={9} color={colors.accent} />
-              <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 10, color: colors.accent }}>Buy</Text>
-            </Pressable>
-          </View>
+          <Pressable onPress={() => router.push(`/coffee/${coffee.product_id}`)}>
+            <CoffeeCard coffee={coffee} width={160} height={248} />
+          </Pressable>
           <View style={fc.noteCol}>
             <TastingNoteDisplay note={note} />
           </View>
@@ -896,23 +873,6 @@ const fc = StyleSheet.create({
   locationRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   locationText: { fontFamily: fonts.bodyRegular, fontSize: 10, color: colors.textSecondary },
   contentRow: { flexDirection: "row" },
-  coffeeCol: {
-    width: 160,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderRightWidth: 1,
-    borderColor: colors.border,
-  },
-  coffeeImage: {
-    width: "100%" as any,
-    aspectRatio: 1,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  coffeeName: { fontFamily: fonts.displayRegular, fontSize: 13, lineHeight: 17, color: colors.textPrimary },
-  roasterName: { fontFamily: fonts.bodyRegular, fontSize: 11, marginTop: 2, color: colors.textSecondary },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 6 },
-  buyLink: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 },
   noteCol: { flex: 1, minWidth: 0, paddingHorizontal: 16, paddingBottom: 16 },
   interactionBar: {
     flexDirection: "row",
