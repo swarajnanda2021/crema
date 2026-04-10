@@ -10,14 +10,14 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import {
   View, Text, ScrollView, Pressable, StyleSheet, Modal,
-  LayoutChangeEvent, Platform, Animated, TextInput, ActivityIndicator,
+  LayoutChangeEvent, Platform, Animated, Easing, TextInput, ActivityIndicator,
   useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, Stack, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
-import Svg, { Path } from "react-native-svg";
-import { Plus, X, PenLine, Camera } from "lucide-react-native";
+import Svg, { Circle, G, Path } from "react-native-svg";
+import { Plus, X, PenLine, Camera, MapPin, Check, Link } from "lucide-react-native";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
@@ -27,7 +27,7 @@ import { apiFetch } from "../../src/api/client";
 import { fonts, colors } from "../../src/theme/colors";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import Navbar from "../../src/components/Navbar";
-import { HeartOutlineIcon, HeartFilledOutlineIcon } from "../../src/components/icons/FigmaIcons";
+import { HeartOutlineIcon, HeartFilledOutlineIcon, CartIcon } from "../../src/components/icons/FigmaIcons";
 
 const liningNumerals = Platform.OS === "web"
   ? { fontFeatureSettings: "'lnum', 'pnum'" } as any
@@ -202,12 +202,22 @@ const pg = StyleSheet.create({
 
 // ── Coffee grid ───────────────────────────────────────────────────────────────
 
-const GAP = 20;
-const TARGET_CARD_W = 220;
-const CARD_ASPECT = 400 / 240;
-const GRID_PAD = 28;
+// Figma card spec: 240×372 (image 160px, info 212px)
+const GAP = 12;
+const TARGET_CARD_W = 240;
+const CARD_ASPECT = 372 / 240;
+const GRID_PAD = 20;
 
-function CoffeeGrid({ coffees }: { coffees: any[] }) {
+function CoffeeGrid({
+  coffees, isOwner, onDeleteProduct,
+  roasterName, onSaveCard,
+}: {
+  coffees: any[];
+  isOwner?: boolean;
+  onDeleteProduct?: (id: string) => void;
+  roasterName?: string;
+  onSaveCard?: (data: any) => Promise<void>;
+}) {
   const [containerW, setContainerW] = useState(0);
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     setContainerW(e.nativeEvent.layout.width);
@@ -217,7 +227,7 @@ function CoffeeGrid({ coffees }: { coffees: any[] }) {
   const cardW = Math.floor((available - GAP * (numCols - 1)) / numCols);
   const cardH = Math.floor(cardW * CARD_ASPECT);
 
-  if (coffees.length === 0) {
+  if (coffees.length === 0 && !isOwner) {
     return (
       <View style={cg.empty}>
         <Text style={cg.emptyText}>No coffees listed yet.</Text>
@@ -227,10 +237,27 @@ function CoffeeGrid({ coffees }: { coffees: any[] }) {
   return (
     <View onLayout={onLayout} style={[cg.grid, { gap: GAP, paddingHorizontal: GRID_PAD }]}>
       {coffees.map((c) => (
-        <View key={c.product_id} style={{ width: cardW, height: cardH }}>
-          <CoffeeCard coffee={c} width={cardW} height={cardH} />
+        <View key={c.product_id || c.id} style={{ width: cardW, height: cardH }}>
+          <CoffeeCard
+            coffee={c}
+            width={cardW}
+            height={cardH}
+            shelfMode={isOwner && !!onDeleteProduct}
+            onRemove={isOwner && onDeleteProduct ? () => onDeleteProduct(c.product_id || c.id) : undefined}
+          />
         </View>
       ))}
+      {/* Always show editable placeholder at END for owner */}
+      {isOwner && roasterName && onSaveCard && containerW > 0 && (
+        <View key="__editable__" style={{ width: cardW, height: cardH }}>
+          <EditableCoffeeCard
+            roasterName={roasterName}
+            width={cardW}
+            height={cardH}
+            onSave={onSaveCard}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -652,6 +679,471 @@ function ComposePostForm({
   );
 }
 
+// ── Inline editable coffee card (owner: add bean flow) ────────────────────────
+// Placeholder: Figma 249:3318 — cream card, 1.5px #C7BAA5 border, centered + circle
+// Edit form:   Figma 249:3486 — slides in from right, fonts match CoffeeLabel exactly
+
+const FIGMA_PLUS_CIRCLE = "http://localhost:3845/assets/8182ea219df131a1b7ca4a7f642682c8be601932.svg";
+// Figma 267:3624 — accept: pink circle, brown checkmark
+const FIGMA_ACCEPT_BTN = "http://localhost:3845/assets/d153680d1349e19a705c9c0d77c35690ee19a2c4.svg";
+// Figma 267:3661 — reject: brown circle, white X
+const FIGMA_REJECT_BTN = "http://localhost:3845/assets/d7a931d010019b53a34ac6d27ac929a105917afa.svg";
+const IMAGE_RATIO_CARD = 160 / 372;
+
+function EditableCoffeeCard({
+  roasterName,
+  width,
+  height,
+  onSave,
+}: {
+  roasterName: string;
+  width: number;
+  height: number;
+  onSave: (data: any) => Promise<void>;
+}) {
+  const [mode, setMode] = useState<"placeholder" | "editing">("placeholder");
+
+  // Field states
+  const [coffeeName, setCoffeeName] = useState("");
+  const [beanType, setBeanType] = useState("");
+  const [processVal, setProcessVal] = useState("");
+  const [roastLevel, setRoastLevel] = useState("");
+  const [tastingNotes, setTastingNotes] = useState("");
+  const [origin, setOrigin] = useState("");
+  const [varietal, setVarietal] = useState("");
+  const [altitudeMasl, setAltitudeMasl] = useState("");
+  const [flavorNotes, setFlavorNotes] = useState("");
+  const [priceInr, setPriceInr] = useState("");
+  const [weightGrams, setWeightGrams] = useState("");
+  const [productUrl, setProductUrl] = useState("");
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
+  const [cropY, setCropY] = useState(50);
+  const [isDragging, setIsDragging] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const imgDragRef = useRef({ y: 0, cropY: 50 });
+  const imgWrapRef = useRef<View>(null);
+
+  // Edit form slides in from right over placeholder
+  const editSlideAnim = useRef(new Animated.Value(width)).current;
+  // Exit on save
+  const saveAnim = useRef(new Animated.Value(1)).current;
+
+  const resetFields = useCallback(() => {
+    setCoffeeName(""); setBeanType(""); setProcessVal(""); setRoastLevel("");
+    setTastingNotes(""); setOrigin(""); setVarietal(""); setAltitudeMasl("");
+    setFlavorNotes(""); setPriceInr(""); setWeightGrams(""); setProductUrl("");
+    setShowUrlInput(false); setImageUrl(""); setCropY(50);
+    setShowImageModal(false); setSaving(false);
+  }, []);
+
+  const handleOpenEdit = useCallback(() => {
+    setMode("editing");
+    editSlideAnim.setValue(width);
+    saveAnim.setValue(1);
+    Animated.timing(editSlideAnim, {
+      toValue: 0, duration: 260, useNativeDriver: true,
+      easing: Easing.out(Easing.cubic),
+    }).start();
+  }, [editSlideAnim, width]);
+
+  const handleCancel = useCallback(() => {
+    Animated.timing(editSlideAnim, {
+      toValue: width, duration: 200, useNativeDriver: true,
+      easing: Easing.in(Easing.cubic),
+    }).start(() => {
+      setMode("placeholder");
+      resetFields();
+    });
+  }, [editSlideAnim, width, resetFields]);
+
+  const handleImgDragStart = useCallback((e: any) => {
+    e.preventDefault();
+    imgDragRef.current = { y: e.clientY, cropY };
+    setIsDragging(true);
+    const handleMove = (ev: MouseEvent) => {
+      const el = (imgWrapRef.current as unknown as HTMLElement);
+      if (!el) return;
+      const h = el.getBoundingClientRect().height;
+      const delta = ((ev.clientY - imgDragRef.current.y) / h) * 100;
+      setCropY(Math.max(0, Math.min(100, imgDragRef.current.cropY - delta)));
+    };
+    const handleUp = () => {
+      setIsDragging(false);
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+  }, [cropY]);
+
+  const handleSave = useCallback(async () => {
+    if (!coffeeName.trim() || saving) return;
+    const data = {
+      coffee_name: coffeeName.trim(),
+      bean_type: beanType.trim() || null,
+      process: processVal.trim() || null,
+      roast_level: roastLevel.trim() || null,
+      tasting_notes: tastingNotes.trim() || null,
+      origin: origin.trim() || null,
+      varietal: varietal.trim() || null,
+      altitude_masl: altitudeMasl ? parseInt(altitudeMasl) : null,
+      flavor_notes: flavorNotes.trim() || null,
+      price_inr: priceInr ? parseFloat(priceInr) : null,
+      weight_grams: weightGrams ? parseInt(weightGrams) : null,
+      product_url: productUrl.trim() || null,
+      image_url: imageUrl || null,
+      description_raw: null,
+    };
+    Animated.sequence([
+      Animated.timing(saveAnim, { toValue: 1.03, duration: 120, useNativeDriver: true }),
+      Animated.timing(saveAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+    ]).start(async () => {
+      setSaving(true);
+      await onSave(data);
+      setSaving(false);
+      // Reset back to placeholder
+      setMode("placeholder");
+      resetFields();
+      editSlideAnim.setValue(width);
+      saveAnim.setValue(1);
+    });
+  }, [coffeeName, beanType, processVal, roastLevel, tastingNotes, origin, varietal,
+      altitudeMasl, flavorNotes, priceInr, weightGrams, productUrl, imageUrl, saving, onSave, width, resetFields]);
+
+  const imageH = Math.round(height * IMAGE_RATIO_CARD);
+  const infoH = height - imageH;
+  const canSave = coffeeName.trim().length > 0;
+  const BTN_SZ = 31; // matches CoffeeCard BTN_SIZE
+
+  return (
+    <View style={[ec.outerWrap, { width, height }]}>
+
+      {/* ── PLACEHOLDER — Figma 249:3318 ── */}
+      <Pressable onPress={handleOpenEdit} style={[ec.placeholder, { width, height }]}>
+        <Image source={{ uri: FIGMA_PLUS_CIRCLE }} style={ec.plusIcon} contentFit="contain" />
+      </Pressable>
+
+      {/* ── EDIT FORM — slides in from right ── */}
+      {mode === "editing" && (
+        <Animated.View style={[ec.editCard, { width, height, opacity: saveAnim, transform: [{ translateX: editSlideAnim }, { scale: saveAnim }] }]}>
+
+          {/* Image area */}
+          <View
+            ref={imgWrapRef as any}
+            style={[ec.imageArea, { height: imageH },
+              imageUrl && isDragging && { cursor: "grabbing" } as any,
+              imageUrl && !isDragging && { cursor: "grab" } as any,
+            ]}
+            {...(imageUrl && Platform.OS === "web" ? { onMouseDown: handleImgDragStart } : {})}
+          >
+            {imageUrl ? (
+              <>
+                <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFillObject} contentFit="cover" contentPosition={{ top: `${cropY}%`, left: "50%" }} />
+                {!isDragging && (
+                  <View style={ec.imgHint} pointerEvents="none">
+                    <Text style={ec.imgHintText}>Drag to reposition</Text>
+                  </View>
+                )}
+                <Pressable onPress={() => setShowImageModal(true)} style={ec.changePhotoBtn}>
+                  <Camera size={12} color="#FAF8F0" strokeWidth={1.5} />
+                  <Text style={ec.changePhotoBtnText}>Change photo</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable onPress={() => setShowImageModal(true)} style={ec.imagePlaceholder}>
+                <Camera size={28} color="#684F44" strokeWidth={1.2} />
+                <Text style={ec.addPhotoText}>Add Photo</Text>
+              </Pressable>
+            )}
+
+            {/* Reject — top-left, Figma 267:3661 (brown circle, white X) */}
+            <Pressable onPress={handleCancel} style={ec.rejectBtn} hitSlop={8}>
+              <Svg width={29.16} height={29.16} viewBox="0 0 29.16 29.16" fill="none">
+                <Circle cx={14.58} cy={14.58} r={14.58} fill="#351101" />
+                <Path d="M10.58 10.58L18.58 18.58M18.58 10.58L10.58 18.58" stroke="#FAF8F0" strokeWidth={1.5} strokeLinecap="round" />
+              </Svg>
+            </Pressable>
+
+            {/* Accept — top-right, Figma 267:3624 (pink circle, brown checkmark) */}
+            <Pressable onPress={handleSave} style={ec.acceptBtn} disabled={!canSave || saving} hitSlop={8}>
+              {saving
+                ? <View style={ec.acceptLoading}><ActivityIndicator size="small" color="#351101" /></View>
+                : <Image source={{ uri: FIGMA_ACCEPT_BTN }} style={ec.overlayBtnIcon} contentFit="contain" />
+              }
+            </Pressable>
+          </View>
+
+          {/* Info area — Figma 267:3609: padding 15.4 left, 12 top */}
+          <View style={[ec.infoArea, { minHeight: infoH, flex: 1 }]}>
+
+            {/* Coffee name — Figma: y=12, h=25 */}
+            <TextInput style={ec.nameInput} value={coffeeName} onChangeText={setCoffeeName} placeholder="Add Coffee Name" placeholderTextColor="#351101" multiline />
+
+            {/* By roaster — Figma: y=69 (gap from name = name wraps into space) */}
+            <View style={ec.roasterRow}>
+              <Text style={ec.byLine}>By {roasterName}</Text>
+            </View>
+
+            {/* Divider — Figma: y=88, gap above=6.8, gap below=6.5 */}
+            <View style={ec.divider} />
+
+            {/* Bean type — added manually, same row height as process/roast */}
+            <View style={ec.fieldRow}>
+              <TextInput style={ec.fieldRowInput} value={beanType} onChangeText={setBeanType} placeholder="Add Bean Type" placeholderTextColor="#684F44" />
+            </View>
+            <View style={ec.divider} />
+
+            {/* Process • Roast — two separate fields with fixed dot */}
+            <View style={ec.fieldRow}>
+              <TextInput style={ec.fieldRowInput} value={processVal} onChangeText={setProcessVal} placeholder="Add Process" placeholderTextColor="#684F44" />
+              <Text style={ec.dot}> • </Text>
+              <TextInput style={ec.fieldRowInput} value={roastLevel} onChangeText={setRoastLevel} placeholder="Add Roast" placeholderTextColor="#684F44" />
+            </View>
+            <View style={ec.divider} />
+
+            {/* Tasting notes */}
+            <View style={ec.fieldRow}>
+              <TextInput style={ec.fieldRowInput} value={tastingNotes} onChangeText={setTastingNotes} placeholder="Add Tasting Notes" placeholderTextColor="#684F44" />
+            </View>
+            <View style={ec.divider} />
+
+            {/* Bottom row — Figma: price y=164.5, weight y=174.7, cart y=166.6 */}
+            <View style={ec.bottomRow}>
+              {/* Price + weight: weight is 10px below price top */}
+              <View style={ec.priceWeightRow}>
+                <Text style={ec.rupee}>₹ </Text>
+                <TextInput style={ec.priceInput} value={priceInr} onChangeText={setPriceInr} placeholder="––––" placeholderTextColor="#351101" keyboardType="numeric" />
+                <View style={ec.weightGroup}>
+                  <Text style={ec.weightText}>/  </Text>
+                  <TextInput style={ec.weightInput} value={weightGrams} onChangeText={setWeightGrams} placeholder="–––" placeholderTextColor="#351101" keyboardType="numeric" />
+                  <Text style={ec.weightText}>  g</Text>
+                </View>
+              </View>
+              <Pressable onPress={() => setShowUrlInput(true)}>
+                <CartIcon size={BTN_SZ} />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* URL modal — opened by cart icon, like ImageUploadModal */}
+          <Modal visible={showUrlInput} transparent animationType="fade" onRequestClose={() => setShowUrlInput(false)}>
+            <View style={ec.urlModalOverlay}>
+              <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowUrlInput(false)} />
+              <View style={ec.urlModalCard}>
+                <View style={ec.urlModalHeader}>
+                  <Text style={ec.urlModalTitle}>Product URL</Text>
+                  <Pressable onPress={() => setShowUrlInput(false)} hitSlop={8}><X size={14} color="#A09580" /></Pressable>
+                </View>
+                <TextInput style={ec.urlModalInput} value={productUrl} onChangeText={setProductUrl} placeholder="https://..." placeholderTextColor="#C7BAA5" autoCapitalize="none" autoFocus />
+                <Pressable onPress={() => setShowUrlInput(false)} style={ec.urlModalDone}>
+                  <Text style={ec.urlModalDoneText}>Done</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Modal>
+
+          <ImageUploadModal
+            visible={showImageModal}
+            title="Add bean photo"
+            purpose="hero"
+            currentUrl={imageUrl}
+            onConfirm={(url) => { setImageUrl(url); setShowImageModal(false); }}
+            onClose={() => setShowImageModal(false)}
+          />
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+const ec = StyleSheet.create({
+  // Outer wrapper — no shadow, clips edit form slide-in
+  outerWrap: {
+    borderRadius: 5,
+    overflow: "hidden",
+    position: "relative",
+  },
+
+  // Figma 249:3318 — cream bg, 1.5px #C7BAA5 border, centered + circle
+  placeholder: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    backgroundColor: "#FAF8F0",
+    borderWidth: 1.5,
+    borderColor: "#C7BAA5",
+    borderRadius: 5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  plusIcon: { width: 44, height: 44 },
+
+  // Edit form — slides in from right, no shadow
+  editCard: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    backgroundColor: "#EFE9DB",
+    borderTopLeftRadius: 3.624,
+    borderTopRightRadius: 3.624,
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
+  },
+
+  // Image section
+  imageArea: {
+    backgroundColor: "#d4c5b8",
+    borderTopLeftRadius: 3.624,
+    borderTopRightRadius: 3.624,
+    overflow: "hidden",
+  },
+  imagePlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#e8e0d0",
+  },
+  // Figma 267:3668 — Inter Regular 10.246px #684F44
+  addPhotoText: { fontFamily: fonts.bodyRegular, fontSize: 10.246, color: "#684F44" },
+  imgHint: { position: "absolute", bottom: 8, left: 0, right: 0, alignItems: "center" },
+  imgHintText: {
+    fontFamily: fonts.bodyRegular, fontSize: 10, color: "rgba(255,255,255,0.75)",
+    backgroundColor: "rgba(0,0,0,0.25)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4,
+  },
+  changePhotoBtn: {
+    position: "absolute", bottom: 8, right: 8, flexDirection: "row", alignItems: "center",
+    gap: 4, backgroundColor: "rgba(0,0,0,0.4)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4,
+  },
+  changePhotoBtnText: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#FAF8F0" },
+
+  // Reject — top-left, Figma 267:3661
+  rejectBtn: {
+    position: "absolute",
+    top: 10,
+    left: 12,
+    zIndex: 10,
+  },
+  // Accept — top-right, Figma 267:3624
+  acceptBtn: {
+    position: "absolute",
+    top: 10,
+    right: 12,
+    zIndex: 10,
+  },
+  overlayBtnIcon: {
+    width: 29,
+    height: 29,
+  },
+  acceptLoading: {
+    width: 29, height: 29, borderRadius: 14.5,
+    backgroundColor: "#D798DA", alignItems: "center", justifyContent: "center",
+  },
+
+  // Figma 267:3609 — padding: left=15, top=12
+  infoArea: {
+    paddingHorizontal: 15,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: "#EFE9DB",
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
+  },
+
+  // Figma 267:3611 — Canela Text Regular 21.376px, lineHeight 25, #351101
+  nameInput: {
+    fontFamily: fonts.displayRegular, fontSize: 21.376, color: "#351101",
+    lineHeight: 25, padding: 0, margin: 0, borderWidth: 0,
+    ...(Platform.OS === "web" ? { outlineStyle: "none", fontFeatureSettings: "'lnum', 'pnum'" } : {}),
+  } as any,
+
+  // Figma 267:3612 — Inter Regular 10.9px #684F44
+  roasterRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  byLine: { fontFamily: fonts.bodyRegular, fontSize: 10.9, color: "#684F44" },
+
+  // Figma dividers — 1px #C7BAA5, 6.5px above and below (centers the 12px-tall fields)
+  divider: { height: 1, backgroundColor: "#C7BAA5", marginTop: 6.5, marginBottom: 6.5 },
+
+  // All field rows — identical container so divider spacing is uniform
+  fieldRow: { flexDirection: "row", alignItems: "center", height: 12 },
+  // All field inputs — Inter Regular 9.563px #684F44, identical styling
+  fieldRowInput: {
+    fontFamily: fonts.bodyRegular, fontSize: 9.563, color: "#684F44",
+    padding: 0, margin: 0, borderWidth: 0, flex: 1, height: 12,
+    ...(Platform.OS === "web" ? { outlineStyle: "none", fontFeatureSettings: "'lnum', 'pnum'" } : {}),
+  } as any,
+  dot: {
+    fontFamily: fonts.bodyRegular, fontSize: 9.563, color: "#684F44",
+    lineHeight: 12,
+    ...(Platform.OS === "web" ? { fontFeatureSettings: "'lnum', 'pnum'" } : {}),
+  } as any,
+
+  // Bottom row — price left, cart right
+  bottomRow: {
+    flexDirection: "row", alignItems: "flex-end",
+    justifyContent: "space-between", marginTop: "auto" as any,
+  },
+  // Figma: price h=26, weight h=12, weight top = price top + 10.17
+  priceWeightRow: { flexDirection: "row", alignItems: "flex-start" },
+  // Figma 267:3616 — Canela 17.077px, element height 26px
+  rupee: {
+    fontFamily: fonts.displayRegular, fontSize: 17.077, color: "#351101",
+    lineHeight: 26, height: 26,
+    ...(Platform.OS === "web" ? { fontFeatureSettings: "'lnum', 'pnum'" } : {}),
+  } as any,
+  priceInput: {
+    fontFamily: fonts.displayRegular, fontSize: 17.077, color: "#351101",
+    lineHeight: 26, height: 26, width: 44,
+    padding: 0, margin: 0, borderWidth: 0,
+    ...(Platform.OS === "web" ? { outlineStyle: "none", fontFeatureSettings: "'lnum', 'pnum'" } : {}),
+  } as any,
+  // Figma 267:3617 — Inter 9.563px, element height 12px, offset 10px from price top
+  weightGroup: {
+    flexDirection: "row", alignItems: "center", marginTop: 10, height: 12,
+  },
+  weightText: {
+    fontFamily: fonts.bodyRegular, fontSize: 9.563, color: "#351101",
+    lineHeight: 12,
+    ...(Platform.OS === "web" ? { fontFeatureSettings: "'lnum', 'pnum'" } : {}),
+  } as any,
+  weightInput: {
+    fontFamily: fonts.bodyRegular, fontSize: 9.563, color: "#351101",
+    lineHeight: 12, height: 12, width: 22,
+    padding: 0, margin: 0, borderWidth: 0,
+    ...(Platform.OS === "web" ? { outlineStyle: "none", fontFeatureSettings: "'lnum', 'pnum'" } : {}),
+  } as any,
+
+  // URL modal — opened by cart icon
+  urlModalOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center", justifyContent: "center",
+  },
+  urlModalCard: {
+    width: 320, backgroundColor: "#FAF8F0", borderRadius: 8,
+    padding: 20,
+  },
+  urlModalHeader: {
+    flexDirection: "row", alignItems: "center",
+    justifyContent: "space-between", marginBottom: 12,
+  },
+  urlModalTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#351101" },
+  urlModalInput: {
+    borderWidth: 1, borderColor: "#D7D1C4", borderRadius: 4,
+    paddingHorizontal: 10, paddingVertical: 8,
+    fontFamily: fonts.bodyRegular, fontSize: 13, color: "#351101",
+    backgroundColor: "#FEFDFB",
+  } as any,
+  urlModalDone: {
+    marginTop: 12, alignSelf: "flex-end" as any,
+    paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: 4, backgroundColor: "#351101",
+  },
+  urlModalDoneText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: "#FAF8F0" },
+});
+
 const cf = StyleSheet.create({
   wrap: {
     padding: 24,
@@ -743,6 +1235,8 @@ const cf = StyleSheet.create({
     paddingVertical: 5, alignSelf: "flex-start" as any,
   },
   addImageText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#684F44" },
+  twoCol: { flexDirection: "row", gap: 12 } as any,
+  colHalf: { flex: 1 } as any,
 });
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -754,7 +1248,7 @@ export default function RoasterDetailPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { products, roasters } = useCoffeeData();
-  const { getProfile, refreshProfiles } = useRoasterProfiles();
+  const { getProfile, refreshProfiles, loading: profileLoading } = useRoasterProfiles();
   const { height: winH } = useWindowDimensions();
 
   // Primary lookup: roasters derived from the product catalog
@@ -770,7 +1264,9 @@ export default function RoasterDetailPage() {
     website: profile.website ?? null,
   } : null);
 
-  const coffees = useMemo(() => products.filter((p: any) => p.roaster_slug === slug), [products, slug]);
+  const catalogCoffees = useMemo(() => products.filter((p: any) => p.roaster_slug === slug), [products, slug]);
+  const [localCoffees, setLocalCoffees] = useState<any[]>([]);
+  const coffees = useMemo(() => [...localCoffees, ...catalogCoffees], [localCoffees, catalogCoffees]);
 
   const isOwner = user?.account_type === "roaster" && user?.roaster_slug === slug;
 
@@ -779,12 +1275,47 @@ export default function RoasterDetailPage() {
   const [allPosts, setAllPosts] = useState<any[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
 
-  // Follow state
+  // Follow state (persistent via API)
   const [following, setFollowing] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+
+  useEffect(() => {
+    if (!slug) return;
+    // Load followers
+    apiFetch(`/roasters/${slug}/followers`).then((d) => {
+      setFollowerCount(d.follower_count);
+      setFollowers(d.followers || []);
+    }).catch(() => {});
+    // Load follow status for current user
+    apiFetch(`/roasters/${slug}/follow-status`).then((d) => setFollowing(d.following)).catch(() => {});
+  }, [slug]);
+
+  const handleFollowToggle = useCallback(async () => {
+    try {
+      const res = await apiFetch(`/roasters/${slug}/follow`, { method: "POST" });
+      setFollowing(res.following);
+      setFollowerCount(res.follower_count);
+      // Refresh followers list
+      apiFetch(`/roasters/${slug}/followers`).then((d) => setFollowers(d.followers || [])).catch(() => {});
+    } catch {
+      setFollowing((f) => !f);
+    }
+  }, [slug]);
 
   // Compose form
   const [showCompose, setShowCompose] = useState(false);
   const [composing, setComposing] = useState(false);
+
+  // Right panel tabs
+  const [activeRightTab, setActiveRightTab] = useState<"posts" | "beans" | "followers">("posts");
+  const [followers, setFollowers] = useState<any[]>([]);
+
+  // Default to beans tab if roaster has no posts
+  useEffect(() => {
+    if (postsLoading) return;
+    const hasPosts = isOwner ? allPosts.length > 0 : featuredPosts.length > 0;
+    if (!hasPosts) setActiveRightTab("beans");
+  }, [postsLoading, allPosts, featuredPosts, isOwner]);
 
   // About expand
   const [aboutExpanded, setAboutExpanded] = useState(false);
@@ -800,8 +1331,8 @@ export default function RoasterDetailPage() {
   const [saving, setSaving] = useState(false);
 
   const heroImageUrl = useMemo(
-    () => profile?.hero_image_url || coffees.find((c: any) => c.image_url)?.image_url || null,
-    [profile, coffees]
+    () => profile?.hero_image_url || (!profileLoading && coffees.find((c: any) => c.image_url)?.image_url) || null,
+    [profile, coffees, profileLoading]
   );
   const logoUrl = profile?.logo_url ?? null;
   const specialtyTags: string[] = (profile?.specialties && profile.specialties.length > 0)
@@ -929,6 +1460,16 @@ export default function RoasterDetailPage() {
     }
   }, [loadPosts]);
 
+  const handleDeleteProduct = useCallback(async (productId: string) => {
+    try {
+      await apiFetch(`/roasters/${slug}/products/${productId}`, { method: "DELETE" });
+      // Refresh — the product list comes from useCoffeeData, force a page reload for now
+      if (typeof window !== "undefined") window.location.reload();
+    } catch (e: any) {
+      console.warn("Delete product error:", e.message);
+    }
+  }, [slug]);
+
   const handleCreatePost = useCallback(async (data: any) => {
     try {
       setComposing(true);
@@ -952,6 +1493,19 @@ export default function RoasterDetailPage() {
       setComposing(false);
     }
   }, [loadPosts]);
+
+  const handleCreateProduct = useCallback(async (data: any) => {
+    try {
+      const newProduct = await apiFetch(`/roasters/${slug}/products`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      setLocalCoffees((prev) => [newProduct, ...prev]);
+      setShowAddBean(false);
+    } catch (e: any) {
+      console.warn("Create product error:", e.message);
+    }
+  }, [slug]);
 
   if (!roaster) {
     return (
@@ -1130,7 +1684,7 @@ export default function RoasterDetailPage() {
                 ) : null}
                 <View style={s.metaItem}>
                   <UsersIcon />
-                  <Text style={s.metaText}>{following ? "1 follower" : "0 followers"}</Text>
+                  <Text style={s.metaText}>{followerCount} {followerCount === 1 ? "follower" : "followers"}</Text>
                 </View>
                 {city ? (
                   <View style={s.metaItem}>
@@ -1147,7 +1701,7 @@ export default function RoasterDetailPage() {
           {/* Follow button — hidden for owner */}
           {!isOwner && (
             <View style={s.followRow}>
-              <FollowButton following={following} onToggle={() => setFollowing((f) => !f)} />
+              <FollowButton following={following} onToggle={handleFollowToggle} />
             </View>
           )}
         </View>
@@ -1190,85 +1744,166 @@ export default function RoasterDetailPage() {
             )}
           </View>
 
-          {/* ── Public visitor: featured posts ───────────────────────── */}
-          {!postsLoading && !isOwner && featuredPosts.length > 0 && (
-            <>
-              <View style={s.divider} />
-              {featuredPosts.map((post, i) => (
-                <View key={post.id}>
-                  <RoasterPostCard
-                    post={post}
-                    roasterName={roaster.name}
-                    avatarUrl={logoUrl}
-                    city={city}
-                    isOwner={false}
-                  />
-                  {i < featuredPosts.length - 1 && <View style={s.divider} />}
-                </View>
-              ))}
-            </>
-          )}
-
-          {/* ── Owner: featured posts first, then rest ────────────────── */}
-          {isOwner && !postsLoading && allPosts.length > 0 && (() => {
-            const featured = allPosts.filter((p) => p.is_featured).sort((a, b) => (a.featured_order ?? 9) - (b.featured_order ?? 9));
-            const rest = allPosts.filter((p) => !p.is_featured);
-            const slotsLeft = 2 - featured.length;
-            const hint = featured.length === 0
-              ? "No featured posts yet — star up to 2 to pin them here."
-              : slotsLeft === 1
-              ? "1 featured slot remaining."
-              : null;
-            const ordered = [...featured, ...rest];
+          {/* ── Tab bar: POSTS | BEANS (hide POSTS if roaster has none) ── */}
+          {(() => {
+            const hasPosts = isOwner ? allPosts.length > 0 : featuredPosts.length > 0;
+            const showTabs = !postsLoading && hasPosts;
             return (
               <>
+                <View style={s.rightTabBar}>
+                  {showTabs && (
+                    <Pressable onPress={() => setActiveRightTab("posts")} style={[s.rightTab, activeRightTab === "posts" && s.rightTabActive]}>
+                      <Text style={[s.rightTabText, activeRightTab === "posts" && s.rightTabTextActive]}>POSTS</Text>
+                    </Pressable>
+                  )}
+                  <Pressable onPress={() => setActiveRightTab("beans")} style={[s.rightTab, activeRightTab === "beans" && s.rightTabActive]}>
+                    <Text style={[s.rightTabText, activeRightTab === "beans" && s.rightTabTextActive]}>BEANS</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setActiveRightTab("followers")} style={[s.rightTab, activeRightTab === "followers" && s.rightTabActive]}>
+                    <Text style={[s.rightTabText, activeRightTab === "followers" && s.rightTabTextActive]}>FOLLOWERS</Text>
+                  </Pressable>
+                </View>
                 <View style={s.divider} />
-                {hint && (
-                  <View style={s.featureHintRow}>
-                    <Text style={s.featureHint}>{hint}</Text>
-                  </View>
-                )}
-                {ordered.map((post, i) => (
-                  <View key={post.id}>
-                    <RoasterPostCard
-                      post={post}
-                      roasterName={roaster.name}
-                      avatarUrl={logoUrl}
-                      city={city}
-                      isOwner
-                      onFeatureToggle={handleFeatureToggle}
-                    />
-                    {i < ordered.length - 1 && (
-                      <View style={post.is_featured ? s.divider : s.dividerLight} />
-                    )}
-                  </View>
-                ))}
               </>
             );
           })()}
 
-          {/* ── Owner: no posts yet ──────────────────────────────────── */}
-          {isOwner && !postsLoading && allPosts.length === 0 && (
+          {/* ── POSTS TAB ─────────────────────────────────────────── */}
+          {activeRightTab === "posts" && (
             <>
-              <View style={s.divider} />
-              <View style={s.emptyPostsWrap}>
-                <Text style={s.emptyPostsTitle}>Share your story</Text>
-                <Text style={s.emptyPostsBody}>
-                  Feature up to 3 posts on your profile — link to a journal entry, press coverage, or anything worth reading.
-                </Text>
-                <Pressable onPress={() => setShowCompose(true)} style={s.emptyPostsBtn}>
-                  <Text style={s.emptyPostsBtnText}>Write your first post →</Text>
-                </Pressable>
-              </View>
+              {/* Public visitor: featured posts */}
+              {!postsLoading && !isOwner && featuredPosts.length > 0 && (
+                <>
+                  <View style={s.divider} />
+                  {featuredPosts.map((post, i) => (
+                    <View key={post.id}>
+                      <RoasterPostCard
+                        post={post}
+                        roasterName={roaster.name}
+                        avatarUrl={logoUrl}
+                        city={city}
+                        isOwner={false}
+                      />
+                      {i < featuredPosts.length - 1 && <View style={s.divider} />}
+                    </View>
+                  ))}
+                </>
+              )}
+
+              {/* Owner: featured posts first, then rest */}
+              {isOwner && !postsLoading && allPosts.length > 0 && (() => {
+                const featured = allPosts.filter((p) => p.is_featured).sort((a, b) => (a.featured_order ?? 9) - (b.featured_order ?? 9));
+                const rest = allPosts.filter((p) => !p.is_featured);
+                const slotsLeft = 2 - featured.length;
+                const hint = featured.length === 0
+                  ? "No featured posts yet — star up to 2 to pin them here."
+                  : slotsLeft === 1
+                  ? "1 featured slot remaining."
+                  : null;
+                const ordered = [...featured, ...rest];
+                return (
+                  <>
+                    <View style={s.divider} />
+                    {hint && (
+                      <View style={s.featureHintRow}>
+                        <Text style={s.featureHint}>{hint}</Text>
+                      </View>
+                    )}
+                    {ordered.map((post, i) => (
+                      <View key={post.id}>
+                        <RoasterPostCard
+                          post={post}
+                          roasterName={roaster.name}
+                          avatarUrl={logoUrl}
+                          city={city}
+                          isOwner
+                          onFeatureToggle={handleFeatureToggle}
+                        />
+                        {i < ordered.length - 1 && (
+                          <View style={post.is_featured ? s.divider : s.dividerLight} />
+                        )}
+                      </View>
+                    ))}
+                  </>
+                );
+              })()}
+
+              {/* Owner: no posts yet */}
+              {isOwner && !postsLoading && allPosts.length === 0 && (
+                <>
+                  <View style={s.divider} />
+                  <View style={s.emptyPostsWrap}>
+                    <Text style={s.emptyPostsTitle}>Share your story</Text>
+                    <Text style={s.emptyPostsBody}>
+                      Feature up to 2 posts on your profile — link to a journal entry, press coverage, or anything worth reading.
+                    </Text>
+                    <Pressable onPress={() => setShowCompose(true)} style={s.emptyPostsBtn}>
+                      <Text style={s.emptyPostsBtnText}>Write your first post →</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
             </>
           )}
 
-          {/* ── Coffee grid ──────────────────────────────────────────── */}
-          <View style={s.divider} />
-          <Text style={[s.gridHeading, liningNumerals]}>
-            {`Explore ${coffees.length} ${coffees.length === 1 ? "coffee" : "coffees"} from ${roaster.name}`}
-          </Text>
-          <CoffeeGrid coffees={coffees} />
+          {/* ── BEANS TAB ─────────────────────────────────────────── */}
+          {activeRightTab === "beans" && (
+            <>
+              <Text style={[s.gridHeading, liningNumerals]}>
+                {`Explore ${coffees.length} ${coffees.length === 1 ? "coffee" : "coffees"} from ${roaster.name}`}
+              </Text>
+              <CoffeeGrid
+                coffees={coffees}
+                isOwner={isOwner}
+                onDeleteProduct={handleDeleteProduct}
+                roasterName={roaster.name}
+                onSaveCard={handleCreateProduct}
+              />
+            </>
+          )}
+
+          {/* ── FOLLOWERS TAB ──────────────────────────────────────── */}
+          {activeRightTab === "followers" && (
+            <View style={s.followersTab}>
+              <Text style={s.followersCount}>
+                {followerCount} {followerCount === 1 ? "follower" : "followers"}
+              </Text>
+              {followers.length === 0 ? (
+                <View style={s.followersEmpty}>
+                  <Text style={s.followersEmptyText}>No followers yet</Text>
+                </View>
+              ) : (
+                followers.map((f: any, idx: number) => (
+                  <View key={f.username}>
+                    {idx > 0 && <View style={s.followerDivider} />}
+                    <Pressable
+                      onPress={() => router.push(`/user/${f.username}`)}
+                      style={(state: any) => [s.followerRow, state.hovered && s.followerRowHovered]}
+                    >
+                      {f.avatar_url ? (
+                        <Image source={{ uri: f.avatar_url }} style={s.followerAvatar} contentFit="cover" />
+                      ) : (
+                        <View style={s.followerAvatarFallback}>
+                          <Text style={s.followerInitial}>
+                            {(f.display_name || f.username || "?")[0].toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={s.followerInfo}>
+                        <Text style={s.followerName} numberOfLines={1}>{f.display_name}</Text>
+                        {f.location ? (
+                          <View style={s.followerLocationRow}>
+                            <MapPin size={12} color="#D798DA" strokeWidth={2} />
+                            <Text style={s.followerLocation} numberOfLines={1}>{f.location}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </Pressable>
+                  </View>
+                ))
+              )}
+            </View>
+          )}
 
           <View style={{ height: 100 }} />
           </ScrollView>
@@ -1276,11 +1911,13 @@ export default function RoasterDetailPage() {
           {/* ── Edit-mode dim overlay (covers right panel content) ─── */}
           {isEditing && <View style={s.editDimOverlay} pointerEvents="none" />}
 
-          {/* ── Floating compose button (owner, non-edit mode) ─────── */}
-          {isOwner && !isEditing && (
-            <Pressable onPress={() => setShowCompose(true)} style={s.fab}>
-              <Plus size={18} color="#FAF8F0" strokeWidth={2.5} />
-              <Text style={s.fabLabel}>New post</Text>
+          {/* ── Floating action button (owner, posts tab only) */}
+          {isOwner && !isEditing && activeRightTab === "posts" && (
+            <Pressable
+              onPress={() => setShowCompose(true)}
+              style={s.fab}
+            >
+              <Plus size={22} color="#FAF8F0" strokeWidth={2.5} />
             </Pressable>
           )}
 
@@ -1330,6 +1967,7 @@ export default function RoasterDetailPage() {
               </View>
             </View>
           </Modal>
+
         </View>
       </View>
     </>
@@ -1614,18 +2252,17 @@ const s = StyleSheet.create({
     flexGrow: 1,
   },
 
-  // Floating compose button — pill, bottom-right of right panel
+  // Floating action button — round circle, bottom-right of right panel
   fab: {
     position: "absolute" as any,
     bottom: 28,
     right: 28,
-    flexDirection: "row",
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
-    gap: 8,
+    justifyContent: "center",
     backgroundColor: "#351101",
-    paddingHorizontal: 20,
-    paddingVertical: 13,
-    borderRadius: 50,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
@@ -1633,11 +2270,6 @@ const s = StyleSheet.create({
     elevation: 8,
     zIndex: 50,
   } as any,
-  fabLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 14,
-    color: "#FAF8F0",
-  },
 
   // Compose modal
   modalOverlay: {
@@ -1659,6 +2291,26 @@ const s = StyleSheet.create({
     shadowRadius: 24,
     elevation: 16,
   } as any,
+
+  // Right panel tab bar (POSTS | BEANS) — Figma 151:1783 thin divider style
+  rightTabBar: {
+    flexDirection: "row",
+    backgroundColor: "#FAF8F0",
+    paddingHorizontal: 28,
+    gap: 32,
+  } as any,
+  rightTab: {
+    paddingVertical: 14,
+  },
+  rightTabActive: {},
+  rightTabText: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: "#A09580",
+  },
+  rightTabTextActive: {
+    color: "#351101",
+  },
 
   // Hero image
   heroImageWrap: {
@@ -1735,9 +2387,83 @@ const s = StyleSheet.create({
   },
   emptyPostsBtnText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "#351101" },
 
-  // Dividers
-  divider: { height: 1, backgroundColor: "#D7D1C4" },
-  dividerLight: { height: 1, backgroundColor: "#EDE8E1" },
+  // Dividers — Figma 151:1783 thin subtle line
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(215,209,196,0.5)", marginHorizontal: 20 },
+  dividerLight: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(215,209,196,0.35)", marginHorizontal: 20 },
+
+  // Followers tab — Figma 42:4128 row style
+  followersTab: {
+    paddingHorizontal: 28,
+    paddingTop: 20,
+  },
+  followersCount: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: "#351101",
+    marginBottom: 16,
+  },
+  followersEmpty: {
+    paddingVertical: 40,
+    alignItems: "center",
+  } as any,
+  followersEmptyText: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 14,
+    color: "#A09580",
+  },
+  followerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderRadius: 6,
+  } as any,
+  followerRowHovered: {
+    backgroundColor: "#D798DA",
+  },
+  followerDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(215,209,196,0.5)",
+  },
+  followerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  followerAvatarFallback: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#351101",
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+  followerInitial: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 18,
+    color: "#FAF8F0",
+  },
+  followerInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  followerName: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 18,
+    color: "#351101",
+  },
+  followerLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  } as any,
+  followerLocation: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
+    color: "#684F44",
+  },
 
   // Grid heading
   gridHeading: {

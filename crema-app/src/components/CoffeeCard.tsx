@@ -7,7 +7,8 @@ import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import * as Linking from "expo-linking";
-import { Coffee, Trash2 } from "lucide-react-native";
+import { Coffee } from "lucide-react-native";
+import Svg, { Circle, Path, G } from "react-native-svg";
 import { colors, fonts, cardShadow, SHELF_LABELS, ShelfKey } from "../theme/colors";
 import { HeartIcon, HeartFilledIcon, ShareIcon, CartIcon, UsersIcon } from "./icons/FigmaIcons";
 import CoffeeLabel, { CoffeeLabelPrice } from "./CoffeeLabel";
@@ -70,7 +71,18 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
       {/* Overlay buttons — positioned from card level */}
       {shelfMode && onRemove ? (
         <Pressable onPress={onRemove} style={s.binBtn}>
-          <Trash2 size={14} color={colors.accent} />
+          <Svg width={BTN_SIZE} height={BTN_SIZE} viewBox="0 0 29.1645 29.1645" fill="none">
+            <G>
+              <Circle cx={14.5822} cy={14.5822} r={14.5822} fill="#EFE9DB" />
+              <Path
+                d="M11.25 10.7724V17.9835C11.25 18.668 11.25 19.0101 11.3862 19.2715C11.5061 19.5015 11.6972 19.6888 11.9324 19.806C12.1995 19.9391 12.5494 19.9391 13.2481 19.9391H16.7519C17.4506 19.9391 17.8 19.9391 18.0671 19.806C18.3023 19.6888 18.494 19.5015 18.6139 19.2715C18.75 19.0103 18.75 18.6686 18.75 17.9854V10.7724M11.25 10.7724H12.5M11.25 10.7724H10M12.5 10.7724H17.5M12.5 10.7724C12.5 10.2029 12.5 9.91833 12.5952 9.69373C12.722 9.39425 12.9652 9.15617 13.2715 9.03212C13.5012 8.93909 13.7926 8.93909 14.375 8.93909H15.625C16.2074 8.93909 16.4986 8.93909 16.7284 9.03212C17.0346 9.15617 17.2779 9.39425 17.4048 9.69373C17.4999 9.91833 17.5 10.2029 17.5 10.7724M17.5 10.7724H18.75M18.75 10.7724H20"
+                stroke="#351101"
+                strokeWidth={1.37}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </G>
+          </Svg>
         </Pressable>
       ) : userCount != null && userCount > 0 ? (
         <Pressable onPress={() => setShowPopularity(true)} style={s.friendsBadge}>
@@ -79,10 +91,12 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
         </Pressable>
       ) : null}
 
-      {/* Heart — top right, 31px (SVG includes circle bg) */}
-      <Pressable onPress={() => setShowShelfPicker(!showShelfPicker)} style={s.heartBtn}>
-        {shelvedAs ? <HeartFilledIcon size={BTN_SIZE} /> : <HeartIcon size={BTN_SIZE} />}
-      </Pressable>
+      {/* Heart — top right, hidden when owner is managing their own beans (shelfMode) */}
+      {!shelfMode && (
+        <Pressable onPress={() => setShowShelfPicker(!showShelfPicker)} style={s.heartBtn}>
+          {shelvedAs ? <HeartFilledIcon size={BTN_SIZE} /> : <HeartIcon size={BTN_SIZE} />}
+        </Pressable>
+      )}
 
       {/* Shelf picker dropdown */}
       {showShelfPicker && (
@@ -163,17 +177,11 @@ const s = StyleSheet.create({
     backgroundColor: "#e8e0d0",
   },
 
-  // Bin button — shelf mode, top-left
+  // Bin button — Figma 243:3079, exact SVG asset, top-left overlay
   binBtn: {
     position: "absolute",
     top: 10,
     left: 12,
-    width: BTN_SIZE,
-    height: BTN_SIZE,
-    borderRadius: BTN_SIZE / 2,
-    backgroundColor: "rgba(255,255,255,0.85)",
-    alignItems: "center",
-    justifyContent: "center",
     zIndex: 10,
   },
 

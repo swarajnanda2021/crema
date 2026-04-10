@@ -86,7 +86,9 @@ export default function UserProfilePage() {
               <Text style={styles.emptyText}>No coffees here yet.</Text>
             </View>
           ) : (
-            (shelves[activeShelf] as any[]).map((entry: any) => <ShelfIsland key={entry.id} entry={entry} />)
+            (shelves[activeShelf] as any[]).map((entry: any) => (
+              <ShelfIsland key={entry.id || entry.product_id} entry={entry} coffee={entry.coffee || entry} />
+            ))
           )}
         </View>
 

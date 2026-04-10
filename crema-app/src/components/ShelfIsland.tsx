@@ -32,9 +32,11 @@ export default function ShelfIsland({ entry, coffee, isOwner, currentShelf, onRe
   const router = useRouter();
   const { notes, fetchNotes, createNote, deleteNote } = useTastingNotes();
   const [showForm, setShowForm] = useState(false);
-  const price250 = pricePer250g(coffee.price_per_gram);
+  const price250 = pricePer250g(coffee?.price_per_gram);
 
-  useEffect(() => { fetchNotes(coffee.product_id); }, [coffee.product_id]);
+  useEffect(() => { if (coffee?.product_id) fetchNotes(coffee.product_id); }, [coffee?.product_id]);
+
+  if (!coffee) return null;
 
   const handleSaveNote = useCallback(async (noteData: any) => {
     await createNote(noteData);

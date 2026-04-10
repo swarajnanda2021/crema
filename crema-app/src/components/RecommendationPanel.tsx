@@ -47,8 +47,9 @@ function MiniCard({ coffee, onAddToShelf }: { coffee: any; onAddToShelf?: (id: s
   const router = useRouter();
   const rotation = useSharedValue(0);
   const [flipped, setFlipped] = useState(false);
-  const price250 = pricePer250g(coffee.price_per_gram);
-  const originCoords = resolveOriginCoords(coffee.origin, coffee.coffee_name);
+  const price250 = pricePer250g(coffee?.price_per_gram);
+  const originCoords = resolveOriginCoords(coffee?.origin, coffee?.coffee_name);
+  if (!coffee) return null;
 
   const handleFlip = () => {
     const next = !flipped;

@@ -175,6 +175,38 @@ def get_products():
                     if value is not None:
                         p[field] = value
 
+    # Merge roaster-managed products from DB
+    db = get_db()
+    try:
+        rp_rows = db.execute("SELECT * FROM roaster_products WHERE available = 1").fetchall()
+        for row in rp_rows:
+            r = dict(row)
+            products.append({
+                "product_id": f"rp_{r['id']}",
+                "roaster_slug": r["roaster_slug"],
+                "roaster_name": r["roaster_slug"].replace("-", " ").title(),
+                "coffee_name": r["coffee_name"],
+                "roast_level": r.get("roast_level"),
+                "tasting_notes": r.get("tasting_notes"),
+                "origin": r.get("origin"),
+                "process": r.get("process"),
+                "varietal": r.get("varietal"),
+                "altitude_masl": r.get("altitude_masl"),
+                "bean_type": r.get("bean_type"),
+                "flavor_notes": r.get("flavor_notes"),
+                "weight_grams": r.get("weight_grams"),
+                "price_inr": r.get("price_inr"),
+                "image_url": r.get("image_url"),
+                "product_url": r.get("product_url"),
+                "description_raw": r.get("description_raw"),
+                "available": True,
+                "_source": "roaster_managed",
+            })
+    except Exception:
+        pass
+    finally:
+        db.close()
+
     return products
 
 
@@ -407,6 +439,131 @@ def update_roaster_profile(slug: str, req: _RoasterProfileUpdate, user=Depends(g
             except Exception:
                 result["specialties"] = []
         return result
+    finally:
+        db.close()
+
+
+# ── Follow API ────────────────────────────────────────────────────────────────
+
+@app.post("/api/roasters/{slug}/follow")
+def toggle_follow(slug: str, user=Depends(get_current_user)):
+    """Toggle follow status for a roaster. Returns new state."""
+    db = get_db()
+    try:
+        now = datetime.utcnow().isoformat() + "Z"
+        existing = db.execute(
+            "SELECT id FROM follows WHERE follower_user_id = ? AND roaster_slug = ?",
+            (user["id"], slug),
+        ).fetchone()
+        if existing:
+            db.execute("DELETE FROM follows WHERE id = ?", (existing["id"],))
+            db.commit()
+            count = db.execute("SELECT COUNT(*) as c FROM follows WHERE roaster_slug = ?", (slug,)).fetchone()["c"]
+            return {"following": False, "follower_count": count}
+        else:
+            db.execute(
+                "INSERT INTO follows (follower_user_id, roaster_slug, created_at) VALUES (?, ?, ?)",
+                (user["id"], slug, now),
+            )
+            db.commit()
+            count = db.execute("SELECT COUNT(*) as c FROM follows WHERE roaster_slug = ?", (slug,)).fetchone()["c"]
+            return {"following": True, "follower_count": count}
+    finally:
+        db.close()
+
+@app.get("/api/roasters/{slug}/followers")
+def get_followers(slug: str):
+    """Get follower count and list for a roaster."""
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT u.username, u.display_name, u.avatar_url, u.location FROM follows f JOIN users u ON f.follower_user_id = u.id WHERE f.roaster_slug = ?",
+            (slug,),
+        ).fetchall()
+        return {"follower_count": len(rows), "followers": [dict(r) for r in rows]}
+    finally:
+        db.close()
+
+@app.get("/api/roasters/{slug}/follow-status")
+def get_follow_status(slug: str, authorization: str = Header(None)):
+    """Check if current user follows this roaster."""
+    if not authorization:
+        return {"following": False}
+    try:
+        user = get_current_user(authorization)
+    except Exception:
+        return {"following": False}
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id FROM follows WHERE follower_user_id = ? AND roaster_slug = ?",
+            (user["id"], slug),
+        ).fetchone()
+        return {"following": bool(row)}
+    finally:
+        db.close()
+
+
+# ── Roaster Product CRUD ─────────────────────────────────────────────────────
+
+class _NewProduct(_PydanticBase):
+    coffee_name: str
+    roast_level: _Opt[str] = None
+    tasting_notes: _Opt[str] = None
+    origin: _Opt[str] = None
+    process: _Opt[str] = None
+    varietal: _Opt[str] = None
+    altitude_masl: _Opt[int] = None
+    bean_type: _Opt[str] = None
+    flavor_notes: _Opt[str] = None
+    weight_grams: _Opt[int] = None
+    price_inr: _Opt[float] = None
+    image_url: _Opt[str] = None
+    product_url: _Opt[str] = None
+    description_raw: _Opt[str] = None
+
+@app.post("/api/roasters/{slug}/products", status_code=201)
+def create_product(slug: str, req: _NewProduct, user=Depends(get_current_user)):
+    """Create a new product listing for a roaster."""
+    if user.get("account_type") != "roaster" or user.get("roaster_slug") != slug:
+        raise HTTPException(403, "Only the roaster owner can add products")
+    now = datetime.utcnow().isoformat() + "Z"
+    db = get_db()
+    try:
+        cursor = db.execute(
+            """INSERT INTO roaster_products
+               (roaster_slug, user_id, coffee_name, roast_level, tasting_notes, origin,
+                process, varietal, altitude_masl, bean_type, flavor_notes,
+                weight_grams, price_inr, image_url, product_url, description_raw, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (slug, user["id"], req.coffee_name, req.roast_level, req.tasting_notes,
+             req.origin, req.process, req.varietal, req.altitude_masl, req.bean_type,
+             req.flavor_notes, req.weight_grams, req.price_inr, req.image_url,
+             req.product_url, req.description_raw, now),
+        )
+        db.commit()
+        row = db.execute("SELECT * FROM roaster_products WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        product = dict(row)
+        # Normalise keys to match the frontend CoffeeCard expectations
+        product["product_id"] = str(product["id"])
+        product["roaster_slug"] = slug
+        return product
+    finally:
+        db.close()
+
+@app.delete("/api/roasters/{slug}/products/{product_id}")
+def delete_product(slug: str, product_id: int, user=Depends(get_current_user)):
+    """Delete a roaster product. Only the owner can delete."""
+    if user.get("account_type") != "roaster" or user.get("roaster_slug") != slug:
+        raise HTTPException(403, "Only the roaster owner can delete products")
+    db = get_db()
+    try:
+        row = db.execute("SELECT id FROM roaster_products WHERE id = ? AND roaster_slug = ?", (product_id, slug)).fetchone()
+        if not row:
+            raise HTTPException(404, "Product not found")
+        db.execute("DELETE FROM roaster_products WHERE id = ?", (product_id,))
+        db.commit()
+        return {"deleted": True}
     finally:
         db.close()
 

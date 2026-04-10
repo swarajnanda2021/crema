@@ -153,6 +153,39 @@ _MIGRATIONS = [
         updated_at TEXT NOT NULL
     )""",
     "ALTER TABLE roaster_profiles ADD COLUMN hero_crop_y REAL DEFAULT 50",
+    # Follows table
+    """CREATE TABLE IF NOT EXISTS follows (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        follower_user_id INTEGER NOT NULL REFERENCES users(id),
+        roaster_slug TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(follower_user_id, roaster_slug)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_follows_slug ON follows(roaster_slug)",
+    "CREATE INDEX IF NOT EXISTS idx_follows_user ON follows(follower_user_id)",
+    # Roaster-managed products (beans added by roaster accounts)
+    """CREATE TABLE IF NOT EXISTS roaster_products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        roaster_slug TEXT NOT NULL,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        coffee_name TEXT NOT NULL,
+        roast_level TEXT,
+        tasting_notes TEXT,
+        origin TEXT,
+        process TEXT,
+        varietal TEXT,
+        altitude_masl INTEGER,
+        bean_type TEXT,
+        flavor_notes TEXT,
+        weight_grams INTEGER,
+        price_inr REAL,
+        image_url TEXT,
+        product_url TEXT,
+        description_raw TEXT,
+        available INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_rproducts_slug ON roaster_products(roaster_slug)",
 ]
 
 
