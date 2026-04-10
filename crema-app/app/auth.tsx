@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAuth } from "../src/hooks/useAuth";
 import { colors, fonts } from "../src/theme/colors";
 import CremaLogo from "../src/components/CremaLogo";
 
 export default function AuthPage() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ addAccount?: string }>();
+  const isAddingAccount = params.addAccount === "1";
   const { login, register } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState("");
@@ -44,8 +46,15 @@ export default function AuthPage() {
         {/* Form card */}
         <View style={styles.formCard}>
           <Text style={styles.formTitle}>
-            {isLogin ? "Welcome Back" : "Join Crema"}
+            {isAddingAccount
+              ? (isLogin ? "Add Existing Account" : "Create New Account")
+              : (isLogin ? "Welcome Back" : "Join Crema")}
           </Text>
+          {isAddingAccount && (
+            <Text style={styles.addAccountHint}>
+              Sign in to another account. You can switch between accounts from the profile menu.
+            </Text>
+          )}
 
           <TextInput
             placeholder="Username"
@@ -151,6 +160,15 @@ const styles = StyleSheet.create({
     marginBottom: 28,
     textAlign: "center",
     color: colors.textPrimary,
+  },
+  addAccountHint: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: -20,
+    marginBottom: 20,
+    lineHeight: 18,
   },
   input: {
     fontFamily: fonts.bodyRegular,

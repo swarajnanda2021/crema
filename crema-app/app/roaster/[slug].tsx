@@ -7,9 +7,9 @@
  * Navbar user-icon already routes roaster accounts here instead of /profile.
  */
 
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
+  View, Text, ScrollView, Pressable, StyleSheet, Modal,
   LayoutChangeEvent, Platform, Animated, TextInput, ActivityIndicator,
   useWindowDimensions,
 } from "react-native";
@@ -17,7 +17,8 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, Stack, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import Svg, { Path } from "react-native-svg";
-import { Plus, X } from "lucide-react-native";
+import { Plus, X, PenLine, Camera } from "lucide-react-native";
+import ImageUploadModal from "../../src/components/ImageUploadModal";
 
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
@@ -116,14 +117,23 @@ function timeAgo(dateStr: string): string {
 }
 
 // ── Photo gallery ─────────────────────────────────────────────────────────────
+// Figma node 151:2264 — 3-column portrait layout, each ~232×311px, 10px gap, r=5
+//
 // 1 image  → full-width landscape (height 240)
-// 2 images → side-by-side portrait (height 280), gap 4
-// 3 images → three portrait columns (height 280), gap 4
-// 4+ images → horizontal scroll, each 160px wide × 260px tall
+// 2 images → 2 equal columns, full width, 311px tall, 10px gap
+// 3 images → 3 equal columns, full width, 311px tall, 10px gap  (Figma spec)
+// 4+ images → horizontal carousel, each image same per-col size as 3-up layout
+
+const PG_IMG_HEIGHT = 311;
+const PG_GAP = 10;
+const PG_RADIUS = 5;
 
 function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => void }) {
+  const [containerWidth, setContainerWidth] = useState(0);
+
   if (!images || images.length === 0) return null;
 
+  // 1 image — full-width landscape
   if (images.length === 1) {
     return (
       <Pressable onPress={onPress} style={pg.singleWrap}>
@@ -132,6 +142,7 @@ function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => v
     );
   }
 
+  // 2–3 images — equal flex columns filling full width, 311px tall
   if (images.length <= 3) {
     return (
       <View style={pg.rowWrap}>
@@ -144,40 +155,49 @@ function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => v
     );
   }
 
-  // 4+ → horizontal scroll with peek
+  // 4+ → horizontal carousel, each image at the same width as one col in the 3-up grid
+  const imgW = containerWidth > 0
+    ? Math.floor((containerWidth - PG_GAP * 2) / 3)
+    : 220;
+
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={pg.scrollWrap}
-      contentContainerStyle={pg.scrollContent}
+    <View
+      onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}
+      style={pg.carouselOuter}
     >
-      {images.map((uri, i) => (
-        <Pressable key={i} onPress={onPress}>
-          <Image source={{ uri }} style={pg.scrollImg} contentFit="cover" />
-        </Pressable>
-      ))}
-    </ScrollView>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: PG_GAP }}
+      >
+        {images.map((uri, i) => (
+          <Pressable key={i} onPress={onPress}>
+            <Image
+              source={{ uri }}
+              style={{ width: imgW, height: PG_IMG_HEIGHT, borderRadius: PG_RADIUS }}
+              contentFit="cover"
+            />
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
 const pg = StyleSheet.create({
   // 1 image — landscape
-  singleWrap: { marginBottom: 16, overflow: "hidden" } as any,
-  singleImg: { width: "100%" as any, height: 280, borderRadius: 5 },
-  // 2–3 images — portrait row, gap 4
+  singleWrap: { marginBottom: 16 } as any,
+  singleImg: { width: "100%" as any, height: 240, borderRadius: PG_RADIUS },
+  // 2–3 images — portrait row
   rowWrap: {
     flexDirection: "row",
-    gap: 4,
+    gap: PG_GAP,
     marginBottom: 16,
-    overflow: "hidden",
   } as any,
-  colWrap: { flex: 1, overflow: "hidden", borderRadius: 5 } as any,
-  colImg: { width: "100%" as any, height: 280, borderRadius: 5 },
-  // 4+ — horizontal scroll
-  scrollWrap: { marginBottom: 16 },
-  scrollContent: { gap: 4, paddingRight: 20 } as any,
-  scrollImg: { width: 160, height: 260, borderRadius: 5 },
+  colWrap: { flex: 1, borderRadius: PG_RADIUS, overflow: "hidden" } as any,
+  colImg: { width: "100%" as any, height: PG_IMG_HEIGHT },
+  // 4+ carousel outer
+  carouselOuter: { marginBottom: 16 },
 });
 
 // ── Coffee grid ───────────────────────────────────────────────────────────────
@@ -634,13 +654,8 @@ function ComposePostForm({
 
 const cf = StyleSheet.create({
   wrap: {
-    marginHorizontal: 28,
-    marginVertical: 20,
-    padding: 20,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#D7D1C4",
-    backgroundColor: "#FFFEFB",
+    padding: 24,
+    backgroundColor: "#FAF8F0",
   },
   header: {
     flexDirection: "row",
@@ -735,11 +750,11 @@ const cf = StyleSheet.create({
 const NAVBAR_H = 72;
 
 export default function RoasterDetailPage() {
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { slug, edit } = useLocalSearchParams<{ slug: string; edit?: string }>();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { products, roasters } = useCoffeeData();
-  const { getProfile } = useRoasterProfiles();
+  const { getProfile, refreshProfiles } = useRoasterProfiles();
   const { height: winH } = useWindowDimensions();
 
   // Primary lookup: roasters derived from the product catalog
@@ -775,6 +790,15 @@ export default function RoasterDetailPage() {
   const [aboutExpanded, setAboutExpanded] = useState(false);
   const ABOUT_LIMIT = 260;
 
+  // ── In-place editing (owner only) ───────────────────────────────────────────
+  const [isEditing, setIsEditing] = useState(edit === "1");
+
+  // Sync edit state when ?edit=1 param changes (e.g. navigating from dropdown)
+  useEffect(() => {
+    if (edit === "1" && isOwner) setIsEditing(true);
+  }, [edit, isOwner]);
+  const [saving, setSaving] = useState(false);
+
   const heroImageUrl = useMemo(
     () => profile?.hero_image_url || coffees.find((c: any) => c.image_url)?.image_url || null,
     [profile, coffees]
@@ -786,6 +810,94 @@ export default function RoasterDetailPage() {
   const city = roaster?.city || profile?.city || null;
   const website = roaster?.website || profile?.website || null;
   const aboutBlurb = profile?.about_blurb || null;
+
+  // Edit form state — initialized from current profile values
+  const [editAbout, setEditAbout] = useState(aboutBlurb || "");
+  const [editSpecialties, setEditSpecialties] = useState(specialtyTags.join(", "));
+  const [editWebsite, setEditWebsite] = useState(website || "");
+  const [editCity, setEditCity] = useState(city || "");
+  const [editLogo, setEditLogo] = useState(logoUrl || "");
+  const [editHero, setEditHero] = useState(heroImageUrl || "");
+  const heroCropY = profile?.hero_crop_y ?? 50;
+  const [editCropY, setEditCropY] = useState(heroCropY);
+  const [isDraggingHero, setIsDraggingHero] = useState(false);
+  const dragStartRef = useRef({ y: 0, cropY: 50 });
+  const heroWrapRef = useRef<View>(null);
+  const [showLogoUpload, setShowLogoUpload] = useState(false);
+  const [showHeroUpload, setShowHeroUpload] = useState(false);
+
+  // Sync form state when entering edit mode OR when profile data loads
+  useEffect(() => {
+    if (isEditing) {
+      setEditAbout(aboutBlurb || "");
+      setEditSpecialties(specialtyTags.join(", "));
+      setEditWebsite(website || "");
+      setEditCity(city || "");
+      setEditLogo(logoUrl || "");
+      setEditHero(heroImageUrl || "");
+      setEditCropY(heroCropY);
+    }
+  }, [isEditing, aboutBlurb, profile]);
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      const specs = editSpecialties.split(",").map((s) => s.trim()).filter(Boolean);
+      await apiFetch(`/roasters/${slug}/profile`, {
+        method: "PUT",
+        body: JSON.stringify({
+          about_blurb: editAbout,
+          specialties: specs,
+          website: editWebsite,
+          city: editCity,
+          logo_url: editLogo,
+          hero_image_url: editHero,
+          hero_crop_y: editCropY,
+        }),
+      });
+      await refreshProfiles();
+      setIsEditing(false);
+      // Remove ?edit=1 from URL
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("edit");
+        window.history.replaceState({}, "", url.toString());
+      }
+    } catch (e) {
+      console.warn("Save roaster profile error:", e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Hero drag-to-reposition (web mouse events) ─────────────────────────────
+  const handleHeroDragStart = useCallback((e: any) => {
+    if (!isEditing) return;
+    e.preventDefault();
+    dragStartRef.current = { y: e.clientY, cropY: editCropY };
+    setIsDraggingHero(true);
+
+    const handleMove = (ev: MouseEvent) => {
+      const heroEl = (heroWrapRef.current as unknown as HTMLElement);
+      if (!heroEl) return;
+      const containerH = heroEl.getBoundingClientRect().height;
+      // Moving mouse down → image moves up → cropY decreases (shows lower part)
+      // Invert: dragging down should reveal top = increase cropY
+      const deltaY = ev.clientY - dragStartRef.current.y;
+      const deltaPct = (deltaY / containerH) * 100;
+      const newCropY = Math.max(0, Math.min(100, dragStartRef.current.cropY - deltaPct));
+      setEditCropY(newCropY);
+    };
+
+    const handleUp = () => {
+      setIsDraggingHero(false);
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+  }, [isEditing, editCropY]);
 
   const loadPosts = useCallback(async () => {
     try {
@@ -862,10 +974,32 @@ export default function RoasterDetailPage() {
       <Stack.Screen options={{ headerShown: false }} />
       <Navbar />
 
-      <View style={[s.pageContainer, { height: winH - NAVBAR_H }]}>
+      {/* ── Edit mode top banner (under navbar, full width) ───── */}
+      {isOwner && isEditing && (
+        <View style={s.editBanner}>
+          <View style={s.editBannerLeft}>
+            <PenLine size={12} color="#D798DA" strokeWidth={2} />
+            <Text style={s.editBannerLabel}>Editing profile</Text>
+          </View>
+          <View style={s.editBannerRight}>
+            <Pressable onPress={() => setIsEditing(false)} style={s.editBannerDiscard}>
+              <Text style={s.editBannerDiscardText}>Discard</Text>
+            </Pressable>
+            <Pressable onPress={handleSaveProfile} style={s.editBannerSave} disabled={saving}>
+              {saving ? (
+                <ActivityIndicator size="small" color="#FAF8F0" />
+              ) : (
+                <Text style={s.editBannerSaveText}>Save changes</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      <View style={[s.pageContainer, { height: isEditing ? winH - NAVBAR_H - 44 : winH - NAVBAR_H }]}>
 
         {/* ── LEFT PANEL (sticky, dark) ──────────────────────────────── */}
-        <View style={[s.leftPanel, { height: winH - NAVBAR_H }]}>
+        <View style={[s.leftPanel, { height: isEditing ? winH - NAVBAR_H - 44 : winH - NAVBAR_H }, isEditing && { paddingBottom: 120 }]}>
 
           {/* Back */}
           <Pressable onPress={() => router.back()} style={s.backBtn}>
@@ -891,109 +1025,170 @@ export default function RoasterDetailPage() {
             {roaster.name}
           </Text>
 
-          {/* About blurb */}
-          {aboutBlurb ? (
+          {/* ── About blurb (in-place editable) ── */}
+          {isEditing ? (
+            <View style={s.aboutBlock}>
+              <TextInput
+                style={[s.aboutText, s.inlineEdit]}
+                value={editAbout}
+                onChangeText={setEditAbout}
+                placeholder="Tell people about your roastery…"
+                placeholderTextColor="rgba(199,186,165,0.35)"
+                multiline
+              />
+            </View>
+          ) : aboutBlurb ? (
             <View style={s.aboutBlock}>
               <Text style={s.aboutText}>
                 {aboutExpanded || aboutBlurb.length <= ABOUT_LIMIT
                   ? aboutBlurb
                   : aboutBlurb.slice(0, ABOUT_LIMIT) + "…"}
-                {!aboutExpanded && aboutBlurb.length > ABOUT_LIMIT && (
-                  <Text onPress={() => setAboutExpanded(true)} style={s.aboutMore}> more</Text>
+                {aboutBlurb.length > ABOUT_LIMIT && (
+                  <Text
+                    onPress={() => setAboutExpanded((v) => !v)}
+                    style={s.aboutMore}
+                  >
+                    {aboutExpanded ? " less" : " more"}
+                  </Text>
                 )}
               </Text>
             </View>
+          ) : isOwner ? (
+            <Pressable onPress={() => setIsEditing(true)} style={s.aboutBlock}>
+              <Text style={[s.aboutText, { opacity: 0.4 }]}>Tap the pencil to add your story…</Text>
+            </Pressable>
           ) : null}
 
-          {/* Push footer to bottom */}
-          <View style={{ flex: 1 }} />
+          {/* ── Logo upload (edit-mode only) ── */}
+          {isEditing && (
+            <Pressable onPress={() => setShowLogoUpload(true)} style={s.uploadTrigger}>
+              {editLogo ? (
+                <Image source={{ uri: editLogo }} style={s.uploadThumb} contentFit="cover" />
+              ) : (
+                <View style={s.uploadThumbEmpty}>
+                  <Camera size={24} color="#C7BAA5" strokeWidth={1.5} />
+                </View>
+              )}
+              <Text style={s.uploadTriggerText}>Change logo</Text>
+            </Pressable>
+          )}
 
-          {/* Specialty tags with rules */}
+          {/* Push footer to bottom (skip in edit mode so content scrolls naturally) */}
+          {!isEditing && <View style={{ flex: 1 }} />}
+          {isEditing && <View style={{ height: 24 }} />}
+
+          {/* ── Specialty tags (in-place editable) ── */}
           <View style={s.tagBand}>
-            <View style={s.rule} />
-            <Text style={s.tagText}>{specialtyTags.join(" / ")}</Text>
-            <View style={s.rule} />
+            {!isEditing && <View style={s.rule} />}
+            {isEditing ? (
+              <TextInput
+                style={[s.tagText, s.inlineEditTag]}
+                value={editSpecialties}
+                onChangeText={setEditSpecialties}
+                placeholder="Single Origin, Estate Grown"
+                placeholderTextColor="rgba(199,186,165,0.35)"
+              />
+            ) : (
+              <Text style={s.tagText}>{specialtyTags.join(" / ")}</Text>
+            )}
+            {!isEditing && <View style={s.rule} />}
           </View>
 
-          {/* Meta row: website | followers | city */}
+          {/* ── Meta row (website + city in-place editable, followers always read-only) ── */}
           <View style={s.metaRow}>
-            {website ? (
-              <Pressable onPress={() => Linking.openURL(website)} style={s.metaItem}>
-                <ExternalLinkIcon />
-                <Text style={s.metaText}>Website</Text>
-              </Pressable>
-            ) : null}
-            <View style={s.metaItem}>
-              <UsersIcon />
-              <Text style={s.metaText}>
-                {following ? "1 follower" : "0 followers"}
-              </Text>
-            </View>
-            {city ? (
-              <View style={s.metaItem}>
-                <MapPinIcon />
-                <Text style={s.metaText}>{city}</Text>
-              </View>
-            ) : null}
+            {isEditing ? (
+              <>
+                <View style={s.metaItem}>
+                  <ExternalLinkIcon />
+                  <TextInput
+                    style={s.inlineEditMeta}
+                    value={editWebsite}
+                    onChangeText={setEditWebsite}
+                    placeholder="Website URL"
+                    placeholderTextColor="rgba(199,186,165,0.35)"
+                    autoCapitalize="none"
+                  />
+                </View>
+                <View style={s.metaItem}>
+                  <MapPinIcon />
+                  <TextInput
+                    style={s.inlineEditMeta}
+                    value={editCity}
+                    onChangeText={setEditCity}
+                    placeholder="City"
+                    placeholderTextColor="rgba(199,186,165,0.35)"
+                  />
+                </View>
+              </>
+            ) : (
+              <>
+                {website ? (
+                  <Pressable onPress={() => Linking.openURL(website)} style={s.metaItem}>
+                    <ExternalLinkIcon />
+                    <Text style={s.metaText}>Website</Text>
+                  </Pressable>
+                ) : null}
+                <View style={s.metaItem}>
+                  <UsersIcon />
+                  <Text style={s.metaText}>{following ? "1 follower" : "0 followers"}</Text>
+                </View>
+                {city ? (
+                  <View style={s.metaItem}>
+                    <MapPinIcon />
+                    <Text style={s.metaText}>{city}</Text>
+                  </View>
+                ) : null}
+              </>
+            )}
           </View>
 
-          <View style={s.rule} />
+          {!isEditing && <View style={s.rule} />}
 
           {/* Follow button — hidden for owner */}
-          {!isOwner ? (
+          {!isOwner && (
             <View style={s.followRow}>
               <FollowButton following={following} onToggle={() => setFollowing((f) => !f)} />
-            </View>
-          ) : (
-            /* Owner: "New Post" + "Sign out" buttons in the follow slot */
-            <View style={[s.followRow, { flexDirection: "row", gap: 10 }]}>
-              <Pressable
-                onPress={() => setShowCompose(true)}
-                style={s.newPostBtn}
-              >
-                <Plus size={13} color="#2a0d00" strokeWidth={2.5} />
-                <Text style={s.newPostBtnText}>New Post</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => { logout(); router.replace("/"); }}
-                style={s.signOutBtn}
-              >
-                <Text style={s.signOutBtnText}>Sign out</Text>
-              </Pressable>
             </View>
           )}
         </View>
 
-        {/* ── RIGHT SCROLLABLE CONTENT ──────────────────────────────── */}
-        <ScrollView
-          style={s.rightScroll}
-          contentContainerStyle={s.rightContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Hero image */}
-          <View style={s.heroImageWrap}>
-            {heroImageUrl ? (
+        {/* ── RIGHT PANEL (scroll + floating compose button + modal) ── */}
+        <View style={s.rightPanel}>
+          <ScrollView
+            style={s.rightScroll}
+            contentContainerStyle={s.rightContent}
+            showsVerticalScrollIndicator={false}
+          >
+          {/* Hero image — show editHero during edit mode, draggable to reposition */}
+          <View
+            ref={heroWrapRef}
+            style={[s.heroImageWrap, isEditing && isDraggingHero && { cursor: "grabbing" } as any, isEditing && !isDraggingHero && { cursor: "grab" } as any]}
+            {...(isEditing && Platform.OS === "web" ? { onMouseDown: handleHeroDragStart } : {})}
+          >
+            {(isEditing ? editHero : heroImageUrl) ? (
               <Image
-                source={{ uri: heroImageUrl }}
+                source={{ uri: isEditing ? editHero : heroImageUrl }}
                 style={StyleSheet.absoluteFillObject}
                 contentFit="cover"
+                contentPosition={{ top: `${isEditing ? editCropY : heroCropY}%`, left: "50%" }}
               />
             ) : (
               <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#1a0800" }]} />
             )}
+            {/* Drag hint — shown in edit mode */}
+            {isOwner && isEditing && !isDraggingHero && (
+              <View style={s.heroDragHint} pointerEvents="none">
+                <Text style={s.heroDragHintText}>Drag to reposition</Text>
+              </View>
+            )}
+            {/* Change cover button — bottom-right */}
+            {isOwner && isEditing && (
+              <Pressable onPress={() => setShowHeroUpload(true)} style={s.heroEditBtn}>
+                <Camera size={14} color="#FAF8F0" strokeWidth={1.5} />
+                <Text style={s.heroEditBtnText}>Change cover</Text>
+              </Pressable>
+            )}
           </View>
-
-          {/* ── Compose form (owner only) ────────────────────────────── */}
-          {isOwner && showCompose && (
-            <>
-              <View style={s.divider} />
-              <ComposePostForm
-                onSubmit={handleCreatePost}
-                onCancel={() => setShowCompose(false)}
-                loading={composing}
-              />
-            </>
-          )}
 
           {/* ── Public visitor: featured posts ───────────────────────── */}
           {!postsLoading && !isOwner && featuredPosts.length > 0 && (
@@ -1018,13 +1213,11 @@ export default function RoasterDetailPage() {
           {isOwner && !postsLoading && allPosts.length > 0 && (() => {
             const featured = allPosts.filter((p) => p.is_featured).sort((a, b) => (a.featured_order ?? 9) - (b.featured_order ?? 9));
             const rest = allPosts.filter((p) => !p.is_featured);
-            const slotsLeft = 3 - featured.length;
+            const slotsLeft = 2 - featured.length;
             const hint = featured.length === 0
-              ? "No featured posts yet — star up to 3 to pin them here."
+              ? "No featured posts yet — star up to 2 to pin them here."
               : slotsLeft === 1
-              ? `${slotsLeft} featured slot remaining.`
-              : slotsLeft >= 2
-              ? `${slotsLeft} featured slots remaining.`
+              ? "1 featured slot remaining."
               : null;
             const ordered = [...featured, ...rest];
             return (
@@ -1055,7 +1248,7 @@ export default function RoasterDetailPage() {
           })()}
 
           {/* ── Owner: no posts yet ──────────────────────────────────── */}
-          {isOwner && !postsLoading && allPosts.length === 0 && !showCompose && (
+          {isOwner && !postsLoading && allPosts.length === 0 && (
             <>
               <View style={s.divider} />
               <View style={s.emptyPostsWrap}>
@@ -1077,8 +1270,67 @@ export default function RoasterDetailPage() {
           </Text>
           <CoffeeGrid coffees={coffees} />
 
-          <View style={{ height: 80 }} />
-        </ScrollView>
+          <View style={{ height: 100 }} />
+          </ScrollView>
+
+          {/* ── Edit-mode dim overlay (covers right panel content) ─── */}
+          {isEditing && <View style={s.editDimOverlay} pointerEvents="none" />}
+
+          {/* ── Floating compose button (owner, non-edit mode) ─────── */}
+          {isOwner && !isEditing && (
+            <Pressable onPress={() => setShowCompose(true)} style={s.fab}>
+              <Plus size={18} color="#FAF8F0" strokeWidth={2.5} />
+              <Text style={s.fabLabel}>New post</Text>
+            </Pressable>
+          )}
+
+          {/* ── Image upload modals ─────────────────────────────────── */}
+          <ImageUploadModal
+            visible={showLogoUpload}
+            title="Upload Logo"
+            purpose="logo"
+            currentUrl={editLogo}
+            onConfirm={(url) => setEditLogo(url)}
+            onClose={() => setShowLogoUpload(false)}
+          />
+          <ImageUploadModal
+            visible={showHeroUpload}
+            title="Upload Cover Image"
+            purpose="hero"
+            currentUrl={editHero}
+            onConfirm={(url) => setEditHero(url)}
+            onClose={() => setShowHeroUpload(false)}
+          />
+
+          {/* ── Compose modal ────────────────────────────────────────── */}
+          <Modal
+            visible={showCompose}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowCompose(false)}
+          >
+            <View style={s.modalOverlay}>
+              {/* Backdrop — tap to dismiss */}
+              <Pressable
+                style={StyleSheet.absoluteFillObject}
+                onPress={() => setShowCompose(false)}
+              />
+              {/* Card */}
+              <View style={s.modalCard}>
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <ComposePostForm
+                    onSubmit={handleCreatePost}
+                    onCancel={() => setShowCompose(false)}
+                    loading={composing}
+                  />
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
+        </View>
       </View>
     </>
   );
@@ -1189,47 +1441,224 @@ const s = StyleSheet.create({
 
   followRow: { marginTop: 14 },
 
-  // "New Post" button for owner
-  newPostBtn: {
+  // ── In-place editing styles (owner only) ──────────────────────────────────
+
+  // Inline edit fields — subtle background only, no borders
+  inlineEdit: {
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: "rgba(250,248,240,0.06)",
+    minHeight: 80,
+    textAlignVertical: "top" as any,
+  } as any,
+  inlineEditTag: {
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "rgba(250,248,240,0.06)",
+    textAlign: "center" as any,
+    flex: 1,
+  } as any,
+  inlineEditSingle: {
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
+    color: "#FAF8F0",
+    backgroundColor: "rgba(250,248,240,0.06)",
+  } as any,
+  inlineEditMeta: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 14,
+    color: "#FAF8F0",
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: "rgba(250,248,240,0.06)",
+    minWidth: 80,
+  } as any,
+
+  // Logo upload trigger — small preview + "Change logo" text
+  uploadTrigger: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    height: 27,
-    paddingHorizontal: 14,
-    borderRadius: 2,
-    backgroundColor: "#FAF8F0",
-    alignSelf: "flex-start" as any,
-  },
-  newPostBtnText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 12,
-    color: "#2a0d00",
-  },
-  // "Sign out" button — outlined, same height as New Post
-  signOutBtn: {
-    height: 27,
-    paddingHorizontal: 12,
-    borderRadius: 2,
+    gap: 10,
+    marginTop: 12,
+    paddingVertical: 8,
+  } as any,
+  uploadThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(199,186,165,0.5)",
-    alignSelf: "flex-start" as any,
+    borderColor: "rgba(199,186,165,0.3)",
+  },
+  uploadThumbEmpty: {
+    width: 72,
+    height: 72,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(199,186,165,0.3)",
+    borderStyle: "dashed" as any,
     alignItems: "center",
     justifyContent: "center",
-  },
-  signOutBtnText: {
+  } as any,
+  uploadTriggerText: {
     fontFamily: fonts.bodyMedium,
     fontSize: 12,
     color: "#C7BAA5",
+    textDecorationLine: "underline" as any,
   },
 
-  // Right scrollable column — flex:1 fills remaining width; height from parent
+  // Hero drag hint — centered overlay
+  heroDragHint: {
+    position: "absolute" as any,
+    top: "50%" as any,
+    left: "50%" as any,
+    transform: [{ translateX: -70 }, { translateY: -14 }],
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  } as any,
+  heroDragHintText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: "#FAF8F0",
+  },
+
+  // Hero edit button — pill, bottom-right of hero image
+  heroEditBtn: {
+    position: "absolute" as any,
+    bottom: 14,
+    right: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  } as any,
+  heroEditBtnText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: "#FAF8F0",
+  },
+
+  // Dim overlay on right panel during editing
+  editDimOverlay: {
+    position: "absolute" as any,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(250,248,240,0.5)",
+    zIndex: 5,
+  },
+
+  // Edit banner — top of page, under navbar, full width
+  editBanner: {
+    height: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between" as any,
+    paddingHorizontal: 24,
+    backgroundColor: "#351101",
+  } as any,
+  editBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  } as any,
+  editBannerLabel: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: "#D798DA",
+  },
+  editBannerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  } as any,
+  editBannerDiscard: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "rgba(199,186,165,0.3)",
+  },
+  editBannerDiscardText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: "#C7BAA5" },
+  editBannerSave: {
+    paddingHorizontal: 18,
+    paddingVertical: 6,
+    borderRadius: 4,
+    backgroundColor: "#FAF8F0",
+  },
+  editBannerSaveText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: "#351101" },
+
+  // Right panel wrapper — needed to anchor the FAB outside the ScrollView
+  rightPanel: {
+    flex: 1,
+    position: "relative" as any,
+    backgroundColor: "#FAF8F0",
+  },
+
+  // Right scrollable column — fills the panel
   rightScroll: {
     flex: 1,
-    backgroundColor: "#FAF8F0",
   },
   rightContent: {
     flexGrow: 1,
   },
+
+  // Floating compose button — pill, bottom-right of right panel
+  fab: {
+    position: "absolute" as any,
+    bottom: 28,
+    right: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#351101",
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+    borderRadius: 50,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 50,
+  } as any,
+  fabLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: "#FAF8F0",
+  },
+
+  // Compose modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center" as any,
+    alignItems: "center" as any,
+  },
+  modalCard: {
+    backgroundColor: "#FAF8F0",
+    borderRadius: 16,
+    width: "90%" as any,
+    maxWidth: 560,
+    maxHeight: "85%" as any,
+    overflow: "hidden" as any,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    elevation: 16,
+  } as any,
 
   // Hero image
   heroImageWrap: {

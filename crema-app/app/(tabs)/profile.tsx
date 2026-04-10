@@ -130,7 +130,7 @@ const g = StyleSheet.create({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function MyShelfPage() {
-  const { user, updateProfile, logout } = useAuth();
+  const { user, updateProfile } = useAuth();
   const { shelves, fetchShelves, addToShelf, removeFromShelf } = useShelves();
   const { productMap } = useCoffeeData();
   const { notes: myNotes, fetchMyNotes } = useTastingNotes();
@@ -236,13 +236,6 @@ export default function MyShelfPage() {
           </Pressable>
         </View>
 
-        {/* Sign Out */}
-        <View style={s.filterSection}>
-          <View style={s.filterDivider} />
-          <Pressable onPress={logout} style={s.tabItemRow}>
-            <Text style={s.signOutSidebarText}>Sign Out</Text>
-          </Pressable>
-        </View>
       </View>
     </View>
   );
@@ -401,14 +394,11 @@ export default function MyShelfPage() {
           {/* Left — name, bio, stats */}
           <View style={s.heroLeft}>
 
-            {/* Edit + Sign Out buttons — top right of heroLeft */}
+            {/* Edit button — top right of heroLeft */}
             <View style={s.heroTopRow}>
               <Pressable onPress={() => setShowEditModal(true)} style={s.editBtn}>
                 <EditIcon />
                 <Text style={s.editBtnText}>Edit Profile</Text>
-              </Pressable>
-              <Pressable onPress={logout} style={s.signOutBtn}>
-                <Text style={s.signOutText}>Sign Out</Text>
               </Pressable>
             </View>
 

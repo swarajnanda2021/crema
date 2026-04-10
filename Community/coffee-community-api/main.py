@@ -19,7 +19,7 @@ from queue import Queue, Empty
 
 import uuid as _uuid
 
-from fastapi import FastAPI, Header, UploadFile, File
+from fastapi import FastAPI, Header, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
@@ -38,7 +38,8 @@ _SCRAPER_DIR = os.path.join(_BASE, "Scraper", "scraper")
 # importlib.util.spec_from_file_location in _run_full_refresh()
 # to avoid name collisions.
 
-from auth import router as auth_router
+from datetime import datetime
+from auth import router as auth_router, get_current_user
 from shelves import router as shelves_router
 from tasting_notes import router as notes_router
 from click_tracking import router as clicks_router
@@ -111,6 +112,31 @@ async def upload_avatar(file: UploadFile = File(...), authorization: str = Heade
     # Return the URL (relative to the API server)
     url = f"http://{os.environ.get('HOST', 'localhost')}:8000/uploads/{filename}"
     return {"avatar_url": url}
+
+
+@app.post("/api/upload/image")
+async def upload_image(
+    file: UploadFile = File(...),
+    purpose: str = "general",
+    authorization: str = Header(None),
+):
+    """Upload an image for any purpose (logo, hero, general). Returns the URL."""
+    user = get_current_user(authorization)
+
+    if file.content_type not in ("image/jpeg", "image/png", "image/webp", "image/gif"):
+        raise HTTPException(400, "Only JPEG, PNG, WebP, and GIF images are accepted")
+
+    ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "jpg"
+    safe_purpose = purpose.replace("/", "_").replace("..", "_")[:20]
+    filename = f"{safe_purpose}_{user['username']}_{_uuid.uuid4().hex[:8]}.{ext}"
+    filepath = os.path.join(_UPLOADS_DIR, filename)
+
+    content = await file.read()
+    with open(filepath, "wb") as f:
+        f.write(content)
+
+    url = f"http://{os.environ.get('HOST', 'localhost')}:8000/uploads/{filename}"
+    return {"url": url, "purpose": safe_purpose}
 
 
 @app.get("/api/products")
@@ -286,8 +312,103 @@ def get_roasters():
         if slugs_to_remove:
             merged = [r for r in merged if r.get("roaster_slug") not in slugs_to_remove]
 
+    # Apply DB-stored roaster profile edits (highest priority — owner-edited data)
+    db = get_db()
+    try:
+        db_profiles = db.execute("SELECT * FROM roaster_profiles").fetchall()
+        db_map = {row["roaster_slug"]: dict(row) for row in db_profiles}
+        _DB_FIELDS = ["about_blurb", "specialties", "website", "city", "logo_url", "hero_image_url", "hero_crop_y"]
+        for r in merged:
+            slug = r.get("roaster_slug", "")
+            db_prof = db_map.get(slug)
+            if db_prof:
+                for field in _DB_FIELDS:
+                    val = db_prof.get(field)
+                    if val is not None and val != "":
+                        if field == "specialties":
+                            try:
+                                r[field] = json.loads(val)
+                            except Exception:
+                                r[field] = [s.strip() for s in val.split(",") if s.strip()]
+                        else:
+                            r[field] = val
+    except Exception:
+        pass
+    finally:
+        db.close()
+
     merged.sort(key=lambda r: r.get("name", ""))
     return merged
+
+
+# ── Roaster profile update (owner only) ──────────────────────────────────────
+
+from pydantic import BaseModel as _PydanticBase
+from typing import Optional as _Opt, List as _List
+
+class _RoasterProfileUpdate(_PydanticBase):
+    about_blurb: _Opt[str] = None
+    specialties: _Opt[_List[str]] = None
+    website: _Opt[str] = None
+    city: _Opt[str] = None
+    logo_url: _Opt[str] = None
+    hero_image_url: _Opt[str] = None
+    hero_crop_y: _Opt[float] = None
+
+@app.put("/api/roasters/{slug}/profile")
+def update_roaster_profile(slug: str, req: _RoasterProfileUpdate, user=Depends(get_current_user)):
+    """Update roaster profile metadata. Only the roaster owner can edit."""
+    if user.get("account_type") != "roaster" or user.get("roaster_slug") != slug:
+        raise HTTPException(403, "Only the roaster owner can update this profile")
+
+    now = datetime.utcnow().isoformat() + "Z"
+    db = get_db()
+    try:
+        # Build upsert fields
+        fields = {}
+        if req.about_blurb is not None:
+            fields["about_blurb"] = req.about_blurb
+        if req.specialties is not None:
+            fields["specialties"] = json.dumps(req.specialties)
+        if req.website is not None:
+            fields["website"] = req.website
+        if req.city is not None:
+            fields["city"] = req.city
+        if req.logo_url is not None:
+            fields["logo_url"] = req.logo_url
+        if req.hero_image_url is not None:
+            fields["hero_image_url"] = req.hero_image_url
+        if req.hero_crop_y is not None:
+            fields["hero_crop_y"] = max(0, min(100, req.hero_crop_y))
+
+        if not fields:
+            raise HTTPException(400, "No fields to update")
+
+        fields["updated_at"] = now
+        fields["roaster_slug"] = slug
+
+        # Upsert
+        cols = ", ".join(fields.keys())
+        placeholders = ", ".join(["?"] * len(fields))
+        updates = ", ".join(f"{k} = excluded.{k}" for k in fields if k != "roaster_slug")
+        db.execute(
+            f"INSERT INTO roaster_profiles ({cols}) VALUES ({placeholders}) "
+            f"ON CONFLICT(roaster_slug) DO UPDATE SET {updates}",
+            list(fields.values()),
+        )
+        db.commit()
+
+        # Return the full profile row
+        row = db.execute("SELECT * FROM roaster_profiles WHERE roaster_slug = ?", (slug,)).fetchone()
+        result = dict(row)
+        if result.get("specialties"):
+            try:
+                result["specialties"] = json.loads(result["specialties"])
+            except Exception:
+                result["specialties"] = []
+        return result
+    finally:
+        db.close()
 
 
 @app.get("/api/recommendations")

@@ -2,8 +2,10 @@
  * Navbar — exact Figma specs from the design file.
  * Height: 72px, bg: #351101.
  * HOME at x=90, SHOP at x=213, logo centered at x=649.
- * Search icon at x=1262 (24px), User icon at x=1326 (24px).
+ * Search icon at x=1262 (24px), User avatar at x=1326 (24px).
  * Active SHOP link: #D798DA (logo purple).
+ *
+ * Profile dropdown (Chrome-style) appears on avatar click for authenticated users.
  */
 import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import { useRouter, usePathname } from "expo-router";
@@ -12,13 +14,17 @@ import { User, Search, X } from "lucide-react-native";
 import { colors, fonts } from "../theme/colors";
 import { useAuth } from "../hooks/useAuth";
 import CremaLogo from "./CremaLogo";
+import ProfileDropdown from "./ProfileDropdown";
+import ProfileEditModal from "./ProfileEditModal";
 
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, backendAvailable } = useAuth();
+  const { user, backendAvailable, updateProfile } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const handleSearch = () => {
     if (query.trim()) {
@@ -32,66 +38,80 @@ export default function Navbar() {
   const isHome = pathname === "/";
 
   return (
-    <View style={s.navbar}>
-      {/* Left nav links — HOME at x=90, SHOP at x=213 */}
-      <View style={s.leftLinks}>
-        <Pressable onPress={() => router.push("/")} style={s.navLink}>
-          <Text style={[s.navLinkText, isHome && s.navLinkTextActiveHome]}>HOME</Text>
+    <>
+      <View style={s.navbar}>
+        {/* Left nav links — HOME at x=90, SHOP at x=213 */}
+        <View style={s.leftLinks}>
+          <Pressable onPress={() => router.push("/")} style={s.navLink}>
+            <Text style={[s.navLinkText, isHome && s.navLinkTextActiveHome]}>HOME</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push("/browse")} style={s.navLink}>
+            <Text style={[s.navLinkText, isShop && s.navLinkTextActiveShop]}>SHOP</Text>
+          </Pressable>
+        </View>
+
+        {/* Center — Crema logo (141×29, centered) */}
+        <Pressable onPress={() => router.push("/")} style={s.logoArea}>
+          <CremaLogo width={141} height={29} />
         </Pressable>
-        <Pressable onPress={() => router.push("/browse")} style={s.navLink}>
-          <Text style={[s.navLinkText, isShop && s.navLinkTextActiveShop]}>SHOP</Text>
-        </Pressable>
+
+        {/* Right side — search + user avatar */}
+        <View style={s.rightSide}>
+          {searchOpen ? (
+            <View style={s.searchContainer}>
+              <TextInput
+                autoFocus
+                value={query}
+                onChangeText={setQuery}
+                onSubmitEditing={handleSearch}
+                placeholder="Search"
+                placeholderTextColor="rgba(250,248,240,0.5)"
+                style={s.searchInput}
+              />
+              <Pressable onPress={() => { setSearchOpen(false); setQuery(""); }}>
+                <X size={18} color="#E7D5B8" />
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <Pressable onPress={() => setSearchOpen(true)} style={s.iconBtn}>
+                <Search size={24} color="#E7D5B8" strokeWidth={1.5} />
+              </Pressable>
+
+              {user ? (
+                <Pressable
+                  onPress={() => setShowDropdown((v) => !v)}
+                  style={s.iconBtn}
+                >
+                  <User size={24} color="#E7D5B8" strokeWidth={1.5} />
+                </Pressable>
+              ) : backendAvailable ? (
+                <Pressable onPress={() => router.push("/auth")} style={s.iconBtn}>
+                  <User size={24} color="#E7D5B8" strokeWidth={1.5} />
+                </Pressable>
+              ) : null}
+            </>
+          )}
+        </View>
       </View>
 
-      {/* Center — Crema logo (141×29, centered) */}
-      <Pressable onPress={() => router.push("/")} style={s.logoArea}>
-        <CremaLogo width={141} height={29} />
-      </Pressable>
+      {/* Profile dropdown — rendered OUTSIDE the navbar View to avoid RNW overflow clip */}
+      <ProfileDropdown
+        visible={showDropdown}
+        onClose={() => setShowDropdown(false)}
+        onEditProfile={() => setShowEditModal(true)}
+      />
 
-      {/* Right side — search + user icons */}
-      <View style={s.rightSide}>
-        {searchOpen ? (
-          <View style={s.searchContainer}>
-            <TextInput
-              autoFocus
-              value={query}
-              onChangeText={setQuery}
-              onSubmitEditing={handleSearch}
-              placeholder="Search"
-              placeholderTextColor="rgba(250,248,240,0.5)"
-              style={s.searchInput}
-            />
-            <Pressable onPress={() => { setSearchOpen(false); setQuery(""); }}>
-              <X size={18} color="#E7D5B8" />
-            </Pressable>
-          </View>
-        ) : (
-          <>
-            <Pressable onPress={() => setSearchOpen(true)} style={s.iconBtn}>
-              <Search size={24} color="#E7D5B8" strokeWidth={1.5} />
-            </Pressable>
-            {user ? (
-              <Pressable
-                onPress={() => {
-                  if (user.account_type === "roaster" && user.roaster_slug) {
-                    router.push(`/roaster/${user.roaster_slug}`);
-                  } else {
-                    router.push("/profile");
-                  }
-                }}
-                style={s.iconBtn}
-              >
-                <User size={24} color="#E7D5B8" strokeWidth={1.5} />
-              </Pressable>
-            ) : backendAvailable ? (
-              <Pressable onPress={() => router.push("/auth")} style={s.iconBtn}>
-                <User size={24} color="#E7D5B8" strokeWidth={1.5} />
-              </Pressable>
-            ) : null}
-          </>
-        )}
-      </View>
-    </View>
+      {/* Profile edit modal — triggered from dropdown "Edit account" */}
+      {user && (
+        <ProfileEditModal
+          visible={showEditModal}
+          user={user}
+          onSave={async (data) => { await updateProfile(data); }}
+          onClose={() => setShowEditModal(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -144,6 +164,7 @@ const s = StyleSheet.create({
   },
   // Figma: 24×24 icons
   iconBtn: {},
+
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",

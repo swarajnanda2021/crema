@@ -11,7 +11,7 @@ Each roaster account can post articles with:
 Endpoints:
   POST   /api/roaster-posts                        — create (roaster accounts only)
   GET    /api/roasters/{slug}/posts                — list all posts for a roaster
-  GET    /api/roasters/{slug}/posts/featured       — get up to 2 featured posts (public)
+  GET    /api/roasters/{slug}/posts/featured       — get up to 2 featured posts (public, max 2)
   PUT    /api/roaster-posts/{id}/feature           — toggle featured status (roaster only)
   DELETE /api/roaster-posts/{id}                   — delete own post (roaster only)
   GET    /api/posts-timeline                       — combined feed: tasting notes + roaster posts
@@ -145,14 +145,14 @@ def create_post(req: RoasterPostRequest, user=Depends(get_current_user)):
 
 @router.get("/roasters/{slug}/posts/featured")
 def get_featured_posts(slug: str):
-    """Get up to 3 featured posts for a roaster (public). Ordered by featured_order."""
+    """Get up to 2 featured posts for a roaster (public). Ordered by featured_order."""
     db = get_db()
     try:
         rows = db.execute(
             _POST_SELECT + """
             WHERE rp.roaster_slug = ? AND rp.is_featured = 1
             ORDER BY rp.featured_order ASC
-            LIMIT 3
+            LIMIT 2
             """,
             (slug,),
         ).fetchall()
@@ -213,10 +213,10 @@ def toggle_feature(post_id: int, user=Depends(get_current_user)):
                 (roaster_slug,)
             ).fetchall()
             used_orders = {r["featured_order"] for r in featured if r["featured_order"]}
-            if len(used_orders) >= 3:
-                raise HTTPException(400, "You can only feature 3 posts. Unfeature one first.")
-            # Pick the next available slot (1, 2, or 3)
-            next_order = next(s for s in (1, 2, 3) if s not in used_orders)
+            if len(used_orders) >= 2:
+                raise HTTPException(400, "You can only feature 2 posts. Unfeature one first.")
+            # Pick the next available slot (1 or 2)
+            next_order = next(s for s in (1, 2) if s not in used_orders)
             db.execute(
                 "UPDATE roaster_posts SET is_featured = 1, featured_order = ? WHERE id = ?",
                 (next_order, post_id)

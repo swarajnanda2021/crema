@@ -141,6 +141,18 @@ _MIGRATIONS = [
     "ALTER TABLE roaster_posts ADD COLUMN location TEXT",
     # Multiple images support
     "ALTER TABLE roaster_posts ADD COLUMN images_json TEXT",
+    # Roaster profiles — editable metadata (overrides static enrichment data)
+    """CREATE TABLE IF NOT EXISTS roaster_profiles (
+        roaster_slug TEXT PRIMARY KEY,
+        about_blurb TEXT,
+        specialties TEXT,
+        website TEXT,
+        city TEXT,
+        logo_url TEXT,
+        hero_image_url TEXT,
+        updated_at TEXT NOT NULL
+    )""",
+    "ALTER TABLE roaster_profiles ADD COLUMN hero_crop_y REAL DEFAULT 50",
 ]
 
 

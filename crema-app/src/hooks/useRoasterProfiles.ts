@@ -58,5 +58,12 @@ export function useRoasterProfiles() {
     [bySlug, byDomain, byNameLower]
   );
 
-  return { profiles, loading, getProfile };
+  const refreshProfiles = useCallback(async () => {
+    try {
+      const data = await apiFetch<any[]>("/roasters");
+      setProfiles(data);
+    } catch {}
+  }, []);
+
+  return { profiles, loading, getProfile, refreshProfiles };
 }

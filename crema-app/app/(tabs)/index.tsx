@@ -15,7 +15,7 @@ import {
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import {
-  MapPin, Send, Plus, X, MessageCircle,
+  MapPin, Send, Plus, X,
 } from "lucide-react-native";
 
 // ── Figma Frame 720 post card assets ─────────────────────────────────────────
@@ -29,7 +29,7 @@ import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useSocial } from "../../src/hooks/useSocial";
 import { apiFetch } from "../../src/api/client";
 import { colors, fonts, cardShadow } from "../../src/theme/colors";
-import { HeartIcon, HeartFilledIcon, HeartOutlineIcon, HeartFilledOutlineIcon } from "../../src/components/icons/FigmaIcons";
+import { HeartOutlineIcon, HeartFilledOutlineIcon } from "../../src/components/icons/FigmaIcons";
 import TastingNoteDisplay from "../../src/components/TastingNoteDisplay";
 import CoffeeCard from "../../src/components/CoffeeCard";
 
@@ -686,9 +686,14 @@ function TastingNoteCard({ item, productMap, router, social, isLoggedIn }: {
   const [comments, setComments] = useState<any[]>([]);
   const [commentText, setCommentText] = useState("");
   const [commentCount, setCommentCount] = useState(item.comment_count || 0);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handleLike = async () => {
     if (!isLoggedIn) return;
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 1.25, duration: 100, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
+    ]).start();
     await social.toggleLike(noteId);
   };
 
@@ -727,6 +732,7 @@ function TastingNoteCard({ item, productMap, router, social, isLoggedIn }: {
           <Pressable onPress={() => router.push(`/user/${author.username}`)}>
             <Text style={fc.userName}>{author.display_name}</Text>
           </Pressable>
+          <Text style={fc.postedAbout}>Posted about a coffee</Text>
           {author.location && (
             <View style={fc.locationRow}>
               <MapPin size={8} color={colors.textSecondary} />
@@ -740,7 +746,7 @@ function TastingNoteCard({ item, productMap, router, social, isLoggedIn }: {
       {coffee && (
         <View style={fc.contentRow}>
           <Pressable onPress={() => router.push(`/coffee/${coffee.product_id}`)}>
-            <CoffeeCard coffee={coffee} width={160} height={248} />
+            <CoffeeCard coffee={coffee} width={240} height={372} />
           </Pressable>
           <View style={fc.noteCol}>
             <TastingNoteDisplay note={note} />
@@ -757,13 +763,20 @@ function TastingNoteCard({ item, productMap, router, social, isLoggedIn }: {
       {/* Like + Comment bar */}
       <View style={fc.interactionBar}>
         <Pressable onPress={handleLike} style={fc.interactionBtn}>
-          {likeState.liked ? <HeartFilledIcon size={16} /> : <HeartIcon size={16} color={colors.textMuted} />}
-          {likeState.count > 0 && <Text style={[fc.interactionCount, likeState.liked && { color: colors.purple }]}>{likeState.count}</Text>}
+          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            {likeState.liked
+              ? <HeartFilledOutlineIcon size={16} color="#D798DA" />
+              : <Image source={{ uri: FIGMA_POST_HEART }} style={fc.heartIcon} contentFit="contain" />}
+          </Animated.View>
+          {likeState.count > 0 && <Text style={[fc.interactionCount, likeState.liked && { color: "#D798DA" }]}>{likeState.count}</Text>}
         </Pressable>
         <Pressable onPress={handleToggleComments} style={fc.interactionBtn}>
-          <MessageCircle size={16} color={showComments ? colors.textPrimary : colors.textMuted} strokeWidth={2} />
+          <Image source={{ uri: FIGMA_POST_COMMENT }} style={fc.commentIcon} contentFit="contain" />
           {commentCount > 0 && <Text style={[fc.interactionCount, showComments && { color: colors.textPrimary }]}>{commentCount}</Text>}
         </Pressable>
+        <View style={fc.interactionBtn}>
+          <Image source={{ uri: FIGMA_POST_SHARE }} style={fc.shareIcon} contentFit="contain" />
+        </View>
       </View>
 
       {/* Comments section */}
@@ -870,6 +883,7 @@ const fc = StyleSheet.create({
   },
   avatarLetter: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.tagText },
   userName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.textPrimary },
+  postedAbout: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#D798DA", marginTop: 1 },
   locationRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   locationText: { fontFamily: fonts.bodyRegular, fontSize: 10, color: colors.textSecondary },
   contentRow: { flexDirection: "row" },
@@ -884,7 +898,10 @@ const fc = StyleSheet.create({
     borderColor: colors.borderLight,
   },
   interactionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
-  interactionCount: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.textMuted },
+  interactionCount: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
+  heartIcon: { width: 16, height: 14 },
+  commentIcon: { width: 14, height: 14 },
+  shareIcon: { width: 12, height: 14 },
   commentsSection: {
     borderTopWidth: 1,
     borderColor: colors.borderLight,

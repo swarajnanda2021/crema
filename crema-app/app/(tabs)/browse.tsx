@@ -74,7 +74,6 @@ export default function BrowsePage() {
           <View style={s.tabBarRight}>
             <TabButton label="BEANS" active={activeTab === "beans"} onPress={() => setActiveTab("beans")} />
             <TabButton label="ROASTERS" active={activeTab === "roasters"} onPress={() => setActiveTab("roasters")} />
-            <Text style={s.greyTab}>COFFEE SPOTS</Text>
           </View>
         </View>
       </View>
@@ -419,10 +418,6 @@ const s = StyleSheet.create({
   tabBtnActive: { borderBottomColor: "#351101" },
   tabLabel: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#A09580" },
   tabLabelActive: { fontFamily: fonts.bodySemiBold, color: "#351101" },
-  greyTab: {
-    fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#A09580",
-    paddingVertical: 10, borderBottomWidth: 4, borderBottomColor: "transparent",
-  },
 
   // Browse layout
   browseLayout: {
