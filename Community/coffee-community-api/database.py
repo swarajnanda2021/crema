@@ -186,6 +186,15 @@ _MIGRATIONS = [
         created_at TEXT NOT NULL
     )""",
     "CREATE INDEX IF NOT EXISTS idx_rproducts_slug ON roaster_products(roaster_slug)",
+    # Hidden products — lets roasters persistently hide scraped products they don't want
+    """CREATE TABLE IF NOT EXISTS hidden_products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        roaster_slug TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        hidden_at TEXT NOT NULL,
+        UNIQUE(roaster_slug, product_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_hidden_slug ON hidden_products(roaster_slug)",
 ]
 
 

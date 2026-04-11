@@ -175,13 +175,14 @@ def get_products():
                     if value is not None:
                         p[field] = value
 
-    # Merge roaster-managed products from DB
+    # Merge roaster-managed products from DB (newest first, prepended so they appear before scraped)
     db = get_db()
     try:
-        rp_rows = db.execute("SELECT * FROM roaster_products WHERE available = 1").fetchall()
+        rp_rows = db.execute("SELECT * FROM roaster_products WHERE available = 1 ORDER BY id DESC").fetchall()
+        rp_products = []
         for row in rp_rows:
             r = dict(row)
-            products.append({
+            rp_products.append({
                 "product_id": f"rp_{r['id']}",
                 "roaster_slug": r["roaster_slug"],
                 "roaster_name": r["roaster_slug"].replace("-", " ").title(),
@@ -202,6 +203,13 @@ def get_products():
                 "available": True,
                 "_source": "roaster_managed",
             })
+        products = rp_products + products  # roaster-managed first
+
+        # Filter out hidden products (roasters can persistently hide scraped products)
+        hidden_rows = db.execute("SELECT product_id FROM hidden_products").fetchall()
+        if hidden_rows:
+            hidden_ids = {r["product_id"] for r in hidden_rows}
+            products = [p for p in products if p["product_id"] not in hidden_ids]
     except Exception:
         pass
     finally:
@@ -564,6 +572,28 @@ def delete_product(slug: str, product_id: int, user=Depends(get_current_user)):
         db.execute("DELETE FROM roaster_products WHERE id = ?", (product_id,))
         db.commit()
         return {"deleted": True}
+    finally:
+        db.close()
+
+
+class _HideProduct(_PydanticBase):
+    product_id: str
+
+
+@app.post("/api/roasters/{slug}/products/hide")
+def hide_product(slug: str, req: _HideProduct, user=Depends(get_current_user)):
+    """Persistently hide a scraped product from this roaster's listing."""
+    if user.get("account_type") != "roaster" or user.get("roaster_slug") != slug:
+        raise HTTPException(403, "Only the roaster owner can hide products")
+    now = datetime.utcnow().isoformat() + "Z"
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT OR IGNORE INTO hidden_products (roaster_slug, product_id, hidden_at) VALUES (?, ?, ?)",
+            (slug, req.product_id, now),
+        )
+        db.commit()
+        return {"hidden": True}
     finally:
         db.close()
 

@@ -3,13 +3,15 @@ import { searchCoffees } from "./searchCoffees";
 export function filterCoffees(products, filters) {
   let result = products;
 
-  // Hard filters: always hide sold-out and unknown roast
-  result = result.filter(
-    (p) =>
-      p.available !== false &&
-      p.roast_level &&
-      p.roast_level !== "Unknown"
-  );
+  // Hard filters: always hide sold-out products.
+  // Roaster-managed products (product_id starts with "rp_") bypass the roast_level
+  // requirement because the roaster may not have filled that field yet.
+  result = result.filter((p) => {
+    if (p.available === false) return false;
+    const isRoasterManaged = typeof p.product_id === "string" && p.product_id.startsWith("rp_");
+    if (isRoasterManaged) return true;
+    return p.roast_level && p.roast_level !== "Unknown";
+  });
 
   // Text search
   if (filters.query) {

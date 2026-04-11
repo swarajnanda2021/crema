@@ -896,11 +896,13 @@ function EditableCoffeeCard({
             </View>
             <View style={ec.divider} />
 
-            {/* Process • Roast — two separate fields with fixed dot */}
+            {/* Process • Roast — persistent labels + editable inputs */}
             <View style={ec.fieldRow}>
-              <TextInput style={ec.fieldRowInput} value={processVal} onChangeText={setProcessVal} placeholder="Add Process" placeholderTextColor="#684F44" />
+              <Text style={ec.fieldLabel}>Process </Text>
+              <TextInput style={ec.fieldRowInput} value={processVal} onChangeText={setProcessVal} placeholder="" placeholderTextColor="#684F44" />
               <Text style={ec.dot}> • </Text>
-              <TextInput style={ec.fieldRowInput} value={roastLevel} onChangeText={setRoastLevel} placeholder="Add Roast" placeholderTextColor="#684F44" />
+              <Text style={ec.fieldLabel}>Roast </Text>
+              <TextInput style={ec.fieldRowInput} value={roastLevel} onChangeText={setRoastLevel} placeholder="" placeholderTextColor="#684F44" />
             </View>
             <View style={ec.divider} />
 
@@ -910,9 +912,9 @@ function EditableCoffeeCard({
             </View>
             <View style={ec.divider} />
 
-            {/* Bottom row — Figma: price y=164.5, weight y=174.7, cart y=166.6 */}
+            {/* Bottom row — price left, cart right */}
             <View style={ec.bottomRow}>
-              {/* Price + weight: weight is 10px below price top */}
+              {/* Price + weight: baseline-aligned so small text sits on same baseline as large price */}
               <View style={ec.priceWeightRow}>
                 <Text style={ec.rupee}>₹ </Text>
                 <TextInput style={ec.priceInput} value={priceInr} onChangeText={setPriceInr} placeholder="––––" placeholderTextColor="#351101" keyboardType="numeric" />
@@ -1069,6 +1071,8 @@ const ec = StyleSheet.create({
 
   // All field rows — identical container so divider spacing is uniform
   fieldRow: { flexDirection: "row", alignItems: "center", height: 12 },
+  // Persistent label before an input (stays visible while user types)
+  fieldLabel: { fontFamily: fonts.bodyRegular, fontSize: 9.563, color: "#684F44" },
   // All field inputs — Inter Regular 9.563px #684F44, identical styling
   fieldRowInput: {
     fontFamily: fonts.bodyRegular, fontSize: 9.563, color: "#684F44",
@@ -1086,8 +1090,7 @@ const ec = StyleSheet.create({
     flexDirection: "row", alignItems: "flex-end",
     justifyContent: "space-between", marginTop: "auto" as any,
   },
-  // Figma: price h=26, weight h=12, weight top = price top + 10.17
-  priceWeightRow: { flexDirection: "row", alignItems: "flex-start" },
+  priceWeightRow: { flexDirection: "row", alignItems: "baseline" },
   // Figma 267:3616 — Canela 17.077px, element height 26px
   rupee: {
     fontFamily: fonts.displayRegular, fontSize: 17.077, color: "#351101",
@@ -1100,18 +1103,17 @@ const ec = StyleSheet.create({
     padding: 0, margin: 0, borderWidth: 0,
     ...(Platform.OS === "web" ? { outlineStyle: "none", fontFeatureSettings: "'lnum', 'pnum'" } : {}),
   } as any,
-  // Figma 267:3617 — Inter 9.563px, element height 12px, offset 10px from price top
+  // Figma 267:3617 — Inter 9.563px, baseline-aligned with price
   weightGroup: {
-    flexDirection: "row", alignItems: "center", marginTop: 10, height: 12,
+    flexDirection: "row", alignItems: "baseline",
   },
   weightText: {
     fontFamily: fonts.bodyRegular, fontSize: 9.563, color: "#351101",
-    lineHeight: 12,
     ...(Platform.OS === "web" ? { fontFeatureSettings: "'lnum', 'pnum'" } : {}),
   } as any,
   weightInput: {
     fontFamily: fonts.bodyRegular, fontSize: 9.563, color: "#351101",
-    lineHeight: 12, height: 12, width: 22,
+    height: 14, width: 22,
     padding: 0, margin: 0, borderWidth: 0,
     ...(Platform.OS === "web" ? { outlineStyle: "none", fontFeatureSettings: "'lnum', 'pnum'" } : {}),
   } as any,
@@ -1247,7 +1249,7 @@ export default function RoasterDetailPage() {
   const { slug, edit } = useLocalSearchParams<{ slug: string; edit?: string }>();
   const router = useRouter();
   const { user } = useAuth();
-  const { products, roasters } = useCoffeeData();
+  const { products, roasters, appendProducts, removeProduct } = useCoffeeData();
   const { getProfile, refreshProfiles, loading: profileLoading } = useRoasterProfiles();
   const { height: winH } = useWindowDimensions();
 
@@ -1266,7 +1268,17 @@ export default function RoasterDetailPage() {
 
   const catalogCoffees = useMemo(() => products.filter((p: any) => p.roaster_slug === slug), [products, slug]);
   const [localCoffees, setLocalCoffees] = useState<any[]>([]);
-  const coffees = useMemo(() => [...localCoffees, ...catalogCoffees], [localCoffees, catalogCoffees]);
+  const [deletedProductIds, setDeletedProductIds] = useState<Set<string>>(new Set());
+  const coffees = useMemo(() => {
+    const seen = new Set<string>();
+    return [...localCoffees, ...catalogCoffees].filter((c) => {
+      const id = c.product_id ?? c.id;
+      if (deletedProductIds.has(id)) return false;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, [localCoffees, catalogCoffees, deletedProductIds]);
 
   const isOwner = user?.account_type === "roaster" && user?.roaster_slug === slug;
 
@@ -1461,14 +1473,27 @@ export default function RoasterDetailPage() {
   }, [loadPosts]);
 
   const handleDeleteProduct = useCallback(async (productId: string) => {
+    // Remove immediately from all three sources — no reload needed
+    setDeletedProductIds((prev) => new Set([...prev, productId]));       // instant UI filter
+    setLocalCoffees((prev) => prev.filter((c) => (c.product_id ?? c.id) !== productId)); // local state
+    removeProduct(productId);                                              // global context
     try {
-      await apiFetch(`/roasters/${slug}/products/${productId}`, { method: "DELETE" });
-      // Refresh — the product list comes from useCoffeeData, force a page reload for now
-      if (typeof window !== "undefined") window.location.reload();
+      const isRoasterManaged = productId.startsWith("rp_");
+      if (isRoasterManaged) {
+        // Roaster-managed product — real DELETE from DB
+        const numericId = productId.replace(/^rp_/, "");
+        await apiFetch(`/roasters/${slug}/products/${numericId}`, { method: "DELETE" });
+      } else {
+        // Scraped product — persistently hide via hidden_products table
+        await apiFetch(`/roasters/${slug}/products/hide`, {
+          method: "POST",
+          body: JSON.stringify({ product_id: productId }),
+        });
+      }
     } catch (e: any) {
       console.warn("Delete product error:", e.message);
     }
-  }, [slug]);
+  }, [slug, removeProduct]);
 
   const handleCreatePost = useCallback(async (data: any) => {
     try {
@@ -1496,16 +1521,28 @@ export default function RoasterDetailPage() {
 
   const handleCreateProduct = useCallback(async (data: any) => {
     try {
-      const newProduct = await apiFetch(`/roasters/${slug}/products`, {
+      const raw = await apiFetch(`/roasters/${slug}/products`, {
         method: "POST",
         body: JSON.stringify(data),
       });
-      setLocalCoffees((prev) => [newProduct, ...prev]);
+      // Normalise to match the shape GET /products returns for roaster-managed
+      // products: product_id is "rp_<db_id>", roaster_name is populated, etc.
+      const normalised = {
+        ...raw,
+        product_id: `rp_${raw.id}`,
+        roaster_slug: slug,
+        roaster_name: roaster?.name ?? slug.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()),
+        _source: "roaster_managed",
+      };
+      // Show immediately on the roaster profile
+      setLocalCoffees((prev) => [normalised, ...prev]);
+      // Also inject into the global CoffeeDataContext so the marketplace sees it
+      appendProducts([normalised]);
       setShowAddBean(false);
     } catch (e: any) {
       console.warn("Create product error:", e.message);
     }
-  }, [slug]);
+  }, [slug, appendProducts, roaster]);
 
   if (!roaster) {
     return (

@@ -36,6 +36,10 @@ export function CoffeeDataProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const removeProduct = useCallback((productId: string) => {
+    setProducts((prev) => prev.filter((p) => p.product_id !== productId));
+  }, []);
+
   // Normalise products: detect barrel-aged by name, stamp process field
   const BARREL_RE = /barrel[\s-]aged|rum[\s-]aged|whiskey[\s-]barrel|rum[\s-]barrel|wine[\s-]barrel|agave[\s-]barrel|cask[\s-]reserve/i;
   const normalisedProducts = useMemo(() => products.map((p) => {
@@ -75,7 +79,7 @@ export function CoffeeDataProvider({ children }: { children: ReactNode }) {
   }, [normalisedProducts]);
 
   return (
-    <CoffeeDataContext.Provider value={{ products: normalisedProducts, loading, fetchProducts, appendProducts, ...derived }}>
+    <CoffeeDataContext.Provider value={{ products: normalisedProducts, loading, fetchProducts, appendProducts, removeProduct, ...derived }}>
       {children}
     </CoffeeDataContext.Provider>
   );
