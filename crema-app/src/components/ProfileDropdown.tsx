@@ -10,6 +10,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Settings, PenLine, LogOut, UserPlus } from "lucide-react-native";
 import { colors, fonts, cardShadow } from "../theme/colors";
+import { resolveUploadUrl } from "../api/client";
 import { useAuth, SavedAccount } from "../hooks/useAuth";
 
 interface Props {
@@ -110,7 +111,7 @@ export default function ProfileDropdown({ visible, onClose, onEditProfile }: Pro
         <Pressable onPress={handleManage} style={({ pressed }) => [s.accountHeader, pressed && s.menuItemPressed]}>
           {user.avatar_url ? (
             <Image
-              source={{ uri: user.avatar_url }}
+              source={{ uri: resolveUploadUrl(user.avatar_url) }}
               style={s.avatarLarge}
               contentFit="cover"
             />
@@ -160,7 +161,7 @@ export default function ProfileDropdown({ visible, onClose, onEditProfile }: Pro
                 disabled={switching}
               >
                 {acct.avatar_url ? (
-                  <Image source={{ uri: acct.avatar_url }} style={s.avatarSmall} contentFit="cover" />
+                  <Image source={{ uri: resolveUploadUrl(acct.avatar_url) }} style={s.avatarSmall} contentFit="cover" />
                 ) : (
                   <View style={s.avatarSmallFallback}>
                     <Text style={s.avatarSmallInitials}>

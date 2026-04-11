@@ -109,8 +109,8 @@ async def upload_avatar(file: UploadFile = File(...), authorization: str = Heade
     with open(filepath, "wb") as f:
         f.write(content)
 
-    # Return the URL (relative to the API server)
-    url = f"http://{os.environ.get('HOST', 'localhost')}:8000/uploads/{filename}"
+    # Return a relative path — the frontend already knows the API base URL
+    url = f"/uploads/{filename}"
     return {"avatar_url": url}
 
 
@@ -135,7 +135,7 @@ async def upload_image(
     with open(filepath, "wb") as f:
         f.write(content)
 
-    url = f"http://{os.environ.get('HOST', 'localhost')}:8000/uploads/{filename}"
+    url = f"/uploads/{filename}"
     return {"url": url, "purpose": safe_purpose}
 
 

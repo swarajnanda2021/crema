@@ -17,56 +17,54 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, Stack, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import Svg, { Circle, G, Path } from "react-native-svg";
-import { Plus, X, PenLine, Camera, MapPin, Check, Link } from "lucide-react-native";
+import { Plus, X, PenLine, Camera, MapPin, Check, ChevronLeft } from "lucide-react-native";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { useAuth } from "../../src/hooks/useAuth";
-import { apiFetch } from "../../src/api/client";
+import { apiFetch, resolveUploadUrl } from "../../src/api/client";
 import { fonts, colors } from "../../src/theme/colors";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import Navbar from "../../src/components/Navbar";
-import { HeartOutlineIcon, HeartFilledOutlineIcon, CartIcon } from "../../src/components/icons/FigmaIcons";
+import { HeartOutlineIcon, HeartFilledOutlineIcon, CartIcon, CommentBubbleIcon, ShareNodesIcon, PostLocationPinIcon } from "../../src/components/icons/FigmaIcons";
 
 const liningNumerals = Platform.OS === "web"
   ? { fontFeatureSettings: "'lnum', 'pnum'" } as any
   : {};
 
-// ── Figma MCP localhost SVG assets (Rectangle 234 / Frame 722, node 96:8655 / 163:2328) ──
-const FIGMA_BACK_ARROW     = "http://localhost:3845/assets/258b4df2171b8c3fd18f751b3cd93df5e9bc0e3a.svg";
-const FIGMA_SHARE_ICON     = "http://localhost:3845/assets/73a3490dfe017b6c6d09ffe81f7fa967b808e05e.svg";
-const FIGMA_WEBSITE_ICON   = "http://localhost:3845/assets/c8b1c717f262fb5c8267b41ffb94e03f9f30e3a2.svg";
-const FIGMA_FOLLOWERS_ICON = "http://localhost:3845/assets/24115d6a26d4b35414125e4d31aa30ab00a5efc0.svg";
-const FIGMA_CITY_ICON      = "http://localhost:3845/assets/34b74a6440e0a03457339dd5236601f37c6a31c8.svg";
-const FIGMA_PLUS_ICON      = "http://localhost:3845/assets/f9b31cb40af6488f3e9140aca17c71a98e3f3c64.svg";
+// ── Icons (exact Figma SVG paths, inline — no external asset server) ─────────
 
-// ── Figma MCP localhost SVG assets (Frame 720 — post card) ──────────────────
-const FIGMA_POST_HEART     = "http://localhost:3845/assets/3e92b5cd93aafa2a17dd1b9b331c5338e18ac639.svg";
-const FIGMA_POST_COMMENT   = "http://localhost:3845/assets/71167aa5e804a3f44c93add7f2445f77d514d0af.svg";
-const FIGMA_POST_SHARE     = "http://localhost:3845/assets/12186c3d643c443d0ef02bb899348e1c0cdf0973.svg";
-const FIGMA_POST_MAPPIN    = "http://localhost:3845/assets/e5bb5db86d84a07e96f6d7e2803da172dc94dd29.svg";
-
-// ── Icons ─────────────────────────────────────────────────────────────────────
-
-// Figma imgVector4 — back chevron from Rectangle 234
 function BackArrowIcon() {
-  return <Image source={{ uri: FIGMA_BACK_ARROW }} style={{ width: 7, height: 14 }} contentFit="contain" />;
+  return <ChevronLeft size={14} color="#351101" strokeWidth={2.5} />;
 }
 
-// Figma imgVector3 — map pin from Rectangle 234
-function MapPinIcon() {
-  return <Image source={{ uri: FIGMA_CITY_ICON }} style={{ width: 12, height: 16 }} contentFit="contain" />;
+// Figma 249:3438 — location pin with inner circle
+function MapPinIcon({ color = "#D798DA" }: { color?: string }) {
+  return (
+    <Svg width={12} height={16} viewBox="0 0 13.9649 17.3005" fill="none">
+      <Path d="M0.75 6.9138C0.75 11.2337 4.52909 14.806 6.20182 16.1756C6.44121 16.3716 6.56234 16.4708 6.74095 16.5211C6.88002 16.5602 7.0847 16.5602 7.22378 16.5211C7.40271 16.4707 7.523 16.3725 7.76329 16.1757C9.43602 14.8061 13.2149 11.234 13.2149 6.9142C13.2149 5.2794 12.5583 3.71137 11.3895 2.55539C10.2207 1.39942 8.63552 0.75 6.98257 0.75C5.32961 0.75 3.74427 1.39952 2.57545 2.55549C1.40664 3.71147 0.75 5.27901 0.75 6.9138Z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M5.20178 6.09214C5.20178 7.0756 5.99903 7.87285 6.98249 7.87285C7.96595 7.87285 8.76321 7.0756 8.76321 6.09214C8.76321 5.10868 7.96595 4.31142 6.98249 4.31142C5.99903 4.31142 5.20178 5.10868 5.20178 6.09214Z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
 }
 
-// Figma imgVector1 — external link / website icon from Rectangle 234
-function ExternalLinkIcon() {
-  return <Image source={{ uri: FIGMA_WEBSITE_ICON }} style={{ width: 14, height: 14 }} contentFit="contain" />;
+// Figma 249:3432 — external link with arrow
+function ExternalLinkIcon({ color = "#D798DA" }: { color?: string }) {
+  return (
+    <Svg width={14} height={14} viewBox="0 0 15.5 15.5" fill="none">
+      <Path d="M5.41685 1.68333H3.73685C2.69142 1.68333 2.16831 1.68333 1.76901 1.88679C1.41778 2.06575 1.13242 2.35111 0.953455 2.70234C0.750001 3.10165 0.750001 3.62475 0.750001 4.67018V11.7635C0.750001 12.8089 0.750001 13.3314 0.953455 13.7307C1.13242 14.0819 1.41778 14.3678 1.76901 14.5467C2.16792 14.75 2.69039 14.75 3.73378 14.75H10.8329C11.8763 14.75 12.398 14.75 12.7969 14.5467C13.1481 14.3678 13.4344 14.0817 13.6134 13.7304C13.8167 13.3315 13.8167 12.8096 13.8167 11.7662V10.0833M14.75 5.41667V0.75M14.75 0.75H10.0833M14.75 0.75L8.21667 7.28333" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
 }
 
-// Figma imgVector2 — users / followers icon from Rectangle 234
-function UsersIcon() {
-  return <Image source={{ uri: FIGMA_FOLLOWERS_ICON }} style={{ width: 18, height: 15 }} contentFit="contain" />;
+// Figma 249:3436 — two-person followers icon
+function UsersIcon({ color = "#D798DA" }: { color?: string }) {
+  return (
+    <Svg width={18} height={15} viewBox="0 0 19.562 16.5517" fill="none">
+      <Path d="M18.812 15.8016C18.812 14.054 17.1366 12.5672 14.7982 12.0162M12.7913 15.8017C12.7913 13.5849 10.0958 11.7879 6.77067 11.7879C3.44554 11.7879 0.75 13.5849 0.75 15.8017M12.7913 8.77755C15.0081 8.77755 16.8051 6.98052 16.8051 4.76378C16.8051 2.54703 15.0081 0.75 12.7913 0.75M6.77067 8.77755C4.55392 8.77755 2.75689 6.98052 2.75689 4.76378C2.75689 2.54703 4.55392 0.75 6.77067 0.75C8.98741 0.75 10.7844 2.54703 10.7844 4.76378C10.7844 6.98052 8.98741 8.77755 6.77067 8.77755Z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
 }
 
 function ShareInlineIcon({ color = "#A09580" }: { color?: string }) {
@@ -77,9 +75,15 @@ function ShareInlineIcon({ color = "#A09580" }: { color?: string }) {
   );
 }
 
-// Figma imgShareIcon — upload/share icon from Rectangle 234 (SHARE row in left panel)
-function LeftPanelShareIcon() {
-  return <Image source={{ uri: FIGMA_SHARE_ICON }} style={{ width: 14, height: 16 }} contentFit="contain" />;
+// Figma 249:3443 — upload/share box with arrow
+function LeftPanelShareIcon({ color = "#D798DA" }: { color?: string }) {
+  return (
+    <Svg width={14} height={16} viewBox="0 0 14.8014 17.4264" fill="none">
+      <Path d="M11.3382 7.40073H13.3069C13.481 7.40073 13.6479 7.46987 13.771 7.59294C13.894 7.71601 13.9632 7.88293 13.9632 8.05698V15.9319C13.9632 16.106 13.894 16.2729 13.771 16.396C13.6479 16.519 13.481 16.5882 13.3069 16.5882H1.49443C1.32039 16.5882 1.15347 16.519 1.0304 16.396C0.907324 16.2729 0.838184 16.106 0.838184 15.9319V8.05698C0.838184 7.88293 0.907324 7.71601 1.0304 7.59294C1.15347 7.46987 1.32039 7.40073 1.49443 7.40073H3.46318" stroke={color} strokeWidth={1.67637} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M4.11968 4.11942L7.40093 0.838184L10.6822 4.11942" stroke={color} strokeWidth={1.67637} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M7.40091 0.838184V10.0256" stroke={color} strokeWidth={1.67637} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
 }
 
 // Comment bubble icon for post action bar — matches Figma design style
@@ -137,7 +141,7 @@ function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => v
   if (images.length === 1) {
     return (
       <Pressable onPress={onPress} style={pg.singleWrap}>
-        <Image source={{ uri: images[0] }} style={pg.singleImg} contentFit="cover" />
+        <Image source={{ uri: resolveUploadUrl(images[0]) }} style={pg.singleImg} contentFit="cover" />
       </Pressable>
     );
   }
@@ -148,7 +152,7 @@ function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => v
       <View style={pg.rowWrap}>
         {images.map((uri, i) => (
           <Pressable key={i} onPress={onPress} style={pg.colWrap}>
-            <Image source={{ uri }} style={pg.colImg} contentFit="cover" />
+            <Image source={{ uri: resolveUploadUrl(uri) }} style={pg.colImg} contentFit="cover" />
           </Pressable>
         ))}
       </View>
@@ -173,7 +177,7 @@ function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => v
         {images.map((uri, i) => (
           <Pressable key={i} onPress={onPress}>
             <Image
-              source={{ uri }}
+              source={{ uri: resolveUploadUrl(uri) }}
               style={{ width: imgW, height: PG_IMG_HEIGHT, borderRadius: PG_RADIUS }}
               contentFit="cover"
             />
@@ -312,7 +316,7 @@ function RoasterPostCard({
       <View style={pc.header}>
         <View>
           {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={pc.avatar} contentFit="cover" />
+            <Image source={{ uri: resolveUploadUrl(avatarUrl) }} style={pc.avatar} contentFit="cover" />
           ) : (
             <View style={[pc.avatar, pc.avatarFallback]}>
               <Text style={pc.avatarLetter}>{(roasterName || "R")[0].toUpperCase()}</Text>
@@ -349,7 +353,7 @@ function RoasterPostCard({
       {/* ── Location row ── */}
       {(post.location || city) ? (
         <View style={pc.locationRow}>
-          <Image source={{ uri: FIGMA_POST_MAPPIN }} style={pc.mapPinIcon} contentFit="contain" />
+          <PostLocationPinIcon size={12} color="#D798DA" />
           <Text style={pc.locationText}>{post.location || city}</Text>
         </View>
       ) : null}
@@ -364,13 +368,13 @@ function RoasterPostCard({
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
             {liked
               ? <HeartFilledOutlineIcon size={16} color="#D798DA" />
-              : <Image source={{ uri: FIGMA_POST_HEART }} style={pc.actionIcon} contentFit="contain" />}
+              : <HeartOutlineIcon size={16} color="#D798DA" />}
           </Animated.View>
           <Text style={[pc.actionCount, liked && { color: "#D798DA" }]}>{likeCount}</Text>
         </Pressable>
         {/* Comment */}
         <View style={pc.actionBtn}>
-          <Image source={{ uri: FIGMA_POST_COMMENT }} style={pc.actionIcon} contentFit="contain" />
+          <CommentBubbleIcon size={14} color="#D798DA" />
           <Text style={pc.actionCount}>{commentCount}</Text>
         </View>
         {/* Share */}
@@ -382,7 +386,7 @@ function RoasterPostCard({
           }}
           style={pc.actionBtn}
         >
-          <Image source={{ uri: FIGMA_POST_SHARE }} style={pc.shareIcon} contentFit="contain" />
+          <ShareNodesIcon size={12} color="#D798DA" />
         </Pressable>
         {/* Article link */}
         {post.external_url && (
@@ -477,11 +481,9 @@ const pc = StyleSheet.create({
 // Figma imgVector — the "+" icon in the Follow button (from Rectangle 234)
 function FigmaPlusIcon() {
   return (
-    <Image
-      source={{ uri: FIGMA_PLUS_ICON }}
-      style={{ width: 8, height: 8, transform: [{ rotate: "45deg" }] }}
-      contentFit="contain"
-    />
+    <View style={{ transform: [{ rotate: "45deg" }] }}>
+      <Plus size={8} color="#fff" strokeWidth={3} />
+    </View>
   );
 }
 
@@ -683,11 +685,7 @@ function ComposePostForm({
 // Placeholder: Figma 249:3318 — cream card, 1.5px #C7BAA5 border, centered + circle
 // Edit form:   Figma 249:3486 — slides in from right, fonts match CoffeeLabel exactly
 
-const FIGMA_PLUS_CIRCLE = "http://localhost:3845/assets/8182ea219df131a1b7ca4a7f642682c8be601932.svg";
-// Figma 267:3624 — accept: pink circle, brown checkmark
-const FIGMA_ACCEPT_BTN = "http://localhost:3845/assets/d153680d1349e19a705c9c0d77c35690ee19a2c4.svg";
-// Figma 267:3661 — reject: brown circle, white X
-const FIGMA_REJECT_BTN = "http://localhost:3845/assets/d7a931d010019b53a34ac6d27ac929a105917afa.svg";
+// Inline SVG replacements for former Figma MCP localhost assets
 const IMAGE_RATIO_CARD = 160 / 372;
 
 function EditableCoffeeCard({
@@ -823,7 +821,10 @@ function EditableCoffeeCard({
 
       {/* ── PLACEHOLDER — Figma 249:3318 ── */}
       <Pressable onPress={handleOpenEdit} style={[ec.placeholder, { width, height }]}>
-        <Image source={{ uri: FIGMA_PLUS_CIRCLE }} style={ec.plusIcon} contentFit="contain" />
+        <Svg width={44} height={44} viewBox="0 0 44 44" fill="none">
+          <Circle cx={22} cy={22} r={22} fill="#EFE9DB" />
+          <Path d="M22 12V32M12 22H32" stroke="#351101" strokeWidth={2} strokeLinecap="round" />
+        </Svg>
       </Pressable>
 
       {/* ── EDIT FORM — slides in from right ── */}
@@ -841,7 +842,7 @@ function EditableCoffeeCard({
           >
             {imageUrl ? (
               <>
-                <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFillObject} contentFit="cover" contentPosition={{ top: `${cropY}%`, left: "50%" }} />
+                <Image source={{ uri: resolveUploadUrl(imageUrl) }} style={StyleSheet.absoluteFillObject} contentFit="cover" contentPosition={{ top: `${cropY}%`, left: "50%" }} />
                 {!isDragging && (
                   <View style={ec.imgHint} pointerEvents="none">
                     <Text style={ec.imgHintText}>Drag to reposition</Text>
@@ -871,7 +872,10 @@ function EditableCoffeeCard({
             <Pressable onPress={handleSave} style={ec.acceptBtn} disabled={!canSave || saving} hitSlop={8}>
               {saving
                 ? <View style={ec.acceptLoading}><ActivityIndicator size="small" color="#351101" /></View>
-                : <Image source={{ uri: FIGMA_ACCEPT_BTN }} style={ec.overlayBtnIcon} contentFit="contain" />
+                : <Svg width={29} height={29} viewBox="0 0 29.16 29.16" fill="none">
+                    <Circle cx={14.58} cy={14.58} r={14.58} fill="#D798DA" />
+                    <Path d="M9 15L13 19L21 11" stroke="#351101" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
               }
             </Pressable>
           </View>
@@ -1608,7 +1612,7 @@ export default function RoasterDetailPage() {
             style={s.shareRow}
           >
             <Text style={s.shareText}>SHARE</Text>
-            <LeftPanelShareIcon color="#C7BAA5" />
+            <LeftPanelShareIcon />
           </Pressable>
 
           {/* Roaster name */}
@@ -1654,7 +1658,7 @@ export default function RoasterDetailPage() {
           {isEditing && (
             <Pressable onPress={() => setShowLogoUpload(true)} style={s.uploadTrigger}>
               {editLogo ? (
-                <Image source={{ uri: editLogo }} style={s.uploadThumb} contentFit="cover" />
+                <Image source={{ uri: resolveUploadUrl(editLogo) }} style={s.uploadThumb} contentFit="cover" />
               ) : (
                 <View style={s.uploadThumbEmpty}>
                   <Camera size={24} color="#C7BAA5" strokeWidth={1.5} />
@@ -1758,7 +1762,7 @@ export default function RoasterDetailPage() {
           >
             {(isEditing ? editHero : heroImageUrl) ? (
               <Image
-                source={{ uri: isEditing ? editHero : heroImageUrl }}
+                source={{ uri: resolveUploadUrl(isEditing ? editHero : heroImageUrl) }}
                 style={StyleSheet.absoluteFillObject}
                 contentFit="cover"
                 contentPosition={{ top: `${isEditing ? editCropY : heroCropY}%`, left: "50%" }}
@@ -1918,7 +1922,7 @@ export default function RoasterDetailPage() {
                       style={(state: any) => [s.followerRow, state.hovered && s.followerRowHovered]}
                     >
                       {f.avatar_url ? (
-                        <Image source={{ uri: f.avatar_url }} style={s.followerAvatar} contentFit="cover" />
+                        <Image source={{ uri: resolveUploadUrl(f.avatar_url) }} style={s.followerAvatar} contentFit="cover" />
                       ) : (
                         <View style={s.followerAvatarFallback}>
                           <Text style={s.followerInitial}>

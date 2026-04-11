@@ -104,15 +104,16 @@ export function CartIcon({ size = 31 }: IconProps) {
 }
 
 /**
- * Heart outline — inline heart, no circle. For post action bars.
+ * Heart outline — Figma 151:1826. For post action bars (unliked).
  */
-export function HeartOutlineIcon({ size = 14, color = "#A09580" }: IconProps) {
+export function HeartOutlineIcon({ size = 16, color = "#D798DA" }: IconProps) {
+  const h = size * (15.8612 / 17.6743);
   return (
-    <Svg width={size} height={size} viewBox="0 0 16 15" fill="none">
+    <Svg width={size} height={h} viewBox="0 0 17.6743 15.8612" fill="none">
       <Path
-        d="M8 13.5L2.1 7.6C1.4 6.9 1 5.9 1 4.9C1 2.8 2.7 1 4.8 1C5.9 1 6.9 1.5 7.6 2.2L8 2.7L8.4 2.2C9.1 1.5 10.1 1 11.2 1C13.3 1 15 2.8 15 4.9C15 5.9 14.6 6.9 13.9 7.6L8 13.5Z"
+        d="M8.83716 3.6416C7.05961 -0.530693 0.838193 -0.086306 0.838193 5.24637C0.838193 10.579 8.83716 15.0231 8.83716 15.0231C8.83716 15.0231 16.8361 10.579 16.8361 5.24637C16.8361 -0.086306 10.6147 -0.530693 8.83716 3.6416Z"
         stroke={color}
-        strokeWidth={1.5}
+        strokeWidth={1.67639}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -121,16 +122,17 @@ export function HeartOutlineIcon({ size = 14, color = "#A09580" }: IconProps) {
 }
 
 /**
- * Heart filled inline — for post action bars when liked.
+ * Heart filled — Figma 151:1826 filled variant. For post action bars (liked).
  */
-export function HeartFilledOutlineIcon({ size = 14, color = "#D798DA" }: IconProps) {
+export function HeartFilledOutlineIcon({ size = 16, color = "#D798DA" }: IconProps) {
+  const h = size * (15.8612 / 17.6743);
   return (
-    <Svg width={size} height={size} viewBox="0 0 16 15" fill="none">
+    <Svg width={size} height={h} viewBox="0 0 17.6743 15.8612" fill="none">
       <Path
-        d="M8 13.5L2.1 7.6C1.4 6.9 1 5.9 1 4.9C1 2.8 2.7 1 4.8 1C5.9 1 6.9 1.5 7.6 2.2L8 2.7L8.4 2.2C9.1 1.5 10.1 1 11.2 1C13.3 1 15 2.8 15 4.9C15 5.9 14.6 6.9 13.9 7.6L8 13.5Z"
+        d="M8.83716 3.6416C7.05961 -0.530693 0.838193 -0.086306 0.838193 5.24637C0.838193 10.579 8.83716 15.0231 8.83716 15.0231C8.83716 15.0231 16.8361 10.579 16.8361 5.24637C16.8361 -0.086306 10.6147 -0.530693 8.83716 3.6416Z"
         fill={color}
         stroke={color}
-        strokeWidth={1.5}
+        strokeWidth={1.67639}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -152,6 +154,47 @@ export function UsersIcon({ size = 17, color = "#351101" }: IconProps) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </Svg>
+  );
+}
+
+/**
+ * Comment bubble — Figma 151:1823. Circular speech bubble with tail.
+ */
+export function CommentBubbleIcon({ size = 14, color = "#D798DA" }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 15.9255 15.9255" fill="none">
+      <Path
+        d="M4.4082 14.1388C5.45432 14.7421 6.66809 15.0873 7.96248 15.0873C11.8973 15.0873 15.0873 11.8976 15.0873 7.96276C15.0873 4.02796 11.8976 0.838184 7.96276 0.838184C4.02796 0.838184 0.838184 4.02796 0.838184 7.96276C0.838184 9.25715 1.18336 10.4709 1.7867 11.517L1.78903 11.5211C1.84709 11.6217 1.87636 11.6725 1.88962 11.7205C1.90213 11.7657 1.90562 11.8064 1.90242 11.8532C1.89897 11.9035 1.88202 11.9557 1.84725 12.06L1.23863 13.8859L1.23787 13.8883C1.10945 14.2735 1.04525 14.4661 1.09101 14.5944C1.13092 14.7063 1.2195 14.7947 1.3314 14.8346C1.45946 14.8802 1.65121 14.8163 2.03475 14.6885L2.03953 14.6867L3.86537 14.0781C3.96933 14.0434 4.02219 14.0259 4.07242 14.0224C4.11925 14.0192 4.15964 14.0235 4.20489 14.036C4.25298 14.0493 4.30376 14.0785 4.40493 14.1369L4.4082 14.1388Z"
+        stroke={color} strokeWidth={1.67637} strokeLinecap="round" strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/**
+ * Share upload — Figma 151:1827. Upload box with arrow for post action bars.
+ */
+export function ShareNodesIcon({ size = 12, color = "#D798DA" }: IconProps) {
+  const h = size * (15.9257 / 13.5506);
+  return (
+    <Svg width={size} height={h} viewBox="0 0 13.5506 15.9257" fill="none">
+      <Path d="M10.3376 6.77553H12.1187C12.2762 6.77553 12.4272 6.83808 12.5386 6.94943C12.6499 7.06077 12.7125 7.21178 12.7125 7.36925V14.4938C12.7125 14.6513 12.6499 14.8023 12.5386 14.9136C12.4272 15.025 12.2762 15.0875 12.1187 15.0875H1.4319C1.27444 15.0875 1.12342 15.025 1.01208 14.9136C0.900736 14.8023 0.838184 14.6513 0.838184 14.4938V7.36925C0.838184 7.21178 0.900736 7.06077 1.01208 6.94943C1.12342 6.83808 1.27444 6.77553 1.4319 6.77553H3.21304" stroke={color} strokeWidth={1.67637} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M3.80698 3.80675L6.77555 0.838184L9.74412 3.80675" stroke={color} strokeWidth={1.67637} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M6.77553 0.838184V9.15016" stroke={color} strokeWidth={1.67637} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+/**
+ * Post location pin — Figma 151:1791. Map pin with inner circle for post location rows.
+ */
+export function PostLocationPinIcon({ size = 12, color = "#D798DA" }: IconProps) {
+  const h = size * (15.2881 / 12.3262);
+  return (
+    <Svg width={size} height={h} viewBox="0 0 12.3262 15.2881" fill="none">
+      <Path d="M0.628714 6.10212C0.628714 9.93811 3.98452 13.1103 5.46988 14.3265C5.68246 14.5006 5.79003 14.5887 5.94862 14.6333C6.07212 14.6681 6.25388 14.6681 6.37737 14.6333C6.53627 14.5886 6.64308 14.5014 6.85646 14.3266C8.34182 13.1104 11.6975 9.93846 11.6975 6.10247C11.6975 4.65079 11.1144 3.25839 10.0765 2.23189C9.03859 1.20539 7.63099 0.628714 6.16318 0.628714C4.69536 0.628714 3.2876 1.20548 2.2497 2.23198C1.2118 3.25847 0.628714 4.65043 0.628714 6.10212Z" stroke={color} strokeWidth={1.25743} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M4.58186 5.37249C4.58186 6.24579 5.28981 6.95374 6.16311 6.95374C7.03642 6.95374 7.74437 6.24579 7.74437 5.37249C7.74437 4.49918 7.03642 3.79123 6.16311 3.79123C5.28981 3.79123 4.58186 4.49918 4.58186 5.37249Z" stroke={color} strokeWidth={1.25743} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }

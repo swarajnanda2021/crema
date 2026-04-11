@@ -123,4 +123,17 @@ export function trackClick(
   }).catch(() => {});
 }
 
+/**
+ * Resolve an upload path (e.g. "/uploads/avatar.jpg") to a full URL on the API server.
+ * Returns absolute URLs (http://, https://) unchanged.
+ * Returns null/undefined unchanged.
+ */
+export function resolveUploadUrl(path: string | null | undefined): string | undefined {
+  if (!path) return undefined;
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  // Strip the /api suffix to get the server origin
+  const origin = BASE_URL.replace(/\/api$/, "");
+  return `${origin}${path}`;
+}
+
 export { BASE_URL };

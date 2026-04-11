@@ -13,6 +13,7 @@ import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useTastingNotes } from "../../src/hooks/useTastingNotes";
 import { useSocial } from "../../src/hooks/useSocial";
 import { colors, fonts, cardShadow, SHELF_LABELS, ShelfKey, NAVBAR_HEIGHT } from "../../src/theme/colors";
+import { resolveUploadUrl } from "../../src/api/client";
 import ProfileEditModal from "../../src/components/ProfileEditModal";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import TastingNoteDisplay from "../../src/components/TastingNoteDisplay";
@@ -444,7 +445,7 @@ export default function MyShelfPage() {
           <View style={s.heroRight}>
             {user.avatar_url ? (
               <Image
-                source={{ uri: user.avatar_url }}
+                source={{ uri: resolveUploadUrl(user.avatar_url) }}
                 style={StyleSheet.absoluteFillObject}
                 contentFit="cover"
               />

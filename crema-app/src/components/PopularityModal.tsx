@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { X, Coffee, Check, Star, MapPin } from "lucide-react-native";
 import { colors, fonts } from "../theme/colors";
-import { apiFetch } from "../api/client";
+import { apiFetch, resolveUploadUrl } from "../api/client";
 import TastingNoteDisplay from "./TastingNoteDisplay";
 
 const SHELF_LABELS: Record<string, { label: string; icon: any; color: string }> = {
@@ -71,7 +71,7 @@ export default function PopularityModal({ visible, productId, coffeeName, onClos
                     <View style={s.userRow}>
                       <Pressable onPress={() => { onClose(); router.push(`/user/${u.username}`); }}>
                         {u.avatar_url ? (
-                          <Image source={{ uri: u.avatar_url }} style={s.avatar} />
+                          <Image source={{ uri: resolveUploadUrl(u.avatar_url) }} style={s.avatar} />
                         ) : (
                           <View style={s.avatarFallback}>
                             <Text style={s.avatarLetter}>{(u.display_name || "?")[0]}</Text>

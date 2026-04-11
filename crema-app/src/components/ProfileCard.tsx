@@ -2,6 +2,7 @@ import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-na
 import { Image } from "expo-image";
 import { MapPin, Calendar, Coffee, Settings, PenLine } from "lucide-react-native";
 import { colors, fonts, cardShadow } from "../theme/colors";
+import { resolveUploadUrl } from "../api/client";
 
 const PREF_LABELS: Record<string, string> = { light: "Light Roast", medium: "Medium Roast", dark: "Dark Roast" };
 const STYLE_LABELS: Record<string, string> = { espresso: "Espresso", filter: "Filter", both: "Espresso & Filter" };
@@ -32,7 +33,7 @@ export default function ProfileCard({ user, drankCount = 0, coffeeCount, isOwner
       {/* Avatar area */}
       <View style={[s.avatarArea, { height: avatarHeight }]}>
         {user.avatar_url ? (
-          <Image source={{ uri: user.avatar_url }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+          <Image source={{ uri: resolveUploadUrl(user.avatar_url) }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
         ) : (
           <View style={s.avatarFallback}>
             <Text style={s.initials}>{initials}</Text>

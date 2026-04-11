@@ -18,18 +18,13 @@ import {
   MapPin, Send, Plus, X,
 } from "lucide-react-native";
 
-// ── Figma Frame 720 post card assets ─────────────────────────────────────────
-const FIGMA_POST_HEART   = "http://localhost:3845/assets/3e92b5cd93aafa2a17dd1b9b331c5338e18ac639.svg";
-const FIGMA_POST_COMMENT = "http://localhost:3845/assets/71167aa5e804a3f44c93add7f2445f77d514d0af.svg";
-const FIGMA_POST_SHARE   = "http://localhost:3845/assets/12186c3d643c443d0ef02bb899348e1c0cdf0973.svg";
-const FIGMA_POST_MAPPIN  = "http://localhost:3845/assets/e5bb5db86d84a07e96f6d7e2803da172dc94dd29.svg";
 import * as Linking from "expo-linking";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useSocial } from "../../src/hooks/useSocial";
-import { apiFetch } from "../../src/api/client";
+import { apiFetch, resolveUploadUrl } from "../../src/api/client";
 import { colors, fonts, cardShadow } from "../../src/theme/colors";
-import { HeartOutlineIcon, HeartFilledOutlineIcon } from "../../src/components/icons/FigmaIcons";
+import { HeartOutlineIcon, HeartFilledOutlineIcon, CommentBubbleIcon, ShareNodesIcon, PostLocationPinIcon } from "../../src/components/icons/FigmaIcons";
 import TastingNoteDisplay from "../../src/components/TastingNoteDisplay";
 import CoffeeCard from "../../src/components/CoffeeCard";
 
@@ -142,7 +137,7 @@ export default function FeedPage() {
               >
                 <View style={s.composePromptAvatar}>
                   {user?.avatar_url ? (
-                    <Image source={{ uri: user.avatar_url }} style={s.composePromptAvatarImg} contentFit="cover" />
+                    <Image source={{ uri: resolveUploadUrl(user.avatar_url) }} style={s.composePromptAvatarImg} contentFit="cover" />
                   ) : (
                     <View style={[s.composePromptAvatarImg, s.composePromptAvatarFallback]}>
                       <Text style={s.composePromptInitial}>{(user?.display_name || "N")[0].toUpperCase()}</Text>
@@ -441,7 +436,7 @@ function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => v
   if (images.length === 1) {
     return (
       <Pressable onPress={onPress} style={pg.singleWrap}>
-        <Image source={{ uri: images[0] }} style={pg.singleImg} contentFit="cover" />
+        <Image source={{ uri: resolveUploadUrl(images[0]) }} style={pg.singleImg} contentFit="cover" />
       </Pressable>
     );
   }
@@ -451,7 +446,7 @@ function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => v
       <View style={pg.rowWrap}>
         {images.map((uri, i) => (
           <Pressable key={i} onPress={onPress} style={pg.colWrap}>
-            <Image source={{ uri }} style={pg.colImg} contentFit="cover" />
+            <Image source={{ uri: resolveUploadUrl(uri) }} style={pg.colImg} contentFit="cover" />
           </Pressable>
         ))}
       </View>
@@ -467,7 +462,7 @@ function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => v
     >
       {images.map((uri, i) => (
         <Pressable key={i} onPress={onPress}>
-          <Image source={{ uri }} style={pg.scrollImg} contentFit="cover" />
+          <Image source={{ uri: resolveUploadUrl(uri) }} style={pg.scrollImg} contentFit="cover" />
         </Pressable>
       ))}
     </ScrollView>
@@ -533,7 +528,7 @@ function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
       {/* ── Header ── */}
       <Pressable onPress={goToRoaster} style={rp.header}>
         {post.author_avatar_url ? (
-          <Image source={{ uri: post.author_avatar_url }} style={rp.avatar} contentFit="cover" />
+          <Image source={{ uri: resolveUploadUrl(post.author_avatar_url) }} style={rp.avatar} contentFit="cover" />
         ) : (
           <View style={[rp.avatar, rp.avatarFallback]}>
             <Text style={rp.avatarLetter}>{(post.author_display_name || "R")[0].toUpperCase()}</Text>
@@ -556,7 +551,7 @@ function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
       {/* ── Location row ── */}
       {post.location ? (
         <View style={rp.locationRow}>
-          <Image source={{ uri: FIGMA_POST_MAPPIN }} style={rp.mapPinIcon} contentFit="contain" />
+          <PostLocationPinIcon size={12} color="#D798DA" />
           <Text style={rp.locationText}>{post.location}</Text>
         </View>
       ) : null}
@@ -571,18 +566,18 @@ function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
             {liked
               ? <HeartFilledOutlineIcon size={16} color="#D798DA" />
-              : <Image source={{ uri: FIGMA_POST_HEART }} style={rp.heartIcon} contentFit="contain" />}
+              : <HeartOutlineIcon size={16} color="#D798DA" />}
           </Animated.View>
           <Text style={[rp.actionCount, liked && { color: "#D798DA" }]}>{likeCount}</Text>
         </Pressable>
         {/* Comment + count */}
         <View style={rp.actionBtn}>
-          <Image source={{ uri: FIGMA_POST_COMMENT }} style={rp.commentIcon} contentFit="contain" />
+          <CommentBubbleIcon size={14} color="#D798DA" />
           <Text style={rp.actionCount}>{commentCount}</Text>
         </View>
         {/* Share */}
         <View style={rp.actionBtn}>
-          <Image source={{ uri: FIGMA_POST_SHARE }} style={rp.shareIcon} contentFit="contain" />
+          <ShareNodesIcon size={12} color="#D798DA" />
         </View>
         {/* Article link */}
         {post.external_url && (
@@ -721,7 +716,7 @@ function TastingNoteCard({ item, productMap, router, social, isLoggedIn }: {
       <View style={fc.userRow}>
         <Pressable onPress={() => router.push(`/user/${author.username}`)}>
           {author.avatar_url ? (
-            <Image source={{ uri: author.avatar_url }} style={{ width: 36, height: 36, borderRadius: 18 }} />
+            <Image source={{ uri: resolveUploadUrl(author.avatar_url) }} style={{ width: 36, height: 36, borderRadius: 18 }} />
           ) : (
             <View style={fc.avatarFallback}>
               <Text style={fc.avatarLetter}>{(author.display_name || "?")[0]}</Text>
@@ -766,16 +761,16 @@ function TastingNoteCard({ item, productMap, router, social, isLoggedIn }: {
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
             {likeState.liked
               ? <HeartFilledOutlineIcon size={16} color="#D798DA" />
-              : <Image source={{ uri: FIGMA_POST_HEART }} style={fc.heartIcon} contentFit="contain" />}
+              : <HeartOutlineIcon size={16} color="#D798DA" />}
           </Animated.View>
           {likeState.count > 0 && <Text style={[fc.interactionCount, likeState.liked && { color: "#D798DA" }]}>{likeState.count}</Text>}
         </Pressable>
         <Pressable onPress={handleToggleComments} style={fc.interactionBtn}>
-          <Image source={{ uri: FIGMA_POST_COMMENT }} style={fc.commentIcon} contentFit="contain" />
+          <CommentBubbleIcon size={14} color="#D798DA" />
           {commentCount > 0 && <Text style={[fc.interactionCount, showComments && { color: colors.textPrimary }]}>{commentCount}</Text>}
         </Pressable>
         <View style={fc.interactionBtn}>
-          <Image source={{ uri: FIGMA_POST_SHARE }} style={fc.shareIcon} contentFit="contain" />
+          <ShareNodesIcon size={12} color="#D798DA" />
         </View>
       </View>
 
