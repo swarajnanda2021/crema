@@ -28,7 +28,7 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
   }, []);
 
   const availableWidth = containerW > 0 ? containerW - GRID_PAD * 2 : 960;
-  const numCols = Math.max(1, Math.min(5, Math.round((availableWidth + GAP) / (TARGET_CARD_W + GAP))));
+  const numCols = Math.max(1, Math.min(8, Math.round((availableWidth + GAP) / (TARGET_CARD_W + GAP))));
   const cardWidth = Math.floor((availableWidth - GAP * (numCols - 1)) / numCols);
   const cardHeight = Math.floor(cardWidth * CARD_ASPECT);
 

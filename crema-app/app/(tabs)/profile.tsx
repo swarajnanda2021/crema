@@ -12,7 +12,7 @@ import { useShelves } from "../../src/hooks/useShelves";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useTastingNotes } from "../../src/hooks/useTastingNotes";
 import { useSocial } from "../../src/hooks/useSocial";
-import { colors, fonts, cardShadow, SHELF_LABELS, ShelfKey } from "../../src/theme/colors";
+import { colors, fonts, cardShadow, SHELF_LABELS, ShelfKey, NAVBAR_HEIGHT } from "../../src/theme/colors";
 import ProfileEditModal from "../../src/components/ProfileEditModal";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import TastingNoteDisplay from "../../src/components/TastingNoteDisplay";
@@ -138,6 +138,7 @@ export default function MyShelfPage() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
+  const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
 
   const [activeTab, setActiveTab] = useState<ProfileTab>("shelf");
   const [activeShelf, setActiveShelf] = useState<ShelfKey>("currently_drinking");
@@ -190,7 +191,7 @@ export default function MyShelfPage() {
   // ── Sidebar (desktop) ────────────────────────────────────────────────────────
 
   const renderSidebar = () => (
-    <View style={s.sidebarOuter}>
+    <View style={[s.sidebarOuter, { width: sidebarW, minWidth: sidebarW, maxWidth: sidebarW }]}>
       <View style={s.sidebarInner}>
         <Text style={[s.sidebarName, liningNumerals]}>{user.display_name || user.username}</Text>
         <Text style={s.sidebarUsername}>@{user.username}</Text>
@@ -638,7 +639,7 @@ const s = StyleSheet.create({
     maxWidth: 195,
     flexShrink: 0,
     position: "sticky" as any,
-    top: 72,
+    top: NAVBAR_HEIGHT,
     alignSelf: "flex-start",
   } as any,
 

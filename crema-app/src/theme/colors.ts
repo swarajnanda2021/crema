@@ -52,6 +52,9 @@ export const fonts = {
   bodyBold: "Inter_700Bold",
 } as const;
 
+/** Navbar height — shared across all layout calculations */
+export const NAVBAR_HEIGHT = 72;
+
 /** Card shadow preset */
 export const cardShadow = {
   shadowColor: colors.shadowColor,

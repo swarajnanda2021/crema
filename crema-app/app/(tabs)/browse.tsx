@@ -13,6 +13,7 @@ export default function BrowsePage() {
   const { products, roasters, roastLevels, processes } = useCoffeeData();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
+  const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
   const [query, setQuery] = useState("");
   const [popularity, setPopularity] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState<"beans" | "roasters">("beans");
@@ -68,7 +69,7 @@ export default function BrowsePage() {
       {/* Sub-tabs */}
       <View style={s.tabBar}>
         <View style={s.tabBarInner}>
-          <View style={s.tabBarLeft}>
+          <View style={[s.tabBarLeft, { width: sidebarW }]}>
             <Text style={s.lookingForLabel}>LOOKING FOR</Text>
           </View>
           <View style={s.tabBarRight}>
@@ -82,7 +83,7 @@ export default function BrowsePage() {
         <View style={s.browseLayout}>
           {isDesktop && (
             <ScrollView
-              style={s.sidebar}
+              style={[s.sidebar, { width: sidebarW, minWidth: sidebarW, maxWidth: sidebarW }]}
               contentContainerStyle={{ paddingRight: 16, paddingTop: 20, paddingBottom: 60 }}
               showsVerticalScrollIndicator={false}
             >
@@ -266,6 +267,7 @@ function RoastersList() {
   const { roasters, products } = useCoffeeData();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
+  const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
   const [roasterQuery, setRoasterQuery] = useState("");
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [searchBarHidden, setSearchBarHidden] = useState(false);
@@ -312,7 +314,7 @@ function RoastersList() {
       {/* City filter sidebar */}
       {isDesktop && (
         <ScrollView
-          style={s.sidebar}
+          style={[s.sidebar, { width: sidebarW, minWidth: sidebarW, maxWidth: sidebarW }]}
           contentContainerStyle={{ paddingRight: 16, paddingTop: 20, paddingBottom: 60 }}
           showsVerticalScrollIndicator={false}
         >
@@ -360,8 +362,8 @@ function RoastersList() {
         <Text style={s.rPageTitle} numberOfLines={1}>Explore your favourite Indian coffee roasters</Text>
         <View style={s.rDivider} />
 
-        {/* Rows capped at 834px, matching Figma */}
-        <View style={{ maxWidth: 834 }}>
+        {/* Roaster rows — fill available width */}
+        <View>
           {filteredRoasters.map((r: any) => (
             <RoasterRow key={r.slug} roaster={r} imageUrl={roasterImages[r.slug]} />
           ))}

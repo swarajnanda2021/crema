@@ -131,7 +131,7 @@ const st = StyleSheet.create({
   heroWrap: { borderBottomLeftRadius: 5, borderBottomRightRadius: 5, overflow: "hidden" },
   heroImage: { width: "100%" as any, height: 320 },
   body: {
-    maxWidth: 800,
+    maxWidth: 1000,
     alignSelf: "center" as any,
     width: "100%" as any,
     paddingHorizontal: 24,

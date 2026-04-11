@@ -816,7 +816,7 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   feedScroll: { flex: 1 },
   feedContent: {
-    maxWidth: 720,
+    maxWidth: 900,
     alignSelf: "center" as any,
     width: "100%" as any,
     paddingHorizontal: 16,

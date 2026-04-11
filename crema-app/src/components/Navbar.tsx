@@ -11,7 +11,7 @@ import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useState } from "react";
 import { User, Search, X } from "lucide-react-native";
-import { colors, fonts } from "../theme/colors";
+import { colors, fonts, NAVBAR_HEIGHT } from "../theme/colors";
 import { useAuth } from "../hooks/useAuth";
 import CremaLogo from "./CremaLogo";
 import ProfileDropdown from "./ProfileDropdown";
@@ -118,12 +118,12 @@ export default function Navbar() {
 const s = StyleSheet.create({
   // Figma: 1440×72, bg #351101
   navbar: {
-    height: 72,
+    height: NAVBAR_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingLeft: 90,   // Figma: HOME at x=90
-    paddingRight: 90,  // Figma: symmetric
+    paddingLeft: "6.25%" as any,   // Figma: 90/1440 = 6.25%
+    paddingRight: "6.25%" as any,  // scales with viewport
     backgroundColor: "#351101",
   },
   leftLinks: {
