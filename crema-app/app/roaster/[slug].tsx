@@ -19,6 +19,7 @@ import * as Linking from "expo-linking";
 import Svg, { Circle, G, Path } from "react-native-svg";
 import { Plus, X, PenLine, Camera, MapPin, Check } from "lucide-react-native";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
+import TastingNoteCard from "../../src/components/TastingNoteCard";
 
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
@@ -127,60 +128,51 @@ function timeAgo(dateStr: string): string {
 // 3 images → 3 equal columns, full width, 311px tall, 10px gap  (Figma spec)
 // 4+ images → horizontal carousel, each image same per-col size as 3-up layout
 
-const PG_IMG_HEIGHT = 311;
+const GALLERY_ASPECT = 371 / 281; // Universal H/W ratio — matches TastingNoteCard Figma (281×371)
 const PG_GAP = 10;
 const PG_RADIUS = 5;
 
+function isTastingNoteEntry(img: string) {
+  return img.startsWith('{"type":"tasting_note"');
+}
+
+function GallerySlot({ entry, width, height, onPress }: { entry: string; width: number; height: number; onPress?: () => void }) {
+  if (isTastingNoteEntry(entry)) {
+    const data = JSON.parse(entry);
+    return <TastingNoteCard {...data} width={width} height={height} />;
+  }
+  return (
+    <Pressable onPress={onPress}>
+      <Image
+        source={{ uri: resolveUploadUrl(entry) }}
+        style={{ width, height, borderRadius: PG_RADIUS }}
+        contentFit="cover"
+      />
+    </Pressable>
+  );
+}
+
 function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => void }) {
-  const [containerWidth, setContainerWidth] = useState(0);
+  const [cw, setCw] = useState(0);
 
   if (!images || images.length === 0) return null;
 
-  // 1 image — full-width landscape
-  if (images.length === 1) {
-    return (
-      <Pressable onPress={onPress} style={pg.singleWrap}>
-        <Image source={{ uri: resolveUploadUrl(images[0]) }} style={pg.singleImg} contentFit="cover" />
-      </Pressable>
-    );
-  }
-
-  // 2–3 images — equal flex columns filling full width, 311px tall
-  if (images.length <= 3) {
-    return (
-      <View style={pg.rowWrap}>
-        {images.map((uri, i) => (
-          <Pressable key={i} onPress={onPress} style={pg.colWrap}>
-            <Image source={{ uri: resolveUploadUrl(uri) }} style={pg.colImg} contentFit="cover" />
-          </Pressable>
-        ))}
-      </View>
-    );
-  }
-
-  // 4+ → horizontal carousel, each image at the same width as one col in the 3-up grid
-  const imgW = containerWidth > 0
-    ? Math.floor((containerWidth - PG_GAP * 2) / 3)
-    : 220;
+  // Every item is always the 3-column size — one standard presentation size sitewide.
+  // 1–3 items sit in a row at that fixed size; 4+ scroll horizontally.
+  const itemW = cw > 0 ? Math.floor((cw - PG_GAP * 2) / 3) : 220;
+  const itemH = Math.floor(itemW * GALLERY_ASPECT);
 
   return (
-    <View
-      onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}
-      style={pg.carouselOuter}
-    >
+    <View onLayout={(e) => setCw(e.nativeEvent.layout.width)} style={pg.rowWrap}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ gap: PG_GAP }}
       >
-        {images.map((uri, i) => (
-          <Pressable key={i} onPress={onPress}>
-            <Image
-              source={{ uri: resolveUploadUrl(uri) }}
-              style={{ width: imgW, height: PG_IMG_HEIGHT, borderRadius: PG_RADIUS }}
-              contentFit="cover"
-            />
-          </Pressable>
+        {images.map((entry, i) => (
+          <View key={i} style={{ borderRadius: PG_RADIUS, overflow: "hidden" }}>
+            <GallerySlot entry={entry} width={itemW} height={itemH} onPress={onPress} />
+          </View>
         ))}
       </ScrollView>
     </View>
@@ -188,19 +180,7 @@ function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => v
 }
 
 const pg = StyleSheet.create({
-  // 1 image — landscape
-  singleWrap: { marginBottom: 16 } as any,
-  singleImg: { width: "100%" as any, height: 240, borderRadius: PG_RADIUS },
-  // 2–3 images — portrait row
-  rowWrap: {
-    flexDirection: "row",
-    gap: PG_GAP,
-    marginBottom: 16,
-  } as any,
-  colWrap: { flex: 1, borderRadius: PG_RADIUS, overflow: "hidden" } as any,
-  colImg: { width: "100%" as any, height: PG_IMG_HEIGHT },
-  // 4+ carousel outer
-  carouselOuter: { marginBottom: 16 },
+  rowWrap: { marginBottom: 16 },
 });
 
 // ── Coffee grid ───────────────────────────────────────────────────────────────
@@ -284,6 +264,7 @@ function RoasterPostCard({
   onPin,
   onDelete,
   onEdit,
+  products,
 }: {
   post: any;
   roasterName: string;
@@ -293,6 +274,7 @@ function RoasterPostCard({
   onPin?: (id: number) => void;
   onDelete?: (id: number) => void;
   onEdit?: (id: number, data: any) => Promise<void>;
+  products?: any[];
 }) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
@@ -308,9 +290,24 @@ function RoasterPostCard({
   const [editImages, setEditImages] = useState<string[]>(post.images || []);
   const [editSaving, setEditSaving] = useState(false);
   const [showImgUpload, setShowImgUpload] = useState(false);
+  const [showAddCardModal, setShowAddCardModal] = useState(false);
+  const [addCardTab, setAddCardTab] = useState<"image" | "tasting_note">("image");
+  const [editGridW, setEditGridW] = useState(0);
+
+  // Tasting note selector state
+  const [tnSearch, setTnSearch] = useState("");
+  const [tnSelectedCoffee, setTnSelectedCoffee] = useState<any>(null);
+  const [tnScores, setTnScores] = useState({ acidity: 3, body: 3, sweetness: 3, aftertaste: 3 });
 
   const isArticle = post.post_type === "article";
+  const hasTastingNote = editImages.some((img) => img.startsWith('{"type":"tasting_note"'));
   const canAddImage = !isArticle && editImages.length < 6;
+
+  // Edit thumbnails: 3-column layout, same aspect ratio as gallery's 3-column height
+  const EDIT_COLS = 3;
+  const EDIT_GAP = 8;
+  const editThumbW = editGridW > 0 ? Math.floor((editGridW - EDIT_GAP * (EDIT_COLS - 1)) / EDIT_COLS) : 100;
+  const editThumbH = Math.floor(editThumbW * GALLERY_ASPECT);
 
   const handleStartEdit = () => {
     setEditTeaser(post.teaser);
@@ -504,20 +501,30 @@ function RoasterPostCard({
 
       {/* ── Photo gallery / Editable image grid ── */}
       {isEditingPost ? (
-        <View style={pc.editImageGrid}>
-          {editImages.map((uri, idx) => (
-            <View key={idx} style={pc.editImageThumb}>
-              <Image source={{ uri: resolveUploadUrl(uri) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-              <Pressable onPress={() => setEditImages((prev) => prev.filter((_, i) => i !== idx))} style={pc.editImageRemove}>
-                <X size={12} color="#FAF8F0" strokeWidth={2.5} />
-              </Pressable>
-            </View>
-          ))}
+        <View style={pc.editImageGrid} onLayout={(e) => setEditGridW(e.nativeEvent.layout.width)}>
+          {editImages.map((entry, idx) => {
+            const isTN = entry.startsWith('{"type":"tasting_note"');
+            return (
+              <View key={idx} style={[pc.editImageThumb, { width: editThumbW, height: editThumbH }]}>
+                {isTN ? (
+                  <TastingNoteCard {...JSON.parse(entry)} width={editThumbW} height={editThumbH} />
+                ) : (
+                  <Image source={{ uri: resolveUploadUrl(entry) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                )}
+                <Pressable onPress={() => setEditImages((prev) => prev.filter((_, i) => i !== idx))} style={pc.editImageRemove}>
+                  <X size={12} color="#FAF8F0" strokeWidth={2.5} />
+                </Pressable>
+              </View>
+            );
+          })}
           {canAddImage && (
-            <Pressable onPress={() => setShowImgUpload(true)} style={pc.editImageAdd}>
+            <Pressable onPress={() => { setAddCardTab("image"); setShowAddCardModal(true); }} style={[pc.editImageAdd, { width: editThumbW, height: editThumbH }]}>
               <Plus size={20} color="#A09580" strokeWidth={1.5} />
+              <Text style={pc.editImageAddLabel}>Add Card</Text>
             </Pressable>
           )}
+
+          {/* Image upload modal (opened from Add Card → Image tab) */}
           <ImageUploadModal
             visible={showImgUpload}
             title="Add image"
@@ -526,6 +533,122 @@ function RoasterPostCard({
             onConfirm={(url) => { setEditImages((prev) => [...prev, url]); setShowImgUpload(false); }}
             onClose={() => setShowImgUpload(false)}
           />
+
+          {/* Add Card two-tab modal */}
+          <Modal visible={showAddCardModal} transparent animationType="fade" onRequestClose={() => setShowAddCardModal(false)}>
+            <Pressable style={pc.addCardOverlay} onPress={() => setShowAddCardModal(false)}>
+              <Pressable style={pc.addCardModal} onPress={(e) => e.stopPropagation()}>
+                {/* Header */}
+                <View style={pc.addCardHeader}>
+                  <Text style={pc.addCardTitle}>Add Card</Text>
+                  <Pressable onPress={() => setShowAddCardModal(false)} hitSlop={8}>
+                    <X size={18} color="#351101" />
+                  </Pressable>
+                </View>
+
+                {/* Tabs */}
+                <View style={pc.addCardTabs}>
+                  <Pressable onPress={() => setAddCardTab("image")} style={[pc.addCardTab, addCardTab === "image" && pc.addCardTabActive]}>
+                    <Text style={[pc.addCardTabText, addCardTab === "image" && pc.addCardTabTextActive]}>Image</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setAddCardTab("tasting_note")} style={[pc.addCardTab, addCardTab === "tasting_note" && pc.addCardTabActive]}>
+                    <Text style={[pc.addCardTabText, addCardTab === "tasting_note" && pc.addCardTabTextActive]}>Tasting Note</Text>
+                  </Pressable>
+                </View>
+
+                {/* Tab content */}
+                {addCardTab === "image" ? (
+                  <Pressable
+                    onPress={() => { setShowAddCardModal(false); setShowImgUpload(true); }}
+                    style={pc.addCardImageBtn}
+                  >
+                    <Camera size={24} color="#684F44" strokeWidth={1.2} />
+                    <Text style={pc.addCardImageBtnText}>Upload or paste an image</Text>
+                  </Pressable>
+                ) : (
+                  <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+                    {/* Coffee search */}
+                    <TextInput
+                      style={pc.addCardSearch}
+                      value={tnSearch}
+                      onChangeText={setTnSearch}
+                      placeholder="Search for a coffee..."
+                      placeholderTextColor="#A09580"
+                    />
+
+                    {/* Coffee results (when searching, before selection) */}
+                    {!tnSelectedCoffee && tnSearch.length > 1 && (
+                      <View style={pc.addCardResults}>
+                        {(products || [])
+                          .filter((p: any) => p.coffee_name?.toLowerCase().includes(tnSearch.toLowerCase()))
+                          .slice(0, 6)
+                          .map((p: any) => (
+                            <Pressable
+                              key={p.product_id}
+                              onPress={() => { setTnSelectedCoffee(p); setTnSearch(p.coffee_name); }}
+                              style={pc.addCardResultRow}
+                            >
+                              <Text style={pc.addCardResultName} numberOfLines={1}>{p.coffee_name}</Text>
+                              <Text style={pc.addCardResultRoaster} numberOfLines={1}>{p.roaster_name}</Text>
+                            </Pressable>
+                          ))}
+                      </View>
+                    )}
+
+                    {/* Score selectors (after coffee selected) */}
+                    {tnSelectedCoffee && (
+                      <View style={{ marginTop: 12 }}>
+                        <Text style={pc.addCardSelectedName} numberOfLines={1}>{tnSelectedCoffee.coffee_name}</Text>
+                        <Text style={pc.addCardSelectedRoaster}>By {tnSelectedCoffee.roaster_name}</Text>
+
+                        {(["acidity", "body", "sweetness", "aftertaste"] as const).map((field) => (
+                          <View key={field} style={pc.addCardScoreRow}>
+                            <Text style={pc.addCardScoreLabel}>{field.charAt(0).toUpperCase() + field.slice(1)}</Text>
+                            <View style={pc.addCardScoreDots}>
+                              {[1, 2, 3, 4, 5].map((v) => (
+                                <Pressable
+                                  key={v}
+                                  onPress={() => setTnScores((prev) => ({ ...prev, [field]: v }))}
+                                  style={[pc.addCardDot, tnScores[field] === v && pc.addCardDotActive]}
+                                >
+                                  <Text style={[pc.addCardDotText, tnScores[field] === v && pc.addCardDotTextActive]}>{v}</Text>
+                                </Pressable>
+                              ))}
+                            </View>
+                          </View>
+                        ))}
+
+                        <Pressable
+                          onPress={() => {
+                            const noteData = JSON.stringify({
+                              type: "tasting_note",
+                              coffee_name: tnSelectedCoffee.coffee_name,
+                              roaster_name: tnSelectedCoffee.roaster_name,
+                              roast_level: tnSelectedCoffee.roast_level,
+                              process: tnSelectedCoffee.process,
+                              product_url: tnSelectedCoffee.product_url,
+                              ...tnScores,
+                            });
+                            // Tasting note always goes first
+                            setEditImages((prev) => {
+                              const filtered = prev.filter((e) => !e.startsWith('{"type":"tasting_note"'));
+                              return [noteData, ...filtered];
+                            });
+                            setShowAddCardModal(false);
+                            setTnSelectedCoffee(null);
+                            setTnSearch("");
+                          }}
+                          style={pc.addCardConfirmBtn}
+                        >
+                          <Text style={pc.addCardConfirmText}>Add Tasting Note</Text>
+                        </Pressable>
+                      </View>
+                    )}
+                  </ScrollView>
+                )}
+              </Pressable>
+            </Pressable>
+          </Modal>
         </View>
       ) : (
         <PhotoGallery images={post.images || (post.cover_image_url ? [post.cover_image_url] : [])} onPress={handleOpen} />
@@ -665,9 +788,7 @@ const pc = StyleSheet.create({
     marginTop: 12,
   } as any,
   editImageThumb: {
-    width: 100,
-    height: 100,
-    borderRadius: 6,
+    borderRadius: 5,
     overflow: "hidden",
     position: "relative",
   } as any,
@@ -683,15 +804,120 @@ const pc = StyleSheet.create({
     justifyContent: "center",
   } as any,
   editImageAdd: {
-    width: 100,
-    height: 100,
-    borderRadius: 6,
+    borderRadius: 5,
     borderWidth: 1.5,
     borderColor: "#C7BAA5",
     borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
   } as any,
+  editImageAddLabel: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 10,
+    color: "#A09580",
+  },
+  // Add Card modal
+  addCardOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  } as any,
+  addCardModal: {
+    backgroundColor: "#FAF8F0",
+    borderRadius: 12,
+    width: "90%",
+    maxWidth: 420,
+    maxHeight: "80%",
+    padding: 20,
+  } as any,
+  addCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  } as any,
+  addCardTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: "#351101" },
+  addCardTabs: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  } as any,
+  addCardTab: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+    backgroundColor: "#FEFDFB",
+  },
+  addCardTabActive: {
+    borderColor: "#351101",
+    backgroundColor: "#351101",
+  },
+  addCardTabText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: "#684F44" },
+  addCardTabTextActive: { color: "#FAF8F0" },
+  addCardImageBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 40,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#C7BAA5",
+    borderStyle: "dashed",
+  } as any,
+  addCardImageBtnText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "#684F44" },
+  addCardSearch: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 14,
+    color: "#351101",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+  },
+  addCardResults: { marginTop: 4 },
+  addCardResultRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(215,209,196,0.4)",
+  },
+  addCardResultName: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "#351101" },
+  addCardResultRoaster: { fontFamily: fonts.bodyRegular, fontSize: 11, color: "#684F44", marginTop: 2 },
+  addCardSelectedName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#351101" },
+  addCardSelectedRoaster: { fontFamily: fonts.bodyRegular, fontSize: 12, color: "#684F44", marginBottom: 12 },
+  addCardScoreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  } as any,
+  addCardScoreLabel: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "#351101", width: 80 },
+  addCardScoreDots: { flexDirection: "row", gap: 8 } as any,
+  addCardDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(215,209,196,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+  addCardDotActive: { backgroundColor: "#D798DA" },
+  addCardDotText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#684F44" },
+  addCardDotTextActive: { color: "#351101" },
+  addCardConfirmBtn: {
+    marginTop: 16,
+    paddingVertical: 12,
+    borderRadius: 6,
+    backgroundColor: "#351101",
+    alignItems: "center",
+  } as any,
+  addCardConfirmText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: "#FAF8F0" },
   editBar: {
     flexDirection: "row",
     justifyContent: "flex-end",
@@ -2128,6 +2354,7 @@ export default function RoasterDetailPage() {
                       onPin={handlePinToggle}
                       onDelete={handleDeletePost}
                       onEdit={handleEditPost}
+                      products={products}
                     />
                     {i < sortedPosts.length - 1 && <View style={s.dividerLight} />}
                   </View>
