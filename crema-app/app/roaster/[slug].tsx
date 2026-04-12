@@ -377,7 +377,7 @@ function RoasterPostCard({
             <Text style={pc.timestamp}>{timeAgo(post.published_at)}</Text>
           </View>
           <Text style={pc.subtitle}>
-            {isPinned ? "Pinned" : post.post_type === "note" ? "Posted a note" : "Posted about an article"}
+            {isPinned ? "Pinned" : post.post_type === "tasting_note" ? "Posted a tasting note" : post.post_type === "note" ? "Shared a moment" : post.post_type === "repost" ? "Reposted" : "Shared an article"}
           </Text>
         </View>
         {/* Three-dot menu — owner only (Figma 249:3494, horizontal dots) */}

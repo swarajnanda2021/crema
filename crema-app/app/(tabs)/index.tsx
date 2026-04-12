@@ -491,11 +491,13 @@ function RoasterPostFeedCard({ post, router, onRepost }: { post: any; router: an
   const isArticle = post.post_type === "article";
   const subtitleText = isPinned
     ? "Pinned"
+    : post.post_type === "tasting_note"
+    ? "Posted a tasting note"
     : post.post_type === "note"
-    ? "Posted a note"
+    ? "Shared a moment"
     : post.post_type === "repost"
     ? "Reposted"
-    : "Posted about an article";
+    : "Shared an article";
 
   return (
     <View style={rp.card}>
