@@ -125,16 +125,40 @@ def link_preview(url: str):
             m = re.search(r"<title[^>]*>([^<]+)</title>", html, re.I)
             title = m.group(1).strip() if m else ""
 
+        image_url = og("image")
+
+        # Favicon fallback chain if no og:image
+        if not image_url:
+            parsed = urlparse(url)
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+            # 1. Try site's favicon.ico
+            try:
+                fav_req = urllib.request.Request(
+                    f"{origin}/favicon.ico",
+                    method="HEAD",
+                    headers={"User-Agent": "Mozilla/5.0 (compatible; CremaBot/1.0)"},
+                )
+                with urllib.request.urlopen(fav_req, timeout=3) as fav_resp:
+                    if fav_resp.status == 200:
+                        image_url = f"{origin}/favicon.ico"
+            except Exception:
+                pass
+            # 2. Google favicon API (always works)
+            if not image_url:
+                image_url = f"https://www.google.com/s2/favicons?domain={domain}&sz=128"
+
         result = {
             "title": title,
             "description": og("description"),
-            "image_url": og("image"),
+            "image_url": image_url,
             "domain": domain,
         }
         _link_preview_cache[url] = result
         return result
     except Exception:
-        result = {"title": "", "description": "", "image_url": "", "domain": domain}
+        # Even on total failure, return Google favicon
+        image_url = f"https://www.google.com/s2/favicons?domain={domain}&sz=128"
+        result = {"title": "", "description": "", "image_url": image_url, "domain": domain}
         _link_preview_cache[url] = result
         return result
 

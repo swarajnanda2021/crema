@@ -1,42 +1,40 @@
 /**
- * ComposePost — unified in-place compose for all post types.
+ * ComposePost — unified in-place compose with dry-run preview.
  *
- * Two mutually exclusive modes:
- *   "share_link"  → URL field + auto-fetched Open Graph preview
- *   "write_note"  → teaser + image/tasting-note grid + location
+ * Auto-detects mode from user input:
+ *   - Paste a URL → article mode (link preview, no images)
+ *   - Add images/tasting note → note mode (no link preview)
+ *   - Repost (repostTarget) → repost mode (compact preview of original)
  *
- * Repost mode (when repostTarget is provided):
- *   → comment field + compact preview of the original post
- *
- * Used inline (not in a modal) — appears at the top of the feed or posts tab.
+ * Renders like a real post card: user avatar, name, "Just now", editable body,
+ * link preview or image grid below, location field, submit bar.
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, Pressable, ScrollView, Modal,
   StyleSheet, ActivityIndicator, Platform,
 } from "react-native";
 import { Image } from "expo-image";
-import { Camera, Plus, X, MapPin } from "lucide-react-native";
-import Svg, { Path } from "react-native-svg";
+import { Camera, Plus, X } from "lucide-react-native";
 
 import { apiFetch, resolveUploadUrl } from "../api/client";
 import { fonts } from "../theme/colors";
 import { PostLocationPinIcon } from "./icons/FigmaIcons";
 import ImageUploadModal from "./ImageUploadModal";
 import TastingNoteCard from "./TastingNoteCard";
-import { GALLERY_ASPECT, PG_GAP, PG_RADIUS } from "./PostGallery";
-
-type PostMode = "share_link" | "write_note";
+import { GALLERY_ASPECT, PG_RADIUS } from "./PostGallery";
 
 interface ComposePostProps {
   onSubmit: (data: any) => Promise<void>;
   onCancel: () => void;
   loading?: boolean;
   repostTarget?: any;
-  initialMode?: PostMode;
   products?: any[];
+  user?: { username: string; display_name?: string; avatar_url?: string } | null;
 }
+
+const URL_REGEX = /https?:\/\/[^\s]+/;
 
 function timeAgo(dateStr: string): string {
   try {
@@ -55,25 +53,24 @@ export default function ComposePost({
   onCancel,
   loading = false,
   repostTarget,
-  initialMode = "write_note",
   products,
+  user,
 }: ComposePostProps) {
   const isRepost = !!repostTarget;
-  const [mode, setMode] = useState<PostMode>(initialMode);
 
-  // Shared
+  // Core state
   const [teaser, setTeaser] = useState("");
+  const [location, setLocation] = useState("");
 
-  // Share Link mode
-  const [url, setUrl] = useState("");
-  const [linkTitle, setLinkTitle] = useState("");
+  // Auto-detected mode
+  const [detectedUrl, setDetectedUrl] = useState("");
   const [linkPreview, setLinkPreview] = useState<{ title: string; description: string; image_url: string; domain: string } | null>(null);
+  const [linkTitle, setLinkTitle] = useState("");
   const [linkLoading, setLinkLoading] = useState(false);
   const debounceRef = useRef<any>(null);
 
-  // Write Note mode
+  // Images / tasting notes
   const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const [location, setLocation] = useState("");
   const [showImgUpload, setShowImgUpload] = useState(false);
   const [showAddCardModal, setShowAddCardModal] = useState(false);
   const [addCardTab, setAddCardTab] = useState<"image" | "tasting_note">("image");
@@ -85,7 +82,10 @@ export default function ComposePost({
   const [tnScores, setTnScores] = useState({ acidity: 3, body: 3, sweetness: 3, aftertaste: 3 });
 
   const isTN = (s: string) => s.startsWith('{"type":') && s.includes('"tasting_note"');
-  const canAddImage = imageUrls.length < 6;
+  const hasImages = imageUrls.length > 0;
+  const hasUrl = !!detectedUrl;
+  const isArticleMode = hasUrl && !hasImages;
+  const canAddImage = !isArticleMode && imageUrls.length < 6;
 
   // Edit grid sizing
   const EDIT_COLS = 3;
@@ -93,53 +93,47 @@ export default function ComposePost({
   const editThumbW = editGridW > 0 ? Math.floor((editGridW - EDIT_GAP * (EDIT_COLS - 1)) / EDIT_COLS) : 100;
   const editThumbH = Math.floor(editThumbW * GALLERY_ASPECT);
 
-  // Link preview debounce
+  // Auto-detect URL in teaser text
   useEffect(() => {
-    if (mode !== "share_link" || !url.trim() || !url.startsWith("http")) {
-      setLinkPreview(null);
-      return;
-    }
+    if (isRepost || hasImages) { setDetectedUrl(""); return; }
+    const match = teaser.match(URL_REGEX);
+    setDetectedUrl(match ? match[0] : "");
+  }, [teaser, hasImages, isRepost]);
+
+  // Fetch link preview when URL detected
+  useEffect(() => {
+    if (!detectedUrl) { setLinkPreview(null); return; }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setLinkLoading(true);
       try {
-        const data = await apiFetch(`/link-preview?url=${encodeURIComponent(url.trim())}`);
+        const data = await apiFetch(`/link-preview?url=${encodeURIComponent(detectedUrl)}`);
         setLinkPreview(data);
         if (data.title && !linkTitle) setLinkTitle(data.title);
-      } catch {
-        setLinkPreview(null);
-      } finally {
-        setLinkLoading(false);
-      }
+      } catch { setLinkPreview(null); }
+      finally { setLinkLoading(false); }
     }, 500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [url, mode]);
+  }, [detectedUrl]);
 
-  // Mode switch clears the other mode's state
-  const switchMode = (m: PostMode) => {
-    if (m === "share_link") {
-      setImageUrls([]);
-      setLocation("");
-    } else {
-      setUrl("");
-      setLinkTitle("");
-      setLinkPreview(null);
-    }
-    setMode(m);
+  // Adding an image clears link detection
+  const handleAddImage = (url: string) => {
+    setImageUrls((p) => [...p, url]);
+    setDetectedUrl("");
+    setLinkPreview(null);
+    setLinkTitle("");
   };
 
   // Validation
   const canSubmit = (() => {
     if (loading) return false;
-    if (isRepost) return true; // repost can have empty comment
+    if (isRepost) return true;
     if (!teaser.trim() || teaser.trim().length > 300) return false;
-    if (mode === "share_link" && !url.trim()) return false;
     return true;
   })();
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
-
     if (isRepost) {
       await onSubmit({
         title: "Repost",
@@ -150,12 +144,11 @@ export default function ComposePost({
       });
       return;
     }
-
-    if (mode === "share_link") {
+    if (isArticleMode) {
       await onSubmit({
-        title: linkTitle.trim() || url.trim().slice(0, 60),
+        title: linkTitle.trim() || detectedUrl.slice(0, 60),
         teaser: teaser.trim(),
-        external_url: url.trim(),
+        external_url: detectedUrl,
         cover_image_url: linkPreview?.image_url || null,
         post_type: "article",
       });
@@ -172,104 +165,90 @@ export default function ComposePost({
     }
   };
 
+  const displayName = user?.display_name || user?.username || "You";
+  const avatarUrl = user?.avatar_url;
+
   return (
     <View style={s.card}>
-      {/* Mode toggle (hidden for repost) */}
-      {!isRepost && (
-        <View style={s.modeRow}>
-          <Pressable onPress={() => switchMode("share_link")} style={[s.modeBtn, mode === "share_link" && s.modeBtnActive]}>
-            <Text style={[s.modeBtnText, mode === "share_link" && s.modeBtnTextActive]}>Share Link</Text>
-          </Pressable>
-          <Pressable onPress={() => switchMode("write_note")} style={[s.modeBtn, mode === "write_note" && s.modeBtnActive]}>
-            <Text style={[s.modeBtnText, mode === "write_note" && s.modeBtnTextActive]}>Write Note</Text>
-          </Pressable>
-          <View style={{ flex: 1 }} />
-          <Pressable onPress={onCancel} hitSlop={8}>
-            <X size={18} color="#A09580" />
-          </Pressable>
+      {/* ── Post preview header (dry run) ── */}
+      <View style={s.header}>
+        <View>
+          {avatarUrl ? (
+            <Image source={{ uri: resolveUploadUrl(avatarUrl) }} style={s.avatar} contentFit="cover" />
+          ) : (
+            <View style={[s.avatar, s.avatarFallback]}>
+              <Text style={s.avatarLetter}>{displayName[0].toUpperCase()}</Text>
+            </View>
+          )}
         </View>
-      )}
-
-      {/* Repost header */}
-      {isRepost && (
-        <View style={s.repostHeader}>
-          <Text style={s.repostLabel}>Repost</Text>
-          <Pressable onPress={onCancel} hitSlop={8}>
-            <X size={18} color="#A09580" />
-          </Pressable>
+        <View style={s.headerMeta}>
+          <View style={s.nameRow}>
+            <Text style={s.authorName}>{displayName}</Text>
+            <Text style={s.timestamp}>Just now</Text>
+          </View>
+          <Text style={s.subtitle}>
+            {isRepost ? "Reposting" : isArticleMode ? "Sharing a link" : "Writing a note"}
+          </Text>
         </View>
-      )}
+        <Pressable onPress={onCancel} hitSlop={8}>
+          <X size={18} color="#A09580" />
+        </Pressable>
+      </View>
 
-      {/* Teaser / comment field */}
+      {/* ── Editable teaser (same font as final post body) ── */}
       <TextInput
         style={s.teaserInput}
         value={teaser}
         onChangeText={setTeaser}
-        placeholder={isRepost ? "Add your thoughts..." : mode === "share_link" ? "What do you think about this?" : "What's on your mind?"}
+        placeholder={isRepost ? "Add your thoughts..." : "What's on your mind? Paste a link to share an article."}
         placeholderTextColor="#A09580"
         multiline
         maxLength={300}
       />
       <Text style={s.charCount}>{teaser.length}/300</Text>
 
-      {/* ── SHARE LINK MODE ── */}
-      {!isRepost && mode === "share_link" && (
+      {/* ── ARTICLE MODE: link preview with title overlay ── */}
+      {isArticleMode && (
         <View style={s.linkSection}>
-          <TextInput
-            style={s.urlInput}
-            value={url}
-            onChangeText={setUrl}
-            placeholder="https://..."
-            placeholderTextColor="#A09580"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {linkLoading && <ActivityIndicator size="small" color="#D798DA" style={{ marginTop: 8 }} />}
-          {linkPreview && linkPreview.image_url ? (
+          {linkLoading && <ActivityIndicator size="small" color="#D798DA" style={{ marginVertical: 12 }} />}
+          {linkPreview && (
             <View style={s.previewCard}>
-              <Image source={{ uri: linkPreview.image_url }} style={s.previewImage} contentFit="cover" />
-              <View style={s.previewInfo}>
-                <TextInput
-                  style={s.previewTitle}
-                  value={linkTitle}
-                  onChangeText={setLinkTitle}
-                  placeholder="Title"
-                  placeholderTextColor="#A09580"
-                />
-                <Text style={s.previewDomain}>{linkPreview.domain}</Text>
-              </View>
+              {linkPreview.image_url ? (
+                <View style={s.previewThumbWrap}>
+                  <Image source={{ uri: linkPreview.image_url }} style={s.previewThumbImg} contentFit="cover" />
+                  <View style={s.previewGradient} />
+                  <View style={s.previewOverlay}>
+                    <TextInput
+                      style={s.previewTitle}
+                      value={linkTitle}
+                      onChangeText={setLinkTitle}
+                      placeholder="Title"
+                      placeholderTextColor="rgba(250,248,240,0.5)"
+                    />
+                    <Text style={s.previewDomain}>{linkPreview.domain}</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={s.previewNoImg}>
+                  <TextInput
+                    style={[s.previewTitle, { color: "#351101" }]}
+                    value={linkTitle}
+                    onChangeText={setLinkTitle}
+                    placeholder="Title"
+                    placeholderTextColor="#A09580"
+                  />
+                  <Text style={[s.previewDomain, { color: "#A09580" }]}>{linkPreview.domain}</Text>
+                </View>
+              )}
             </View>
-          ) : linkPreview && !linkPreview.image_url ? (
-            <View style={s.previewCardNoImg}>
-              <TextInput
-                style={s.previewTitle}
-                value={linkTitle}
-                onChangeText={setLinkTitle}
-                placeholder="Title"
-                placeholderTextColor="#A09580"
-              />
-              <Text style={s.previewDomain}>{linkPreview.domain}</Text>
-            </View>
-          ) : null}
+          )}
         </View>
       )}
 
-      {/* ── WRITE NOTE MODE ── */}
-      {!isRepost && mode === "write_note" && (
+      {/* ── NOTE MODE: image/tasting-note grid + location ── */}
+      {!isRepost && !isArticleMode && (
         <View style={s.noteSection}>
-          {/* Location */}
-          <View style={s.locationRow}>
-            <PostLocationPinIcon size={12} color="#D798DA" />
-            <TextInput
-              style={s.locationInput}
-              value={location}
-              onChangeText={setLocation}
-              placeholder="Location (optional)"
-              placeholderTextColor="#A09580"
-            />
-          </View>
-
-          {/* Image / tasting note grid */}
+          {/* Image grid */}
           <View style={s.imageGrid} onLayout={(e) => setEditGridW(e.nativeEvent.layout.width)}>
             {imageUrls.map((entry, idx) => (
               <View key={idx} style={[s.imageThumb, { width: editThumbW, height: editThumbH }]}>
@@ -291,13 +270,25 @@ export default function ComposePost({
             )}
           </View>
 
+          {/* Location */}
+          <View style={s.locationRow}>
+            <PostLocationPinIcon size={12} color="#D798DA" />
+            <TextInput
+              style={s.locationInput}
+              value={location}
+              onChangeText={setLocation}
+              placeholder="Location (optional)"
+              placeholderTextColor="#A09580"
+            />
+          </View>
+
           {/* Image upload modal */}
           <ImageUploadModal
             visible={showImgUpload}
             title="Add image"
             purpose="post"
             currentUrl=""
-            onConfirm={(u) => { setImageUrls((p) => [...p, u]); setShowImgUpload(false); }}
+            onConfirm={(u) => { handleAddImage(u); setShowImgUpload(false); }}
             onClose={() => setShowImgUpload(false)}
           />
 
@@ -307,9 +298,7 @@ export default function ComposePost({
               <Pressable style={s.addCardModal} onPress={(e) => e.stopPropagation()}>
                 <View style={s.addCardHeader}>
                   <Text style={s.addCardTitle}>Add Card</Text>
-                  <Pressable onPress={() => setShowAddCardModal(false)} hitSlop={8}>
-                    <X size={18} color="#351101" />
-                  </Pressable>
+                  <Pressable onPress={() => setShowAddCardModal(false)} hitSlop={8}><X size={18} color="#351101" /></Pressable>
                 </View>
                 <View style={s.addCardTabs}>
                   <Pressable onPress={() => setAddCardTab("image")} style={[s.addCardTab, addCardTab === "image" && s.addCardTabActive]}>
@@ -326,26 +315,16 @@ export default function ComposePost({
                   </Pressable>
                 ) : (
                   <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
-                    <TextInput
-                      style={s.tnSearch}
-                      value={tnSearch}
-                      onChangeText={setTnSearch}
-                      placeholder="Search for a coffee..."
-                      placeholderTextColor="#A09580"
-                    />
-                    {!tnSelectedCoffee && tnSearch.length > 1 && (
-                      <View>
-                        {(products || [])
-                          .filter((p: any) => p.coffee_name?.toLowerCase().includes(tnSearch.toLowerCase()))
-                          .slice(0, 6)
-                          .map((p: any) => (
-                            <Pressable key={p.product_id} onPress={() => { setTnSelectedCoffee(p); setTnSearch(p.coffee_name); }} style={s.tnResultRow}>
-                              <Text style={s.tnResultName} numberOfLines={1}>{p.coffee_name}</Text>
-                              <Text style={s.tnResultRoaster} numberOfLines={1}>{p.roaster_name}</Text>
-                            </Pressable>
-                          ))}
-                      </View>
-                    )}
+                    <TextInput style={s.tnSearch} value={tnSearch} onChangeText={setTnSearch} placeholder="Search for a coffee..." placeholderTextColor="#A09580" />
+                    {!tnSelectedCoffee && tnSearch.length > 1 && (products || [])
+                      .filter((p: any) => p.coffee_name?.toLowerCase().includes(tnSearch.toLowerCase()))
+                      .slice(0, 6)
+                      .map((p: any) => (
+                        <Pressable key={p.product_id} onPress={() => { setTnSelectedCoffee(p); setTnSearch(p.coffee_name); }} style={s.tnResultRow}>
+                          <Text style={s.tnResultName} numberOfLines={1}>{p.coffee_name}</Text>
+                          <Text style={s.tnResultRoaster} numberOfLines={1}>{p.roaster_name}</Text>
+                        </Pressable>
+                      ))}
                     {tnSelectedCoffee && (
                       <View style={{ marginTop: 12 }}>
                         <Text style={s.tnSelectedName} numberOfLines={1}>{tnSelectedCoffee.coffee_name}</Text>
@@ -364,22 +343,9 @@ export default function ComposePost({
                         ))}
                         <Pressable
                           onPress={() => {
-                            const noteData = JSON.stringify({
-                              type: "tasting_note",
-                              coffee_name: tnSelectedCoffee.coffee_name,
-                              roaster_name: tnSelectedCoffee.roaster_name,
-                              roast_level: tnSelectedCoffee.roast_level,
-                              process: tnSelectedCoffee.process,
-                              product_url: tnSelectedCoffee.product_url,
-                              ...tnScores,
-                            });
-                            setImageUrls((p) => {
-                              const filtered = p.filter((e) => !isTN(e));
-                              return [noteData, ...filtered];
-                            });
-                            setShowAddCardModal(false);
-                            setTnSelectedCoffee(null);
-                            setTnSearch("");
+                            const noteData = JSON.stringify({ type: "tasting_note", coffee_name: tnSelectedCoffee.coffee_name, roaster_name: tnSelectedCoffee.roaster_name, roast_level: tnSelectedCoffee.roast_level, process: tnSelectedCoffee.process, product_url: tnSelectedCoffee.product_url, ...tnScores });
+                            setImageUrls((p) => { const f = p.filter((e) => !isTN(e)); return [noteData, ...f]; });
+                            setShowAddCardModal(false); setTnSelectedCoffee(null); setTnSearch("");
                           }}
                           style={s.tnConfirmBtn}
                         >
@@ -416,17 +382,11 @@ export default function ComposePost({
         </View>
       )}
 
-      {/* Submit bar */}
+      {/* ── Submit bar ── */}
       <View style={s.submitRow}>
-        <Pressable onPress={onCancel} style={s.cancelBtn}>
-          <Text style={s.cancelText}>Cancel</Text>
-        </Pressable>
+        <Pressable onPress={onCancel} style={s.cancelBtn}><Text style={s.cancelText}>Cancel</Text></Pressable>
         <Pressable onPress={handleSubmit} style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]} disabled={!canSubmit}>
-          {loading ? (
-            <ActivityIndicator size="small" color="#FAF8F0" />
-          ) : (
-            <Text style={s.submitText}>{isRepost ? "Repost" : "Post"}</Text>
-          )}
+          {loading ? <ActivityIndicator size="small" color="#FAF8F0" /> : <Text style={s.submitText}>{isRepost ? "Repost" : "Post"}</Text>}
         </Pressable>
       </View>
     </View>
@@ -434,81 +394,38 @@ export default function ComposePost({
 }
 
 const s = StyleSheet.create({
-  card: {
-    backgroundColor: "#FAF8F0",
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  // Mode toggle
-  modeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 } as any,
-  modeBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: "#D7D1C4",
-    backgroundColor: "#FEFDFB",
-  },
-  modeBtnActive: { borderColor: "#351101", backgroundColor: "#351101" },
-  modeBtnText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: "#684F44" },
-  modeBtnTextActive: { color: "#FAF8F0" },
-  // Repost header
-  repostHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } as any,
-  repostLabel: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#351101" },
+  card: { backgroundColor: "#FAF8F0", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
+  // Dry-run post header
+  header: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 14 } as any,
+  avatar: { width: 30, height: 30, borderRadius: 15, overflow: "hidden" } as any,
+  avatarFallback: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,
+  avatarLetter: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: "#FAF8F0" },
+  headerMeta: { flex: 1 },
+  nameRow: { flexDirection: "row", alignItems: "baseline", gap: 5 } as any,
+  authorName: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
+  timestamp: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#A09580" },
+  subtitle: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#684F44", marginTop: 2 },
   // Teaser
-  teaserInput: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 16,
-    color: "#351101",
-    lineHeight: 23,
-    minHeight: 48,
-    textAlignVertical: "top",
-  } as any,
+  teaserInput: { fontFamily: fonts.bodyRegular, fontSize: 16.8, color: "#351101", lineHeight: 23.5, minHeight: 48, textAlignVertical: "top" } as any,
   charCount: { fontFamily: fonts.bodyRegular, fontSize: 10, color: "#A09580", textAlign: "right", marginTop: 2, marginBottom: 8 } as any,
-  // Link mode
+  // Link preview (article mode)
   linkSection: { marginBottom: 8 },
-  urlInput: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 14,
-    color: "#351101",
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#D7D1C4",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: "#fff",
-  },
-  previewCard: {
-    marginTop: 10,
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: "#EFE9DB",
-  } as any,
-  previewImage: { width: "100%" as any, height: 160 },
-  previewInfo: { padding: 12 },
-  previewTitle: { fontFamily: fonts.bodyMedium, fontSize: 14, color: "#351101" },
-  previewDomain: { fontFamily: fonts.bodyRegular, fontSize: 11, color: "#A09580", marginTop: 4 },
-  previewCardNoImg: {
-    marginTop: 10,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: "#EFE9DB",
-  },
+  previewCard: { borderRadius: 8, overflow: "hidden", backgroundColor: "#EFE9DB" } as any,
+  previewThumbWrap: { position: "relative", height: 200 } as any,
+  previewThumbImg: { width: "100%" as any, height: "100%" as any },
+  previewGradient: { position: "absolute", bottom: 0, left: 0, right: 0, height: "60%", background: "linear-gradient(transparent, rgba(0,0,0,0.7))" } as any,
+  previewOverlay: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 14 } as any,
+  previewTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: "#FAF8F0", lineHeight: 21, marginBottom: 4 },
+  previewDomain: { fontFamily: fonts.bodyRegular, fontSize: 11, color: "rgba(250,248,240,0.7)" },
+  previewNoImg: { padding: 14 },
   // Note mode
   noteSection: { marginBottom: 8 },
-  locationRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 } as any,
+  locationRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, marginBottom: 4 } as any,
   locationInput: { fontFamily: fonts.bodyRegular, fontSize: 13, color: "#351101", flex: 1 },
   imageGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 } as any,
   imageThumb: { borderRadius: PG_RADIUS, overflow: "hidden", position: "relative" } as any,
-  imageRemove: {
-    position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11,
-    backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center",
-  } as any,
-  imageAdd: {
-    borderRadius: PG_RADIUS, borderWidth: 1.5, borderColor: "#C7BAA5", borderStyle: "dashed",
-    alignItems: "center", justifyContent: "center", gap: 6,
-  } as any,
+  imageRemove: { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" } as any,
+  imageAdd: { borderRadius: PG_RADIUS, borderWidth: 1.5, borderColor: "#C7BAA5", borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: 6 } as any,
   imageAddLabel: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#A09580" },
   // Add Card modal
   addCardOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" } as any,

@@ -2353,6 +2353,7 @@ export default function RoasterDetailPage() {
                     loading={composing}
                     repostTarget={repostTarget}
                     products={products}
+                    user={user}
                   />
                   {sortedPosts.length > 0 && <View style={s.dividerLight} />}
                 </>

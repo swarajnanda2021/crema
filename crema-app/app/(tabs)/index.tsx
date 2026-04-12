@@ -138,6 +138,7 @@ export default function FeedPage() {
               loading={false}
               repostTarget={repostTarget}
               products={productMap ? Array.from(productMap.values()) : []}
+              user={user}
             />
             {items.length > 0 && <View style={s.feedDivider} />}
           </>
@@ -474,6 +475,7 @@ function RoasterPostFeedCard({ post, router, onRepost }: { post: any; router: an
   };
 
   const isPinned = !!post.is_featured;
+  const isArticle = post.post_type === "article";
   const subtitleText = isPinned
     ? "Pinned"
     : post.post_type === "note"
@@ -515,10 +517,21 @@ function RoasterPostFeedCard({ post, router, onRepost }: { post: any; router: an
         </View>
       ) : null}
 
-      {/* Gallery — shared PostGallery with universal aspect ratio */}
-      <View style={rp.galleryWrap}>
-        <PostGallery images={post.images || (post.cover_image_url ? [post.cover_image_url] : [])} onPress={handleOpen} />
-      </View>
+      {/* Article thumbnail with title overlay OR note gallery */}
+      {isArticle && post.cover_image_url ? (
+        <Pressable onPress={handleOpen} style={rp.articleThumbWrap}>
+          <Image source={{ uri: resolveUploadUrl(post.cover_image_url) }} style={rp.articleThumbImg} contentFit="cover" />
+          <View style={rp.articleGradient} />
+          <View style={rp.articleOverlay}>
+            {post.title ? <Text style={rp.articleTitle} numberOfLines={2}>{post.title}</Text> : null}
+            <Text style={rp.articleDomain}>{post.external_url?.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]}</Text>
+          </View>
+        </Pressable>
+      ) : (
+        <View style={rp.galleryWrap}>
+          <PostGallery images={post.images || (post.cover_image_url ? [post.cover_image_url] : [])} onPress={handleOpen} />
+        </View>
+      )}
 
       {/* Action bar — heart, comment, repost, share */}
       <View style={rp.actionBar}>
@@ -549,11 +562,6 @@ function RoasterPostFeedCard({ post, router, onRepost }: { post: any; router: an
         >
           <ShareNodesIcon size={12} color="#D798DA" />
         </Pressable>
-        {post.external_url && (
-          <Pressable onPress={handleOpen} style={{ marginLeft: "auto" as any }}>
-            <Text style={rp.readMore}>Read →</Text>
-          </Pressable>
-        )}
       </View>
     </View>
   );
@@ -598,6 +606,43 @@ const rp = StyleSheet.create({
   },
   locationText: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
   galleryWrap: { paddingHorizontal: 20 },
+  // Article thumbnail with title overlay
+  articleThumbWrap: {
+    marginHorizontal: 20,
+    marginBottom: 14,
+    borderRadius: 8,
+    overflow: "hidden",
+    position: "relative",
+    height: 200,
+  } as any,
+  articleThumbImg: { width: "100%" as any, height: "100%" as any },
+  articleGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: "60%",
+    background: "linear-gradient(transparent, rgba(0,0,0,0.7))",
+  } as any,
+  articleOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 14,
+  } as any,
+  articleTitle: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 16,
+    color: "#FAF8F0",
+    lineHeight: 21,
+    marginBottom: 4,
+  },
+  articleDomain: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 11,
+    color: "rgba(250,248,240,0.7)",
+  },
   actionBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -607,7 +652,6 @@ const rp = StyleSheet.create({
   },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
   actionCount: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
-  readMore: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#351101", textDecorationLine: "underline" },
 });
 
 // ── Tasting Note Card (unchanged visual design) ───────────────────────────────
