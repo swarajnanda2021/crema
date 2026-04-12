@@ -228,6 +228,9 @@ _MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS idx_comment_likes_comment ON comment_likes(comment_id)",
     # Updated_at for post_comments (for edit tracking)
     "ALTER TABLE post_comments ADD COLUMN updated_at TEXT",
+    # User profile extra fields
+    "ALTER TABLE users ADD COLUMN favorite_drink TEXT",
+    "ALTER TABLE users ADD COLUMN favorite_cafe TEXT",
 ]
 
 

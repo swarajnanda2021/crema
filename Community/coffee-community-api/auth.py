@@ -60,6 +60,8 @@ def _user_to_dict(row) -> dict:
         "brewing_style": row["brewing_style"] if "brewing_style" in keys else None,
         "account_type": row["account_type"] if "account_type" in keys else "user",
         "roaster_slug": row["roaster_slug"] if "roaster_slug" in keys else None,
+        "favorite_drink": row["favorite_drink"] if "favorite_drink" in keys else None,
+        "favorite_cafe": row["favorite_cafe"] if "favorite_cafe" in keys else None,
         "created_at": row["created_at"],
     }
 
@@ -184,6 +186,10 @@ def update_profile(req: ProfileUpdateRequest, user=Depends(get_current_user)):
             updates["coffee_preference"] = req.coffee_preference
         if req.brewing_style is not None:
             updates["brewing_style"] = req.brewing_style
+        if req.favorite_drink is not None:
+            updates["favorite_drink"] = req.favorite_drink
+        if req.favorite_cafe is not None:
+            updates["favorite_cafe"] = req.favorite_cafe
 
         if not updates:
             raise HTTPException(422, "No fields to update")

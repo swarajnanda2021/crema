@@ -36,6 +36,8 @@ class ProfileUpdateRequest(BaseModel):
     location: Optional[str] = Field(None, max_length=100)
     coffee_preference: Optional[str] = Field(None, pattern=r"^(light|medium|dark)$")
     brewing_style: Optional[str] = Field(None, pattern=r"^(espresso|filter|both)$")
+    favorite_drink: Optional[str] = Field(None, max_length=100)
+    favorite_cafe: Optional[str] = Field(None, max_length=100)
 
 
 class AuthResponse(BaseModel):

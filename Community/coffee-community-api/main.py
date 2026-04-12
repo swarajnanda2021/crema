@@ -568,14 +568,57 @@ def get_followers(slug: str):
 
 @app.get("/api/me/following")
 def get_my_following(user=Depends(get_current_user)):
-    """Return list of roaster slugs the current user follows."""
+    """Return detailed list of who the current user follows (roasters + users)."""
     db = get_db()
     try:
         rows = db.execute(
             "SELECT roaster_slug FROM follows WHERE follower_user_id = ?",
             (user["id"],),
         ).fetchall()
-        return {"following": [r["roaster_slug"] for r in rows]}
+
+        following = []
+        for r in rows:
+            slug = r["roaster_slug"]
+            if slug.startswith("user_"):
+                # User follow — look up by user ID
+                uid = slug.replace("user_", "")
+                u = db.execute(
+                    "SELECT id, username, display_name, avatar_url, account_type, roaster_slug FROM users WHERE id = ?",
+                    (uid,),
+                ).fetchone()
+                if u:
+                    follower_count = db.execute("SELECT COUNT(*) as c FROM follows WHERE roaster_slug = ?", (slug,)).fetchone()["c"]
+                    following.append({
+                        "slug": slug,
+                        "username": u["username"],
+                        "display_name": u["display_name"],
+                        "avatar_url": u["avatar_url"],
+                        "account_type": u["account_type"],
+                        "roaster_slug": u["roaster_slug"],
+                        "follower_count": follower_count,
+                        "is_roaster": False,
+                    })
+            else:
+                # Roaster follow — look up roaster profile + user
+                u = db.execute(
+                    "SELECT id, username, display_name, avatar_url FROM users WHERE roaster_slug = ?",
+                    (slug,),
+                ).fetchone()
+                follower_count = db.execute("SELECT COUNT(*) as c FROM follows WHERE roaster_slug = ?", (slug,)).fetchone()["c"]
+                # Try roaster profile for logo
+                rp = db.execute("SELECT logo_url FROM roaster_profiles WHERE roaster_slug = ?", (slug,)).fetchone()
+                following.append({
+                    "slug": slug,
+                    "username": u["username"] if u else slug,
+                    "display_name": u["display_name"] if u else slug.replace("-", " ").title(),
+                    "avatar_url": (rp["logo_url"] if rp and rp["logo_url"] else u["avatar_url"]) if u else None,
+                    "account_type": "roaster",
+                    "roaster_slug": slug,
+                    "follower_count": follower_count,
+                    "is_roaster": True,
+                })
+
+        return {"following": following, "slugs": [r["roaster_slug"] for r in rows]}
     finally:
         db.close()
 
