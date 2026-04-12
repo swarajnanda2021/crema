@@ -342,7 +342,8 @@ def get_posts_timeline(limit: int = 30, offset: int = 0, user=Depends(get_option
     """
     db = get_db()
     try:
-        # Tasting notes
+        # Tasting notes that DON'T have a corresponding roaster_post yet
+        # (migrated ones already exist as roaster_posts with tasting_note_id set)
         notes_rows = db.execute("""
             SELECT tn.id, tn.product_id, tn.comment, tn.flavor_tags,
                    tn.brew_method, tn.drink_style,
@@ -351,6 +352,10 @@ def get_posts_timeline(limit: int = 30, offset: int = 0, user=Depends(get_option
                    u.username, u.display_name, u.avatar_url, u.location
             FROM tasting_notes tn
             JOIN users u ON tn.user_id = u.id
+            WHERE tn.id NOT IN (
+                SELECT tasting_note_id FROM roaster_posts
+                WHERE tasting_note_id IS NOT NULL
+            )
             ORDER BY tn.created_at DESC
             LIMIT 200
         """).fetchall()
@@ -380,7 +385,7 @@ def get_posts_timeline(limit: int = 30, offset: int = 0, user=Depends(get_option
                 "sort_key": r["created_at"],
             })
 
-        # Roaster posts
+        # All posts (articles, notes, reposts, tasting_note posts)
         posts_rows = db.execute(
             _POST_SELECT + " ORDER BY rp.published_at DESC LIMIT 200"
         ).fetchall()
