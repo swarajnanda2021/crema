@@ -517,8 +517,13 @@ function RoasterPostCard({
             <Text style={pc.repostCardTime}>{timeAgo(post.original_post.published_at)}</Text>
           </View>
           <Text style={pc.repostCardTeaser} numberOfLines={3}>{post.original_post.teaser}</Text>
-          {post.original_post.cover_image_url && (
-            <Image source={{ uri: resolveUploadUrl(post.original_post.cover_image_url) }} style={pc.repostCardThumb} contentFit="cover" />
+          {(post.original_post.images?.length > 0 || post.original_post.cover_image_url) && (
+            <View style={pc.repostCardGallery}>
+              <PhotoGallery
+                images={post.original_post.images?.length > 0 ? post.original_post.images : [post.original_post.cover_image_url]}
+                onPress={() => { if (post.original_post.external_url) Linking.openURL(post.original_post.external_url); }}
+              />
+            </View>
           )}
         </View>
       )}
@@ -823,7 +828,7 @@ const pc = StyleSheet.create({
   repostCardAuthor: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#351101", flex: 1 },
   repostCardTime: { fontFamily: fonts.bodyRegular, fontSize: 10, color: "#A09580" },
   repostCardTeaser: { fontFamily: fonts.bodyRegular, fontSize: 13, color: "#684F44", lineHeight: 18 },
-  repostCardThumb: { width: "100%" as any, height: 120, borderRadius: 6, marginTop: 8 },
+  repostCardGallery: { marginTop: 8 },
   // Article thumbnail — full column width with white rounded title box
   articleThumbWrap: {
     marginBottom: 14,
