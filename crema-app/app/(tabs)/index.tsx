@@ -128,16 +128,13 @@ export default function FeedPage() {
           <Text style={s.emptyText}>Nothing in the feed yet. Taste some coffees!</Text>
         ) : (
           items.map((item: any, idx: number) => {
-            if (item.type === "roaster_post") {
-              return (
-                <RoasterPostFeedCard
-                  key={`rp-${item.id}-${idx}`}
-                  post={item}
-                  router={router}
-                />
-              );
-            }
-            return (
+            const card = item.type === "roaster_post" ? (
+              <RoasterPostFeedCard
+                key={`rp-${item.id}-${idx}`}
+                post={item}
+                router={router}
+              />
+            ) : (
               <TastingNoteCard
                 key={`tn-${item.id}-${idx}`}
                 item={item}
@@ -146,6 +143,12 @@ export default function FeedPage() {
                 social={social}
                 isLoggedIn={!!user}
               />
+            );
+            return (
+              <View key={`wrap-${item.id}-${idx}`}>
+                {card}
+                {idx < items.length - 1 && <View style={s.feedDivider} />}
+              </View>
             );
           })
         )}
@@ -759,6 +762,8 @@ const s = StyleSheet.create({
     paddingBottom: 100,
   },
   emptyText: { textAlign: "center", paddingVertical: 64, fontFamily: fonts.bodyRegular, fontSize: 14, color: colors.textSecondary },
+  // Figma 135:1664 — #D7D1C4 separator line between posts
+  feedDivider: { height: 1, backgroundColor: "#D7D1C4" },
 
   // FAB — same as roaster profile (bottom-right floating + button)
   fab: {
