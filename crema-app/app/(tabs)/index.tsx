@@ -691,7 +691,7 @@ const rp = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#D7D1C4",
     borderRadius: 8,
-    backgroundColor: "#EFE9DB",
+    backgroundColor: "#FEFDFB",
     padding: 12,
   },
   repostCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 } as any,
