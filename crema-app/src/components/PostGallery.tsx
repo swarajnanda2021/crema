@@ -17,7 +17,7 @@ export const PG_GAP = 10;
 export const PG_RADIUS = 5;
 
 export function isTastingNoteEntry(img: string) {
-  return img.startsWith('{"type":"tasting_note"');
+  return img.startsWith('{"type":"tasting_note"') || img.startsWith('{"type": "tasting_note"');
 }
 
 function GallerySlot({

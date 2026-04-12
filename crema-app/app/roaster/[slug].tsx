@@ -133,7 +133,7 @@ const PG_GAP = 10;
 const PG_RADIUS = 5;
 
 function isTastingNoteEntry(img: string) {
-  return img.startsWith('{"type":"tasting_note"');
+  return img.startsWith('{"type":') && img.includes('"tasting_note"');
 }
 
 function GallerySlot({ entry, width, height, onPress }: { entry: string; width: number; height: number; onPress?: () => void }) {
@@ -300,7 +300,7 @@ function RoasterPostCard({
   const [tnScores, setTnScores] = useState({ acidity: 3, body: 3, sweetness: 3, aftertaste: 3 });
 
   const isArticle = post.post_type === "article";
-  const hasTastingNote = editImages.some((img) => img.startsWith('{"type":"tasting_note"'));
+  const hasTastingNote = editImages.some((img) => img.startsWith('{"type":') && img.includes('"tasting_note"'));
   const canAddImage = !isArticle && editImages.length < 6;
 
   // Edit thumbnails: 3-column layout, same aspect ratio as gallery's 3-column height
@@ -503,7 +503,7 @@ function RoasterPostCard({
       {isEditingPost ? (
         <View style={pc.editImageGrid} onLayout={(e) => setEditGridW(e.nativeEvent.layout.width)}>
           {editImages.map((entry, idx) => {
-            const isTN = entry.startsWith('{"type":"tasting_note"');
+            const isTN = entry.startsWith('{"type":') && entry.includes('"tasting_note"');
             return (
               <View key={idx} style={[pc.editImageThumb, { width: editThumbW, height: editThumbH }]}>
                 {isTN ? (
@@ -631,7 +631,7 @@ function RoasterPostCard({
                             });
                             // Tasting note always goes first
                             setEditImages((prev) => {
-                              const filtered = prev.filter((e) => !e.startsWith('{"type":"tasting_note"'));
+                              const filtered = prev.filter((e) => !(e.startsWith('{"type":') && e.includes('"tasting_note"')));
                               return [noteData, ...filtered];
                             });
                             setShowAddCardModal(false);
