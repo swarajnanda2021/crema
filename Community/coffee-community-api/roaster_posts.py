@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from database import get_db
+from notifications import create_notification
 from auth import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/api", tags=["Roaster Posts"])
@@ -204,6 +205,11 @@ def create_post(req: RoasterPostRequest, user=Depends(get_current_user)):
              post_type, req.location, images_json_str,
              repost_of_id, repost_comment, req.tasting_note_id),
         )
+        # Notify original post author on repost
+        if repost_of_id:
+            orig = db.execute("SELECT user_id FROM roaster_posts WHERE id = ?", (repost_of_id,)).fetchone()
+            if orig:
+                create_notification(db, orig["user_id"], "repost", user["id"], post_id=repost_of_id)
         db.commit()
         row = db.execute(
             _POST_SELECT + " WHERE rp.id = ?", (cursor.lastrowid,)

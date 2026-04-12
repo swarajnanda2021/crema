@@ -46,6 +46,7 @@ from click_tracking import router as clicks_router
 from dictionary import router as dictionary_router
 from social import router as social_router
 from roaster_posts import router as roaster_posts_router
+from notifications import router as notifications_router, create_notification
 
 app = FastAPI(
     title="Crema API",
@@ -69,6 +70,7 @@ app.include_router(clicks_router)
 app.include_router(dictionary_router)
 app.include_router(social_router)
 app.include_router(roaster_posts_router)
+app.include_router(notifications_router)
 
 # Initialize database on startup
 init_db()
@@ -553,6 +555,14 @@ def toggle_follow(slug: str, user=Depends(get_current_user)):
                 "INSERT INTO follows (follower_user_id, roaster_slug, created_at) VALUES (?, ?, ?)",
                 (user["id"], slug, now),
             )
+            # Notify the followed user/roaster
+            if slug.startswith("user_"):
+                target_uid = int(slug.replace("user_", ""))
+                create_notification(db, target_uid, "follow", user["id"])
+            else:
+                target_row = db.execute("SELECT id FROM users WHERE roaster_slug = ?", (slug,)).fetchone()
+                if target_row:
+                    create_notification(db, target_row["id"], "follow", user["id"])
             db.commit()
             count = db.execute("SELECT COUNT(*) as c FROM follows WHERE roaster_slug = ?", (slug,)).fetchone()["c"]
             return {"following": True, "follower_count": count}

@@ -10,11 +10,14 @@
 import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useState } from "react";
-import { User, Search, X } from "lucide-react-native";
+import { User, Search, X, Bell } from "lucide-react-native";
 import { colors, fonts, NAVBAR_HEIGHT } from "../theme/colors";
 import { useAuth } from "../hooks/useAuth";
+import { useNotifications } from "../hooks/useNotifications";
+import { CroppedAvatar } from "./PostFeedCard";
 import CremaLogo from "./CremaLogo";
 import ProfileDropdown from "./ProfileDropdown";
+import NotificationsDropdown from "./NotificationsDropdown";
 import ProfileEditModal from "./ProfileEditModal";
 
 export default function Navbar() {
@@ -24,7 +27,9 @@ export default function Navbar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const { unreadCount } = useNotifications(!!user);
 
   const handleSearch = () => {
     if (query.trim()) {
@@ -78,12 +83,38 @@ export default function Navbar() {
                 <Search size={24} color="#E7D5B8" strokeWidth={1.5} />
               </Pressable>
 
-              {user ? (
+              {/* Bell icon with unread badge */}
+              {user && (
                 <Pressable
-                  onPress={() => setShowDropdown((v) => !v)}
+                  onPress={() => { setShowNotifications((v) => !v); setShowDropdown(false); }}
                   style={s.iconBtn}
                 >
-                  <User size={24} color="#E7D5B8" strokeWidth={1.5} />
+                  <Bell size={22} color="#E7D5B8" strokeWidth={1.5} />
+                  {unreadCount > 0 && (
+                    <View style={s.badge}>
+                      <Text style={s.badgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+                    </View>
+                  )}
+                </Pressable>
+              )}
+
+              {user ? (
+                <Pressable
+                  onPress={() => { setShowDropdown((v) => !v); setShowNotifications(false); }}
+                  style={s.iconBtn}
+                >
+                  {user.avatar_url ? (
+                    <CroppedAvatar
+                      url={user.avatar_url}
+                      cropX={user.avatar_crop_x}
+                      cropY={user.avatar_crop_y}
+                      zoom={user.avatar_zoom}
+                      size={28}
+                      style={{ borderWidth: 1.5, borderColor: "#E7D5B8" }}
+                    />
+                  ) : (
+                    <User size={24} color="#E7D5B8" strokeWidth={1.5} />
+                  )}
                 </Pressable>
               ) : backendAvailable ? (
                 <Pressable onPress={() => router.push("/auth")} style={s.iconBtn}>
@@ -94,6 +125,12 @@ export default function Navbar() {
           )}
         </View>
       </View>
+
+      {/* Notifications dropdown */}
+      <NotificationsDropdown
+        visible={showNotifications}
+        onClose={() => setShowNotifications(false)}
+      />
 
       {/* Profile dropdown — rendered OUTSIDE the navbar View to avoid RNW overflow clip */}
       <ProfileDropdown
@@ -163,7 +200,20 @@ const s = StyleSheet.create({
     flex: 1,
   },
   // Figma: 24×24 icons
-  iconBtn: {},
+  iconBtn: { position: "relative" } as any,
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -6,
+    backgroundColor: "#D798DA",
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  } as any,
+  badgeText: { fontFamily: fonts.bodySemiBold, fontSize: 9, color: "#351101" },
 
   searchContainer: {
     flexDirection: "row",

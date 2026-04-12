@@ -7,6 +7,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Header
 from database import get_db
 from auth import get_current_user
+from notifications import create_notification
 
 router = APIRouter(prefix="/api", tags=["Social"])
 
@@ -248,6 +249,10 @@ def toggle_post_like(post_id: int, user=Depends(get_current_user)):
                 "INSERT INTO post_likes (user_id, post_id, created_at) VALUES (?, ?, ?)",
                 (user["id"], post_id, _now()),
             )
+            # Notify post author
+            post_row = db.execute("SELECT user_id FROM roaster_posts WHERE id = ?", (post_id,)).fetchone()
+            if post_row:
+                create_notification(db, post_row["user_id"], "like", user["id"], post_id=post_id)
             db.commit()
             count = db.execute("SELECT COUNT(*) as c FROM post_likes WHERE post_id = ?", (post_id,)).fetchone()["c"]
             return {"liked": True, "like_count": count}
@@ -321,6 +326,10 @@ def create_post_comment(post_id: int, body: dict, user=Depends(get_current_user)
             "INSERT INTO post_comments (user_id, post_id, comment, created_at) VALUES (?, ?, ?, ?)",
             (user["id"], post_id, comment, now),
         )
+        # Notify post author
+        post_row = db.execute("SELECT user_id FROM roaster_posts WHERE id = ?", (post_id,)).fetchone()
+        if post_row:
+            create_notification(db, post_row["user_id"], "comment", user["id"], post_id=post_id, comment_id=cursor.lastrowid)
         db.commit()
         return {
             "id": cursor.lastrowid,
@@ -400,6 +409,11 @@ def toggle_comment_like(comment_id: int, user=Depends(get_current_user)):
                 "INSERT INTO comment_likes (user_id, comment_id, created_at) VALUES (?, ?, ?)",
                 (user["id"], comment_id, _now()),
             )
+            # Notify comment author
+            comment_row = db.execute("SELECT user_id, post_id FROM post_comments WHERE id = ?", (comment_id,)).fetchone()
+            if comment_row:
+                create_notification(db, comment_row["user_id"], "comment_like", user["id"],
+                                   post_id=comment_row["post_id"], comment_id=comment_id)
             db.commit()
             count = db.execute("SELECT COUNT(*) as c FROM comment_likes WHERE comment_id = ?", (comment_id,)).fetchone()["c"]
             return {"liked": True, "like_count": count}

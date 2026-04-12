@@ -12,6 +12,7 @@ import { Settings, PenLine, LogOut, UserPlus } from "lucide-react-native";
 import { colors, fonts, cardShadow } from "../theme/colors";
 import { resolveUploadUrl } from "../api/client";
 import { useAuth, SavedAccount } from "../hooks/useAuth";
+import { CroppedAvatar } from "./PostFeedCard";
 
 interface Props {
   visible: boolean;
@@ -115,10 +116,12 @@ export default function ProfileDropdown({ visible, onClose, onEditProfile }: Pro
         {/* ── Current account header — clickable, goes to profile ── */}
         <Pressable onPress={handleManage} style={({ pressed }) => [s.accountHeader, pressed && s.menuItemPressed]}>
           {user.avatar_url ? (
-            <Image
-              source={{ uri: resolveUploadUrl(user.avatar_url) }}
-              style={s.avatarLarge}
-              contentFit="cover"
+            <CroppedAvatar
+              url={user.avatar_url}
+              cropX={user.avatar_crop_x}
+              cropY={user.avatar_crop_y}
+              zoom={user.avatar_zoom}
+              size={48}
             />
           ) : (
             <View style={s.avatarLargeFallback}>
@@ -166,7 +169,7 @@ export default function ProfileDropdown({ visible, onClose, onEditProfile }: Pro
                 disabled={switching}
               >
                 {acct.avatar_url ? (
-                  <Image source={{ uri: resolveUploadUrl(acct.avatar_url) }} style={s.avatarSmall} contentFit="cover" />
+                  <CroppedAvatar url={acct.avatar_url} size={32} />
                 ) : (
                   <View style={s.avatarSmallFallback}>
                     <Text style={s.avatarSmallInitials}>

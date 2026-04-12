@@ -238,6 +238,18 @@ _MIGRATIONS = [
     # Roaster hero crop X + zoom
     "ALTER TABLE roaster_profiles ADD COLUMN hero_crop_x REAL DEFAULT 50",
     "ALTER TABLE roaster_profiles ADD COLUMN hero_zoom REAL DEFAULT 1",
+    # Notifications
+    """CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        type TEXT NOT NULL,
+        actor_id INTEGER NOT NULL REFERENCES users(id),
+        post_id INTEGER,
+        comment_id INTEGER,
+        read INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read)",
 ]
 
 
