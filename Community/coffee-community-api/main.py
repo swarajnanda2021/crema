@@ -485,10 +485,23 @@ def get_followers(slug: str):
     db = get_db()
     try:
         rows = db.execute(
-            "SELECT u.username, u.display_name, u.avatar_url, u.location FROM follows f JOIN users u ON f.follower_user_id = u.id WHERE f.roaster_slug = ?",
+            "SELECT u.username, u.display_name, u.avatar_url, u.location, u.account_type, u.roaster_slug FROM follows f JOIN users u ON f.follower_user_id = u.id WHERE f.roaster_slug = ?",
             (slug,),
         ).fetchall()
         return {"follower_count": len(rows), "followers": [dict(r) for r in rows]}
+    finally:
+        db.close()
+
+@app.get("/api/me/following")
+def get_my_following(user=Depends(get_current_user)):
+    """Return list of roaster slugs the current user follows."""
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT roaster_slug FROM follows WHERE follower_user_id = ?",
+            (user["id"],),
+        ).fetchall()
+        return {"following": [r["roaster_slug"] for r in rows]}
     finally:
         db.close()
 

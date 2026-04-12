@@ -1,20 +1,16 @@
 """
-Roaster Posts: articles / journal entries published by roaster accounts.
+Posts: universal post system for all users (roasters + buyers).
 
-Each roaster account can post articles with:
-  - title (required)
-  - teaser: 300-char excerpt shown in the feed (required)
-  - external_url: link to the full article (optional)
-  - cover_image_url: hero image (optional)
-  - published_at: ISO date string, defaults to now
+Post types: article, note, repost, tasting_note
 
 Endpoints:
-  POST   /api/roaster-posts                        — create (roaster accounts only)
-  GET    /api/roasters/{slug}/posts                — list all posts for a roaster
-  GET    /api/roasters/{slug}/posts/featured       — get up to 2 featured posts (public, max 2)
-  PUT    /api/roaster-posts/{id}/feature           — toggle featured status (roaster only)
-  DELETE /api/roaster-posts/{id}                   — delete own post (roaster only)
-  GET    /api/posts-timeline                       — combined feed: tasting notes + roaster posts
+  POST   /api/roaster-posts                        — create post (any authenticated user)
+  PUT    /api/roaster-posts/{id}                   — edit own post
+  GET    /api/roasters/{slug}/posts                — list posts for a roaster/user
+  PUT    /api/roaster-posts/{id}/pin               — toggle pinned (max 1)
+  DELETE /api/roaster-posts/{id}                   — delete own post
+  GET    /api/posts-timeline                       — combined feed
+  GET    /api/users/{username}/posts               — list posts for a user
 """
 
 import datetime
@@ -31,15 +27,30 @@ router = APIRouter(prefix="/api", tags=["Roaster Posts"])
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
+VALID_POST_TYPES = {"article", "note", "repost", "tasting_note"}
+MAX_IMAGES_NON_ARTICLE = 6
+
+
 class RoasterPostRequest(BaseModel):
     title: str
     teaser: str
     external_url: Optional[str] = None
     cover_image_url: Optional[str] = None
-    published_at: Optional[str] = None  # ISO date string; defaults to now
-    post_type: Optional[str] = "article"  # "article" or "note"
-    location: Optional[str] = None       # for note posts
-    images: Optional[list] = None        # list of image URLs (up to N)
+    published_at: Optional[str] = None
+    post_type: Optional[str] = "note"  # article | note | repost | tasting_note
+    location: Optional[str] = None
+    images: Optional[list] = None
+    repost_of_id: Optional[int] = None
+    repost_comment: Optional[str] = None
+    tasting_note_id: Optional[int] = None
+
+
+class PostUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    teaser: Optional[str] = None
+    external_url: Optional[str] = None
+    location: Optional[str] = None
+    images: Optional[list] = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -64,6 +75,7 @@ def _parse_images(r) -> list:
 
 
 def _row_to_post(r) -> dict:
+    keys = r.keys() if hasattr(r, "keys") else []
     return {
         "id": r["id"],
         "type": "roaster_post",
@@ -78,11 +90,15 @@ def _row_to_post(r) -> dict:
         "cover_image_url": r["cover_image_url"],
         "published_at": r["published_at"] or r["created_at"],
         "created_at": r["created_at"],
-        "is_featured": bool(r["is_featured"]) if "is_featured" in r.keys() else False,
-        "featured_order": r["featured_order"] if "featured_order" in r.keys() else None,
-        "post_type": r["post_type"] if "post_type" in r.keys() else "article",
-        "location": r["location"] if "location" in r.keys() else None,
+        "updated_at": r["updated_at"] if "updated_at" in keys else None,
+        "is_featured": bool(r["is_featured"]) if "is_featured" in keys else False,
+        "featured_order": r["featured_order"] if "featured_order" in keys else None,
+        "post_type": r["post_type"] if "post_type" in keys else "article",
+        "location": r["location"] if "location" in keys else None,
         "images": _parse_images(r),
+        "repost_of_id": r["repost_of_id"] if "repost_of_id" in keys else None,
+        "repost_comment": r["repost_comment"] if "repost_comment" in keys else None,
+        "tasting_note_id": r["tasting_note_id"] if "tasting_note_id" in keys else None,
     }
 
 
@@ -97,16 +113,9 @@ _POST_SELECT = """
 
 @router.post("/roaster-posts", status_code=201)
 def create_post(req: RoasterPostRequest, user=Depends(get_current_user)):
-    """Create a roaster post. Only roaster accounts may post."""
-    if user.get("account_type") != "roaster":
-        raise HTTPException(403, "Only roaster accounts can create posts")
-
-    roaster_slug = user.get("roaster_slug")
-    if not roaster_slug:
-        raise HTTPException(400, "Your account has no roaster_slug configured")
-
-    if not req.title.strip():
-        raise HTTPException(422, "title is required")
+    """Create a post. Any authenticated user can post."""
+    # Use roaster_slug if available, otherwise synthetic user slug
+    roaster_slug = user.get("roaster_slug") or f"user_{user['id']}"
 
     teaser = req.teaser.strip()
     if not teaser:
@@ -114,31 +123,121 @@ def create_post(req: RoasterPostRequest, user=Depends(get_current_user)):
     if len(teaser) > 300:
         raise HTTPException(422, "teaser must be 300 characters or fewer")
 
+    post_type = req.post_type if req.post_type in VALID_POST_TYPES else "note"
+
+    title = (req.title or "").strip()
+    if post_type == "article" and not title:
+        raise HTTPException(422, "title is required for article posts")
+    if not title:
+        title = teaser[:60]
+
+    # Image limit for non-article posts
+    images = [u for u in (req.images or []) if u and u.strip()]
+    if post_type != "article" and len(images) > MAX_IMAGES_NON_ARTICLE:
+        raise HTTPException(422, f"Maximum {MAX_IMAGES_NON_ARTICLE} images allowed")
+
+    # Repost validation
+    repost_of_id = None
+    repost_comment = None
+    if post_type == "repost":
+        if not req.repost_of_id:
+            raise HTTPException(422, "repost_of_id is required for reposts")
+        repost_of_id = req.repost_of_id
+        repost_comment = req.repost_comment
+
     now = _now()
     published_at = (req.published_at or now).strip() or now
+    images_json_str = json.dumps(images) if images else None
+    cover = images[0] if images else req.cover_image_url
 
     db = get_db()
     try:
-        post_type = req.post_type if req.post_type in ("article", "note") else "article"
-        # Build images: use req.images if provided, else fall back to cover_image_url
-        images = [u for u in (req.images or []) if u and u.strip()]
-        images_json_str = json.dumps(images) if images else None
-        # cover_image_url: first image for backward compat
-        cover = images[0] if images else req.cover_image_url
+        # Validate repost target exists
+        if repost_of_id:
+            orig = db.execute("SELECT id FROM roaster_posts WHERE id = ?", (repost_of_id,)).fetchone()
+            if not orig:
+                raise HTTPException(404, "Original post not found for repost")
+
         cursor = db.execute(
             """INSERT INTO roaster_posts
                (roaster_slug, user_id, title, teaser, external_url, cover_image_url,
-                published_at, created_at, is_featured, featured_order, post_type, location, images_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?)""",
-            (roaster_slug, user["id"], req.title.strip(), teaser,
+                published_at, created_at, is_featured, featured_order, post_type, location,
+                images_json, repost_of_id, repost_comment, tasting_note_id, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, ?, ?, NULL)""",
+            (roaster_slug, user["id"], title, teaser,
              req.external_url, cover, published_at, now,
-             post_type, req.location, images_json_str),
+             post_type, req.location, images_json_str,
+             repost_of_id, repost_comment, req.tasting_note_id),
         )
         db.commit()
         row = db.execute(
             _POST_SELECT + " WHERE rp.id = ?", (cursor.lastrowid,)
         ).fetchone()
         return _row_to_post(row)
+    finally:
+        db.close()
+
+
+@router.put("/roaster-posts/{post_id}")
+def update_post(post_id: int, req: PostUpdateRequest, user=Depends(get_current_user)):
+    """Edit an existing post. Only the author can edit."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT * FROM roaster_posts WHERE id = ?", (post_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Post not found")
+        if row["user_id"] != user["id"]:
+            raise HTTPException(403, "Not your post")
+
+        # Merge: use new value if provided, else keep existing
+        title = req.title.strip() if req.title is not None else row["title"]
+        teaser = req.teaser.strip() if req.teaser is not None else row["teaser"]
+        external_url = req.external_url if req.external_url is not None else row["external_url"]
+        location = req.location if req.location is not None else row["location"]
+
+        if teaser and len(teaser) > 300:
+            raise HTTPException(422, "teaser must be 300 characters or fewer")
+
+        # Images
+        if req.images is not None:
+            images = [u for u in req.images if u and u.strip()]
+            post_type = row["post_type"] if "post_type" in row.keys() else "article"
+            if post_type != "article" and len(images) > MAX_IMAGES_NON_ARTICLE:
+                raise HTTPException(422, f"Maximum {MAX_IMAGES_NON_ARTICLE} images allowed")
+            images_json_str = json.dumps(images) if images else None
+            cover = images[0] if images else None
+        else:
+            images_json_str = row["images_json"] if "images_json" in row.keys() else None
+            cover = row["cover_image_url"]
+
+        db.execute(
+            """UPDATE roaster_posts SET title=?, teaser=?, external_url=?, location=?,
+               images_json=?, cover_image_url=?, updated_at=? WHERE id=?""",
+            (title, teaser, external_url, location, images_json_str, cover, _now(), post_id),
+        )
+        db.commit()
+        updated = db.execute(_POST_SELECT + " WHERE rp.id = ?", (post_id,)).fetchone()
+        return _row_to_post(updated)
+    finally:
+        db.close()
+
+
+@router.get("/users/{username}/posts")
+def get_user_posts(username: str, limit: int = 20, offset: int = 0):
+    """List all posts by a specific user, newest first."""
+    db = get_db()
+    try:
+        user_row = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        if not user_row:
+            raise HTTPException(404, "User not found")
+        rows = db.execute(
+            _POST_SELECT + " WHERE rp.user_id = ? ORDER BY rp.published_at DESC LIMIT ? OFFSET ?",
+            (user_row["id"], limit, offset),
+        ).fetchall()
+        total = db.execute(
+            "SELECT COUNT(*) as c FROM roaster_posts WHERE user_id = ?", (user_row["id"],)
+        ).fetchone()["c"]
+        return {"posts": [_row_to_post(r) for r in rows], "total": total}
     finally:
         db.close()
 
@@ -178,18 +277,13 @@ def get_roaster_posts(slug: str, limit: int = 20, offset: int = 0):
         db.close()
 
 
-@router.put("/roaster-posts/{post_id}/feature")
-def toggle_feature(post_id: int, user=Depends(get_current_user)):
+@router.put("/roaster-posts/{post_id}/pin")
+def toggle_pin(post_id: int, user=Depends(get_current_user)):
     """
-    Toggle featured status for a roaster post.
-    - If not featured: feature it (assign next available slot 1 or 2).
-    - If featured: unfeature it.
-    - Max 2 featured posts per roaster.
+    Toggle pinned status for a roaster post.
+    Only 1 post can be pinned at a time — pinning a new one unpins the old.
     """
-    if user.get("account_type") != "roaster":
-        raise HTTPException(403, "Only roaster accounts can feature posts")
-
-    roaster_slug = user.get("roaster_slug")
+    roaster_slug = user.get("roaster_slug") or f"user_{user['id']}"
     db = get_db()
     try:
         row = db.execute("SELECT * FROM roaster_posts WHERE id = ?", (post_id,)).fetchone()
@@ -199,30 +293,26 @@ def toggle_feature(post_id: int, user=Depends(get_current_user)):
             raise HTTPException(403, "Not your post")
 
         if row["is_featured"]:
-            # Unfeature it
+            # Unpin it
             db.execute(
                 "UPDATE roaster_posts SET is_featured = 0, featured_order = NULL WHERE id = ?",
-                (post_id,)
+                (post_id,),
             )
             db.commit()
-            return {"featured": False, "featured_order": None}
+            return {"pinned": False}
         else:
-            # Check current featured count
-            featured = db.execute(
-                "SELECT featured_order FROM roaster_posts WHERE roaster_slug = ? AND is_featured = 1 ORDER BY featured_order ASC",
-                (roaster_slug,)
-            ).fetchall()
-            used_orders = {r["featured_order"] for r in featured if r["featured_order"]}
-            if len(used_orders) >= 2:
-                raise HTTPException(400, "You can only feature 2 posts. Unfeature one first.")
-            # Pick the next available slot (1 or 2)
-            next_order = next(s for s in (1, 2) if s not in used_orders)
+            # Unpin any currently pinned post for this roaster
             db.execute(
-                "UPDATE roaster_posts SET is_featured = 1, featured_order = ? WHERE id = ?",
-                (next_order, post_id)
+                "UPDATE roaster_posts SET is_featured = 0, featured_order = NULL WHERE roaster_slug = ? AND is_featured = 1",
+                (roaster_slug,),
+            )
+            # Pin this one
+            db.execute(
+                "UPDATE roaster_posts SET is_featured = 1, featured_order = 1 WHERE id = ?",
+                (post_id,),
             )
             db.commit()
-            return {"featured": True, "featured_order": next_order}
+            return {"pinned": True}
     finally:
         db.close()
 

@@ -17,7 +17,7 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, Stack, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import Svg, { Circle, G, Path } from "react-native-svg";
-import { Plus, X, PenLine, Camera, MapPin, Check, ChevronLeft } from "lucide-react-native";
+import { Plus, X, PenLine, Camera, MapPin, Check } from "lucide-react-native";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
@@ -35,8 +35,13 @@ const liningNumerals = Platform.OS === "web"
 
 // ── Icons (exact Figma SVG paths, inline — no external asset server) ─────────
 
+// Figma 109:8684 — back chevron 7×14, #C7BAA5
 function BackArrowIcon() {
-  return <ChevronLeft size={14} color="#351101" strokeWidth={2.5} />;
+  return (
+    <Svg width={7} height={14} viewBox="0 0 7 14" fill="none">
+      <Path d="M6 1L1 7L6 13" stroke="#C7BAA5" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
 }
 
 // Figma 249:3438 — location pin with inner circle
@@ -98,13 +103,7 @@ function CommentIcon({ color = "#A09580" }: { color?: string }) {
   );
 }
 
-function StarIcon({ filled = false }: { filled?: boolean }) {
-  return (
-    <Svg width={14} height={14} viewBox="0 0 24 24" fill={filled ? "#D798DA" : "none"}>
-      <Path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke={filled ? "#D798DA" : "#A09580"} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
-}
+// StarIcon removed — replaced by three-dot pin menu
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -281,19 +280,66 @@ function RoasterPostCard({
   roasterName,
   avatarUrl,
   city,
-  onFeatureToggle,
   isOwner,
+  onPin,
+  onDelete,
+  onEdit,
 }: {
   post: any;
   roasterName: string;
   avatarUrl?: string | null;
   city?: string | null;
-  onFeatureToggle?: (id: number) => void;
   isOwner?: boolean;
+  onPin?: (id: number) => void;
+  onDelete?: (id: number) => void;
+  onEdit?: (id: number, data: any) => Promise<void>;
 }) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [commentCount] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // ── Edit mode state ──
+  const [isEditingPost, setIsEditingPost] = useState(false);
+  const [editTeaser, setEditTeaser] = useState(post.teaser);
+  const [editTitle, setEditTitle] = useState(post.title);
+  const [editUrl, setEditUrl] = useState(post.external_url || "");
+  const [editLocation, setEditLocation] = useState(post.location || "");
+  const [editImages, setEditImages] = useState<string[]>(post.images || []);
+  const [editSaving, setEditSaving] = useState(false);
+  const [showImgUpload, setShowImgUpload] = useState(false);
+
+  const isArticle = post.post_type === "article";
+  const canAddImage = !isArticle && editImages.length < 6;
+
+  const handleStartEdit = () => {
+    setEditTeaser(post.teaser);
+    setEditTitle(post.title);
+    setEditUrl(post.external_url || "");
+    setEditLocation(post.location || "");
+    setEditImages(post.images || []);
+    setIsEditingPost(true);
+  };
+
+  const handleCancelEdit = () => setIsEditingPost(false);
+
+  const handleSaveEdit = async () => {
+    setEditSaving(true);
+    try {
+      await onEdit?.(post.id, {
+        title: editTitle,
+        teaser: editTeaser,
+        external_url: editUrl || null,
+        location: editLocation || null,
+        images: editImages,
+      });
+      setIsEditingPost(false);
+    } catch {} finally {
+      setEditSaving(false);
+    }
+  };
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const menuBtnRef = useRef<any>(null);
   const scaleAnim = useState(new Animated.Value(1))[0];
 
   const handleLike = () => {
@@ -309,10 +355,12 @@ function RoasterPostCard({
     if (post.external_url) Linking.openURL(post.external_url);
   };
 
+  const isPinned = !!post.is_featured;
+
   return (
     <View style={pc.card}>
 
-      {/* ── Header: avatar + name + timestamp + subtitle ── */}
+      {/* ── Header: avatar + name + timestamp + subtitle + three-dot menu ── */}
       <View style={pc.header}>
         <View>
           {avatarUrl ? (
@@ -328,73 +376,214 @@ function RoasterPostCard({
             <Text style={pc.authorName}>{roasterName}</Text>
             <Text style={pc.timestamp}>{timeAgo(post.published_at)}</Text>
           </View>
-          <Text style={pc.subtitle}>{post.post_type === "note" ? "Posted a note" : "Posted about an article"}</Text>
+          <Text style={pc.subtitle}>
+            {isPinned ? "Pinned" : post.post_type === "note" ? "Posted a note" : "Posted about an article"}
+          </Text>
         </View>
-        {/* Star toggle — owner only */}
-        {isOwner && onFeatureToggle && (
+        {/* Three-dot menu — owner only (Figma 249:3494, horizontal dots) */}
+        {isOwner && (
+          <View style={pc.menuWrap}>
+            <Pressable
+              ref={menuBtnRef}
+              onPress={() => {
+                if (menuBtnRef.current?.measureInWindow) {
+                  menuBtnRef.current.measureInWindow((x: number, y: number, w: number, h: number) => {
+                    setMenuPos({ top: y + h, right: Math.max(16, (typeof window !== "undefined" ? window.innerWidth : 1440) - x - w) });
+                    setMenuOpen(true);
+                  });
+                } else {
+                  setMenuOpen((v) => !v);
+                }
+              }}
+              hitSlop={8}
+              style={pc.menuDotsBtn}
+            >
+              <View style={{ transform: [{ rotate: "-90deg" }] }}>
+                <Svg width={4} height={14} viewBox="0 0 4 14" fill="none">
+                  <Circle cx={2} cy={2} r={1.5} fill="#A09580" />
+                  <Circle cx={2} cy={7} r={1.5} fill="#A09580" />
+                  <Circle cx={2} cy={12} r={1.5} fill="#A09580" />
+                </Svg>
+              </View>
+            </Pressable>
+            <Modal visible={menuOpen} transparent animationType="none" onRequestClose={() => setMenuOpen(false)}>
+              <Pressable style={pc.dropdownOverlay} onPress={() => setMenuOpen(false)}>
+                <View style={[pc.dropdown, { position: "absolute", top: menuPos.top, right: menuPos.right } as any]}>
+                  {/* Edit post — Figma 264:3592 pencil icon */}
+                  <Pressable onPress={() => { setMenuOpen(false); handleStartEdit(); }} style={pc.dropdownItem}>
+                    <Svg width={15} height={15} viewBox="0 0 16.5 16.5" fill="none">
+                      <Path d="M0.75 15.75H15.75M0.75 15.75V11.9004L10.9393 1.44043L10.941 1.43879C11.3112 1.05875 11.4966 0.8684 11.7103 0.797103C11.8986 0.734299 12.1015 0.734299 12.2898 0.797103C12.5034 0.868349 12.6886 1.05849 13.0583 1.43798L14.6893 3.11236C15.0606 3.49349 15.2463 3.68414 15.3159 3.90388C15.377 4.09717 15.377 4.30538 15.3158 4.49867C15.2463 4.71826 15.0609 4.90862 14.6902 5.2892L14.6893 5.29002L4.5 15.75L0.75 15.75Z" stroke="#684F44" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                    <Text style={pc.dropdownText}>Edit post</Text>
+                  </Pressable>
+                  <View style={pc.dropdownDivider} />
+                  {/* Pin/Unpin — Figma 292:3907 (pin) / 264:3600 (unpin) */}
+                  <Pressable onPress={() => { setMenuOpen(false); onPin?.(post.id); }} style={pc.dropdownItem}>
+                    {isPinned ? (
+                      <Svg width={15} height={15} viewBox="0 0 16.5 16.5" fill="none">
+                        <Path d="M6.16456 10.4306L0.75 15.75M11.4875 12.461L10.0739 13.8497L2.41602 6.32641L3.82964 4.93763M11.75 8.75L15.75 5.5375L10.8769 0.750002L7.75 4.75" stroke="#684F44" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                      </Svg>
+                    ) : (
+                      <Svg width={15} height={15} viewBox="0 0 16.5 16.5" fill="none">
+                        <Path d="M6.16456 10.4306L0.75 15.75M2.41602 6.32641L10.0739 13.8497L11.4875 12.461L11.1601 9.36176L15.75 5.5375L10.8769 0.750001L6.98341 5.25925L3.82964 4.93763L2.41602 6.32641Z" stroke="#684F44" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                      </Svg>
+                    )}
+                    <Text style={pc.dropdownText}>{isPinned ? "Unpin post" : "Pin post"}</Text>
+                  </Pressable>
+                  <View style={pc.dropdownDivider} />
+                  {/* Delete — Figma 264:3593 trash icon */}
+                  <Pressable onPress={() => { setMenuOpen(false); onDelete?.(post.id); }} style={pc.dropdownItem}>
+                    <Svg width={13} height={15} viewBox="0 0 14.5 16.5" fill="none">
+                      <Path d="M2.375 3.25V13.0833C2.375 14.0168 2.375 14.4831 2.55211 14.8397C2.70791 15.1533 2.95632 15.4087 3.26208 15.5685C3.60935 15.75 4.06418 15.75 4.97249 15.75H9.52751C10.4358 15.75 10.89 15.75 11.2373 15.5685C11.543 15.4087 11.7923 15.1533 11.9481 14.8397C12.125 14.4835 12.125 14.0175 12.125 13.0859V3.25M2.375 3.25H4M2.375 3.25H0.75M4 3.25H10.5M4 3.25C4 2.47343 4 2.08534 4.1237 1.77905C4.28862 1.37067 4.60476 1.04602 5.00293 0.876868C5.30156 0.750001 5.68034 0.750001 6.4375 0.750001H8.0625C8.81965 0.750001 9.19823 0.750001 9.49686 0.876868C9.89503 1.04602 10.2113 1.37067 10.3762 1.77905C10.4999 2.08534 10.5 2.47343 10.5 3.25M10.5 3.25H12.125M12.125 3.25H13.75" stroke="#684F44" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                    <Text style={pc.dropdownText}>Delete</Text>
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Modal>
+          </View>
+        )}
+      </View>
+
+      {/* ── Body text / Title ── */}
+      {isEditingPost ? (
+        <>
+          {isArticle && (
+            <TextInput
+              style={[pc.body, pc.editInput]}
+              value={editTitle}
+              onChangeText={setEditTitle}
+              placeholder="Title"
+              placeholderTextColor="#A09580"
+            />
+          )}
+          <TextInput
+            style={[pc.body, pc.editInput, { minHeight: 60 }]}
+            value={editTeaser}
+            onChangeText={setEditTeaser}
+            placeholder="What's on your mind?"
+            placeholderTextColor="#A09580"
+            multiline
+          />
+          {isArticle && (
+            <TextInput
+              style={[pc.locationText, pc.editInput, { marginTop: 8 }]}
+              value={editUrl}
+              onChangeText={setEditUrl}
+              placeholder="Article URL"
+              placeholderTextColor="#A09580"
+              autoCapitalize="none"
+            />
+          )}
+          {!isArticle && (
+            <View style={[pc.locationRow, { marginTop: 4 }]}>
+              <PostLocationPinIcon size={12} color="#D798DA" />
+              <TextInput
+                style={[pc.locationText, pc.editInput, { flex: 1 }]}
+                value={editLocation}
+                onChangeText={setEditLocation}
+                placeholder="Location (optional)"
+                placeholderTextColor="#A09580"
+              />
+            </View>
+          )}
+        </>
+      ) : (
+        <>
+          <Pressable onPress={handleOpen}>
+            <Text style={pc.body}>{post.teaser}</Text>
+          </Pressable>
+          {(post.location || city) ? (
+            <View style={pc.locationRow}>
+              <PostLocationPinIcon size={12} color="#D798DA" />
+              <Text style={pc.locationText}>{post.location || city}</Text>
+            </View>
+          ) : null}
+        </>
+      )}
+
+      {/* ── Photo gallery / Editable image grid ── */}
+      {isEditingPost ? (
+        <View style={pc.editImageGrid}>
+          {editImages.map((uri, idx) => (
+            <View key={idx} style={pc.editImageThumb}>
+              <Image source={{ uri: resolveUploadUrl(uri) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+              <Pressable onPress={() => setEditImages((prev) => prev.filter((_, i) => i !== idx))} style={pc.editImageRemove}>
+                <X size={12} color="#FAF8F0" strokeWidth={2.5} />
+              </Pressable>
+            </View>
+          ))}
+          {canAddImage && (
+            <Pressable onPress={() => setShowImgUpload(true)} style={pc.editImageAdd}>
+              <Plus size={20} color="#A09580" strokeWidth={1.5} />
+            </Pressable>
+          )}
+          <ImageUploadModal
+            visible={showImgUpload}
+            title="Add image"
+            purpose="post"
+            currentUrl=""
+            onConfirm={(url) => { setEditImages((prev) => [...prev, url]); setShowImgUpload(false); }}
+            onClose={() => setShowImgUpload(false)}
+          />
+        </View>
+      ) : (
+        <PhotoGallery images={post.images || (post.cover_image_url ? [post.cover_image_url] : [])} onPress={handleOpen} />
+      )}
+
+      {/* ── Edit save/cancel bar ── */}
+      {isEditingPost && (
+        <View style={pc.editBar}>
+          <Pressable onPress={handleCancelEdit} style={pc.editBarDiscard}>
+            <Text style={pc.editBarDiscardText}>Discard</Text>
+          </Pressable>
+          <Pressable onPress={handleSaveEdit} style={pc.editBarSave} disabled={editSaving}>
+            {editSaving ? (
+              <ActivityIndicator size="small" color="#351101" />
+            ) : (
+              <Text style={pc.editBarSaveText}>Save</Text>
+            )}
+          </Pressable>
+        </View>
+      )}
+
+      {/* ── Action bar (heart | comment | repost | share) ── */}
+      {!isEditingPost && (
+        <View style={pc.actionBar}>
+          <Pressable onPress={handleLike} style={pc.actionBtn}>
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+              {liked
+                ? <HeartFilledOutlineIcon size={16} color="#D798DA" />
+                : <HeartOutlineIcon size={16} color="#D798DA" />}
+            </Animated.View>
+            <Text style={[pc.actionCount, liked && { color: "#D798DA" }]}>{likeCount}</Text>
+          </Pressable>
+          <View style={pc.actionBtn}>
+            <CommentBubbleIcon size={14} color="#D798DA" />
+            <Text style={pc.actionCount}>{commentCount}</Text>
+          </View>
+          <Pressable style={pc.actionBtn}>
+            <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+              <Path d="M17 1L21 5L17 9M3 11V9C3 7.93 3.42 6.93 4.17 6.17C4.93 5.42 5.93 5 7 5H21M7 23L3 19L7 15M21 13V15C21 16.06 20.58 17.07 19.83 17.83C19.07 18.58 18.07 19 17 19H3" stroke="#D798DA" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </Pressable>
           <Pressable
-            onPress={() => onFeatureToggle(post.id)}
-            style={[pc.featureBtn, post.is_featured && pc.featureBtnActive]}
-            hitSlop={8}
+            onPress={() => {
+              if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard) {
+                navigator.clipboard.writeText(post.external_url || window.location.href);
+              }
+            }}
+            style={pc.actionBtn}
           >
-            <StarIcon filled={post.is_featured} />
-            <Text style={[pc.featureBtnText, post.is_featured && pc.featureBtnTextActive]}>
-              {post.is_featured ? `Featured #${post.featured_order}` : "Feature"}
-            </Text>
+            <ShareNodesIcon size={12} color="#D798DA" />
           </Pressable>
-        )}
-      </View>
-
-      {/* ── Body text (teaser at Figma 16.764px) ── */}
-      <Pressable onPress={handleOpen}>
-        <Text style={pc.body}>{post.teaser}</Text>
-      </Pressable>
-
-      {/* ── Location row ── */}
-      {(post.location || city) ? (
-        <View style={pc.locationRow}>
-          <PostLocationPinIcon size={12} color="#D798DA" />
-          <Text style={pc.locationText}>{post.location || city}</Text>
+          {post.external_url && (
+            <Pressable onPress={handleOpen} style={pc.readMore}>
+              <Text style={pc.readMoreText}>Read →</Text>
+            </Pressable>
+          )}
         </View>
-      ) : null}
-
-      {/* ── Photo gallery ── */}
-      <PhotoGallery images={post.images || (post.cover_image_url ? [post.cover_image_url] : [])} onPress={handleOpen} />
-
-      {/* ── Action bar (heart + count | comment + count | share) ── */}
-      <View style={pc.actionBar}>
-        {/* Heart */}
-        <Pressable onPress={handleLike} style={pc.actionBtn}>
-          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-            {liked
-              ? <HeartFilledOutlineIcon size={16} color="#D798DA" />
-              : <HeartOutlineIcon size={16} color="#D798DA" />}
-          </Animated.View>
-          <Text style={[pc.actionCount, liked && { color: "#D798DA" }]}>{likeCount}</Text>
-        </Pressable>
-        {/* Comment */}
-        <View style={pc.actionBtn}>
-          <CommentBubbleIcon size={14} color="#D798DA" />
-          <Text style={pc.actionCount}>{commentCount}</Text>
-        </View>
-        {/* Share */}
-        <Pressable
-          onPress={() => {
-            if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard) {
-              navigator.clipboard.writeText(post.external_url || window.location.href);
-            }
-          }}
-          style={pc.actionBtn}
-        >
-          <ShareNodesIcon size={12} color="#D798DA" />
-        </Pressable>
-        {/* Article link */}
-        {post.external_url && (
-          <Pressable onPress={handleOpen} style={pc.readMore}>
-            <Text style={pc.readMoreText}>Read →</Text>
-          </Pressable>
-        )}
-      </View>
+      )}
     </View>
   );
 }
@@ -434,15 +623,98 @@ const pc = StyleSheet.create({
   timestamp: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#A09580" },
   // Figma: Inter Medium 10.058px #684F44
   subtitle: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#684F44", marginTop: 2 },
-  // Feature star badge
-  featureBtn: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 8, paddingVertical: 5,
-    borderRadius: 4, borderWidth: 1, borderColor: "rgba(160,149,128,0.3)",
+  // Three-dot menu (Figma 249:3494) + dropdown via Modal (Figma 264:3590 / 292:3898)
+  menuWrap: {} as any,
+  menuDotsBtn: { padding: 4 },
+  dropdownOverlay: {
+    flex: 1,
+  } as any,
+  dropdown: {
+    backgroundColor: "#fff",
+    borderRadius: 6.228,
+    paddingVertical: 8,
+    width: 173,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6.228,
+    elevation: 8,
+  } as any,
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  } as any,
+  dropdownText: { fontFamily: fonts.bodyRegular, fontSize: 13.573, color: "#684F44" },
+  dropdownDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(215,209,196,0.4)", marginHorizontal: 10 },
+  // Edit mode styles
+  editInput: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#EDE8E1",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: "#fff",
   },
-  featureBtnActive: { borderColor: "rgba(215,152,218,0.4)", backgroundColor: "rgba(215,152,218,0.08)" },
-  featureBtnText: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#A09580" },
-  featureBtnTextActive: { color: "#D798DA" },
+  editImageGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  } as any,
+  editImageThumb: {
+    width: 100,
+    height: 100,
+    borderRadius: 6,
+    overflow: "hidden",
+    position: "relative",
+  } as any,
+  editImageRemove: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+  editImageAdd: {
+    width: 100,
+    height: 100,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: "#C7BAA5",
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+  editBar: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 14,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(215,209,196,0.4)",
+  } as any,
+  editBarDiscard: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 4,
+  },
+  editBarDiscardText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: "#A09580" },
+  editBarSave: {
+    paddingHorizontal: 18,
+    paddingVertical: 6,
+    borderRadius: 4,
+    backgroundColor: "#351101",
+  },
+  editBarSaveText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: "#FAF8F0" },
   // Body text: Figma Inter Regular 16.764px #351101 line-height 23.469px
   body: {
     fontFamily: fonts.bodyRegular,
@@ -490,7 +762,8 @@ function FigmaPlusIcon() {
 function FollowButton({ following, onToggle }: { following: boolean; onToggle: () => void }) {
   return (
     <Pressable onPress={onToggle} style={[fb.btn, following && fb.btnFollowing]}>
-      {!following && <FigmaPlusIcon />}
+      {!following && <Plus size={10} color="#FAF8F0" strokeWidth={2.5} />}
+      {following && <Check size={10} color="#351101" strokeWidth={2.5} />}
       <Text style={[fb.text, following && fb.textFollowing]}>
         {following ? "Following" : "Follow"}
       </Text>
@@ -499,7 +772,7 @@ function FollowButton({ following, onToggle }: { following: boolean; onToggle: (
 }
 
 const fb = StyleSheet.create({
-  // Figma: Follow button exactly 71×27px, border 1.5px #faf8f0, border-radius 2px
+  // Figma 163:2373 — Follow 71×27, Following 88×27 (expands right)
   btn: {
     flexDirection: "row",
     alignItems: "center",
@@ -511,9 +784,12 @@ const fb = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#FAF8F0",
   },
-  btnFollowing: { backgroundColor: "#FAF8F0" },
-  plus: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: "#FAF8F0", lineHeight: 17 },
-  text: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: "#FAF8F0", lineHeight: 15 },
+  btnFollowing: {
+    width: 88,
+    backgroundColor: "#D798DA",
+    borderColor: "#D798DA",
+  },
+  text: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: "#FAF8F0" },
   textFollowing: { color: "#351101" },
 });
 
@@ -1287,7 +1563,6 @@ export default function RoasterDetailPage() {
   const isOwner = user?.account_type === "roaster" && user?.roaster_slug === slug;
 
   // Posts state
-  const [featuredPosts, setFeaturedPosts] = useState<any[]>([]);
   const [allPosts, setAllPosts] = useState<any[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
 
@@ -1323,15 +1598,31 @@ export default function RoasterDetailPage() {
   const [composing, setComposing] = useState(false);
 
   // Right panel tabs
-  const [activeRightTab, setActiveRightTab] = useState<"posts" | "beans" | "followers">("posts");
+  const [activeRightTab, setActiveRightTab] = useState<"posts" | "beans">("posts");
   const [followers, setFollowers] = useState<any[]>([]);
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [myFollows, setMyFollows] = useState<string[]>([]);
+
+  // Fetch which roasters I follow when modal opens
+  useEffect(() => {
+    if (!showFollowersModal || !user) return;
+    apiFetch<{ following: string[] }>("/me/following")
+      .then((d) => setMyFollows(d.following || []))
+      .catch(() => {});
+  }, [showFollowersModal, user]);
+
+  const handleToggleFollowInModal = useCallback(async (roasterSlug: string) => {
+    try {
+      const res = await apiFetch<{ following: boolean }>(`/roasters/${roasterSlug}/follow`, { method: "POST" });
+      setMyFollows((prev) => res.following ? [...prev, roasterSlug] : prev.filter((s) => s !== roasterSlug));
+    } catch {}
+  }, []);
 
   // Default to beans tab if roaster has no posts
   useEffect(() => {
     if (postsLoading) return;
-    const hasPosts = isOwner ? allPosts.length > 0 : featuredPosts.length > 0;
-    if (!hasPosts) setActiveRightTab("beans");
-  }, [postsLoading, allPosts, featuredPosts, isOwner]);
+    if (allPosts.length === 0) setActiveRightTab("beans");
+  }, [postsLoading, allPosts]);
 
   // About expand
   const [aboutExpanded, setAboutExpanded] = useState(false);
@@ -1449,31 +1740,42 @@ export default function RoasterDetailPage() {
   const loadPosts = useCallback(async () => {
     try {
       setPostsLoading(true);
-      const fp = await apiFetch<any>(`/roasters/${slug}/posts/featured`);
-      setFeaturedPosts(fp.featured_posts || []);
-      // Owner always loads all posts for management
-      if (isOwner) {
-        const all = await apiFetch<any>(`/roasters/${slug}/posts`);
-        setAllPosts(all.posts || []);
-      }
+      const all = await apiFetch<any>(`/roasters/${slug}/posts`);
+      setAllPosts(all.posts || []);
     } catch (e) {
       console.warn("Posts load error:", e);
-      setFeaturedPosts([]);
       setAllPosts([]);
     } finally {
       setPostsLoading(false);
     }
-  }, [slug, isOwner]);
+  }, [slug]);
 
   useEffect(() => { loadPosts(); }, [loadPosts]);
 
-  const handleFeatureToggle = useCallback(async (postId: number) => {
+  const handlePinToggle = useCallback(async (postId: number) => {
     try {
-      await apiFetch(`/roaster-posts/${postId}/feature`, { method: "PUT" });
+      await apiFetch(`/roaster-posts/${postId}/pin`, { method: "PUT" });
       await loadPosts();
     } catch (e: any) {
-      console.warn("Feature toggle error:", e.message);
+      console.warn("Pin toggle error:", e.message);
     }
+  }, [loadPosts]);
+
+  const handleDeletePost = useCallback(async (postId: number) => {
+    try {
+      await apiFetch(`/roaster-posts/${postId}`, { method: "DELETE" });
+      setAllPosts((prev) => prev.filter((p) => p.id !== postId));
+    } catch (e: any) {
+      console.warn("Delete post error:", e.message);
+    }
+  }, []);
+
+  const handleEditPost = useCallback(async (postId: number, data: any) => {
+    await apiFetch(`/roaster-posts/${postId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+    await loadPosts();
   }, [loadPosts]);
 
   const handleDeleteProduct = useCallback(async (productId: string) => {
@@ -1561,8 +1863,12 @@ export default function RoasterDetailPage() {
   }
 
   // For owner management: non-featured posts shown below
-  const nonFeaturedPosts = allPosts.filter((p) => !p.is_featured);
-  const featuredInAllPosts = allPosts.filter((p) => p.is_featured);
+  // Sort posts: pinned first, then rest by date descending
+  const sortedPosts = useMemo(() => {
+    const pinned = allPosts.filter((p) => p.is_featured);
+    const rest = allPosts.filter((p) => !p.is_featured);
+    return [...pinned, ...rest];
+  }, [allPosts]);
 
   return (
     <>
@@ -1723,10 +2029,10 @@ export default function RoasterDetailPage() {
                     <Text style={s.metaText}>Website</Text>
                   </Pressable>
                 ) : null}
-                <View style={s.metaItem}>
+                <Pressable onPress={() => setShowFollowersModal(true)} style={s.metaItem}>
                   <UsersIcon />
                   <Text style={s.metaText}>{followerCount} {followerCount === 1 ? "follower" : "followers"}</Text>
-                </View>
+                </Pressable>
                 {city ? (
                   <View style={s.metaItem}>
                     <MapPinIcon />
@@ -1787,102 +2093,58 @@ export default function RoasterDetailPage() {
 
           {/* ── Tab bar: POSTS | BEANS (hide POSTS if roaster has none) ── */}
           {(() => {
-            const hasPosts = isOwner ? allPosts.length > 0 : featuredPosts.length > 0;
+            const hasPosts = allPosts.length > 0;
             const showTabs = !postsLoading && hasPosts;
             return (
               <>
                 <View style={s.rightTabBar}>
                   {showTabs && (
-                    <Pressable onPress={() => setActiveRightTab("posts")} style={[s.rightTab, activeRightTab === "posts" && s.rightTabActive]}>
+                    <Pressable onPress={() => setActiveRightTab("posts")} style={s.rightTab}>
                       <Text style={[s.rightTabText, activeRightTab === "posts" && s.rightTabTextActive]}>POSTS</Text>
+                      {activeRightTab === "posts" && <View style={s.rightTabUnderline} />}
                     </Pressable>
                   )}
-                  <Pressable onPress={() => setActiveRightTab("beans")} style={[s.rightTab, activeRightTab === "beans" && s.rightTabActive]}>
+                  <Pressable onPress={() => setActiveRightTab("beans")} style={s.rightTab}>
                     <Text style={[s.rightTabText, activeRightTab === "beans" && s.rightTabTextActive]}>BEANS</Text>
-                  </Pressable>
-                  <Pressable onPress={() => setActiveRightTab("followers")} style={[s.rightTab, activeRightTab === "followers" && s.rightTabActive]}>
-                    <Text style={[s.rightTabText, activeRightTab === "followers" && s.rightTabTextActive]}>FOLLOWERS</Text>
+                    {activeRightTab === "beans" && <View style={s.rightTabUnderline} />}
                   </Pressable>
                 </View>
-                <View style={s.divider} />
               </>
             );
           })()}
 
-          {/* ── POSTS TAB ─────────────────────────────────────────── */}
+          {/* ── POSTS TAB — pinned on top, then reverse-chrono ── */}
           {activeRightTab === "posts" && (
             <>
-              {/* Public visitor: featured posts */}
-              {!postsLoading && !isOwner && featuredPosts.length > 0 && (
-                <>
-                  <View style={s.divider} />
-                  {featuredPosts.map((post, i) => (
-                    <View key={post.id}>
-                      <RoasterPostCard
-                        post={post}
-                        roasterName={roaster.name}
-                        avatarUrl={logoUrl}
-                        city={city}
-                        isOwner={false}
-                      />
-                      {i < featuredPosts.length - 1 && <View style={s.divider} />}
-                    </View>
-                  ))}
-                </>
+              {!postsLoading && sortedPosts.length > 0 && (
+                sortedPosts.map((post, i) => (
+                  <View key={post.id}>
+                    <RoasterPostCard
+                      post={post}
+                      roasterName={roaster.name}
+                      avatarUrl={logoUrl}
+                      city={city}
+                      isOwner={isOwner}
+                      onPin={handlePinToggle}
+                      onDelete={handleDeletePost}
+                      onEdit={handleEditPost}
+                    />
+                    {i < sortedPosts.length - 1 && <View style={s.dividerLight} />}
+                  </View>
+                ))
               )}
 
-              {/* Owner: featured posts first, then rest */}
-              {isOwner && !postsLoading && allPosts.length > 0 && (() => {
-                const featured = allPosts.filter((p) => p.is_featured).sort((a, b) => (a.featured_order ?? 9) - (b.featured_order ?? 9));
-                const rest = allPosts.filter((p) => !p.is_featured);
-                const slotsLeft = 2 - featured.length;
-                const hint = featured.length === 0
-                  ? "No featured posts yet — star up to 2 to pin them here."
-                  : slotsLeft === 1
-                  ? "1 featured slot remaining."
-                  : null;
-                const ordered = [...featured, ...rest];
-                return (
-                  <>
-                    <View style={s.divider} />
-                    {hint && (
-                      <View style={s.featureHintRow}>
-                        <Text style={s.featureHint}>{hint}</Text>
-                      </View>
-                    )}
-                    {ordered.map((post, i) => (
-                      <View key={post.id}>
-                        <RoasterPostCard
-                          post={post}
-                          roasterName={roaster.name}
-                          avatarUrl={logoUrl}
-                          city={city}
-                          isOwner
-                          onFeatureToggle={handleFeatureToggle}
-                        />
-                        {i < ordered.length - 1 && (
-                          <View style={post.is_featured ? s.divider : s.dividerLight} />
-                        )}
-                      </View>
-                    ))}
-                  </>
-                );
-              })()}
-
-              {/* Owner: no posts yet */}
+              {/* No posts yet (owner) */}
               {isOwner && !postsLoading && allPosts.length === 0 && (
-                <>
-                  <View style={s.divider} />
-                  <View style={s.emptyPostsWrap}>
-                    <Text style={s.emptyPostsTitle}>Share your story</Text>
-                    <Text style={s.emptyPostsBody}>
-                      Feature up to 2 posts on your profile — link to a journal entry, press coverage, or anything worth reading.
-                    </Text>
-                    <Pressable onPress={() => setShowCompose(true)} style={s.emptyPostsBtn}>
-                      <Text style={s.emptyPostsBtnText}>Write your first post →</Text>
-                    </Pressable>
-                  </View>
-                </>
+                <View style={s.emptyPostsWrap}>
+                  <Text style={s.emptyPostsTitle}>Share your story</Text>
+                  <Text style={s.emptyPostsBody}>
+                    Post about your coffee, link to press coverage, or share anything worth reading.
+                  </Text>
+                  <Pressable onPress={() => setShowCompose(true)} style={s.emptyPostsBtn}>
+                    <Text style={s.emptyPostsBtnText}>Write your first post →</Text>
+                  </Pressable>
+                </View>
               )}
             </>
           )}
@@ -1903,48 +2165,77 @@ export default function RoasterDetailPage() {
             </>
           )}
 
-          {/* ── FOLLOWERS TAB ──────────────────────────────────────── */}
-          {activeRightTab === "followers" && (
-            <View style={s.followersTab}>
-              <Text style={s.followersCount}>
-                {followerCount} {followerCount === 1 ? "follower" : "followers"}
-              </Text>
-              {followers.length === 0 ? (
-                <View style={s.followersEmpty}>
-                  <Text style={s.followersEmptyText}>No followers yet</Text>
+          {/* ── FOLLOWERS MODAL (triggered from left panel followers count) ── */}
+          <Modal visible={showFollowersModal} transparent animationType="fade" onRequestClose={() => setShowFollowersModal(false)}>
+            <Pressable style={s.followersOverlay} onPress={() => setShowFollowersModal(false)}>
+              <Pressable style={s.followersModal} onPress={(e) => e.stopPropagation()}>
+                <View style={s.followersModalHeader}>
+                  <Text style={s.followersCount}>
+                    {followerCount} {followerCount === 1 ? "follower" : "followers"}
+                  </Text>
+                  <Pressable onPress={() => setShowFollowersModal(false)} hitSlop={8}>
+                    <X size={18} color="#351101" />
+                  </Pressable>
                 </View>
-              ) : (
-                followers.map((f: any, idx: number) => (
-                  <View key={f.username}>
-                    {idx > 0 && <View style={s.followerDivider} />}
-                    <Pressable
-                      onPress={() => router.push(`/user/${f.username}`)}
-                      style={(state: any) => [s.followerRow, state.hovered && s.followerRowHovered]}
-                    >
-                      {f.avatar_url ? (
-                        <Image source={{ uri: resolveUploadUrl(f.avatar_url) }} style={s.followerAvatar} contentFit="cover" />
-                      ) : (
-                        <View style={s.followerAvatarFallback}>
-                          <Text style={s.followerInitial}>
-                            {(f.display_name || f.username || "?")[0].toUpperCase()}
-                          </Text>
-                        </View>
-                      )}
-                      <View style={s.followerInfo}>
-                        <Text style={s.followerName} numberOfLines={1}>{f.display_name}</Text>
-                        {f.location ? (
-                          <View style={s.followerLocationRow}>
-                            <MapPin size={12} color="#D798DA" strokeWidth={2} />
-                            <Text style={s.followerLocation} numberOfLines={1}>{f.location}</Text>
+                <ScrollView style={s.followersScrollArea} showsVerticalScrollIndicator={false}>
+                  {followers.length === 0 ? (
+                    <View style={s.followersEmpty}>
+                      <Text style={s.followersEmptyText}>No followers yet</Text>
+                    </View>
+                  ) : (
+                    followers.map((f: any, idx: number) => {
+                      const isMe = user && f.username === user.username;
+                      const followSlug = f.roaster_slug || f.username;
+                      const amFollowing = myFollows.includes(followSlug);
+                      const isRoaster = f.account_type === "roaster" && f.roaster_slug;
+                      return (
+                        <View key={f.username}>
+                          {idx > 0 && <View style={s.followerDivider} />}
+                          <View style={s.followerRow}>
+                            <Pressable
+                              onPress={() => { setShowFollowersModal(false); router.push(isRoaster ? `/roaster/${f.roaster_slug}` : `/user/${f.username}`); }}
+                              style={s.followerPressable}
+                            >
+                              {f.avatar_url ? (
+                                <Image source={{ uri: resolveUploadUrl(f.avatar_url) }} style={s.followerAvatar} contentFit="cover" />
+                              ) : (
+                                <View style={s.followerAvatarFallback}>
+                                  <Text style={s.followerInitial}>
+                                    {(f.display_name || f.username || "?")[0].toUpperCase()}
+                                  </Text>
+                                </View>
+                              )}
+                              <View style={s.followerInfo}>
+                                <Text style={s.followerName} numberOfLines={1}>{f.display_name}</Text>
+                                {f.location ? (
+                                  <View style={s.followerLocationRow}>
+                                    <MapPin size={12} color="#D798DA" strokeWidth={2} />
+                                    <Text style={s.followerLocation} numberOfLines={1}>{f.location}</Text>
+                                  </View>
+                                ) : null}
+                              </View>
+                            </Pressable>
+                            {!isMe && (
+                              <Pressable
+                                onPress={() => handleToggleFollowInModal(followSlug)}
+                                style={[s.followerFollowBtn, amFollowing && s.followerFollowBtnActive]}
+                              >
+                                {!amFollowing && <Plus size={10} color="#684F44" strokeWidth={2.5} />}
+                                {amFollowing && <Check size={10} color="#351101" strokeWidth={2.5} />}
+                                <Text style={[s.followerFollowBtnText, amFollowing && s.followerFollowBtnTextActive]}>
+                                  {amFollowing ? "Following" : "Follow"}
+                                </Text>
+                              </Pressable>
+                            )}
                           </View>
-                        ) : null}
-                      </View>
-                    </Pressable>
-                  </View>
-                ))
-              )}
-            </View>
-          )}
+                        </View>
+                      );
+                    })
+                  )}
+                </ScrollView>
+              </Pressable>
+            </Pressable>
+          </Modal>
 
           <View style={{ height: 100 }} />
           </ScrollView>
@@ -2049,7 +2340,7 @@ const s = StyleSheet.create({
   backBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 14,
     marginBottom: 85,
   },
   backText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: "#C7BAA5" },
@@ -2333,22 +2624,39 @@ const s = StyleSheet.create({
     elevation: 16,
   } as any,
 
-  // Right panel tab bar (POSTS | BEANS) — Figma 151:1783 thin divider style
+  // Right panel tab bar — Figma 249:3411–3417
+  // Tab bar: height 80, labels 32px from top, 4px underline flush at bottom
+  // POSTS→BEANS gap 100px, left padding 56px (Figma measurements at 1440px)
   rightTabBar: {
     flexDirection: "row",
+    alignItems: "stretch",
     backgroundColor: "#FAF8F0",
-    paddingHorizontal: 28,
-    gap: 32,
+    height: 80,
+    paddingLeft: 56,
+    gap: 100,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(215,209,196,0.5)",
   } as any,
   rightTab: {
-    paddingVertical: 14,
-  },
+    justifyContent: "center",
+    position: "relative",
+  } as any,
   rightTabActive: {},
+  rightTabUnderline: {
+    position: "absolute",
+    bottom: -1,
+    left: 0,
+    right: 0,
+    height: 4,
+    backgroundColor: "#351101",
+  } as any,
   rightTabText: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 14,
     color: "#A09580",
-  },
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  } as any,
   rightTabTextActive: {
     color: "#351101",
   },
@@ -2377,17 +2685,6 @@ const s = StyleSheet.create({
     color: "#A09580",
     textTransform: "uppercase" as any,
     letterSpacing: 0.8,
-  },
-  featureHintRow: {
-    paddingHorizontal: 28,
-    paddingTop: 14,
-    paddingBottom: 4,
-  },
-  featureHint: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 11,
-    color: "#A09580",
-    fontStyle: "italic" as any,
   },
   sectionHint: {
     fontFamily: fonts.bodyRegular,
@@ -2432,16 +2729,36 @@ const s = StyleSheet.create({
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(215,209,196,0.5)", marginHorizontal: 20 },
   dividerLight: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(215,209,196,0.35)", marginHorizontal: 20 },
 
-  // Followers tab — Figma 42:4128 row style
-  followersTab: {
-    paddingHorizontal: 28,
+  // Followers modal — triggered from left panel followers count
+  followersOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  } as any,
+  followersModal: {
+    backgroundColor: "#FAF8F0",
+    borderRadius: 12,
+    width: "90%",
+    maxWidth: 400,
+    maxHeight: "70%",
+    paddingHorizontal: 24,
     paddingTop: 20,
+    paddingBottom: 8,
+  } as any,
+  followersModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  } as any,
+  followersScrollArea: {
+    flexGrow: 0,
   },
   followersCount: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 14,
     color: "#351101",
-    marginBottom: 16,
   },
   followersEmpty: {
     paddingVertical: 40,
@@ -2455,13 +2772,42 @@ const s = StyleSheet.create({
   followerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
     paddingVertical: 12,
     paddingHorizontal: 4,
     borderRadius: 6,
   } as any,
-  followerRowHovered: {
+  followerPressable: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    minWidth: 0,
+  } as any,
+  // Figma 306:4077 — Follow #684F44 71×27, Following #D798DA 88×27 (opens left)
+  followerFollowBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    width: 71,
+    height: 27,
+    borderRadius: 2,
+    borderWidth: 1.5,
+    borderColor: "#684F44",
+    flexShrink: 0,
+  } as any,
+  followerFollowBtnActive: {
+    width: 88,
     backgroundColor: "#D798DA",
+    borderColor: "#D798DA",
+  },
+  followerFollowBtnText: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 12,
+    color: "#684F44",
+  },
+  followerFollowBtnTextActive: {
+    color: "#351101",
   },
   followerDivider: {
     height: StyleSheet.hairlineWidth,

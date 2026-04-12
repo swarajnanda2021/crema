@@ -174,9 +174,21 @@ def create_note(req: TastingNoteCreate, user=Depends(get_current_user)):
             ),
         )
         db.commit()
+        note_id = cursor.lastrowid
+
+        # Auto-create a post for the timeline
+        roaster_slug = user.get("roaster_slug") or f"user_{user['id']}"
+        teaser = req.comment or "Posted a tasting note"
+        db.execute(
+            """INSERT INTO roaster_posts
+               (roaster_slug, user_id, title, teaser, post_type, tasting_note_id, created_at)
+               VALUES (?, ?, ?, ?, 'tasting_note', ?, ?)""",
+            (roaster_slug, user["id"], f"Tasting note", teaser[:300], note_id, now),
+        )
+        db.commit()
 
         row = db.execute(
-            "SELECT * FROM tasting_notes WHERE id = ?", (cursor.lastrowid,)
+            "SELECT * FROM tasting_notes WHERE id = ?", (note_id,)
         ).fetchone()
         return _note_to_dict(row, db)
     finally:

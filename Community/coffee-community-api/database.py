@@ -195,6 +195,28 @@ _MIGRATIONS = [
         UNIQUE(roaster_slug, product_id)
     )""",
     "CREATE INDEX IF NOT EXISTS idx_hidden_slug ON hidden_products(roaster_slug)",
+    # ── Post system expansion: repost, tasting_note link, edit tracking ──
+    "ALTER TABLE roaster_posts ADD COLUMN repost_of_id INTEGER",
+    "ALTER TABLE roaster_posts ADD COLUMN repost_comment TEXT",
+    "ALTER TABLE roaster_posts ADD COLUMN tasting_note_id INTEGER",
+    "ALTER TABLE roaster_posts ADD COLUMN updated_at TEXT",
+    # Post-level social interactions (likes + comments on posts, not just tasting notes)
+    """CREATE TABLE IF NOT EXISTS post_likes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        post_id INTEGER NOT NULL REFERENCES roaster_posts(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        UNIQUE(user_id, post_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_post_likes_post ON post_likes(post_id)",
+    """CREATE TABLE IF NOT EXISTS post_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        post_id INTEGER NOT NULL REFERENCES roaster_posts(id) ON DELETE CASCADE,
+        comment TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_post_comments_post ON post_comments(post_id)",
 ]
 
 
