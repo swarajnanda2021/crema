@@ -19,6 +19,7 @@ import {
 } from "lucide-react-native";
 
 import * as Linking from "expo-linking";
+import Svg, { Path } from "react-native-svg";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useSocial } from "../../src/hooks/useSocial";
@@ -27,6 +28,7 @@ import { colors, fonts, cardShadow } from "../../src/theme/colors";
 import { HeartOutlineIcon, HeartFilledOutlineIcon, CommentBubbleIcon, ShareNodesIcon, PostLocationPinIcon } from "../../src/components/icons/FigmaIcons";
 import TastingNoteDisplay from "../../src/components/TastingNoteDisplay";
 import CoffeeCard from "../../src/components/CoffeeCard";
+import PostGallery from "../../src/components/PostGallery";
 
 // ── Feed page ─────────────────────────────────────────────────────────────────
 
@@ -122,8 +124,8 @@ export default function FeedPage() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
       >
-        {/* Roaster compose card — top of feed for roaster accounts */}
-        {isRoaster && (
+        {/* Compose card — top of feed for logged-in users */}
+        {user && (
           <>
             {showRoasterCompose ? (
               <RoasterComposeCard
@@ -428,57 +430,7 @@ const rc = StyleSheet.create({
   addImageText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#684F44" },
 });
 
-// ── Photo gallery ─────────────────────────────────────────────────────────────
-
-function PhotoGallery({ images, onPress }: { images: string[]; onPress?: () => void }) {
-  if (!images || images.length === 0) return null;
-
-  if (images.length === 1) {
-    return (
-      <Pressable onPress={onPress} style={pg.singleWrap}>
-        <Image source={{ uri: resolveUploadUrl(images[0]) }} style={pg.singleImg} contentFit="cover" />
-      </Pressable>
-    );
-  }
-
-  if (images.length <= 3) {
-    return (
-      <View style={pg.rowWrap}>
-        {images.map((uri, i) => (
-          <Pressable key={i} onPress={onPress} style={pg.colWrap}>
-            <Image source={{ uri: resolveUploadUrl(uri) }} style={pg.colImg} contentFit="cover" />
-          </Pressable>
-        ))}
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={pg.scrollWrap}
-      contentContainerStyle={pg.scrollContent}
-    >
-      {images.map((uri, i) => (
-        <Pressable key={i} onPress={onPress}>
-          <Image source={{ uri: resolveUploadUrl(uri) }} style={pg.scrollImg} contentFit="cover" />
-        </Pressable>
-      ))}
-    </ScrollView>
-  );
-}
-
-const pg = StyleSheet.create({
-  singleWrap: { marginHorizontal: 20, marginBottom: 14, overflow: "hidden" } as any,
-  singleImg: { width: "100%" as any, height: 240, borderRadius: 5 },
-  rowWrap: { flexDirection: "row", gap: 4, marginHorizontal: 20, marginBottom: 14, overflow: "hidden" } as any,
-  colWrap: { flex: 1, overflow: "hidden", borderRadius: 5 } as any,
-  colImg: { width: "100%" as any, height: 240, borderRadius: 5 },
-  scrollWrap: { marginBottom: 14, paddingLeft: 20 },
-  scrollContent: { gap: 4, paddingRight: 20 } as any,
-  scrollImg: { width: 160, height: 240, borderRadius: 5 },
-});
+// PhotoGallery — uses shared PostGallery component (universal aspect ratio, standard item size)
 
 // ── Roaster Post Feed Card (Figma-faithful) ───────────────────────────────────
 
@@ -494,7 +446,7 @@ function timeAgo(dateStr: string): string {
   } catch { return ""; }
 }
 
-// ── Roaster post feed card — Frame 720 design ─────────────────────────────────
+// ── Post feed card — matches roaster profile PostCard design ─────────────────
 
 function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
   const [liked, setLiked] = useState(false);
@@ -504,7 +456,7 @@ function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
 
   const handleLike = () => {
     Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 1.25, duration: 100, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1.3, duration: 100, useNativeDriver: true }),
       Animated.timing(scaleAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
     ]).start();
     setLiked((l) => !l);
@@ -515,23 +467,32 @@ function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
     if (post.external_url) Linking.openURL(post.external_url);
   };
 
-  const goToRoaster = () => {
-    if (post.roaster_slug) router.push(`/roaster/${post.roaster_slug}`);
+  const goToAuthor = () => {
+    if (post.roaster_slug && !post.roaster_slug.startsWith("user_")) {
+      router.push(`/roaster/${post.roaster_slug}`);
+    } else {
+      router.push(`/user/${post.author_username}`);
+    }
   };
 
-  // Post type label: note vs article
-  const postTypeLabel = post.post_type === "note" ? "Posted a note" : "Posted about an article";
+  const isPinned = !!post.is_featured;
+  const subtitleText = isPinned
+    ? "Pinned"
+    : post.post_type === "note"
+    ? "Posted a note"
+    : post.post_type === "repost"
+    ? "Reposted"
+    : "Posted about an article";
 
   return (
     <View style={rp.card}>
-
-      {/* ── Header ── */}
-      <Pressable onPress={goToRoaster} style={rp.header}>
+      {/* Header */}
+      <Pressable onPress={goToAuthor} style={rp.header}>
         {post.author_avatar_url ? (
           <Image source={{ uri: resolveUploadUrl(post.author_avatar_url) }} style={rp.avatar} contentFit="cover" />
         ) : (
           <View style={[rp.avatar, rp.avatarFallback]}>
-            <Text style={rp.avatarLetter}>{(post.author_display_name || "R")[0].toUpperCase()}</Text>
+            <Text style={rp.avatarLetter}>{(post.author_display_name || "?")[0].toUpperCase()}</Text>
           </View>
         )}
         <View style={rp.headerText}>
@@ -539,16 +500,16 @@ function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
             <Text style={rp.authorName}>{post.author_display_name}</Text>
             <Text style={rp.timestamp}>{timeAgo(post.published_at)}</Text>
           </View>
-          <Text style={rp.subtitle}>{postTypeLabel}</Text>
+          <Text style={rp.subtitle}>{subtitleText}</Text>
         </View>
       </Pressable>
 
-      {/* ── Body text (teaser at Figma 16.764px) ── */}
+      {/* Body */}
       <Pressable onPress={handleOpen}>
         <Text style={rp.body}>{post.teaser}</Text>
       </Pressable>
 
-      {/* ── Location row ── */}
+      {/* Location */}
       {post.location ? (
         <View style={rp.locationRow}>
           <PostLocationPinIcon size={12} color="#D798DA" />
@@ -556,12 +517,13 @@ function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
         </View>
       ) : null}
 
-      {/* ── Photo gallery ── */}
-      <PhotoGallery images={post.images || (post.cover_image_url ? [post.cover_image_url] : [])} onPress={handleOpen} />
+      {/* Gallery — shared PostGallery with universal aspect ratio */}
+      <View style={rp.galleryWrap}>
+        <PostGallery images={post.images || (post.cover_image_url ? [post.cover_image_url] : [])} onPress={handleOpen} />
+      </View>
 
-      {/* ── Action bar ── */}
+      {/* Action bar — heart, comment, repost, share */}
       <View style={rp.actionBar}>
-        {/* Heart + count */}
         <Pressable onPress={handleLike} style={rp.actionBtn}>
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
             {liked
@@ -570,16 +532,25 @@ function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
           </Animated.View>
           <Text style={[rp.actionCount, liked && { color: "#D798DA" }]}>{likeCount}</Text>
         </Pressable>
-        {/* Comment + count */}
         <View style={rp.actionBtn}>
           <CommentBubbleIcon size={14} color="#D798DA" />
           <Text style={rp.actionCount}>{commentCount}</Text>
         </View>
-        {/* Share */}
-        <View style={rp.actionBtn}>
+        <Pressable style={rp.actionBtn}>
+          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+            <Path d="M17 1L21 5L17 9M3 11V9C3 7.93 3.42 6.93 4.17 6.17C4.93 5.42 5.93 5 7 5H21M7 23L3 19L7 15M21 13V15C21 16.06 20.58 17.07 19.83 17.83C19.07 18.58 18.07 19 17 19H3" stroke="#D798DA" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+          </Svg>
+        </Pressable>
+        <Pressable
+          onPress={() => {
+            if (typeof navigator !== "undefined" && navigator.clipboard) {
+              navigator.clipboard.writeText(post.external_url || (typeof window !== "undefined" ? window.location.href : ""));
+            }
+          }}
+          style={rp.actionBtn}
+        >
           <ShareNodesIcon size={12} color="#D798DA" />
-        </View>
-        {/* Article link */}
+        </Pressable>
         {post.external_url && (
           <Pressable onPress={handleOpen} style={{ marginLeft: "auto" as any }}>
             <Text style={rp.readMore}>Read →</Text>
@@ -591,35 +562,27 @@ function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
 }
 
 const rp = StyleSheet.create({
-  // Figma: white card, subtle border, rounded
   card: {
-    borderRadius: 12,
-    overflow: "hidden",
-    marginBottom: 20,
-    backgroundColor: colors.cardFront,
-    ...cardShadow,
+    backgroundColor: "#FAF8F0",
+    paddingTop: 20,
+    paddingBottom: 20,
+    marginBottom: 12,
   },
-  // Header: avatar + name row + subtitle
   header: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
+    marginBottom: 14,
   },
   avatar: { width: 30, height: 30, borderRadius: 15, overflow: "hidden" } as any,
   avatarFallback: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,
   avatarLetter: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: "#FAF8F0" },
   headerText: { flex: 1 },
   nameRow: { flexDirection: "row", alignItems: "baseline", gap: 5 },
-  // Figma: Inter Medium 11.848px #351101
   authorName: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
-  // Figma: Inter Medium 10.058px #A09580
   timestamp: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#A09580" },
-  // Figma: Inter Medium 10.058px #684F44
   subtitle: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#684F44", marginTop: 2 },
-  // Body: Figma Inter Regular 16.764px #351101 line-height 23.469px
   body: {
     fontFamily: fonts.bodyRegular,
     fontSize: 16.8,
@@ -628,7 +591,6 @@ const rp = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 10,
   },
-  // Location: Figma map pin + Inter Medium 11.848px #351101
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -636,27 +598,16 @@ const rp = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 14,
   },
-  mapPinIcon: { width: 11, height: 14 },
   locationText: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
-  // Photo: Figma 311px tall, rounded 5px
-  photoWrap: { marginHorizontal: 20, borderRadius: 5, overflow: "hidden", marginBottom: 14 } as any,
-  photo: { width: "100%" as any, height: 240, borderRadius: 5 },
-  // Action bar
+  galleryWrap: { paddingHorizontal: 20 },
   actionBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 20,
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderColor: colors.borderLight,
+    paddingTop: 12,
   },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
-  // Figma icon sizes
-  heartIcon: { width: 16, height: 14 },
-  commentIcon: { width: 14, height: 14 },
-  shareIcon: { width: 12, height: 14 },
-  // Figma: Inter Medium 11.848px #351101
   actionCount: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
   readMore: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#351101", textDecorationLine: "underline" },
 });
