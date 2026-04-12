@@ -265,6 +265,7 @@ function RoasterPostCard({
   onPin,
   onDelete,
   onEdit,
+  onRepost,
   products,
 }: {
   post: any;
@@ -275,6 +276,7 @@ function RoasterPostCard({
   onPin?: (id: number) => void;
   onDelete?: (id: number) => void;
   onEdit?: (id: number, data: any) => Promise<void>;
+  onRepost?: (post: any) => void;
   products?: any[];
 }) {
   const [liked, setLiked] = useState(false);
@@ -696,7 +698,7 @@ function RoasterPostCard({
             <CommentBubbleIcon size={14} color="#D798DA" />
             <Text style={pc.actionCount}>{commentCount}</Text>
           </View>
-          <Pressable style={pc.actionBtn}>
+          <Pressable onPress={() => onRepost?.(post)} style={pc.actionBtn}>
             <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
               <Path d="M17 1L21 5L17 9M3 11V9C3 7.93 3.42 6.93 4.17 6.17C4.93 5.42 5.93 5 7 5H21M7 23L3 19L7 15M21 13V15C21 16.06 20.58 17.07 19.83 17.83C19.07 18.58 18.07 19 17 19H3" stroke="#D798DA" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
             </Svg>
@@ -2386,13 +2388,12 @@ export default function RoasterDetailPage() {
           {activeRightTab === "posts" && (
             <>
               {/* In-place compose */}
-              {showCompose && (
+              {showCompose && !repostTarget && (
                 <>
                   <ComposePost
-                    onSubmit={async (data) => { await handleCreatePost(data); setRepostTarget(null); }}
-                    onCancel={() => { setShowCompose(false); setRepostTarget(null); }}
+                    onSubmit={async (data) => { await handleCreatePost(data); }}
+                    onCancel={() => setShowCompose(false)}
                     loading={composing}
-                    repostTarget={repostTarget}
                     products={products}
                     user={user}
                   />
@@ -2411,6 +2412,7 @@ export default function RoasterDetailPage() {
                       onPin={handlePinToggle}
                       onDelete={handleDeletePost}
                       onEdit={handleEditPost}
+                      onRepost={(post) => setRepostTarget(post)}
                       products={products}
                     />
                     {i < sortedPosts.length - 1 && <View style={s.dividerLight} />}
@@ -2555,7 +2557,22 @@ export default function RoasterDetailPage() {
             onClose={() => setShowHeroUpload(false)}
           />
 
-          {/* Compose modal removed — in-place compose now at top of posts tab */}
+          {/* Repost floating modal — Figma 116:770 backdrop */}
+          {repostTarget && (
+            <Modal visible transparent animationType="fade" onRequestClose={() => setRepostTarget(null)}>
+              <Pressable style={s.repostOverlay} onPress={() => setRepostTarget(null)}>
+                <Pressable style={s.repostModal} onPress={(e) => e.stopPropagation()}>
+                  <ComposePost
+                    onSubmit={async (data) => { await handleCreatePost(data); setRepostTarget(null); }}
+                    onCancel={() => setRepostTarget(null)}
+                    loading={composing}
+                    repostTarget={repostTarget}
+                    user={user}
+                  />
+                </Pressable>
+              </Pressable>
+            </Modal>
+          )}
 
         </View>
       </View>
@@ -2867,6 +2884,21 @@ const s = StyleSheet.create({
     justifyContent: "center" as any,
     alignItems: "center" as any,
   },
+  // Repost floating modal — Figma 116:770 backdrop
+  repostOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(104,79,68,0.6)",
+    backdropFilter: "blur(35px)",
+    WebkitBackdropFilter: "blur(35px)",
+    justifyContent: "center",
+    alignItems: "center",
+  } as any,
+  repostModal: {
+    width: "90%",
+    maxWidth: 560,
+    borderRadius: 12,
+    overflow: "hidden",
+  } as any,
   modalCard: {
     backgroundColor: "#FAF8F0",
     borderRadius: 16,

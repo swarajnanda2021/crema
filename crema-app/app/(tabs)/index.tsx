@@ -9,7 +9,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  View, Text, TextInput, Pressable, ScrollView,
+  View, Text, TextInput, Pressable, ScrollView, Modal,
   RefreshControl, StyleSheet, Animated, ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
@@ -126,17 +126,13 @@ export default function FeedPage() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
       >
-        {/* In-place compose — appears at top of feed when FAB is pressed */}
-        {showRoasterCompose && (
+        {/* In-place compose — appears at top of feed when FAB is pressed (not for reposts) */}
+        {showRoasterCompose && !repostTarget && (
           <>
             <ComposePost
-              onSubmit={async (data) => {
-                await handleRoasterPost(data);
-                setRepostTarget(null);
-              }}
-              onCancel={() => { setShowRoasterCompose(false); setRepostTarget(null); }}
+              onSubmit={async (data) => { await handleRoasterPost(data); }}
+              onCancel={() => setShowRoasterCompose(false)}
               loading={false}
-              repostTarget={repostTarget}
               products={productMap ? Array.from(productMap.values()) : []}
               user={user}
             />
@@ -153,7 +149,7 @@ export default function FeedPage() {
                 key={`rp-${item.id}-${idx}`}
                 post={item}
                 router={router}
-                onRepost={(post: any) => { setRepostTarget(post); setShowRoasterCompose(true); }}
+                onRepost={(post: any) => { setRepostTarget(post); }}
               />
             ) : (
               <TastingNoteCard
@@ -175,8 +171,25 @@ export default function FeedPage() {
         )}
       </ScrollView>
 
+      {/* Repost floating modal — Figma 116:770 backdrop */}
+      {repostTarget && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setRepostTarget(null)}>
+          <Pressable style={s.repostOverlay} onPress={() => setRepostTarget(null)}>
+            <Pressable style={s.repostModal} onPress={(e) => e.stopPropagation()}>
+              <ComposePost
+                onSubmit={async (data) => { await handleRoasterPost(data); setRepostTarget(null); }}
+                onCancel={() => setRepostTarget(null)}
+                loading={false}
+                repostTarget={repostTarget}
+                user={user}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
       {/* Compose FAB */}
-      {user && !showRoasterCompose && (
+      {user && !showRoasterCompose && !repostTarget && (
         <Pressable onPress={() => setShowRoasterCompose(true)} style={s.fab}>
           <Plus size={22} color="#FAF8F0" strokeWidth={2.5} />
         </Pressable>
@@ -806,6 +819,21 @@ const s = StyleSheet.create({
     paddingBottom: 100,
   },
   emptyText: { textAlign: "center", paddingVertical: 64, fontFamily: fonts.bodyRegular, fontSize: 14, color: colors.textSecondary },
+  // Repost floating modal — Figma 116:770 backdrop
+  repostOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(104,79,68,0.6)",
+    backdropFilter: "blur(35px)",
+    WebkitBackdropFilter: "blur(35px)",
+    justifyContent: "center",
+    alignItems: "center",
+  } as any,
+  repostModal: {
+    width: "90%",
+    maxWidth: 560,
+    borderRadius: 12,
+    overflow: "hidden",
+  } as any,
   // Figma 135:1664 — #D7D1C4 separator line between posts
   feedDivider: { height: 1, backgroundColor: "#D7D1C4" },
 
