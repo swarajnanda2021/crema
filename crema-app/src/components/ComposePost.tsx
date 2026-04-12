@@ -216,7 +216,6 @@ export default function ComposePost({
               {linkPreview.image_url ? (
                 <View style={s.previewThumbWrap}>
                   <Image source={{ uri: linkPreview.image_url }} style={s.previewThumbImg} contentFit="cover" />
-                  <View style={s.previewGradient} />
                   <View style={s.previewOverlay}>
                     <TextInput
                       style={s.previewTitle}
@@ -413,10 +412,9 @@ const s = StyleSheet.create({
   previewCard: { borderRadius: 8, overflow: "hidden", backgroundColor: "#EFE9DB" } as any,
   previewThumbWrap: { position: "relative", height: 200 } as any,
   previewThumbImg: { width: "100%" as any, height: "100%" as any },
-  previewGradient: { position: "absolute", bottom: 0, left: 0, right: 0, height: "60%", background: "linear-gradient(transparent, rgba(0,0,0,0.7))" } as any,
-  previewOverlay: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 14 } as any,
-  previewTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: "#FAF8F0", lineHeight: 21, marginBottom: 4 },
-  previewDomain: { fontFamily: fonts.bodyRegular, fontSize: 11, color: "rgba(250,248,240,0.7)" },
+  previewOverlay: { position: "absolute", bottom: 10, left: 10, right: 10, backgroundColor: "#FFF", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 } as any,
+  previewTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#351101", lineHeight: 19, marginBottom: 2 },
+  previewDomain: { fontFamily: fonts.bodyRegular, fontSize: 11, color: "#A09580" },
   previewNoImg: { padding: 14 },
   // Note mode
   noteSection: { marginBottom: 8 },

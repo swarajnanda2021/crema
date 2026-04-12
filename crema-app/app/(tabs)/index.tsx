@@ -521,7 +521,6 @@ function RoasterPostFeedCard({ post, router, onRepost }: { post: any; router: an
       {isArticle && post.cover_image_url ? (
         <Pressable onPress={handleOpen} style={rp.articleThumbWrap}>
           <Image source={{ uri: resolveUploadUrl(post.cover_image_url) }} style={rp.articleThumbImg} contentFit="cover" />
-          <View style={rp.articleGradient} />
           <View style={rp.articleOverlay}>
             {post.title ? <Text style={rp.articleTitle} numberOfLines={2}>{post.title}</Text> : null}
             <Text style={rp.articleDomain}>{post.external_url?.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]}</Text>
@@ -616,32 +615,27 @@ const rp = StyleSheet.create({
     height: 200,
   } as any,
   articleThumbImg: { width: "100%" as any, height: "100%" as any },
-  articleGradient: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: "60%",
-    background: "linear-gradient(transparent, rgba(0,0,0,0.7))",
-  } as any,
   articleOverlay: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 14,
+    bottom: 10,
+    left: 10,
+    right: 10,
+    backgroundColor: "#FFF",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   } as any,
   articleTitle: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 16,
-    color: "#FAF8F0",
-    lineHeight: 21,
-    marginBottom: 4,
+    fontSize: 14,
+    color: "#351101",
+    lineHeight: 19,
+    marginBottom: 2,
   },
   articleDomain: {
     fontFamily: fonts.bodyRegular,
     fontSize: 11,
-    color: "rgba(250,248,240,0.7)",
+    color: "#A09580",
   },
   actionBar: {
     flexDirection: "row",

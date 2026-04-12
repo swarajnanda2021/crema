@@ -652,7 +652,17 @@ function RoasterPostCard({
           </Modal>
         </View>
       ) : (
-        <PhotoGallery images={post.images || (post.cover_image_url ? [post.cover_image_url] : [])} onPress={handleOpen} />
+        isArticle && post.cover_image_url ? (
+          <Pressable onPress={handleOpen} style={pc.articleThumbWrap}>
+            <Image source={{ uri: resolveUploadUrl(post.cover_image_url) }} style={pc.articleThumbImg} contentFit="cover" />
+            <View style={pc.articleOverlay}>
+              {post.title ? <Text style={pc.articleTitle} numberOfLines={2}>{post.title}</Text> : null}
+              {post.external_url ? <Text style={pc.articleDomain}>{post.external_url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]}</Text> : null}
+            </View>
+          </Pressable>
+        ) : (
+          <PhotoGallery images={post.images || (post.cover_image_url ? [post.cover_image_url] : [])} onPress={handleOpen} />
+        )
       )}
 
       {/* ── Edit save/cancel bar ── */}
@@ -774,6 +784,37 @@ const pc = StyleSheet.create({
   dropdownText: { fontFamily: fonts.bodyRegular, fontSize: 13.573, color: "#684F44" },
   dropdownDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(215,209,196,0.4)", marginHorizontal: 10 },
   // Edit mode styles
+  // Article thumbnail — full column width with white rounded title box
+  articleThumbWrap: {
+    marginBottom: 14,
+    borderRadius: 8,
+    overflow: "hidden",
+    position: "relative",
+    height: 200,
+  } as any,
+  articleThumbImg: { width: "100%" as any, height: "100%" as any },
+  articleOverlay: {
+    position: "absolute",
+    bottom: 10,
+    left: 10,
+    right: 10,
+    backgroundColor: "#FFF",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  } as any,
+  articleTitle: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: "#351101",
+    lineHeight: 19,
+    marginBottom: 2,
+  },
+  articleDomain: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 11,
+    color: "#A09580",
+  },
   editInput: {
     borderRadius: 4,
     borderWidth: 1,
