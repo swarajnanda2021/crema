@@ -127,7 +127,7 @@ export default function TastingNoteCard({
           paddingLeft: PAD_L * s,
           paddingRight: 22 * s,
           paddingTop: 26 * s,
-          paddingBottom: 18 * s,
+          paddingBottom: 12 * s,
         },
       ]}
     >
@@ -172,12 +172,12 @@ export default function TastingNoteCard({
         By {roaster_name}
       </Text>
 
-      {/* Roast • Process + Cart icon */}
+      {/* Process • Roast + Cart icon */}
       <View style={[styles.bottomRow, { marginTop: 4 * s }]}>
         {metaLine ? (
           <Text
             style={[styles.metaText, lining, { fontSize: 11.274 * s }]}
-            numberOfLines={1}
+            numberOfLines={2}
           >
             {metaLine}
           </Text>

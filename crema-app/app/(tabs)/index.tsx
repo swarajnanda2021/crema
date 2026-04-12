@@ -530,6 +530,27 @@ function RoasterPostFeedCard({ post, router, onRepost }: { post: any; router: an
         </View>
       ) : null}
 
+      {/* Repost: nested original post card */}
+      {post.post_type === "repost" && post.original_post && (
+        <View style={rp.repostCard}>
+          <View style={rp.repostCardHeader}>
+            {post.original_post.author_avatar_url ? (
+              <Image source={{ uri: resolveUploadUrl(post.original_post.author_avatar_url) }} style={rp.repostCardAvatar} contentFit="cover" />
+            ) : (
+              <View style={[rp.repostCardAvatar, rp.repostCardAvatarFb]}>
+                <Text style={rp.repostCardAvatarLetter}>{(post.original_post.author_display_name || "?")[0].toUpperCase()}</Text>
+              </View>
+            )}
+            <Text style={rp.repostCardAuthor} numberOfLines={1}>{post.original_post.author_display_name}</Text>
+            <Text style={rp.repostCardTime}>{timeAgo(post.original_post.published_at)}</Text>
+          </View>
+          <Text style={rp.repostCardTeaser} numberOfLines={3}>{post.original_post.teaser}</Text>
+          {post.original_post.cover_image_url && (
+            <Image source={{ uri: resolveUploadUrl(post.original_post.cover_image_url) }} style={rp.repostCardThumb} contentFit="cover" />
+          )}
+        </View>
+      )}
+
       {/* Article thumbnail with title overlay OR note gallery */}
       {isArticle && post.cover_image_url ? (
         <Pressable onPress={handleOpen} style={rp.articleThumbWrap}>
@@ -658,6 +679,24 @@ const rp = StyleSheet.create({
     paddingTop: 12,
   },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+  // Nested repost card
+  repostCard: {
+    marginHorizontal: 20,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+    borderRadius: 8,
+    backgroundColor: "#EFE9DB",
+    padding: 12,
+  },
+  repostCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 } as any,
+  repostCardAvatar: { width: 20, height: 20, borderRadius: 10, overflow: "hidden" } as any,
+  repostCardAvatarFb: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,
+  repostCardAvatarLetter: { fontFamily: fonts.bodySemiBold, fontSize: 8, color: "#FAF8F0" },
+  repostCardAuthor: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#351101", flex: 1 },
+  repostCardTime: { fontFamily: fonts.bodyRegular, fontSize: 10, color: "#A09580" },
+  repostCardTeaser: { fontFamily: fonts.bodyRegular, fontSize: 13, color: "#684F44", lineHeight: 18 },
+  repostCardThumb: { width: "100%" as any, height: 120, borderRadius: 6, marginTop: 8 },
   actionCount: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
 });
 

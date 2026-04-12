@@ -74,8 +74,22 @@ def _parse_images(r) -> list:
     return [cover] if cover else []
 
 
-def _row_to_post(r) -> dict:
+def _row_to_post(r, db=None) -> dict:
     keys = r.keys() if hasattr(r, "keys") else []
+    repost_of_id = r["repost_of_id"] if "repost_of_id" in keys else None
+
+    # Embed original post for reposts
+    original_post = None
+    if repost_of_id and db:
+        try:
+            orig_row = db.execute(
+                _POST_SELECT + " WHERE rp.id = ?", (repost_of_id,)
+            ).fetchone()
+            if orig_row:
+                original_post = _row_to_post(orig_row)  # no db = no recursion
+        except Exception:
+            pass
+
     return {
         "id": r["id"],
         "type": "roaster_post",
@@ -96,8 +110,9 @@ def _row_to_post(r) -> dict:
         "post_type": r["post_type"] if "post_type" in keys else "article",
         "location": r["location"] if "location" in keys else None,
         "images": _parse_images(r),
-        "repost_of_id": r["repost_of_id"] if "repost_of_id" in keys else None,
+        "repost_of_id": repost_of_id,
         "repost_comment": r["repost_comment"] if "repost_comment" in keys else None,
+        "original_post": original_post,
         "tasting_note_id": r["tasting_note_id"] if "tasting_note_id" in keys else None,
     }
 
@@ -173,7 +188,7 @@ def create_post(req: RoasterPostRequest, user=Depends(get_current_user)):
         row = db.execute(
             _POST_SELECT + " WHERE rp.id = ?", (cursor.lastrowid,)
         ).fetchone()
-        return _row_to_post(row)
+        return _row_to_post(row, db)
     finally:
         db.close()
 
@@ -217,7 +232,7 @@ def update_post(post_id: int, req: PostUpdateRequest, user=Depends(get_current_u
         )
         db.commit()
         updated = db.execute(_POST_SELECT + " WHERE rp.id = ?", (post_id,)).fetchone()
-        return _row_to_post(updated)
+        return _row_to_post(updated, db)
     finally:
         db.close()
 
@@ -237,7 +252,7 @@ def get_user_posts(username: str, limit: int = 20, offset: int = 0):
         total = db.execute(
             "SELECT COUNT(*) as c FROM roaster_posts WHERE user_id = ?", (user_row["id"],)
         ).fetchone()["c"]
-        return {"posts": [_row_to_post(r) for r in rows], "total": total}
+        return {"posts": [_row_to_post(r, db) for r in rows], "total": total}
     finally:
         db.close()
 
@@ -255,7 +270,7 @@ def get_featured_posts(slug: str):
             """,
             (slug,),
         ).fetchall()
-        return {"featured_posts": [_row_to_post(r) for r in rows]}
+        return {"featured_posts": [_row_to_post(r, db) for r in rows]}
     finally:
         db.close()
 
@@ -272,7 +287,7 @@ def get_roaster_posts(slug: str, limit: int = 20, offset: int = 0):
         total = db.execute(
             "SELECT COUNT(*) as c FROM roaster_posts WHERE roaster_slug = ?", (slug,)
         ).fetchone()["c"]
-        return {"posts": [_row_to_post(r) for r in rows], "total": total}
+        return {"posts": [_row_to_post(r, db) for r in rows], "total": total}
     finally:
         db.close()
 
@@ -392,7 +407,7 @@ def get_posts_timeline(limit: int = 30, offset: int = 0, user=Depends(get_option
 
         posts_items = []
         for r in posts_rows:
-            item = _row_to_post(r)
+            item = _row_to_post(r, db)
             item["sort_key"] = item["published_at"]
             posts_items.append(item)
 

@@ -502,6 +502,27 @@ function RoasterPostCard({
         </>
       )}
 
+      {/* ── Repost: nested original post card ── */}
+      {post.post_type === "repost" && post.original_post && (
+        <View style={pc.repostCard}>
+          <View style={pc.repostCardHeader}>
+            {post.original_post.author_avatar_url ? (
+              <Image source={{ uri: resolveUploadUrl(post.original_post.author_avatar_url) }} style={pc.repostCardAvatar} contentFit="cover" />
+            ) : (
+              <View style={[pc.repostCardAvatar, pc.repostCardAvatarFb]}>
+                <Text style={pc.repostCardAvatarLetter}>{(post.original_post.author_display_name || "?")[0].toUpperCase()}</Text>
+              </View>
+            )}
+            <Text style={pc.repostCardAuthor} numberOfLines={1}>{post.original_post.author_display_name}</Text>
+            <Text style={pc.repostCardTime}>{timeAgo(post.original_post.published_at)}</Text>
+          </View>
+          <Text style={pc.repostCardTeaser} numberOfLines={3}>{post.original_post.teaser}</Text>
+          {post.original_post.cover_image_url && (
+            <Image source={{ uri: resolveUploadUrl(post.original_post.cover_image_url) }} style={pc.repostCardThumb} contentFit="cover" />
+          )}
+        </View>
+      )}
+
       {/* ── Photo gallery / Editable image grid ── */}
       {isEditingPost ? (
         <View style={pc.editImageGrid} onLayout={(e) => setEditGridW(e.nativeEvent.layout.width)}>
@@ -786,6 +807,23 @@ const pc = StyleSheet.create({
   dropdownText: { fontFamily: fonts.bodyRegular, fontSize: 13.573, color: "#684F44" },
   dropdownDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(215,209,196,0.4)", marginHorizontal: 10 },
   // Edit mode styles
+  // Nested repost card
+  repostCard: {
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+    borderRadius: 8,
+    backgroundColor: "#EFE9DB",
+    padding: 12,
+  },
+  repostCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 } as any,
+  repostCardAvatar: { width: 20, height: 20, borderRadius: 10, overflow: "hidden" } as any,
+  repostCardAvatarFb: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,
+  repostCardAvatarLetter: { fontFamily: fonts.bodySemiBold, fontSize: 8, color: "#FAF8F0" },
+  repostCardAuthor: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#351101", flex: 1 },
+  repostCardTime: { fontFamily: fonts.bodyRegular, fontSize: 10, color: "#A09580" },
+  repostCardTeaser: { fontFamily: fonts.bodyRegular, fontSize: 13, color: "#684F44", lineHeight: 18 },
+  repostCardThumb: { width: "100%" as any, height: 120, borderRadius: 6, marginTop: 8 },
   // Article thumbnail — full column width with white rounded title box
   articleThumbWrap: {
     marginBottom: 14,
