@@ -167,6 +167,29 @@ export default function CommentModal({ visible, post, onClose, onCommentCountCha
               />
             ) : null}
 
+            {/* Repost: show original post */}
+            {post.post_type === "repost" && post.original_post && (
+              <View style={s.repostCard}>
+                <View style={s.repostCardHeader}>
+                  {post.original_post.author_avatar_url ? (
+                    <Image source={{ uri: resolveUploadUrl(post.original_post.author_avatar_url) }} style={s.repostCardAvatar} contentFit="cover" />
+                  ) : (
+                    <View style={[s.repostCardAvatar, { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any]}>
+                      <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: 7, color: "#FAF8F0" }}>{(post.original_post.author_display_name || "?")[0].toUpperCase()}</Text>
+                    </View>
+                  )}
+                  <Text style={s.repostCardAuthor} numberOfLines={1}>{post.original_post.author_display_name}</Text>
+                  <Text style={s.repostCardTime}>{timeAgo(post.original_post.published_at)}</Text>
+                </View>
+                <Text style={s.repostCardTeaser} numberOfLines={3}>{post.original_post.teaser}</Text>
+                {(post.original_post.images?.length > 0 || post.original_post.cover_image_url) && (
+                  <View style={{ marginTop: 8 }}>
+                    <PostGallery images={post.original_post.images?.length > 0 ? post.original_post.images : [post.original_post.cover_image_url]} />
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Location */}
             {post.location ? (
               <View style={s.postLocationRow}>
@@ -316,9 +339,9 @@ const s = StyleSheet.create({
   card: {
     backgroundColor: "#FAF8F0",
     borderRadius: 12,
-    width: "90%",
-    maxWidth: 520,
-    maxHeight: "80%",
+    width: "92%",
+    maxWidth: 700,
+    maxHeight: "85%",
     overflow: "hidden",
   } as any,
 
@@ -351,6 +374,13 @@ const s = StyleSheet.create({
   postArticleDomain: { fontFamily: fonts.bodyRegular, fontSize: 10, color: "#A09580" },
   postLocationRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 } as any,
   postLocationText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#351101" },
+  // Repost nested card
+  repostCard: { borderWidth: 1, borderColor: "#D7D1C4", borderRadius: 8, backgroundColor: "#FEFDFB", padding: 12, marginBottom: 8 },
+  repostCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 } as any,
+  repostCardAvatar: { width: 20, height: 20, borderRadius: 10, overflow: "hidden" } as any,
+  repostCardAuthor: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#351101", flex: 1 },
+  repostCardTime: { fontFamily: fonts.bodyRegular, fontSize: 10, color: "#A09580" },
+  repostCardTeaser: { fontFamily: fonts.bodyRegular, fontSize: 13, color: "#684F44", lineHeight: 18 },
 
   divider: { height: 1, backgroundColor: "#D7D1C4" },
 
