@@ -279,6 +279,7 @@ function RoasterPostCard({
   onRepost?: (post: any) => void;
   products?: any[];
 }) {
+  const router = useRouter();
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [commentCount] = useState(0);
@@ -506,14 +507,23 @@ function RoasterPostCard({
       {post.post_type === "repost" && post.original_post && (
         <View style={pc.repostCard}>
           <View style={pc.repostCardHeader}>
-            {post.original_post.author_avatar_url ? (
-              <Image source={{ uri: resolveUploadUrl(post.original_post.author_avatar_url) }} style={pc.repostCardAvatar} contentFit="cover" />
-            ) : (
-              <View style={[pc.repostCardAvatar, pc.repostCardAvatarFb]}>
-                <Text style={pc.repostCardAvatarLetter}>{(post.original_post.author_display_name || "?")[0].toUpperCase()}</Text>
-              </View>
-            )}
-            <Text style={pc.repostCardAuthor} numberOfLines={1}>{post.original_post.author_display_name}</Text>
+            <Pressable
+              onPress={() => {
+                const op = post.original_post;
+                if (op.roaster_slug && !op.roaster_slug.startsWith("user_")) router.push(`/roaster/${op.roaster_slug}`);
+                else if (op.author_username) router.push(`/user/${op.author_username}`);
+              }}
+              style={pc.repostCardAuthorRow}
+            >
+              {post.original_post.author_avatar_url ? (
+                <Image source={{ uri: resolveUploadUrl(post.original_post.author_avatar_url) }} style={pc.repostCardAvatar} contentFit="cover" />
+              ) : (
+                <View style={[pc.repostCardAvatar, pc.repostCardAvatarFb]}>
+                  <Text style={pc.repostCardAvatarLetter}>{(post.original_post.author_display_name || "?")[0].toUpperCase()}</Text>
+                </View>
+              )}
+              <Text style={pc.repostCardAuthor} numberOfLines={1}>{post.original_post.author_display_name}</Text>
+            </Pressable>
             <Text style={pc.repostCardTime}>{timeAgo(post.original_post.published_at)}</Text>
           </View>
           <Text style={pc.repostCardTeaser} numberOfLines={3}>{post.original_post.teaser}</Text>
@@ -825,7 +835,8 @@ const pc = StyleSheet.create({
   repostCardAvatar: { width: 20, height: 20, borderRadius: 10, overflow: "hidden" } as any,
   repostCardAvatarFb: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,
   repostCardAvatarLetter: { fontFamily: fonts.bodySemiBold, fontSize: 8, color: "#FAF8F0" },
-  repostCardAuthor: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#351101", flex: 1 },
+  repostCardAuthorRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 } as any,
+  repostCardAuthor: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#351101" },
   repostCardTime: { fontFamily: fonts.bodyRegular, fontSize: 10, color: "#A09580" },
   repostCardTeaser: { fontFamily: fonts.bodyRegular, fontSize: 13, color: "#684F44", lineHeight: 18 },
   repostCardGallery: { marginTop: 8 },
