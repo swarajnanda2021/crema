@@ -30,6 +30,7 @@ import TastingNoteDisplay from "../../src/components/TastingNoteDisplay";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import PostGallery from "../../src/components/PostGallery";
 import ComposePost from "../../src/components/ComposePost";
+import CommentModal from "../../src/components/CommentModal";
 
 // ── Feed page ─────────────────────────────────────────────────────────────────
 
@@ -150,6 +151,7 @@ export default function FeedPage() {
                 post={item}
                 router={router}
                 onRepost={(post: any) => { setRepostTarget(post); }}
+                user={user}
               />
             ) : (
               <TastingNoteCard
@@ -460,19 +462,26 @@ function timeAgo(dateStr: string): string {
 
 // ── Post feed card — matches roaster profile PostCard design ─────────────────
 
-function RoasterPostFeedCard({ post, router, onRepost }: { post: any; router: any; onRepost?: (post: any) => void }) {
+function RoasterPostFeedCard({ post, router, onRepost, user }: { post: any; router: any; onRepost?: (post: any) => void; user?: any }) {
   const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
-  const [commentCount] = useState(0);
+  const [likeCount, setLikeCount] = useState(post.like_count || 0);
+  const [commentCount, setCommentCount] = useState(post.comment_count || 0);
+  const [showCommentModal, setShowCommentModal] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const handleLike = () => {
+  const handleLike = async () => {
     Animated.sequence([
       Animated.timing(scaleAnim, { toValue: 1.3, duration: 100, useNativeDriver: true }),
       Animated.timing(scaleAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
     ]).start();
+    // Optimistic update
     setLiked((l) => !l);
-    setLikeCount((c) => liked ? c - 1 : c + 1);
+    setLikeCount((c: number) => liked ? c - 1 : c + 1);
+    try {
+      const res = await apiFetch(`/posts/${post.id}/like`, { method: "POST" });
+      setLiked(res.liked);
+      setLikeCount(res.like_count);
+    } catch {}
   };
 
   const handleOpen = () => {
@@ -592,10 +601,10 @@ function RoasterPostFeedCard({ post, router, onRepost }: { post: any; router: an
           </Animated.View>
           <Text style={[rp.actionCount, liked && { color: "#D798DA" }]}>{likeCount}</Text>
         </Pressable>
-        <View style={rp.actionBtn}>
+        <Pressable onPress={() => setShowCommentModal(true)} style={rp.actionBtn}>
           <CommentBubbleIcon size={14} color="#D798DA" />
           <Text style={rp.actionCount}>{commentCount}</Text>
-        </View>
+        </Pressable>
         <Pressable onPress={() => onRepost?.(post)} style={rp.actionBtn}>
           <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
             <Path d="M17 1L21 5L17 9M3 11V9C3 7.93 3.42 6.93 4.17 6.17C4.93 5.42 5.93 5 7 5H21M7 23L3 19L7 15M21 13V15C21 16.06 20.58 17.07 19.83 17.83C19.07 18.58 18.07 19 17 19H3" stroke="#D798DA" strokeWidth={2.095} strokeLinecap="round" strokeLinejoin="round" />
@@ -612,6 +621,15 @@ function RoasterPostFeedCard({ post, router, onRepost }: { post: any; router: an
           <ShareNodesIcon size={12} color="#D798DA" />
         </Pressable>
       </View>
+
+      {/* Comment modal */}
+      <CommentModal
+        visible={showCommentModal}
+        post={post}
+        onClose={() => setShowCommentModal(false)}
+        onCommentCountChange={(_, count) => setCommentCount(count)}
+        user={user}
+      />
     </View>
   );
 }

@@ -90,6 +90,17 @@ def _row_to_post(r, db=None) -> dict:
         except Exception:
             pass
 
+    # Like and comment counts
+    post_id = r["id"]
+    like_count = 0
+    comment_count = 0
+    if db:
+        try:
+            like_count = db.execute("SELECT COUNT(*) as c FROM post_likes WHERE post_id = ?", (post_id,)).fetchone()["c"]
+            comment_count = db.execute("SELECT COUNT(*) as c FROM post_comments WHERE post_id = ?", (post_id,)).fetchone()["c"]
+        except Exception:
+            pass
+
     return {
         "id": r["id"],
         "type": "roaster_post",
@@ -114,6 +125,8 @@ def _row_to_post(r, db=None) -> dict:
         "repost_comment": r["repost_comment"] if "repost_comment" in keys else None,
         "original_post": original_post,
         "tasting_note_id": r["tasting_note_id"] if "tasting_note_id" in keys else None,
+        "like_count": like_count,
+        "comment_count": comment_count,
     }
 
 

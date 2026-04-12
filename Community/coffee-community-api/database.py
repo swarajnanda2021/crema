@@ -217,6 +217,17 @@ _MIGRATIONS = [
         created_at TEXT NOT NULL
     )""",
     "CREATE INDEX IF NOT EXISTS idx_post_comments_post ON post_comments(post_id)",
+    # Comment likes
+    """CREATE TABLE IF NOT EXISTS comment_likes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        comment_id INTEGER NOT NULL REFERENCES post_comments(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        UNIQUE(user_id, comment_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_comment_likes_comment ON comment_likes(comment_id)",
+    # Updated_at for post_comments (for edit tracking)
+    "ALTER TABLE post_comments ADD COLUMN updated_at TEXT",
 ]
 
 

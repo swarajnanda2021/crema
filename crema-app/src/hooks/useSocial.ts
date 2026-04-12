@@ -44,5 +44,40 @@ export function useSocial() {
     return apiFetch<{ comments: any[] }>(`/users/${username}/comments`);
   }, []);
 
-  return { toggleLike, setInitialLikeState, getLikeState, fetchComments, createComment, deleteComment, fetchUserLikes, fetchUserComments };
+  // ── Post-level social (roaster_posts) ──────────────────────────────────────
+
+  const togglePostLike = useCallback(async (postId: number) => {
+    return apiFetch<{ liked: boolean; like_count: number }>(`/posts/${postId}/like`, { method: "POST" });
+  }, []);
+
+  const fetchPostComments = useCallback(async (postId: number) => {
+    return apiFetch<{ comments: any[] }>(`/posts/${postId}/comments`);
+  }, []);
+
+  const createPostComment = useCallback(async (postId: number, comment: string) => {
+    return apiFetch(`/posts/${postId}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ comment }),
+    });
+  }, []);
+
+  const editPostComment = useCallback(async (commentId: number, comment: string) => {
+    return apiFetch(`/post-comments/${commentId}`, {
+      method: "PUT",
+      body: JSON.stringify({ comment }),
+    });
+  }, []);
+
+  const deletePostComment = useCallback(async (commentId: number) => {
+    return apiFetch(`/post-comments/${commentId}`, { method: "DELETE" });
+  }, []);
+
+  const toggleCommentLike = useCallback(async (commentId: number) => {
+    return apiFetch<{ liked: boolean; like_count: number }>(`/post-comments/${commentId}/like`, { method: "POST" });
+  }, []);
+
+  return {
+    toggleLike, setInitialLikeState, getLikeState, fetchComments, createComment, deleteComment, fetchUserLikes, fetchUserComments,
+    togglePostLike, fetchPostComments, createPostComment, editPostComment, deletePostComment, toggleCommentLike,
+  };
 }
