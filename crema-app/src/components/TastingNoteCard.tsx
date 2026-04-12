@@ -110,7 +110,11 @@ export default function TastingNoteCard({
       ? ({ fontFeatureSettings: "'lnum', 'pnum'" } as any)
       : {};
 
-  const metaLine = [roast_level, process].filter(Boolean).join(" • ");
+  const metaParts = [
+    process ? `${process} Process` : null,
+    roast_level ? `${roast_level} Roast` : null,
+  ].filter(Boolean);
+  const metaLine = metaParts.join(" • ");
 
   return (
     <View
