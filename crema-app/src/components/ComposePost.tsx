@@ -412,7 +412,7 @@ const s = StyleSheet.create({
   previewCard: { borderRadius: 8, overflow: "hidden", backgroundColor: "#EFE9DB" } as any,
   previewThumbWrap: { position: "relative", height: 200 } as any,
   previewThumbImg: { width: "100%" as any, height: "100%" as any },
-  previewOverlay: { position: "absolute", bottom: 10, left: 10, right: 10, backgroundColor: "#FFF", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 } as any,
+  previewOverlay: { position: "absolute", bottom: 10, left: 10, backgroundColor: "#FFF", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, maxWidth: "80%" } as any,
   previewTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#351101", lineHeight: 19, marginBottom: 2 },
   previewDomain: { fontFamily: fonts.bodyRegular, fontSize: 11, color: "#A09580" },
   previewNoImg: { padding: 14 },

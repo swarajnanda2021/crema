@@ -182,10 +182,10 @@ export default function TastingNoteCard({
         )}
         {product_url ? (
           <Pressable onPress={() => Linking.openURL(product_url)}>
-            <CartIcon size={Math.round(23.65 * s)} />
+            <CartIcon size={Math.round(44.36 * s)} />
           </Pressable>
         ) : (
-          <CartIcon size={Math.round(23.65 * s)} />
+          <CartIcon size={Math.round(44.36 * s)} />
         )}
       </View>
     </View>

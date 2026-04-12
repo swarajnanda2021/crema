@@ -619,11 +619,11 @@ const rp = StyleSheet.create({
     position: "absolute",
     bottom: 10,
     left: 10,
-    right: 10,
     backgroundColor: "#FFF",
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 10,
+    maxWidth: "80%",
   } as any,
   articleTitle: {
     fontFamily: fonts.bodySemiBold,
