@@ -21,7 +21,8 @@ import Svg, { Path } from "react-native-svg";
 
 import { apiFetch, resolveUploadUrl } from "../api/client";
 import { fonts } from "../theme/colors";
-import { HeartOutlineIcon, HeartFilledOutlineIcon } from "./icons/FigmaIcons";
+import { HeartOutlineIcon, HeartFilledOutlineIcon, PostLocationPinIcon } from "./icons/FigmaIcons";
+import PostGallery from "./PostGallery";
 
 interface CommentModalProps {
   visible: boolean;
@@ -124,7 +125,7 @@ export default function CommentModal({ visible, post, onClose, onCommentCountCha
             </Pressable>
           </View>
 
-          {/* Compact post preview */}
+          {/* Full post preview */}
           <View style={s.postPreview}>
             <View style={s.postPreviewHeader}>
               {post.author_avatar_url ? (
@@ -134,10 +135,45 @@ export default function CommentModal({ visible, post, onClose, onCommentCountCha
                   <Text style={s.postAvatarLetter}>{(post.author_display_name || "?")[0].toUpperCase()}</Text>
                 </View>
               )}
-              <Text style={s.postAuthor} numberOfLines={1}>{post.author_display_name}</Text>
-              <Text style={s.postTime}>{timeAgo(post.published_at)}</Text>
+              <View style={{ flex: 1 }}>
+                <View style={s.postNameRow}>
+                  <Text style={s.postAuthor} numberOfLines={1}>{post.author_display_name}</Text>
+                  <Text style={s.postTime}>{timeAgo(post.published_at)}</Text>
+                </View>
+                <Text style={s.postSubtitle}>
+                  {post.post_type === "tasting_note" ? "Posted a tasting note"
+                    : post.post_type === "note" ? "Shared a moment"
+                    : post.post_type === "repost" ? "Reposted"
+                    : "Shared an article"}
+                </Text>
+              </View>
             </View>
-            <Text style={s.postTeaser} numberOfLines={2}>{post.teaser}</Text>
+            <Text style={s.postTeaser}>{post.teaser}</Text>
+
+            {/* Post images/gallery */}
+            {post.post_type === "article" && post.cover_image_url ? (
+              <View style={s.postArticleThumb}>
+                <Image source={{ uri: resolveUploadUrl(post.cover_image_url) }} style={s.postArticleImg} contentFit="cover" />
+                {post.title ? (
+                  <View style={s.postArticleOverlay}>
+                    <Text style={s.postArticleTitle} numberOfLines={2}>{post.title}</Text>
+                    <Text style={s.postArticleDomain}>{post.external_url?.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]}</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : (post.images?.length > 0 || post.cover_image_url) ? (
+              <PostGallery
+                images={post.images?.length > 0 ? post.images : [post.cover_image_url]}
+              />
+            ) : null}
+
+            {/* Location */}
+            {post.location ? (
+              <View style={s.postLocationRow}>
+                <PostLocationPinIcon size={11} color="#D798DA" />
+                <Text style={s.postLocationText}>{post.location}</Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={s.divider} />
@@ -298,14 +334,23 @@ const s = StyleSheet.create({
   headerTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: "#351101" },
 
   // Post preview
-  postPreview: { paddingHorizontal: 20, paddingBottom: 12 },
-  postPreviewHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 } as any,
-  postAvatar: { width: 24, height: 24, borderRadius: 12, overflow: "hidden" } as any,
+  postPreview: { paddingHorizontal: 20, paddingBottom: 14 },
+  postPreviewHeader: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 10 } as any,
+  postAvatar: { width: 28, height: 28, borderRadius: 14, overflow: "hidden" } as any,
   postAvatarFb: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,
-  postAvatarLetter: { fontFamily: fonts.bodySemiBold, fontSize: 9, color: "#FAF8F0" },
-  postAuthor: { fontFamily: fonts.bodyMedium, fontSize: 12, color: "#351101", flex: 1 },
-  postTime: { fontFamily: fonts.bodyRegular, fontSize: 10, color: "#A09580" },
-  postTeaser: { fontFamily: fonts.bodyRegular, fontSize: 13, color: "#684F44", lineHeight: 18 },
+  postAvatarLetter: { fontFamily: fonts.bodySemiBold, fontSize: 10, color: "#FAF8F0" },
+  postNameRow: { flexDirection: "row", alignItems: "baseline", gap: 5 } as any,
+  postAuthor: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
+  postTime: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#A09580" },
+  postSubtitle: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#684F44", marginTop: 1 },
+  postTeaser: { fontFamily: fonts.bodyRegular, fontSize: 14, color: "#351101", lineHeight: 20, marginBottom: 10 },
+  postArticleThumb: { borderRadius: 8, overflow: "hidden", position: "relative", height: 160, marginBottom: 10 } as any,
+  postArticleImg: { width: "100%" as any, height: "100%" as any },
+  postArticleOverlay: { position: "absolute", bottom: 8, left: 8, backgroundColor: "#FFF", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, maxWidth: "80%" } as any,
+  postArticleTitle: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: "#351101", lineHeight: 16, marginBottom: 1 },
+  postArticleDomain: { fontFamily: fonts.bodyRegular, fontSize: 10, color: "#A09580" },
+  postLocationRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 } as any,
+  postLocationText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#351101" },
 
   divider: { height: 1, backgroundColor: "#D7D1C4" },
 
