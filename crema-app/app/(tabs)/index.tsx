@@ -9,7 +9,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  View, Text, TextInput, Pressable, ScrollView,
+  View, Text, TextInput, Pressable, ScrollView, Modal,
   RefreshControl, StyleSheet, Animated, ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
@@ -124,38 +124,6 @@ export default function FeedPage() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
       >
-        {/* Compose card — top of feed for logged-in users */}
-        {user && (
-          <>
-            {showRoasterCompose ? (
-              <RoasterComposeCard
-                onSubmit={handleRoasterPost}
-                onCancel={() => setShowRoasterCompose(false)}
-              />
-            ) : (
-              <Pressable
-                onPress={() => setShowRoasterCompose(true)}
-                style={s.composePrompt}
-              >
-                <View style={s.composePromptAvatar}>
-                  {user?.avatar_url ? (
-                    <Image source={{ uri: resolveUploadUrl(user.avatar_url) }} style={s.composePromptAvatarImg} contentFit="cover" />
-                  ) : (
-                    <View style={[s.composePromptAvatarImg, s.composePromptAvatarFallback]}>
-                      <Text style={s.composePromptInitial}>{(user?.display_name || "N")[0].toUpperCase()}</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={s.composePromptText}>Share a note or article with the community…</Text>
-                <View style={s.composePromptIcon}>
-                  <Plus size={14} color="#A09580" />
-                </View>
-              </Pressable>
-            )}
-            <View style={s.feedDivider} />
-          </>
-        )}
-
         {items.length === 0 ? (
           <Text style={s.emptyText}>Nothing in the feed yet. Taste some coffees!</Text>
         ) : (
@@ -182,6 +150,27 @@ export default function FeedPage() {
           })
         )}
       </ScrollView>
+
+      {/* Compose FAB — bottom-right, same as roaster profile */}
+      {user && !showRoasterCompose && (
+        <Pressable onPress={() => setShowRoasterCompose(true)} style={s.fab}>
+          <Plus size={22} color="#FAF8F0" strokeWidth={2.5} />
+        </Pressable>
+      )}
+
+      {/* Compose modal */}
+      {user && showRoasterCompose && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setShowRoasterCompose(false)}>
+          <Pressable style={s.composeOverlay} onPress={() => setShowRoasterCompose(false)}>
+            <Pressable style={s.composeModal} onPress={(e) => e.stopPropagation()}>
+              <RoasterComposeCard
+                onSubmit={handleRoasterPost}
+                onCancel={() => setShowRoasterCompose(false)}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -771,39 +760,37 @@ const s = StyleSheet.create({
   },
   emptyText: { textAlign: "center", paddingVertical: 64, fontFamily: fonts.bodyRegular, fontSize: 14, color: colors.textSecondary },
 
-  // Roaster compose prompt (collapsed state)
-  composePrompt: {
-    flexDirection: "row",
+  // FAB — same as roaster profile (bottom-right floating + button)
+  fab: {
+    position: "absolute",
+    bottom: 28,
+    right: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
-    gap: 12,
-    marginHorizontal: 28,
-    marginTop: 20,
-    marginBottom: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#D7D1C4",
-    backgroundColor: "#FFFEFB",
-  } as any,
-  composePromptAvatar: {},
-  composePromptAvatarImg: { width: 28, height: 28, borderRadius: 14, overflow: "hidden" } as any,
-  composePromptAvatarFallback: {
+    justifyContent: "center",
     backgroundColor: "#351101",
-    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
+  } as any,
+  // Compose modal overlay
+  composeOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
-  },
-  composePromptInitial: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: "#FAF8F0" },
-  composePromptText: { flex: 1, fontFamily: fonts.bodyRegular, fontSize: 13, color: "#A09580" },
-  composePromptIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "#F0EBE1",
     alignItems: "center",
-    justifyContent: "center",
-  },
-  feedDivider: { height: 1, backgroundColor: "#D7D1C4", marginTop: 16 },
+  } as any,
+  composeModal: {
+    width: "90%",
+    maxWidth: 560,
+    maxHeight: "85%",
+    borderRadius: 12,
+    overflow: "hidden",
+  } as any,
 });
 
 const fc = StyleSheet.create({
