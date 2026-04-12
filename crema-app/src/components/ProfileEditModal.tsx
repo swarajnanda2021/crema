@@ -25,6 +25,8 @@ export default function ProfileEditModal({ visible, user, onSave, onClose }: Pro
   const [displayName, setDisplayName] = useState(user?.display_name || "");
   const [bio, setBio] = useState(user?.bio || "");
   const [location, setLocation] = useState(user?.location || "");
+  const [favDrink, setFavDrink] = useState(user?.favorite_drink || "");
+  const [favCafe, setFavCafe] = useState(user?.favorite_cafe || "");
   const [pref, setPref] = useState(user?.coffee_preference || "");
   const [style, setStyle] = useState(user?.brewing_style || "");
   const [saving, setSaving] = useState(false);
@@ -36,6 +38,8 @@ export default function ProfileEditModal({ visible, user, onSave, onClose }: Pro
         display_name: displayName || undefined,
         bio: bio || undefined,
         location: location || undefined,
+        favorite_drink: favDrink || undefined,
+        favorite_cafe: favCafe || undefined,
         coffee_preference: pref || undefined,
         brewing_style: style || undefined,
       });
@@ -65,6 +69,12 @@ export default function ProfileEditModal({ visible, user, onSave, onClose }: Pro
 
             <Text style={s.label}>Location</Text>
             <TextInput style={s.input} value={location} onChangeText={setLocation} placeholder="City, Country" placeholderTextColor={colors.textMuted} />
+
+            <Text style={s.label}>Favorite Drink</Text>
+            <TextInput style={s.input} value={favDrink} onChangeText={setFavDrink} placeholder="e.g., Cortado" placeholderTextColor={colors.textMuted} />
+
+            <Text style={s.label}>Favorite Cafe</Text>
+            <TextInput style={s.input} value={favCafe} onChangeText={setFavCafe} placeholder="e.g., Blue Tokai, Bangalore" placeholderTextColor={colors.textMuted} />
 
             <Text style={s.label}>Coffee Preference</Text>
             <View style={s.chipRow}>

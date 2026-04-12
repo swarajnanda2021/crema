@@ -12,6 +12,11 @@ interface User {
   location?: string;
   coffee_preference?: string;
   brewing_style?: string;
+  favorite_drink?: string;
+  favorite_cafe?: string;
+  avatar_crop_x?: number;
+  avatar_crop_y?: number;
+  avatar_zoom?: number;
   account_type?: "user" | "roaster";
   roaster_slug?: string;
   created_at: string;

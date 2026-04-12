@@ -7,6 +7,8 @@ interface ProfileUpdate {
   location?: string;
   coffee_preference?: string;
   brewing_style?: string;
+  favorite_drink?: string;
+  favorite_cafe?: string;
   avatar_url?: string;
 }
 

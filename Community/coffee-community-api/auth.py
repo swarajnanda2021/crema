@@ -62,6 +62,9 @@ def _user_to_dict(row) -> dict:
         "roaster_slug": row["roaster_slug"] if "roaster_slug" in keys else None,
         "favorite_drink": row["favorite_drink"] if "favorite_drink" in keys else None,
         "favorite_cafe": row["favorite_cafe"] if "favorite_cafe" in keys else None,
+        "avatar_crop_x": row["avatar_crop_x"] if "avatar_crop_x" in keys else 50,
+        "avatar_crop_y": row["avatar_crop_y"] if "avatar_crop_y" in keys else 50,
+        "avatar_zoom": row["avatar_zoom"] if "avatar_zoom" in keys else 1,
         "created_at": row["created_at"],
     }
 
@@ -169,6 +172,25 @@ def me(user=Depends(get_current_user)):
     return user
 
 
+@router.get("/users/{username}")
+def get_user_by_username(username: str):
+    """Public user profile by username."""
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id, username, display_name, bio, avatar_url, location, "
+            "coffee_preference, brewing_style, favorite_drink, favorite_cafe, "
+            "avatar_crop_x, avatar_crop_y, "
+            "account_type, roaster_slug, created_at FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return dict(row)
+    finally:
+        db.close()
+
+
 @router.put("/profile")
 def update_profile(req: ProfileUpdateRequest, user=Depends(get_current_user)):
     db = get_db()
@@ -190,6 +212,12 @@ def update_profile(req: ProfileUpdateRequest, user=Depends(get_current_user)):
             updates["favorite_drink"] = req.favorite_drink
         if req.favorite_cafe is not None:
             updates["favorite_cafe"] = req.favorite_cafe
+        if req.avatar_crop_x is not None:
+            updates["avatar_crop_x"] = max(0, min(100, req.avatar_crop_x))
+        if req.avatar_crop_y is not None:
+            updates["avatar_crop_y"] = max(0, min(100, req.avatar_crop_y))
+        if req.avatar_zoom is not None:
+            updates["avatar_zoom"] = max(1, min(5, req.avatar_zoom))
 
         if not updates:
             raise HTTPException(422, "No fields to update")

@@ -23,7 +23,7 @@ import { fonts } from "../theme/colors";
 import { PostLocationPinIcon } from "./icons/FigmaIcons";
 import ImageUploadModal from "./ImageUploadModal";
 import TastingNoteCard from "./TastingNoteCard";
-import { GALLERY_ASPECT, PG_RADIUS } from "./PostGallery";
+import PostGallery, { GALLERY_ASPECT, PG_RADIUS } from "./PostGallery";
 
 interface ComposePostProps {
   onSubmit: (data: any) => Promise<void>;
@@ -375,8 +375,10 @@ export default function ComposePost({
             <Text style={s.repostTime}>{timeAgo(repostTarget.published_at)}</Text>
           </View>
           <Text style={s.repostTeaser} numberOfLines={3}>{repostTarget.teaser}</Text>
-          {repostTarget.images?.[0] && !isTN(repostTarget.images[0]) && (
-            <Image source={{ uri: resolveUploadUrl(repostTarget.images[0]) }} style={s.repostThumb} contentFit="cover" />
+          {repostTarget.images?.length > 0 && (
+            <View style={{ marginTop: 8 }}>
+              <PostGallery images={repostTarget.images} />
+            </View>
           )}
         </View>
       )}

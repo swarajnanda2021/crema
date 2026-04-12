@@ -38,6 +38,9 @@ class ProfileUpdateRequest(BaseModel):
     brewing_style: Optional[str] = Field(None, pattern=r"^(espresso|filter|both)$")
     favorite_drink: Optional[str] = Field(None, max_length=100)
     favorite_cafe: Optional[str] = Field(None, max_length=100)
+    avatar_crop_x: Optional[float] = None
+    avatar_crop_y: Optional[float] = None
+    avatar_zoom: Optional[float] = None
 
 
 class AuthResponse(BaseModel):

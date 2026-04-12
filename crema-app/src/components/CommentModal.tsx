@@ -16,6 +16,7 @@ import {
   StyleSheet, ActivityIndicator, Platform,
 } from "react-native";
 import { Image } from "expo-image";
+import { useRouter } from "expo-router";
 import { X, Send, PenLine, Trash2 } from "lucide-react-native";
 import Svg, { Path } from "react-native-svg";
 
@@ -47,6 +48,7 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function CommentModal({ visible, post, onClose, onCommentCountChange, user }: CommentModalProps) {
+  const router = useRouter();
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState("");
@@ -216,18 +218,22 @@ export default function CommentModal({ visible, post, onClose, onCommentCountCha
                     {idx > 0 && <View style={s.commentDivider} />}
                     <View style={s.commentRow}>
                       {/* Avatar */}
-                      {c.user?.avatar_url ? (
-                        <Image source={{ uri: resolveUploadUrl(c.user.avatar_url) }} style={s.commentAvatar} contentFit="cover" />
-                      ) : (
-                        <View style={[s.commentAvatar, s.commentAvatarFb]}>
-                          <Text style={s.commentAvatarLetter}>{(c.user?.display_name || "?")[0].toUpperCase()}</Text>
-                        </View>
-                      )}
+                      <Pressable onPress={() => { onClose(); router.push(`/user/${c.user?.username || c.username}`); }}>
+                        {c.user?.avatar_url ? (
+                          <Image source={{ uri: resolveUploadUrl(c.user.avatar_url) }} style={s.commentAvatar} contentFit="cover" />
+                        ) : (
+                          <View style={[s.commentAvatar, s.commentAvatarFb]}>
+                            <Text style={s.commentAvatarLetter}>{(c.user?.display_name || "?")[0].toUpperCase()}</Text>
+                          </View>
+                        )}
+                      </Pressable>
 
                       {/* Content */}
                       <View style={s.commentContent}>
                         <View style={s.commentNameRow}>
-                          <Text style={s.commentName}>{c.user?.display_name}</Text>
+                          <Pressable onPress={() => { onClose(); router.push(`/user/${c.user?.username || c.username}`); }}>
+                            <Text style={s.commentName}>{c.user?.display_name}</Text>
+                          </Pressable>
                           <Text style={s.commentTime}>{timeAgo(c.created_at)}</Text>
                           {c.updated_at && <Text style={s.commentEdited}>(edited)</Text>}
                         </View>

@@ -1926,6 +1926,8 @@ export default function RoasterDetailPage() {
   const [repostTarget, setRepostTarget] = useState<any>(null);
 
   // Right panel tabs
+  const ROASTER_POSTS_PER_PAGE = 5;
+  const [visibleRoasterPosts, setVisibleRoasterPosts] = useState(5);
   const [activeRightTab, setActiveRightTab] = useState<"posts" | "beans">("posts");
   const [followers, setFollowers] = useState<any[]>([]);
   const [showFollowersModal, setShowFollowersModal] = useState(false);
@@ -1984,10 +1986,17 @@ export default function RoasterDetailPage() {
   const [editCity, setEditCity] = useState(city || "");
   const [editLogo, setEditLogo] = useState(logoUrl || "");
   const [editHero, setEditHero] = useState(heroImageUrl || "");
+  const heroCropX = profile?.hero_crop_x ?? 50;
   const heroCropY = profile?.hero_crop_y ?? 50;
+  const heroZoom = profile?.hero_zoom ?? 1;
+  const [editCropX, setEditCropX] = useState(heroCropX);
   const [editCropY, setEditCropY] = useState(heroCropY);
+  const [editHeroZoom, setEditHeroZoom] = useState(heroZoom);
   const [isDraggingHero, setIsDraggingHero] = useState(false);
-  const dragStartRef = useRef({ y: 0, cropY: 50 });
+  const [heroImgAspect, setHeroImgAspect] = useState(1.8);
+  const [heroContW, setHeroContW] = useState(0);
+  const [heroContH, setHeroContH] = useState(0);
+  const dragStartRef = useRef({ x: 0, y: 0, cropX: 50, cropY: 50 });
   const heroWrapRef = useRef<View>(null);
   const [showLogoUpload, setShowLogoUpload] = useState(false);
   const [showHeroUpload, setShowHeroUpload] = useState(false);
@@ -2001,7 +2010,9 @@ export default function RoasterDetailPage() {
       setEditCity(city || "");
       setEditLogo(logoUrl || "");
       setEditHero(heroImageUrl || "");
+      setEditCropX(heroCropX);
       setEditCropY(heroCropY);
+      setEditHeroZoom(heroZoom);
     }
   }, [isEditing, aboutBlurb, profile]);
 
@@ -2018,7 +2029,9 @@ export default function RoasterDetailPage() {
           city: editCity,
           logo_url: editLogo,
           hero_image_url: editHero,
+          hero_crop_x: editCropX,
           hero_crop_y: editCropY,
+          hero_zoom: editHeroZoom,
         }),
       });
       await refreshProfiles();
@@ -2036,23 +2049,23 @@ export default function RoasterDetailPage() {
     }
   };
 
-  // ── Hero drag-to-reposition (web mouse events) ─────────────────────────────
+  // ── Hero drag-to-reposition (web mouse events, X + Y axes) ─────────────────
   const handleHeroDragStart = useCallback((e: any) => {
     if (!isEditing) return;
     e.preventDefault();
-    dragStartRef.current = { y: e.clientY, cropY: editCropY };
+    dragStartRef.current = { x: e.clientX, y: e.clientY, cropX: editCropX, cropY: editCropY };
     setIsDraggingHero(true);
 
     const handleMove = (ev: MouseEvent) => {
       const heroEl = (heroWrapRef.current as unknown as HTMLElement);
       if (!heroEl) return;
-      const containerH = heroEl.getBoundingClientRect().height;
-      // Moving mouse down → image moves up → cropY decreases (shows lower part)
-      // Invert: dragging down should reveal top = increase cropY
+      const rect = heroEl.getBoundingClientRect();
+      const deltaX = ev.clientX - dragStartRef.current.x;
       const deltaY = ev.clientY - dragStartRef.current.y;
-      const deltaPct = (deltaY / containerH) * 100;
-      const newCropY = Math.max(0, Math.min(100, dragStartRef.current.cropY - deltaPct));
-      setEditCropY(newCropY);
+      const deltaPctX = (deltaX / rect.width) * 100;
+      const deltaPctY = (deltaY / rect.height) * 100;
+      setEditCropX(Math.max(0, Math.min(100, dragStartRef.current.cropX - deltaPctX)));
+      setEditCropY(Math.max(0, Math.min(100, dragStartRef.current.cropY - deltaPctY)));
     };
 
     const handleUp = () => {
@@ -2063,7 +2076,16 @@ export default function RoasterDetailPage() {
 
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", handleUp);
-  }, [isEditing, editCropY]);
+  }, [isEditing, editCropX, editCropY]);
+
+  // Pinch-to-zoom for hero image (trackpad pinch = wheel + ctrlKey on web)
+  const handleHeroWheel = useCallback((e: any) => {
+    if (!isEditing) return;
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    const delta = -e.deltaY * 0.01;
+    setEditHeroZoom((z) => Math.round(Math.max(1, Math.min(5, z + delta)) * 100) / 100);
+  }, [isEditing]);
 
   const loadPosts = useCallback(async () => {
     try {
@@ -2178,6 +2200,14 @@ export default function RoasterDetailPage() {
     }
   }, [slug, appendProducts, roaster]);
 
+  // For owner management: non-featured posts shown below
+  // Sort posts: pinned first, then rest by date descending
+  const sortedPosts = useMemo(() => {
+    const pinned = allPosts.filter((p) => p.is_featured);
+    const rest = allPosts.filter((p) => !p.is_featured);
+    return [...pinned, ...rest];
+  }, [allPosts]);
+
   if (!roaster) {
     return (
       <>
@@ -2189,14 +2219,6 @@ export default function RoasterDetailPage() {
       </>
     );
   }
-
-  // For owner management: non-featured posts shown below
-  // Sort posts: pinned first, then rest by date descending
-  const sortedPosts = useMemo(() => {
-    const pinned = allPosts.filter((p) => p.is_featured);
-    const rest = allPosts.filter((p) => !p.is_featured);
-    return [...pinned, ...rest];
-  }, [allPosts]);
 
   return (
     <>
@@ -2387,27 +2409,56 @@ export default function RoasterDetailPage() {
             style={s.rightScroll}
             contentContainerStyle={s.rightContent}
             showsVerticalScrollIndicator={false}
+            onScroll={(e) => {
+              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+              if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 300) {
+                if (activeRightTab === "posts" && visibleRoasterPosts < sortedPosts.length) {
+                  setVisibleRoasterPosts((c) => Math.min(c + ROASTER_POSTS_PER_PAGE, sortedPosts.length));
+                }
+              }
+            }}
+            scrollEventThrottle={400}
           >
           {/* Hero image — show editHero during edit mode, draggable to reposition */}
           <View
             ref={heroWrapRef}
             style={[s.heroImageWrap, isEditing && isDraggingHero && { cursor: "grabbing" } as any, isEditing && !isDraggingHero && { cursor: "grab" } as any]}
-            {...(isEditing && Platform.OS === "web" ? { onMouseDown: handleHeroDragStart } : {})}
+            onLayout={(e) => { setHeroContW(e.nativeEvent.layout.width); setHeroContH(e.nativeEvent.layout.height); }}
+            {...(isEditing && Platform.OS === "web" ? { onMouseDown: handleHeroDragStart, onWheel: handleHeroWheel } : {})}
           >
-            {(isEditing ? editHero : heroImageUrl) ? (
-              <Image
-                source={{ uri: resolveUploadUrl(isEditing ? editHero : heroImageUrl) }}
-                style={StyleSheet.absoluteFillObject}
-                contentFit="cover"
-                contentPosition={{ top: `${isEditing ? editCropY : heroCropY}%`, left: "50%" }}
-              />
-            ) : (
+            {(isEditing ? editHero : heroImageUrl) ? (() => {
+              const cW = heroContW || 800;
+              const cH = heroContH || 334;
+              const zoom = isEditing ? editHeroZoom : heroZoom;
+              const cx = isEditing ? editCropX : heroCropX;
+              const cy = isEditing ? editCropY : heroCropY;
+              const contAspect = cW / cH;
+              const MIN_OVER = 1.15;
+              let iW: number, iH: number;
+              if (heroImgAspect > contAspect) {
+                iH = cH * MIN_OVER * zoom;
+                iW = iH * heroImgAspect;
+              } else {
+                iW = cW * MIN_OVER * zoom;
+                iH = iW / heroImgAspect;
+              }
+              const tx = -(iW - cW) * (cx / 100);
+              const ty = -(iH - cH) * (cy / 100);
+              return (
+                <Image
+                  source={{ uri: resolveUploadUrl(isEditing ? editHero : heroImageUrl) }}
+                  style={{ position: "absolute", width: iW, height: iH, left: tx, top: ty } as any}
+                  contentFit="fill"
+                  onLoad={(e: any) => { const src = e?.source; if (src?.width && src?.height) setHeroImgAspect(src.width / src.height); }}
+                />
+              );
+            })() : (
               <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#1a0800" }]} />
             )}
             {/* Drag hint — shown in edit mode */}
             {isOwner && isEditing && !isDraggingHero && (
               <View style={s.heroDragHint} pointerEvents="none">
-                <Text style={s.heroDragHintText}>Drag to reposition</Text>
+                <Text style={s.heroDragHintText}>Drag to reposition · Pinch to zoom</Text>
               </View>
             )}
             {/* Change cover button — bottom-right */}
@@ -2458,7 +2509,7 @@ export default function RoasterDetailPage() {
                 </>
               )}
               {!postsLoading && sortedPosts.length > 0 && (
-                sortedPosts.map((post, i) => (
+                sortedPosts.slice(0, visibleRoasterPosts).map((post, i) => (
                   <View key={post.id}>
                     <RoasterPostCard
                       post={post}
@@ -2472,7 +2523,7 @@ export default function RoasterDetailPage() {
                       onRepost={(post) => setRepostTarget(post)}
                       products={products}
                     />
-                    {i < sortedPosts.length - 1 && <View style={s.dividerLight} />}
+                    {i < Math.min(sortedPosts.length, visibleRoasterPosts) - 1 && <View style={s.dividerLight} />}
                   </View>
                 ))
               )}
@@ -2744,40 +2795,40 @@ const s = StyleSheet.create({
 
   // ── In-place editing styles (owner only) ──────────────────────────────────
 
-  // Inline edit fields — subtle background only, no borders
+  // Inline edit fields — rounded light boxes
   inlineEdit: {
-    borderRadius: 4,
-    paddingHorizontal: 8,
+    borderRadius: 8,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: "rgba(250,248,240,0.06)",
+    backgroundColor: "rgba(250,248,240,0.1)",
     minHeight: 80,
     textAlignVertical: "top" as any,
   } as any,
   inlineEditTag: {
-    borderRadius: 4,
-    paddingHorizontal: 8,
+    borderRadius: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    backgroundColor: "rgba(250,248,240,0.06)",
+    backgroundColor: "rgba(250,248,240,0.1)",
     textAlign: "center" as any,
     flex: 1,
   } as any,
   inlineEditSingle: {
-    borderRadius: 4,
-    paddingHorizontal: 8,
+    borderRadius: 8,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     fontFamily: fonts.bodyRegular,
     fontSize: 13,
     color: "#FAF8F0",
-    backgroundColor: "rgba(250,248,240,0.06)",
+    backgroundColor: "rgba(250,248,240,0.1)",
   } as any,
   inlineEditMeta: {
     fontFamily: fonts.bodyMedium,
     fontSize: 14,
     color: "#FAF8F0",
-    borderRadius: 4,
-    paddingHorizontal: 8,
+    borderRadius: 8,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: "rgba(250,248,240,0.06)",
+    backgroundColor: "rgba(250,248,240,0.1)",
     minWidth: 80,
   } as any,
 

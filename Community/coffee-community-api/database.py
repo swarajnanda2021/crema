@@ -231,6 +231,13 @@ _MIGRATIONS = [
     # User profile extra fields
     "ALTER TABLE users ADD COLUMN favorite_drink TEXT",
     "ALTER TABLE users ADD COLUMN favorite_cafe TEXT",
+    # Avatar crop position (0-100, default 50 = centered)
+    "ALTER TABLE users ADD COLUMN avatar_crop_x REAL DEFAULT 50",
+    "ALTER TABLE users ADD COLUMN avatar_crop_y REAL DEFAULT 50",
+    "ALTER TABLE users ADD COLUMN avatar_zoom REAL DEFAULT 1",
+    # Roaster hero crop X + zoom
+    "ALTER TABLE roaster_profiles ADD COLUMN hero_crop_x REAL DEFAULT 50",
+    "ALTER TABLE roaster_profiles ADD COLUMN hero_zoom REAL DEFAULT 1",
 ]
 
 

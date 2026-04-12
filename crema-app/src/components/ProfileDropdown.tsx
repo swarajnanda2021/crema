@@ -58,11 +58,16 @@ export default function ProfileDropdown({ visible, onClose, onEditProfile }: Pro
   const handleEdit = () => {
     onClose();
     if (user.account_type === "roaster" && user.roaster_slug) {
-      // Navigate to roaster profile page in edit mode
       router.push(`/roaster/${user.roaster_slug}?edit=1`);
     } else {
-      // Consumer accounts — use the modal (future: in-place edit on profile page)
-      onEditProfile();
+      // Navigate to profile page, then signal edit mode via custom event
+      // (Expo Router tabs don't re-render params on same-route push)
+      router.push("/profile");
+      setTimeout(() => {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("crema:edit-profile"));
+        }
+      }, 100);
     }
   };
 

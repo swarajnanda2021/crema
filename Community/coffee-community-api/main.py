@@ -431,7 +431,7 @@ def get_roasters():
     try:
         db_profiles = db.execute("SELECT * FROM roaster_profiles").fetchall()
         db_map = {row["roaster_slug"]: dict(row) for row in db_profiles}
-        _DB_FIELDS = ["about_blurb", "specialties", "website", "city", "logo_url", "hero_image_url", "hero_crop_y"]
+        _DB_FIELDS = ["about_blurb", "specialties", "website", "city", "logo_url", "hero_image_url", "hero_crop_x", "hero_crop_y", "hero_zoom"]
         for r in merged:
             slug = r.get("roaster_slug", "")
             db_prof = db_map.get(slug)
@@ -467,7 +467,9 @@ class _RoasterProfileUpdate(_PydanticBase):
     city: _Opt[str] = None
     logo_url: _Opt[str] = None
     hero_image_url: _Opt[str] = None
+    hero_crop_x: _Opt[float] = None
     hero_crop_y: _Opt[float] = None
+    hero_zoom: _Opt[float] = None
 
 @app.put("/api/roasters/{slug}/profile")
 def update_roaster_profile(slug: str, req: _RoasterProfileUpdate, user=Depends(get_current_user)):
@@ -492,8 +494,12 @@ def update_roaster_profile(slug: str, req: _RoasterProfileUpdate, user=Depends(g
             fields["logo_url"] = req.logo_url
         if req.hero_image_url is not None:
             fields["hero_image_url"] = req.hero_image_url
+        if req.hero_crop_x is not None:
+            fields["hero_crop_x"] = max(0, min(100, req.hero_crop_x))
         if req.hero_crop_y is not None:
             fields["hero_crop_y"] = max(0, min(100, req.hero_crop_y))
+        if req.hero_zoom is not None:
+            fields["hero_zoom"] = max(1, min(5, req.hero_zoom))
 
         if not fields:
             raise HTTPException(400, "No fields to update")

@@ -111,6 +111,9 @@ def _row_to_post(r, db=None) -> dict:
         "author_username": r["username"],
         "author_display_name": r["display_name"],
         "author_avatar_url": r["avatar_url"],
+        "author_avatar_crop_x": r["avatar_crop_x"] if "avatar_crop_x" in keys else 50,
+        "author_avatar_crop_y": r["avatar_crop_y"] if "avatar_crop_y" in keys else 50,
+        "author_avatar_zoom": r["avatar_zoom"] if "avatar_zoom" in keys else 1,
         "title": r["title"],
         "teaser": r["teaser"],
         "external_url": r["external_url"],
@@ -134,7 +137,8 @@ def _row_to_post(r, db=None) -> dict:
 
 
 _POST_SELECT = """
-    SELECT rp.*, u.username, u.display_name, u.avatar_url
+    SELECT rp.*, u.username, u.display_name, u.avatar_url,
+           u.avatar_crop_x, u.avatar_crop_y, u.avatar_zoom
     FROM roaster_posts rp
     JOIN users u ON rp.user_id = u.id
 """
