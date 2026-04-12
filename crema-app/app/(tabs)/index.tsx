@@ -9,7 +9,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  View, Text, TextInput, Pressable, ScrollView, Modal,
+  View, Text, TextInput, Pressable, ScrollView,
   RefreshControl, StyleSheet, Animated, ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
@@ -29,6 +29,7 @@ import { HeartOutlineIcon, HeartFilledOutlineIcon, CommentBubbleIcon, ShareNodes
 import TastingNoteDisplay from "../../src/components/TastingNoteDisplay";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import PostGallery from "../../src/components/PostGallery";
+import ComposePost from "../../src/components/ComposePost";
 
 // ── Feed page ─────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,7 @@ export default function FeedPage() {
   const [refreshing, setRefreshing] = useState(false);
   // ALL hooks must be declared before any early returns
   const [showRoasterCompose, setShowRoasterCompose] = useState(false);
+  const [repostTarget, setRepostTarget] = useState<any>(null);
 
   const isRoaster = user?.account_type === "roaster";
 
@@ -124,7 +126,24 @@ export default function FeedPage() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
       >
-        {items.length === 0 ? (
+        {/* In-place compose — appears at top of feed when FAB is pressed */}
+        {showRoasterCompose && (
+          <>
+            <ComposePost
+              onSubmit={async (data) => {
+                await handleRoasterPost(data);
+                setRepostTarget(null);
+              }}
+              onCancel={() => { setShowRoasterCompose(false); setRepostTarget(null); }}
+              loading={false}
+              repostTarget={repostTarget}
+              products={productMap ? Array.from(productMap.values()) : []}
+            />
+            {items.length > 0 && <View style={s.feedDivider} />}
+          </>
+        )}
+
+        {items.length === 0 && !showRoasterCompose ? (
           <Text style={s.emptyText}>Nothing in the feed yet. Taste some coffees!</Text>
         ) : (
           items.map((item: any, idx: number) => {
@@ -133,6 +152,7 @@ export default function FeedPage() {
                 key={`rp-${item.id}-${idx}`}
                 post={item}
                 router={router}
+                onRepost={(post: any) => { setRepostTarget(post); setShowRoasterCompose(true); }}
               />
             ) : (
               <TastingNoteCard
@@ -154,25 +174,11 @@ export default function FeedPage() {
         )}
       </ScrollView>
 
-      {/* Compose FAB — bottom-right, same as roaster profile */}
+      {/* Compose FAB */}
       {user && !showRoasterCompose && (
         <Pressable onPress={() => setShowRoasterCompose(true)} style={s.fab}>
           <Plus size={22} color="#FAF8F0" strokeWidth={2.5} />
         </Pressable>
-      )}
-
-      {/* Compose modal */}
-      {user && showRoasterCompose && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setShowRoasterCompose(false)}>
-          <Pressable style={s.composeOverlay} onPress={() => setShowRoasterCompose(false)}>
-            <Pressable style={s.composeModal} onPress={(e) => e.stopPropagation()}>
-              <RoasterComposeCard
-                onSubmit={handleRoasterPost}
-                onCancel={() => setShowRoasterCompose(false)}
-              />
-            </Pressable>
-          </Pressable>
-        </Modal>
       )}
     </View>
   );
@@ -440,7 +446,7 @@ function timeAgo(dateStr: string): string {
 
 // ── Post feed card — matches roaster profile PostCard design ─────────────────
 
-function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
+function RoasterPostFeedCard({ post, router, onRepost }: { post: any; router: any; onRepost?: (post: any) => void }) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [commentCount] = useState(0);
@@ -528,7 +534,7 @@ function RoasterPostFeedCard({ post, router }: { post: any; router: any }) {
           <CommentBubbleIcon size={14} color="#D798DA" />
           <Text style={rp.actionCount}>{commentCount}</Text>
         </View>
-        <Pressable style={rp.actionBtn}>
+        <Pressable onPress={() => onRepost?.(post)} style={rp.actionBtn}>
           <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
             <Path d="M17 1L21 5L17 9M3 11V9C3 7.93 3.42 6.93 4.17 6.17C4.93 5.42 5.93 5 7 5H21M7 23L3 19L7 15M21 13V15C21 16.06 20.58 17.07 19.83 17.83C19.07 18.58 18.07 19 17 19H3" stroke="#D798DA" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
           </Svg>
@@ -781,20 +787,6 @@ const s = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 12,
     elevation: 8,
-  } as any,
-  // Compose modal overlay
-  composeOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-  } as any,
-  composeModal: {
-    width: "90%",
-    maxWidth: 560,
-    maxHeight: "85%",
-    borderRadius: 12,
-    overflow: "hidden",
   } as any,
 });
 

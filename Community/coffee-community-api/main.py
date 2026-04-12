@@ -89,6 +89,56 @@ def root():
     return {"service": "Crema API", "docs": "/docs"}
 
 
+# ── Link preview (Open Graph) ────────────────────────────────────────────────
+
+_link_preview_cache: dict = {}
+
+@app.get("/api/link-preview")
+def link_preview(url: str):
+    """Fetch Open Graph metadata (title, description, image) for a URL."""
+    import urllib.request
+    import re
+    from urllib.parse import urlparse
+
+    if not url or not url.startswith("http"):
+        return {"title": "", "description": "", "image_url": "", "domain": ""}
+
+    # Cache hit
+    if url in _link_preview_cache:
+        return _link_preview_cache[url]
+
+    domain = urlparse(url).netloc.replace("www.", "")
+
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; CremaBot/1.0)"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            html = resp.read(50_000).decode("utf-8", errors="ignore")
+
+        def og(prop: str) -> str:
+            m = re.search(rf'<meta[^>]+property=["\']og:{prop}["\'][^>]+content=["\']([^"\']+)["\']', html, re.I)
+            if not m:
+                m = re.search(rf'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:{prop}["\']', html, re.I)
+            return m.group(1) if m else ""
+
+        title = og("title")
+        if not title:
+            m = re.search(r"<title[^>]*>([^<]+)</title>", html, re.I)
+            title = m.group(1).strip() if m else ""
+
+        result = {
+            "title": title,
+            "description": og("description"),
+            "image_url": og("image"),
+            "domain": domain,
+        }
+        _link_preview_cache[url] = result
+        return result
+    except Exception:
+        result = {"title": "", "description": "", "image_url": "", "domain": domain}
+        _link_preview_cache[url] = result
+        return result
+
+
 @app.post("/api/upload/avatar")
 async def upload_avatar(file: UploadFile = File(...), authorization: str = Header(None)):
     """Upload an avatar image. Returns the URL to use in profile."""

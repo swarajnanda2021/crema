@@ -20,6 +20,7 @@ import Svg, { Circle, G, Path } from "react-native-svg";
 import { Plus, X, PenLine, Camera, MapPin, Check } from "lucide-react-native";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 import TastingNoteCard from "../../src/components/TastingNoteCard";
+import ComposePost from "../../src/components/ComposePost";
 
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
@@ -1822,6 +1823,7 @@ export default function RoasterDetailPage() {
   // Compose form
   const [showCompose, setShowCompose] = useState(false);
   const [composing, setComposing] = useState(false);
+  const [repostTarget, setRepostTarget] = useState<any>(null);
 
   // Right panel tabs
   const [activeRightTab, setActiveRightTab] = useState<"posts" | "beans">("posts");
@@ -2342,6 +2344,19 @@ export default function RoasterDetailPage() {
           {/* ── POSTS TAB — pinned on top, then reverse-chrono ── */}
           {activeRightTab === "posts" && (
             <>
+              {/* In-place compose */}
+              {showCompose && (
+                <>
+                  <ComposePost
+                    onSubmit={async (data) => { await handleCreatePost(data); setRepostTarget(null); }}
+                    onCancel={() => { setShowCompose(false); setRepostTarget(null); }}
+                    loading={composing}
+                    repostTarget={repostTarget}
+                    products={products}
+                  />
+                  {sortedPosts.length > 0 && <View style={s.dividerLight} />}
+                </>
+              )}
               {!postsLoading && sortedPosts.length > 0 && (
                 sortedPosts.map((post, i) => (
                   <View key={post.id}>
@@ -2498,34 +2513,7 @@ export default function RoasterDetailPage() {
             onClose={() => setShowHeroUpload(false)}
           />
 
-          {/* ── Compose modal ────────────────────────────────────────── */}
-          <Modal
-            visible={showCompose}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowCompose(false)}
-          >
-            <View style={s.modalOverlay}>
-              {/* Backdrop — tap to dismiss */}
-              <Pressable
-                style={StyleSheet.absoluteFillObject}
-                onPress={() => setShowCompose(false)}
-              />
-              {/* Card */}
-              <View style={s.modalCard}>
-                <ScrollView
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  <ComposePostForm
-                    onSubmit={handleCreatePost}
-                    onCancel={() => setShowCompose(false)}
-                    loading={composing}
-                  />
-                </ScrollView>
-              </View>
-            </View>
-          </Modal>
+          {/* Compose modal removed — in-place compose now at top of posts tab */}
 
         </View>
       </View>
