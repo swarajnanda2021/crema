@@ -1,13 +1,20 @@
+/**
+ * Browse/Shop page — CRUD Utopia edition.
+ *
+ * Data: useCoffeeData for products, apiFetchRaw for popularity.
+ * Tokens: all colors/fonts from design-tokens.json.
+ * Tabs: Beans (with filters + sort) / Roasters
+ */
+
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
 import { Image } from "expo-image";
 import { Search, X, ArrowRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
-import { colors, fonts } from "../../src/tokens/useTokens";
-import { filterCoffees } from "../../src/utils/filterCoffees";
+import { t } from "../../src/tokens/useTokens";
 import CoffeeList from "../../src/components/CoffeeList";
-import { apiFetch, apiFetchRaw } from "../../src/api/client";
+import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 
 export default function BrowsePage() {
   const { products, roasters, roastLevels, processes } = useCoffeeData();
@@ -22,568 +29,214 @@ export default function BrowsePage() {
   const [selectedRoasts, setSelectedRoasts] = useState<string[]>([]);
   const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
   const [searchBarHidden, setSearchBarHidden] = useState(false);
+  const lastScrollY = useRef(0);
+  const router = useRouter();
 
-  useEffect(() => { apiFetchRaw("/products/popularity").then(setPopularity).catch(() => {}); }, []);
+  useEffect(() => {
+    apiFetchRaw("/products/popularity").then((r) => {
+      const d = r?.data ?? r;
+      setPopularity(typeof d === "object" && !Array.isArray(d) ? d : {});
+    }).catch(() => {});
+  }, []);
 
-  const filters = useMemo(() => ({
-    roasters: selectedRoasters,
-    roastLevels: selectedRoasts,
-    origins: [],
-    processes: selectedProcesses,
-    priceMin: null, priceMax: null,
-    showUnavailable: false,
-    sortBy: "newest",
-    query,
-  }), [query, selectedRoasters, selectedRoasts, selectedProcesses]);
-
+  // Filter products
   const filtered = useMemo(() => {
-    let result = filterCoffees(products, filters);
-    if (sortBy === "featured" && Object.keys(popularity).length > 0) {
-      result = [...result].sort((a, b) => (popularity[b.product_id] || 0) - (popularity[a.product_id] || 0));
-    } else if (sortBy === "price_low") {
-      result = [...result].sort((a, b) => (a.price_inr || 0) - (b.price_inr || 0));
-    } else if (sortBy === "price_high") {
-      result = [...result].sort((a, b) => (b.price_inr || 0) - (a.price_inr || 0));
+    let list = products.filter((p: any) => p.available !== false && p.available !== 0);
+    if (query) {
+      const q = query.toLowerCase();
+      list = list.filter((p: any) =>
+        (p.coffee_name || "").toLowerCase().includes(q) ||
+        (p.roaster_name || "").toLowerCase().includes(q) ||
+        (p.origin || "").toLowerCase().includes(q) ||
+        (p.tasting_notes || "").toLowerCase().includes(q)
+      );
     }
-    return result;
-  }, [products, filters, popularity, sortBy]);
+    if (selectedRoasters.length > 0) list = list.filter((p: any) => selectedRoasters.includes(p.roaster_slug));
+    if (selectedRoasts.length > 0) list = list.filter((p: any) => selectedRoasts.includes(p.roast_level));
+    if (selectedProcesses.length > 0) list = list.filter((p: any) => selectedProcesses.includes(p.process));
+    return list;
+  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses]);
 
-  const filteredRoasterCount = useMemo(() => {
-    return new Set(filtered.map((p: any) => p.roaster_slug)).size;
-  }, [filtered]);
+  // Sort
+  const sorted = useMemo(() => {
+    const list = [...filtered];
+    if (sortBy === "featured") list.sort((a, b) => (popularity[b.product_id] || 0) - (popularity[a.product_id] || 0));
+    else if (sortBy === "price_low") list.sort((a, b) => (a.price_inr || 0) - (b.price_inr || 0));
+    else if (sortBy === "price_high") list.sort((a, b) => (b.price_inr || 0) - (a.price_inr || 0));
+    return list;
+  }, [filtered, sortBy, popularity]);
 
-  const hasActiveFilters = selectedRoasters.length > 0 || selectedRoasts.length > 0 || selectedProcesses.length > 0 || !!query;
+  const uniqueRoasters = useMemo(() => [...new Set(products.map((p: any) => p.roaster_slug).filter(Boolean))], [products]);
+  const activeFilters = selectedRoasters.length + selectedRoasts.length + selectedProcesses.length;
 
-  const toggleArray = (arr: string[], setter: (v: string[]) => void, val: string) => {
-    setter(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
+  const toggleFilter = (list: string[], setList: any, val: string) => {
+    setList((prev: string[]) => prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val]);
   };
 
-  const clearAll = () => { setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]); setQuery(""); };
+  const clearAll = () => { setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]); };
 
-  const handleScrollDirection = useCallback((dir: "up" | "down") => {
-    setSearchBarHidden(dir === "down");
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    setSearchBarHidden(y > lastScrollY.current + 10 && y > 100);
+    lastScrollY.current = y;
   }, []);
+
+  // Tab header
+  const tabHeader = (
+    <View style={s.tabHeader}>
+      <Text style={s.tabLabel}>LOOKING FOR</Text>
+      <Pressable onPress={() => setActiveTab("beans")} style={s.tabBtn}>
+        <Text style={[s.tabBtnText, activeTab === "beans" && s.tabBtnActive]}>BEANS</Text>
+        {activeTab === "beans" && <View style={s.tabBtnLine} />}
+      </Pressable>
+      <Pressable onPress={() => setActiveTab("roasters")} style={s.tabBtn}>
+        <Text style={[s.tabBtnText, activeTab === "roasters" && s.tabBtnActive]}>ROASTERS</Text>
+        {activeTab === "roasters" && <View style={s.tabBtnLine} />}
+      </Pressable>
+    </View>
+  );
+
+  if (activeTab === "roasters") {
+    return (
+      <View style={s.container}>
+        {tabHeader}
+        <ScrollView contentContainerStyle={s.roasterList}>
+          {roasters.map((r: any) => (
+            <Pressable key={r.slug} onPress={() => router.push(`/roaster/${r.slug}` as any)} style={s.roasterRow}>
+              {r.logo_url ? <Image source={{ uri: resolveUploadUrl(r.logo_url) }} style={s.roasterLogo} contentFit="contain" /> :
+                <View style={s.roasterLogoFb}><Text style={s.roasterLogoL}>{(r.name || "?")[0]}</Text></View>}
+              <View style={{ flex: 1 }}>
+                <Text style={s.roasterName}>{r.name}</Text>
+                {r.city && <Text style={s.roasterCity}>{r.city}</Text>}
+              </View>
+              <Text style={s.roasterCount}>{r.coffeeCount} beans</Text>
+              <ArrowRight size={14} color={t.color["text.muted"]} />
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={s.container}>
-      {/* Sub-tabs */}
-      <View style={s.tabBar}>
-        <View style={s.tabBarInner}>
-          <View style={[s.tabBarLeft, { width: sidebarW }]}>
-            <Text style={s.lookingForLabel}>LOOKING FOR</Text>
+      {tabHeader}
+      <View style={s.body}>
+        {/* Sidebar (desktop only) */}
+        {isDesktop && (
+          <View style={[s.sidebar, { width: sidebarW }]}>
+            <Text style={s.sidebarCount}><Text style={s.sidebarCountBold}>{sorted.length}</Text> coffees from <Text style={s.sidebarCountBold}>{uniqueRoasters.length}</Text> roasters</Text>
+            {activeFilters > 0 && <Pressable onPress={clearAll}><Text style={s.clearAll}>Clear all</Text></Pressable>}
+
+            <Text style={s.sidebarHeading}>Sort By</Text>
+            {["featured", "newest", "price_low", "price_high"].map((opt) => (
+              <Pressable key={opt} onPress={() => setSortBy(opt)} style={s.radioRow}>
+                <View style={[s.radio, sortBy === opt && s.radioActive]} />
+                <Text style={s.radioText}>{{featured:"Featured",newest:"Newest",price_low:"Price: Low\u2013High",price_high:"Price: High\u2013Low"}[opt]}</Text>
+              </Pressable>
+            ))}
+
+            <View style={s.sidebarDivider} />
+            <Text style={s.sidebarHeading}>Roasters</Text>
+            {roasters.slice(0, 10).map((r: any) => (
+              <Pressable key={r.slug} onPress={() => toggleFilter(selectedRoasters, setSelectedRoasters, r.slug)} style={s.checkRow}>
+                <View style={[s.check, selectedRoasters.includes(r.slug) && s.checkActive]} />
+                <Text style={s.checkText} numberOfLines={1}>{r.name}</Text>
+              </Pressable>
+            ))}
+
+            <View style={s.sidebarDivider} />
+            <Text style={s.sidebarHeading}>Roast</Text>
+            {roastLevels.map((lvl: string) => (
+              <Pressable key={lvl} onPress={() => toggleFilter(selectedRoasts, setSelectedRoasts, lvl)} style={s.checkRow}>
+                <View style={[s.check, selectedRoasts.includes(lvl) && s.checkActive]} />
+                <Text style={s.checkText}>{lvl}</Text>
+              </Pressable>
+            ))}
+
+            <View style={s.sidebarDivider} />
+            <Text style={s.sidebarHeading}>Process</Text>
+            {processes.map((proc: string) => (
+              <Pressable key={proc} onPress={() => toggleFilter(selectedProcesses, setSelectedProcesses, proc)} style={s.checkRow}>
+                <View style={[s.check, selectedProcesses.includes(proc) && s.checkActive]} />
+                <Text style={s.checkText}>{proc}</Text>
+              </Pressable>
+            ))}
           </View>
-          <View style={s.tabBarRight}>
-            <TabButton label="BEANS" active={activeTab === "beans"} onPress={() => setActiveTab("beans")} />
-            <TabButton label="ROASTERS" active={activeTab === "roasters"} onPress={() => setActiveTab("roasters")} />
-          </View>
-        </View>
-      </View>
+        )}
 
-      {activeTab === "beans" ? (
-        <View style={s.browseLayout}>
-          {isDesktop && (
-            <ScrollView
-              style={[s.sidebar, { width: sidebarW, minWidth: sidebarW, maxWidth: sidebarW }]}
-              contentContainerStyle={{ paddingRight: 16, paddingTop: 20, paddingBottom: 60 }}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Count — top of sidebar */}
-              <Text style={s.sidebarCount}>
-                <Text style={s.sidebarCountBold}>{filtered.length}</Text> coffees from{" "}
-                <Text style={s.sidebarCountBold}>{filteredRoasterCount}</Text> roasters
-              </Text>
-
-              {hasActiveFilters && (
-                <Pressable onPress={clearAll} style={{ marginBottom: 12 }}>
-                  <Text style={s.clearText}>Clear all</Text>
-                </Pressable>
-              )}
-
-              <View style={s.filterSection}>
-                <Text style={s.filterTitle}>Sort By</Text>
-                {[
-                  { key: "featured", label: "Featured" },
-                  { key: "newest", label: "Newest" },
-                  { key: "price_low", label: "Price: Low–High" },
-                  { key: "price_high", label: "Price: High–Low" },
-                ].map(opt => (
-                  <Pressable key={opt.key} onPress={() => setSortBy(opt.key)} style={s.radioRow}>
-                    <View style={[s.radio, sortBy === opt.key && s.radioSelected]}>
-                      {sortBy === opt.key && <View style={s.radioDot} />}
-                    </View>
-                    <Text style={s.checkLabel}>{opt.label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <View style={s.filterDivider} />
-              <FilterSection title="Roasters" items={roasters.map((r: any) => ({ key: r.slug, label: r.name }))} selected={selectedRoasters} onToggle={v => toggleArray(selectedRoasters, setSelectedRoasters, v)} maxVisible={20} />
-              <View style={s.filterDivider} />
-              <FilterSection title="Roast" items={roastLevels.map((l: string) => ({ key: l, label: l }))} selected={selectedRoasts} onToggle={v => toggleArray(selectedRoasts, setSelectedRoasts, v)} />
-              <View style={s.filterDivider} />
-              <FilterSection title="Process" items={processes.map((p: string) => ({ key: p, label: p }))} selected={selectedProcesses} onToggle={v => toggleArray(selectedProcesses, setSelectedProcesses, v)} />
-            </ScrollView>
-          )}
-
-          {isDesktop && <View style={s.verticalDivider} />}
-
-          <View style={{ flex: 1, minWidth: 0 }}>
-            {/* Scroll-aware search bar */}
-            <View style={[s.searchBarWrap, searchBarHidden && s.searchBarWrapHidden] as any}>
-              <View style={s.stickySearchWrap}>
-                <View style={s.searchBar}>
-                  <Search size={16} color="#A09580" />
-                  <TextInput
-                    placeholder="Search"
-                    placeholderTextColor="#A09580"
-                    value={query}
-                    onChangeText={setQuery}
-                    style={s.searchInput}
-                  />
-                  {query ? <Pressable onPress={() => setQuery("")}><X size={16} color="#A09580" /></Pressable> : null}
-                </View>
-              </View>
-            </View>
-
-            <CoffeeList
-              coffees={filtered}
-              popularity={popularity}
-              onScrollDirection={handleScrollDirection}
-              ListHeaderComponent={
-                hasActiveFilters ? (
-                  <View style={s.listHeader}>
-                    <View style={s.activeChips}>
-                      {selectedRoasts.map(v => <ActiveChip key={v} label={v} onRemove={() => toggleArray(selectedRoasts, setSelectedRoasts, v)} />)}
-                      {selectedProcesses.map(v => <ActiveChip key={v} label={v} onRemove={() => toggleArray(selectedProcesses, setSelectedProcesses, v)} />)}
-                      {selectedRoasters.map(slug => {
-                        const r = roasters.find((r: any) => r.slug === slug);
-                        return <ActiveChip key={slug} label={r?.name || slug} onRemove={() => toggleArray(selectedRoasters, setSelectedRoasters, slug)} />;
-                      })}
-                    </View>
-                  </View>
-                ) : null
-              }
-            />
-          </View>
-        </View>
-      ) : (
-        <RoastersList />
-      )}
-    </View>
-  );
-}
-
-function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }) {
-  return (
-    <View style={s.activeChip}>
-      <Text style={s.activeChipText}>{label}</Text>
-      <Pressable onPress={onRemove}><X size={10} color={colors.tagText} /></Pressable>
-    </View>
-  );
-}
-
-function TabButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={[s.tabBtn, active && s.tabBtnActive]}>
-      <Text style={[s.tabLabel, active && s.tabLabelActive]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function FilterSection({ title, items, selected, onToggle, maxVisible = 10 }: {
-  title: string; items: { key: string; label: string }[];
-  selected: string[]; onToggle: (key: string) => void; maxVisible?: number;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? items : items.slice(0, maxVisible);
-  const hasMore = items.length > maxVisible;
-
-  return (
-    <View style={s.filterSection}>
-      <Text style={s.filterTitle}>{title}</Text>
-      {visible.map(({ key, label }) => (
-        <Pressable key={key} onPress={() => onToggle(key)} style={s.checkRow}>
-          <View style={[s.checkbox, selected.includes(key) && s.checkboxChecked]}>
-            {selected.includes(key) && <Text style={s.checkmark}>{"\u2713"}</Text>}
-          </View>
-          <Text style={s.checkLabel} numberOfLines={2}>{label}</Text>
-        </Pressable>
-      ))}
-      {hasMore && !expanded && (
-        <Pressable onPress={() => setExpanded(true)}>
-          <Text style={s.showMoreText}>Show all {items.length}</Text>
-        </Pressable>
-      )}
-    </View>
-  );
-}
-
-// ─── Roasters tab ────────────────────────────────────────────────────────────
-
-function RoasterRow({ roaster, imageUrl }: { roaster: any; imageUrl: string | undefined }) {
-  const router = useRouter();
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <>
-      <Pressable
-        onPress={() => router.push(`/roaster/${roaster.slug}`)}
-        style={[s.rRow, hovered && s.rRowHovered] as any}
-        onHoverIn={() => setHovered(true)}
-        onHoverOut={() => setHovered(false)}
-      >
-        {/* Thumbnail */}
-        <View style={s.rImage}>
-          {imageUrl ? (
-            <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFillObject as any} contentFit="cover" />
-          ) : (
-            <View style={[StyleSheet.absoluteFillObject as any, { alignItems: "center", justifyContent: "center" }]}>
-              <Text style={{ fontFamily: fonts.displayRegular, fontSize: 28, color: "#A09580" }}>
-                {(roaster.name || "?")[0]}
-              </Text>
+        {/* Main content */}
+        <ScrollView style={s.main} contentContainerStyle={s.mainContent} showsVerticalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={100}>
+          {/* Search */}
+          {!searchBarHidden && (
+            <View style={s.searchWrap}>
+              <Search size={16} color={t.color["text.muted"]} />
+              <TextInput value={query} onChangeText={setQuery} placeholder="Search" placeholderTextColor={t.color["text.muted"]} style={s.searchInput} />
+              {query.length > 0 && <Pressable onPress={() => setQuery("")}><X size={14} color={t.color["text.muted"]} /></Pressable>}
             </View>
           )}
-        </View>
 
-        {/* Info */}
-        <View style={s.rInfo}>
-          <Text style={s.rName} numberOfLines={1}>{roaster.name}</Text>
-          <Text style={s.rSub} numberOfLines={1}>
-            {[roaster.city, roaster.state].filter(Boolean).join(", ")}
-            {roaster.coffeeCount ? `  ·  ${roaster.coffeeCount} coffees` : ""}
-          </Text>
-        </View>
+          {/* Active filter chips */}
+          {activeFilters > 0 && (
+            <View style={s.chipRow}>
+              {selectedRoasters.map((slug) => {
+                const r = roasters.find((r: any) => r.slug === slug);
+                return <Pressable key={slug} onPress={() => toggleFilter(selectedRoasters, setSelectedRoasters, slug)} style={s.chip}><Text style={s.chipText}>{r?.name || slug} ×</Text></Pressable>;
+              })}
+              {selectedRoasts.map((v) => <Pressable key={v} onPress={() => toggleFilter(selectedRoasts, setSelectedRoasts, v)} style={s.chip}><Text style={s.chipText}>{v} ×</Text></Pressable>)}
+              {selectedProcesses.map((v) => <Pressable key={v} onPress={() => toggleFilter(selectedProcesses, setSelectedProcesses, v)} style={s.chip}><Text style={s.chipText}>{v} ×</Text></Pressable>)}
+            </View>
+          )}
 
-        {/* Arrow button */}
-        <View style={[s.rArrowBtn, hovered && s.rArrowBtnHovered] as any}>
-          <ArrowRight size={18} color={hovered ? "#351101" : "#A09580"} strokeWidth={1.5} />
-        </View>
-      </Pressable>
-      <View style={s.rDivider} />
-    </>
-  );
-}
-
-function RoastersList() {
-  const { roasters, products } = useCoffeeData();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 1024;
-  const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
-  const [roasterQuery, setRoasterQuery] = useState("");
-  const [selectedCities, setSelectedCities] = useState<string[]>([]);
-  const [searchBarHidden, setSearchBarHidden] = useState(false);
-  const lastScrollY = useRef(0);
-
-  const roasterImages = useMemo(() => {
-    const map: Record<string, string> = {};
-    (products as any[]).forEach((p: any) => {
-      if (p.image_url && !map[p.roaster_slug]) map[p.roaster_slug] = p.image_url;
-    });
-    return map;
-  }, [products]);
-
-  const cities = useMemo(() => {
-    const set = new Set<string>();
-    (roasters as any[]).forEach((r: any) => { if (r.city) set.add(r.city); });
-    return Array.from(set).sort();
-  }, [roasters]);
-
-  const filteredRoasters = useMemo(() => {
-    let result = roasters as any[];
-    if (roasterQuery) {
-      const q = roasterQuery.toLowerCase();
-      result = result.filter((r: any) => r.name.toLowerCase().includes(q) || (r.city || "").toLowerCase().includes(q));
-    }
-    if (selectedCities.length > 0) {
-      result = result.filter((r: any) => selectedCities.includes(r.city));
-    }
-    return result;
-  }, [roasters, roasterQuery, selectedCities]);
-
-  const toggleCity = (city: string) => {
-    setSelectedCities(prev => prev.includes(city) ? prev.filter(c => c !== city) : [...prev, city]);
-  };
-
-  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const currentY = e.nativeEvent.contentOffset.y;
-    setSearchBarHidden(currentY > lastScrollY.current && currentY > 10);
-    lastScrollY.current = currentY;
-  }, []);
-
-  return (
-    <View style={s.browseLayout}>
-      {/* City filter sidebar */}
-      {isDesktop && (
-        <ScrollView
-          style={[s.sidebar, { width: sidebarW, minWidth: sidebarW, maxWidth: sidebarW }]}
-          contentContainerStyle={{ paddingRight: 16, paddingTop: 20, paddingBottom: 60 }}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={s.sidebarCount}>
-            <Text style={s.sidebarCountBold}>{filteredRoasters.length}</Text> roasters
-          </Text>
-          <View style={s.filterDivider} />
-          <FilterSection
-            title="Location"
-            items={cities.map(c => ({ key: c, label: c }))}
-            selected={selectedCities}
-            onToggle={toggleCity}
-            maxVisible={20}
-          />
+          <CoffeeList products={sorted} popularity={popularity} />
         </ScrollView>
-      )}
-
-      {isDesktop && <View style={s.verticalDivider} />}
-
-      {/* Roaster list — search bar outside ScrollView so it animates, not scrolls */}
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <View style={[s.searchBarWrap, searchBarHidden && s.searchBarWrapHidden] as any}>
-          <View style={s.stickySearchWrap}>
-            <View style={s.searchBar}>
-              <Search size={16} color="#A09580" />
-              <TextInput
-                placeholder="Search"
-                placeholderTextColor="#A09580"
-                value={roasterQuery}
-                onChangeText={setRoasterQuery}
-                style={s.searchInput}
-              />
-              {roasterQuery ? <Pressable onPress={() => setRoasterQuery("")}><X size={16} color="#A09580" /></Pressable> : null}
-            </View>
-          </View>
-        </View>
-
-        <ScrollView
-          style={{ flex: 1 }}
-          showsVerticalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={50}
-        >
-        {/* Page title */}
-        <Text style={s.rPageTitle} numberOfLines={1}>Explore your favourite Indian coffee roasters</Text>
-        <View style={s.rDivider} />
-
-        {/* Roaster rows — fill available width */}
-        <View>
-          {filteredRoasters.map((r: any) => (
-            <RoasterRow key={r.slug} roaster={r} imageUrl={roasterImages[r.slug]} />
-          ))}
-        </View>
-      </ScrollView>
-    </View>
+      </View>
     </View>
   );
 }
-
-// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-
-  // Tab bar
-  tabBar: {
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "rgba(215,209,196,0.5)",
-    backgroundColor: "#FAF8F0",
-    height: 80,
-    justifyContent: "center",
-  },
-  tabBarInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingLeft: "6.25%" as any,
-    paddingRight: "6.25%" as any,
-    width: "100%" as any,
-  },
-  tabBarLeft: {
-    width: 195,
-    flexShrink: 0,
-    justifyContent: "center",
-  } as any,
-  tabBarRight: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingLeft: 16,
-    gap: 48,
-  } as any,
-  lookingForLabel: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 14,
-    color: "#351101",
-    textTransform: "uppercase",
-    paddingVertical: 10,
-    borderBottomWidth: 4,
-    borderBottomColor: "transparent",
-  } as any,
-  tabBtn: { paddingVertical: 10, borderBottomWidth: 4, borderBottomColor: "transparent" },
-  tabBtnActive: { borderBottomColor: "#351101" },
-  tabLabel: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#A09580" },
-  tabLabelActive: { fontFamily: fonts.bodySemiBold, color: "#351101" },
-
-  // Browse layout
-  browseLayout: {
-    flex: 1,
-    flexDirection: "row",
-    paddingLeft: "6.25%" as any,
-    paddingRight: "6.25%" as any,
-    paddingTop: 63,
-  },
-
-  // Vertical divider
-  verticalDivider: {
-    width: 1,
-    backgroundColor: "rgba(215,209,196,0.5)",
-  } as any,
+  container: { flex: 1, backgroundColor: t.color.bg },
+  tabHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: "6.25%" as any, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.color["border.light"], gap: 32 } as any,
+  tabLabel: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.muted"], letterSpacing: 1 },
+  tabBtn: { alignItems: "center" } as any,
+  tabBtnText: { fontFamily: t.font["body.semibold"], fontSize: 15, color: t.color["text.muted"] },
+  tabBtnActive: { color: t.color["text.primary"] },
+  tabBtnLine: { height: 3, backgroundColor: t.color["text.primary"], borderRadius: 1.5, marginTop: 6, width: "100%" } as any,
+  body: { flex: 1, flexDirection: "row" } as any,
 
   // Sidebar
-  sidebar: {
-    width: 195,
-    minWidth: 195,
-    maxWidth: 195,
-    flexShrink: 0,
-    flexGrow: 0,
-  },
-  sidebarCount: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 13,
-    color: "#351101",
-    marginBottom: 16,
-    lineHeight: 18,
-  },
-  sidebarCountBold: { fontFamily: fonts.bodySemiBold },
+  sidebar: { paddingHorizontal: 16, paddingTop: 20, borderRightWidth: 1, borderRightColor: t.color["border.light"] } as any,
+  sidebarCount: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.secondary"], marginBottom: 12 },
+  sidebarCountBold: { fontFamily: t.font["body.semibold"], color: t.color["text.primary"] },
+  clearAll: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color.accent, marginBottom: 12 },
+  sidebarHeading: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.primary"], marginBottom: 8, marginTop: 4 },
+  sidebarDivider: { height: 1, backgroundColor: t.color["border.light"], marginVertical: 12 },
+  radioRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 } as any,
+  radio: { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: t.color.border } as any,
+  radioActive: { borderColor: t.color["text.primary"], backgroundColor: t.color["text.primary"] },
+  radioText: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.primary"] },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 } as any,
+  check: { width: 14, height: 14, borderRadius: 2, borderWidth: 1.5, borderColor: t.color.border } as any,
+  checkActive: { borderColor: t.color["text.primary"], backgroundColor: t.color["text.primary"] },
+  checkText: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.primary"] },
 
-  clearText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: "#D798DA", marginBottom: 12 },
-  filterDivider: { height: 1, backgroundColor: "rgba(215,209,196,0.5)", marginVertical: 12 },
-  filterSection: { marginBottom: 8 },
-  filterTitle: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 15,
-    letterSpacing: -0.375,
-    color: "#351101",
-    marginBottom: 12,
-  },
-  checkRow: { flexDirection: "row", alignItems: "flex-start", gap: 14, minHeight: 24, marginBottom: 4 },
-  checkbox: {
-    width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: "#D7D1C4",
-    alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF", marginTop: 1,
-  },
-  checkboxChecked: { backgroundColor: "#351101", borderColor: "#351101" },
-  checkmark: { color: "white", fontSize: 11, fontWeight: "700" as any },
-  checkLabel: {
-    fontFamily: fonts.bodyRegular, fontSize: 14, letterSpacing: -0.336,
-    color: "#351101", flex: 1, lineHeight: 21,
-  },
-  showMoreText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: "#D798DA", marginTop: 6 },
+  // Main
+  main: { flex: 1 },
+  mainContent: { paddingHorizontal: "3%" as any, paddingTop: 16, paddingBottom: 100 },
+  searchWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: t.color["card.front"], borderRadius: 20, borderWidth: 1, borderColor: t.color["border.light"], paddingHorizontal: 16, paddingVertical: 10, marginBottom: 16 } as any,
+  searchInput: { flex: 1, fontFamily: t.font["body.regular"], fontSize: t.size["font.md"], color: t.color["text.primary"] },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 } as any,
+  chip: { backgroundColor: t.color.accent, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  chipText: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.primary"] },
 
-  radioRow: { flexDirection: "row", alignItems: "center", gap: 14, height: 32 },
-  radio: {
-    width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: "#D7D1C4",
-    alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF",
-  },
-  radioSelected: { borderColor: "#351101" },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#351101" },
-
-  // Search bar — Figma: white, #D7D1C4 border, 20px radius, 38px height, 500px wide
-  stickySearchWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
-  searchBarWrap: {
-    overflow: "hidden",
-    maxHeight: 58,
-    opacity: 1,
-    transitionProperty: "max-height, opacity",
-    transitionDuration: "240ms, 180ms",
-    transitionTimingFunction: "ease, ease",
-  },
-  searchBarWrapHidden: { maxHeight: 0, opacity: 0 },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    height: 38,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#D7D1C4",
-    alignSelf: "flex-start" as any,
-    width: 500,
-    maxWidth: "100%" as any,
-  },
-  searchInput: { flex: 1, marginLeft: 8, fontFamily: fonts.bodyRegular, fontSize: 13, color: "#351101" },
-
-  listHeader: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 },
-  activeChips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8, marginTop: 4 },
-  activeChip: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.tagBg,
-  },
-  activeChipText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.tagText },
-
-  // ── Roasters tab ──
-  rPageTitle: {
-    fontFamily: fonts.displayRegular,
-    fontSize: 26,
-    lineHeight: 32,
-    color: "#351101",
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 20,
-  } as any,
-
-  rDivider: {
-    height: 1,
-    backgroundColor: "rgba(160,149,128,0.5)",
-    marginLeft: 16,
-  } as any,
-
-  rRow: {
-    height: 104,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    gap: 16,
-    backgroundColor: "transparent",
-    transitionProperty: "background-color",
-    transitionDuration: "150ms",
-    transitionTimingFunction: "ease",
-  } as any,
-  rRowHovered: { backgroundColor: "#D798DA" } as any,
-
-  rImage: {
-    width: 167,
-    height: 76,
-    borderRadius: 2,
-    overflow: "hidden",
-    flexShrink: 0,
-    backgroundColor: "#EFE9DB",
-  } as any,
-
-  rInfo: { flex: 1, minWidth: 0, justifyContent: "center", gap: 4 },
-
-  rName: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 25,
-    lineHeight: 30,
-    color: "#351101",
-  },
-  rSub: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 14,
-    lineHeight: 22,
-    color: "#684F44",
-  },
-
-  rArrowBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 1.5,
-    borderColor: "#A09580",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    transitionProperty: "border-color",
-    transitionDuration: "150ms",
-    transitionTimingFunction: "ease",
-  } as any,
-  rArrowBtnHovered: { borderColor: "transparent" } as any,
+  // Roasters tab
+  roasterList: { paddingHorizontal: "6.25%" as any, paddingTop: 16, paddingBottom: 100 },
+  roasterRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.color["border.light"] } as any,
+  roasterLogo: { width: 40, height: 40, borderRadius: 6 } as any,
+  roasterLogoFb: { width: 40, height: 40, borderRadius: 6, backgroundColor: t.color["card.info"], alignItems: "center", justifyContent: "center" } as any,
+  roasterLogoL: { fontFamily: t.font["body.semibold"], fontSize: 16, color: t.color["text.primary"] },
+  roasterName: { fontFamily: t.font["body.semibold"], fontSize: t.size["font.md"], color: t.color["text.primary"] },
+  roasterCity: { fontFamily: t.font["body.regular"], fontSize: t.size["font.sm"], color: t.color["text.muted"], marginTop: 2 },
+  roasterCount: { fontFamily: t.font["body.regular"], fontSize: t.size["font.sm"], color: t.color["text.muted"] },
 });
