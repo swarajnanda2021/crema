@@ -22,7 +22,6 @@ import { X, Send } from "lucide-react-native";
 import { apiFetch, resolveUploadUrl } from "../api/client";
 import { fonts, cardShadow } from "../theme/colors";
 import PostFeedCard, { CroppedAvatar, timeAgo } from "./PostFeedCard";
-import ComposePost from "./ComposePost";
 
 interface PostModalProps {
   visible: boolean;
@@ -46,6 +45,7 @@ export default function PostModal({
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [sending, setSending] = useState(false);
+  const [repostComment, setRepostComment] = useState("");
   const [commentCount, setCommentCount] = useState(0);
 
   // Animations
@@ -56,7 +56,7 @@ export default function PostModal({
 
   // Fetch post if only ID provided
   useEffect(() => {
-    if (!visible) { setPost(null); setComments([]); return; }
+    if (!visible) { setPost(null); setComments([]); setRepostComment(""); return; }
     if (postProp) { setPost(postProp); return; }
     if (!postId) return;
 
@@ -134,7 +134,7 @@ export default function PostModal({
 
   if (!visible) return null;
 
-  const showComments = true; // always show comments in the modal
+  const showComments = internalMode !== "repost"; // hide comments in repost mode
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -143,7 +143,7 @@ export default function PostModal({
           {/* Header */}
           <View style={s.header}>
             <Text style={s.headerTitle}>
-              {internalMode === "repost" ? "Repost" : mode === "comment" ? "Post" : "Post"}
+              {internalMode === "repost" ? "Repost" : "Post"}
             </Text>
             <Pressable onPress={onClose} hitSlop={8}>
               <X size={18} color="#351101" />
@@ -161,35 +161,44 @@ export default function PostModal({
               <Text style={s.emptyText}>Post not found</Text>
             ) : (
               <>
-                {/* Repost compose form */}
+                {/* Repost input — simple text field above the post card */}
                 {internalMode === "repost" && (
-                  <ComposePost
-                    onSubmit={handleRepostSubmit}
-                    onCancel={onClose}
-                    repostTarget={post}
-                    user={user}
-                  />
-                )}
-
-                {/* Post card with optional flash highlight */}
-                {mode !== "repost" && (
-                  <Animated.View style={mode === "view" ? {
-                    backgroundColor: flashAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ["rgba(215,152,218,0)", "rgba(215,152,218,0.2)"],
-                    }),
-                    borderRadius: 8,
-                  } : undefined}>
-                    <PostFeedCard
-                      post={post}
-                      user={user}
-                      onComment={() => scrollRef.current?.scrollToEnd({ animated: true })}
-                      onRepost={() => setInternalMode("repost")}
+                  <View style={s.repostSection}>
+                    <TextInput
+                      value={repostComment}
+                      onChangeText={setRepostComment}
+                      placeholder="Add a comment to your repost..."
+                      placeholderTextColor="#A09580"
+                      style={s.repostInput}
+                      multiline
                     />
-                  </Animated.View>
+                    <Pressable
+                      onPress={() => handleRepostSubmit({ post_type: "repost", repost_of_id: post.id, teaser: repostComment })}
+                      style={[s.repostBtn, !repostComment.trim() && { opacity: 0.5 }]}
+                      disabled={!repostComment.trim()}
+                    >
+                      <Text style={s.repostBtnText}>Repost</Text>
+                    </Pressable>
+                  </View>
                 )}
 
-                {/* Comment thread */}
+                {/* Post card — always visible */}
+                <Animated.View style={internalMode === "view" ? {
+                  backgroundColor: flashAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ["rgba(215,152,218,0)", "rgba(215,152,218,0.2)"],
+                  }),
+                  borderRadius: 8,
+                } : undefined}>
+                  <PostFeedCard
+                    post={post}
+                    user={user}
+                    onComment={internalMode !== "repost" ? () => scrollRef.current?.scrollToEnd({ animated: true }) : undefined}
+                    onRepost={() => setInternalMode("repost")}
+                  />
+                </Animated.View>
+
+                {/* Comment thread — hidden in repost mode */}
                 {showComments && (
                   <View style={s.commentSection}>
                     <View style={s.commentDivider} />
@@ -324,4 +333,33 @@ const s = StyleSheet.create({
     paddingVertical: 8,
   },
   commentInputField: { flex: 1, fontFamily: fonts.bodyRegular, fontSize: 13, color: "#351101" },
+
+  // Repost section
+  repostSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EDE8E1",
+  },
+  repostInput: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 14,
+    color: "#351101",
+    minHeight: 40,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#EDE8E1",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  repostBtn: {
+    alignSelf: "flex-end",
+    backgroundColor: "#351101",
+    borderRadius: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  repostBtnText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: "#FAF8F0" },
 });
