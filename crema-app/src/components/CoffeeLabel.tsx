@@ -57,8 +57,9 @@ function CoffeeLabel({
     roastClean ? `${roastClean} Roast` : null,
   ].filter(Boolean).join(" \u2022 ");
 
-  const tastingDisplay = (flavor_notes && flavor_notes.length > 0)
-    ? flavor_notes.slice(0, 3).join(", ")
+  const fnArr = Array.isArray(flavor_notes) ? flavor_notes : (typeof flavor_notes === "string" && flavor_notes ? flavor_notes.split(",").map((s: string) => s.trim()) : []);
+  const tastingDisplay = fnArr.length > 0
+    ? fnArr.slice(0, 3).join(", ")
     : tasting_notes || null;
 
   return (

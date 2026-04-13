@@ -5,7 +5,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  View, Text, ScrollView, Pressable, RefreshControl,
+  View, Text, ScrollView, Pressable, RefreshControl, Modal,
   StyleSheet, useWindowDimensions, LayoutChangeEvent, ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
@@ -20,6 +20,7 @@ import { apiFetch, resolveUploadUrl } from "../../src/api/client";
 import { colors, fonts, SHELF_LABELS, ShelfKey } from "../../src/theme/colors";
 
 import PostFeedCard from "../../src/components/PostFeedCard";
+import ComposePost from "../../src/components/ComposePost";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import Navbar from "../../src/components/Navbar";
 
@@ -156,6 +157,7 @@ export default function UserProfilePage() {
   const [followerCount, setFollowerCount] = useState(0);
   const [following, setFollowing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [repostTarget, setRepostTarget] = useState<any>(null);
 
   const isOwn = authUser?.username === username;
 
@@ -390,7 +392,7 @@ export default function UserProfilePage() {
         ) : (
           posts.slice(0, visiblePostCount).map((post: any, idx: number) => (
             <View key={`post-${post.id}-${idx}`}>
-              <PostFeedCard post={post} user={authUser} />
+              <PostFeedCard post={post} onRepost={(p: any) => setRepostTarget(p)} user={authUser} />
               {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
             </View>
           ))
@@ -472,6 +474,26 @@ export default function UserProfilePage() {
           {tabBar}
           {tabContent}
         </ScrollView>
+
+        {/* Repost modal */}
+        {repostTarget && (
+          <Modal visible transparent animationType="fade" onRequestClose={() => setRepostTarget(null)}>
+            <Pressable style={s.repostOverlay} onPress={() => setRepostTarget(null)}>
+              <Pressable style={s.repostModal} onPress={(e) => e.stopPropagation()}>
+                <ComposePost
+                  onSubmit={async (data) => {
+                    await apiFetch("/roaster-posts", { method: "POST", body: JSON.stringify(data) });
+                    setRepostTarget(null);
+                    loadData();
+                  }}
+                  onCancel={() => setRepostTarget(null)}
+                  repostTarget={repostTarget}
+                  user={authUser}
+                />
+              </Pressable>
+            </Pressable>
+          </Modal>
+        )}
       </View>
     </>
   );
@@ -668,4 +690,6 @@ const s = StyleSheet.create({
   followInfo: { flex: 1 },
   followName: { fontFamily: fonts.bodyMedium, fontSize: 14, color: "#351101" },
   followMeta: { fontFamily: fonts.bodyRegular, fontSize: 11, color: "#A09580", marginTop: 2 },
+  repostOverlay: { flex: 1, backgroundColor: "rgba(104,79,68,0.6)", justifyContent: "center", alignItems: "center" },
+  repostModal: { width: "90%", maxWidth: 560, borderRadius: 12, backgroundColor: "#FAF8F0", overflow: "hidden", padding: 20 } as any,
 });

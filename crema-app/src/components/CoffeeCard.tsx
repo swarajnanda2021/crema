@@ -136,7 +136,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
               <ShareIcon size={BTN_SIZE} />
             </Pressable>
             <Pressable
-              onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "card_front"); Linking.openURL(coffee.product_url); }}
+              onPress={() => { if (coffee.product_url) { trackClick(coffee.product_id, coffee.roaster_slug, "card_front"); Linking.openURL(coffee.product_url); } }}
             >
               <CartIcon size={BTN_SIZE} />
             </Pressable>

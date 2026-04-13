@@ -45,20 +45,26 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
 
   if (!visible) return null;
 
-  const handlePress = (n: Notification) => {
+  const goToProfile = (n: Notification) => {
+    markRead(n.id);
+    onClose();
+    router.push(`/user/${n.actor_username}`);
+  };
+
+  const goToSource = (n: Notification) => {
     markRead(n.id);
     onClose();
     if (n.type === "follow") {
       router.push(`/user/${n.actor_username}`);
     } else if (n.post_id) {
-      // Navigate to the post author's profile (posts tab)
-      // For now, just go to the actor's profile
+      router.push(`/?highlight=${n.post_id}`);
+    } else {
       router.push(`/user/${n.actor_username}`);
     }
   };
 
   const cardFixedStyle = Platform.OS === "web"
-    ? { position: "fixed" as any, top: 72, right: 150, zIndex: 9999 }
+    ? { position: "fixed" as any, top: 72, right: 90, zIndex: 9999 }
     : { position: "absolute" as any, top: 8, right: 40, zIndex: 9999 };
 
   return (
@@ -101,22 +107,30 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
               <View key={n.id}>
                 {idx > 0 && <View style={s.itemDivider} />}
                 <Pressable
-                  onPress={() => handlePress(n)}
-                  style={({ pressed }) => [s.item, !n.read && s.itemUnread, pressed && s.itemPressed]}
+                  onPress={() => goToSource(n)}
+                  style={({ pressed, hovered }: any) => [
+                    s.item,
+                    !n.read && s.itemUnread,
+                    (pressed || hovered) && s.itemHover,
+                  ]}
                 >
-                  {n.actor_avatar_url ? (
-                    <CroppedAvatar
-                      url={n.actor_avatar_url}
-                      cropX={n.actor_crop_x ?? undefined}
-                      cropY={n.actor_crop_y ?? undefined}
-                      zoom={n.actor_zoom ?? undefined}
-                      size={36}
-                    />
-                  ) : (
-                    <View style={s.avatarFallback}>
-                      <Text style={s.avatarInitial}>{(n.actor_display_name || "?")[0].toUpperCase()}</Text>
-                    </View>
-                  )}
+                  {/* Thumbnail → profile */}
+                  <Pressable onPress={(e) => { e.stopPropagation(); goToProfile(n); }}>
+                    {n.actor_avatar_url ? (
+                      <CroppedAvatar
+                        url={n.actor_avatar_url}
+                        cropX={n.actor_crop_x ?? undefined}
+                        cropY={n.actor_crop_y ?? undefined}
+                        zoom={n.actor_zoom ?? undefined}
+                        size={36}
+                      />
+                    ) : (
+                      <View style={s.avatarFallback}>
+                        <Text style={s.avatarInitial}>{(n.actor_display_name || "?")[0].toUpperCase()}</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                  {/* Rest → source post */}
                   <View style={s.itemContent}>
                     <Text style={s.itemText} numberOfLines={2}>
                       <Text style={s.actorName}>{n.actor_display_name}</Text>
@@ -170,7 +184,7 @@ const s = StyleSheet.create({
     paddingVertical: 10,
   },
   itemUnread: { backgroundColor: "rgba(215,152,218,0.06)" },
-  itemPressed: { backgroundColor: "#FAF8F0" },
+  itemHover: { backgroundColor: "rgba(215,152,218,0.12)" },
   itemContent: { flex: 1 },
   itemText: { fontFamily: fonts.bodyRegular, fontSize: 13, color: "#351101", lineHeight: 18 },
   actorName: { fontFamily: fonts.bodySemiBold },

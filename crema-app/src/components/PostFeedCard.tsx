@@ -68,6 +68,7 @@ export default function PostFeedCard({ post, onRepost, user }: { post: any; onRe
   const [likeCount, setLikeCount] = useState(post.like_count || 0);
   const [commentCount, setCommentCount] = useState(post.comment_count || 0);
   const [showCommentModal, setShowCommentModal] = useState(false);
+  const [showCopied, setShowCopied] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handleLike = async () => {
@@ -227,13 +228,20 @@ export default function PostFeedCard({ post, onRepost, user }: { post: any; onRe
         )}
         <Pressable
           onPress={() => {
+            const url = post.external_url || (typeof window !== "undefined" ? `${window.location.origin}/user/${post.author_username}` : "");
             if (typeof navigator !== "undefined" && navigator.clipboard) {
-              navigator.clipboard.writeText(post.external_url || (typeof window !== "undefined" ? window.location.href : ""));
+              navigator.clipboard.writeText(url);
+              setShowCopied(true);
+              setTimeout(() => setShowCopied(false), 1500);
             }
           }}
           style={rp.actionBtn}
         >
-          <ShareNodesIcon size={12} color="#D798DA" />
+          {showCopied ? (
+            <Text style={rp.copiedText}>Copied!</Text>
+          ) : (
+            <ShareNodesIcon size={12} color="#D798DA" />
+          )}
         </Pressable>
       </View>
 
@@ -346,4 +354,5 @@ const rp = StyleSheet.create({
   repostCardTeaser: { fontFamily: fonts.bodyRegular, fontSize: 13, color: "#684F44", lineHeight: 18 },
   repostCardGallery: { marginTop: 8 },
   actionCount: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
+  copiedText: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#D798DA" },
 });
