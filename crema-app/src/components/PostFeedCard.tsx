@@ -20,7 +20,6 @@ import {
   PostLocationPinIcon,
 } from "./icons/FigmaIcons";
 import PostGallery from "./PostGallery";
-import CommentModal from "./CommentModal";
 
 /** Renders an avatar with crop/zoom applied via manual positioning.
  *  Exported so other components can reuse it. */
@@ -50,6 +49,13 @@ export function CroppedAvatar({ url, cropX, cropY, zoom, size, style }: {
   );
 }
 
+/** Dispatch global event to open the sitewide PostModal */
+export function openPostModal(opts: { postId?: number; post?: any; mode?: string; highlightCommentId?: number }) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("crema:open-post", { detail: opts }));
+  }
+}
+
 export function timeAgo(dateStr: string): string {
   try {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -67,7 +73,6 @@ export default function PostFeedCard({ post, onRepost, user }: { post: any; onRe
   const [liked, setLiked] = useState(post.liked_by_me || false);
   const [likeCount, setLikeCount] = useState(post.like_count || 0);
   const [commentCount, setCommentCount] = useState(post.comment_count || 0);
-  const [showCommentModal, setShowCommentModal] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -148,9 +153,9 @@ export default function PostFeedCard({ post, onRepost, user }: { post: any; onRe
         </View>
       ) : null}
 
-      {/* Repost: nested original post card */}
+      {/* Repost: nested original post card — clickable to open original */}
       {post.post_type === "repost" && post.original_post && (
-        <View style={rp.repostCard}>
+        <Pressable onPress={() => openPostModal({ postId: post.original_post.id, mode: "comment" })} style={rp.repostCard}>
           <View style={rp.repostCardHeader}>
             <Pressable
               onPress={() => {
@@ -186,7 +191,7 @@ export default function PostFeedCard({ post, onRepost, user }: { post: any; onRe
               />
             </View>
           )}
-        </View>
+        </Pressable>
       )}
 
       {/* Article thumbnail with title overlay OR note gallery */}
@@ -214,12 +219,12 @@ export default function PostFeedCard({ post, onRepost, user }: { post: any; onRe
           </Animated.View>
           <Text style={[rp.actionCount, liked && { color: "#D798DA" }]}>{likeCount}</Text>
         </Pressable>
-        <Pressable onPress={() => setShowCommentModal(true)} style={rp.actionBtn}>
+        <Pressable onPress={() => openPostModal({ post, mode: "comment" })} style={rp.actionBtn}>
           <CommentBubbleIcon size={14} color="#D798DA" />
           <Text style={rp.actionCount}>{commentCount}</Text>
         </Pressable>
         {post.post_type !== "repost" && (
-          <Pressable onPress={() => onRepost?.(post)} style={rp.actionBtn}>
+          <Pressable onPress={() => openPostModal({ post, mode: "repost" })} style={rp.actionBtn}>
             <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
               <Path d="M17 1L21 5L17 9M3 11V9C3 7.93 3.42 6.93 4.17 6.17C4.93 5.42 5.93 5 7 5H21M7 23L3 19L7 15M21 13V15C21 16.06 20.58 17.07 19.83 17.83C19.07 18.58 18.07 19 17 19H3" stroke="#D798DA" strokeWidth={2.095} strokeLinecap="round" strokeLinejoin="round" />
             </Svg>
@@ -245,14 +250,6 @@ export default function PostFeedCard({ post, onRepost, user }: { post: any; onRe
         </Pressable>
       </View>
 
-      {/* Comment modal */}
-      <CommentModal
-        visible={showCommentModal}
-        post={post}
-        onClose={() => setShowCommentModal(false)}
-        onCommentCountChange={(_, count) => setCommentCount(count)}
-        user={user}
-      />
     </View>
   );
 }

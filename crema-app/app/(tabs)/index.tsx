@@ -183,24 +183,8 @@ export default function FeedPage() {
       </ScrollView>
 
       {/* Repost floating modal — Figma 116:770 backdrop */}
-      {repostTarget && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setRepostTarget(null)}>
-          <Pressable style={s.repostOverlay} onPress={() => setRepostTarget(null)}>
-            <Pressable style={s.repostModal} onPress={(e) => e.stopPropagation()}>
-              <ComposePost
-                onSubmit={async (data) => { await handleRoasterPost(data); setRepostTarget(null); }}
-                onCancel={() => setRepostTarget(null)}
-                loading={false}
-                repostTarget={repostTarget}
-                user={user}
-              />
-            </Pressable>
-          </Pressable>
-        </Modal>
-      )}
-
       {/* Compose FAB */}
-      {user && !showRoasterCompose && !repostTarget && (
+      {user && !showRoasterCompose && (
         <Pressable onPress={() => setShowRoasterCompose(true)} style={s.fab}>
           <Plus size={22} color="#FAF8F0" strokeWidth={2.5} />
         </Pressable>

@@ -263,6 +263,19 @@ def update_post(post_id: int, req: PostUpdateRequest, user=Depends(get_current_u
         db.close()
 
 
+@router.get("/posts/{post_id}")
+def get_single_post(post_id: int):
+    """Fetch a single post by ID."""
+    db = get_db()
+    try:
+        row = db.execute(_POST_SELECT + " WHERE rp.id = ?", (post_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Post not found")
+        return _row_to_post(row, db)
+    finally:
+        db.close()
+
+
 @router.get("/users/{username}/posts")
 def get_user_posts(username: str, limit: int = 20, offset: int = 0):
     """List all posts by a specific user, newest first."""
