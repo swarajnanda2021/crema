@@ -98,8 +98,9 @@ export default function PostFeedCard({
       Animated.timing(scaleAnim, { toValue: 1.3, duration: 100, useNativeDriver: true }),
       Animated.timing(scaleAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
     ]).start();
-    setLiked((l: boolean) => !l);
-    setLikeCount((c: number) => liked ? c - 1 : c + 1);
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+    setLikeCount((c: number) => wasLiked ? c - 1 : c + 1);
     try {
       const res = await apiFetch(`/posts/${post.id}/like`, { method: "POST" });
       setLiked(res.liked);

@@ -67,19 +67,20 @@ export default function PostModal({
       .finally(() => setLoading(false));
   }, [visible, postId, postProp]);
 
-  // Load comments when in comment mode or post is loaded
+  // Internal mode — can switch from view→repost within the modal
+  const [internalMode, setInternalMode] = useState(mode);
+  useEffect(() => { setInternalMode(mode); }, [mode]);
+
+  // Always load comments when post is available
   useEffect(() => {
     if (!visible || !post) return;
-    if (mode === "comment" || highlightCommentId) {
-      loadComments();
-    }
-    // Flash post on view/like/repost notifications
-    if (mode === "view") {
+    loadComments();
+    if (internalMode === "view") {
       flashAnim.setValue(1);
       Animated.timing(flashAnim, { toValue: 0, duration: 1500, useNativeDriver: false }).start();
     }
     setCommentCount(post.comment_count || 0);
-  }, [visible, post, mode]);
+  }, [visible, post]);
 
   const loadComments = useCallback(async () => {
     if (!post) return;
@@ -133,7 +134,7 @@ export default function PostModal({
 
   if (!visible) return null;
 
-  const showComments = mode === "comment" || !!highlightCommentId;
+  const showComments = true; // always show comments in the modal
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -142,7 +143,7 @@ export default function PostModal({
           {/* Header */}
           <View style={s.header}>
             <Text style={s.headerTitle}>
-              {mode === "repost" ? "Repost" : mode === "comment" ? "Post" : "Post"}
+              {internalMode === "repost" ? "Repost" : mode === "comment" ? "Post" : "Post"}
             </Text>
             <Pressable onPress={onClose} hitSlop={8}>
               <X size={18} color="#351101" />
@@ -161,7 +162,7 @@ export default function PostModal({
             ) : (
               <>
                 {/* Repost compose form */}
-                {mode === "repost" && (
+                {internalMode === "repost" && (
                   <ComposePost
                     onSubmit={handleRepostSubmit}
                     onCancel={onClose}
@@ -179,7 +180,12 @@ export default function PostModal({
                     }),
                     borderRadius: 8,
                   } : undefined}>
-                    <PostFeedCard post={post} user={user} />
+                    <PostFeedCard
+                      post={post}
+                      user={user}
+                      onComment={() => scrollRef.current?.scrollToEnd({ animated: true })}
+                      onRepost={() => setInternalMode("repost")}
+                    />
                   </Animated.View>
                 )}
 

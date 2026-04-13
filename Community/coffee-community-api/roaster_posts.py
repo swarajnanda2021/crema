@@ -15,13 +15,14 @@ Endpoints:
 
 import datetime
 import json
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
 from typing import Optional
 
 from database import get_db
 from notifications import create_notification
 from auth import get_current_user, get_optional_user
+
 
 router = APIRouter(prefix="/api", tags=["Roaster Posts"])
 
@@ -75,7 +76,7 @@ def _parse_images(r) -> list:
     return [cover] if cover else []
 
 
-def _row_to_post(r, db=None) -> dict:
+def _row_to_post(r, db=None, current_user_id=None) -> dict:
     keys = r.keys() if hasattr(r, "keys") else []
     repost_of_id = r["repost_of_id"] if "repost_of_id" in keys else None
 
@@ -134,6 +135,7 @@ def _row_to_post(r, db=None) -> dict:
         "like_count": like_count,
         "comment_count": comment_count,
         "repost_count": repost_count,
+        "liked_by_me": bool(db.execute("SELECT 1 FROM post_likes WHERE post_id=? AND user_id=?", (post_id, current_user_id)).fetchone()) if db and current_user_id else False,
     }
 
 
@@ -264,14 +266,20 @@ def update_post(post_id: int, req: PostUpdateRequest, user=Depends(get_current_u
 
 
 @router.get("/posts/{post_id}")
-def get_single_post(post_id: int):
+def get_single_post(post_id: int, authorization: str = Header(None)):
     """Fetch a single post by ID."""
+    current_user = None
+    if authorization:
+        try:
+            current_user = get_optional_user(authorization)
+        except Exception:
+            pass
     db = get_db()
     try:
         row = db.execute(_POST_SELECT + " WHERE rp.id = ?", (post_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Post not found")
-        return _row_to_post(row, db)
+        return _row_to_post(row, db, current_user_id=current_user["id"] if current_user else None)
     finally:
         db.close()
 
