@@ -1,0 +1,113 @@
+{
+  "color": {
+    "bg": "#FAF8F0",
+    "card.front": "#FFFFFF",
+    "card.back": "#2C1810",
+    "card.info": "#EFE9DB",
+    "text.primary": "#351101",
+    "text.secondary": "#684F44",
+    "text.muted": "#A09580",
+    "text.on-dark": "#FAF8F0",
+    "accent": "#D798DA",
+    "accent.cta": "#C8553D",
+    "accent.cta.hover": "#A94432",
+    "accent.soft": "rgba(200, 85, 61, 0.08)",
+    "accent.gold": "#E8C07A",
+    "border": "#D7D1C4",
+    "border.light": "#EDE8E1",
+    "divider": "#C7BAA5",
+    "navbar.bg": "#351101",
+    "navbar.text": "#E7D5B8",
+    "tag.bg": "#EFE9DB",
+    "tag.text": "#5D4E42",
+    "unavailable": "#B0A89F",
+    "overlay": "rgba(104,79,68,0.6)",
+    "flash": "rgba(215,152,218,0.25)",
+    "shadow": "#351101"
+  },
+  "font": {
+    "display": "CanelaText_Regular",
+    "body.regular": "Inter_400Regular",
+    "body.medium": "Inter_500Medium",
+    "body.semibold": "Inter_600SemiBold",
+    "body.bold": "Inter_700Bold"
+  },
+  "size": {
+    "font.xs": 10,
+    "font.sm": 11,
+    "font.base": 13,
+    "font.md": 14,
+    "font.lg": 16,
+    "font.xl": 18,
+    "font.2xl": 24,
+    "font.display": 32,
+    "font.price": 20,
+    "icon.xs": 10,
+    "icon.sm": 12,
+    "icon.md": 16,
+    "icon.lg": 22,
+    "icon.xl": 24,
+    "avatar.xs": 20,
+    "avatar.sm": 22,
+    "avatar.md": 28,
+    "avatar.feed": 30,
+    "avatar.lg": 36,
+    "avatar.xl": 48,
+    "navbar.height": 72,
+    "fab.size": 52,
+    "card.width": 240,
+    "card.height": 372,
+    "card.image.height": 160,
+    "gallery.aspect": 1.32,
+    "tasting.card.width": 281,
+    "tasting.card.height": 371
+  },
+  "spacing": {
+    "2xs": 2,
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 20,
+    "2xl": 24,
+    "3xl": 32,
+    "4xl": 40,
+    "5xl": 64
+  },
+  "radius": {
+    "xs": 2,
+    "sm": 4,
+    "md": 8,
+    "lg": 12,
+    "xl": 16,
+    "2xl": 20,
+    "full": 9999
+  },
+  "shadow": {
+    "card": {
+      "color": "#351101",
+      "offset": [0, 4],
+      "opacity": 0.06,
+      "radius": 16,
+      "elevation": 3
+    },
+    "card.hover": {
+      "color": "#351101",
+      "offset": [0, 8],
+      "opacity": 0.12,
+      "radius": 24,
+      "elevation": 6
+    }
+  },
+  "shelf": {
+    "currently_drinking": { "label": "Drinking", "color": "#C8553D" },
+    "drank": { "label": "Drank", "color": "#6B5B4F" },
+    "want_to_try": { "label": "Want to Try", "color": "#E8C07A" }
+  },
+  "lineHeight": {
+    "tight": 16,
+    "base": 18,
+    "relaxed": 22,
+    "loose": 28
+  }
+}
