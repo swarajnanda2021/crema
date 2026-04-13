@@ -1121,170 +1121,6 @@ const fb = StyleSheet.create({
   textFollowing: { color: "#351101" },
 });
 
-// ── New Post compose form (owner only) ────────────────────────────────────────
-
-function ComposePostForm({
-  onSubmit,
-  onCancel,
-  loading,
-}: {
-  onSubmit: (data: { title: string; teaser: string; external_url: string; cover_image_url: string; post_type: string; location: string; images: string[] }) => void;
-  onCancel: () => void;
-  loading: boolean;
-}) {
-  const [postType, setPostType] = useState<"article" | "note">("article");
-  const [title, setTitle] = useState("");
-  const [teaser, setTeaser] = useState("");
-  const [url, setUrl] = useState("");
-  const [imageUrls, setImageUrls] = useState<string[]>([""]);
-  const [location, setLocation] = useState("");
-
-  const isNote = postType === "note";
-  const canSubmit = teaser.trim().length > 0 && teaser.trim().length <= 300 &&
-    (isNote || title.trim().length > 0);
-
-  const addImageField = () => setImageUrls((prev) => [...prev, ""]);
-  const updateImageUrl = (idx: number, val: string) =>
-    setImageUrls((prev) => prev.map((u, i) => (i === idx ? val : u)));
-  const removeImageUrl = (idx: number) =>
-    setImageUrls((prev) => prev.filter((_, i) => i !== idx));
-
-  return (
-    <View style={cf.wrap}>
-      <View style={cf.header}>
-        <Text style={cf.heading}>New post</Text>
-        <Pressable onPress={onCancel} hitSlop={8}>
-          <X size={16} color="#A09580" />
-        </Pressable>
-      </View>
-
-      {/* Post type toggle */}
-      <View style={cf.typeRow}>
-        <Pressable
-          onPress={() => setPostType("article")}
-          style={[cf.typeBtn, !isNote && cf.typeBtnActive]}
-        >
-          <Text style={[cf.typeBtnText, !isNote && cf.typeBtnTextActive]}>Article</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setPostType("note")}
-          style={[cf.typeBtn, isNote && cf.typeBtnActive]}
-        >
-          <Text style={[cf.typeBtnText, isNote && cf.typeBtnTextActive]}>Note</Text>
-        </Pressable>
-      </View>
-
-      {!isNote && (
-        <>
-          <Text style={cf.label}>Title *</Text>
-          <TextInput
-            style={cf.input}
-            value={title}
-            onChangeText={setTitle}
-            placeholder="e.g. Gangecool Estate"
-            placeholderTextColor="#C7BAA5"
-          />
-        </>
-      )}
-
-      <Text style={cf.label}>
-        {isNote ? "Note *" : "Teaser *"} <Text style={cf.labelMeta}>{teaser.length}/300</Text>
-      </Text>
-      <TextInput
-        style={[cf.input, cf.textarea]}
-        value={teaser}
-        onChangeText={setTeaser}
-        placeholder={isNote ? "What's on your mind…" : "A short description (up to 300 chars) that appears in the feed…"}
-        placeholderTextColor="#C7BAA5"
-        multiline
-        numberOfLines={3}
-      />
-
-      {isNote && (
-        <>
-          <Text style={cf.label}>Location</Text>
-          <TextInput
-            style={cf.input}
-            value={location}
-            onChangeText={setLocation}
-            placeholder="e.g. Nada, Anjuna"
-            placeholderTextColor="#C7BAA5"
-          />
-        </>
-      )}
-
-      {!isNote && (
-        <>
-          <Text style={cf.label}>Article URL</Text>
-          <TextInput
-            style={cf.input}
-            value={url}
-            onChangeText={setUrl}
-            placeholder="https://…"
-            placeholderTextColor="#C7BAA5"
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-        </>
-      )}
-
-      <Text style={cf.label}>
-        Images <Text style={cf.labelMeta}>(portrait for notes · max 3 visible, scroll beyond)</Text>
-      </Text>
-      {imageUrls.map((val, idx) => (
-        <View key={idx} style={cf.imageRow}>
-          <TextInput
-            style={[cf.input, { flex: 1 }]}
-            value={val}
-            onChangeText={(v) => updateImageUrl(idx, v)}
-            placeholder="https://…"
-            placeholderTextColor="#C7BAA5"
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-          {imageUrls.length > 1 && (
-            <Pressable onPress={() => removeImageUrl(idx)} hitSlop={8} style={cf.removeBtn}>
-              <X size={13} color="#A09580" />
-            </Pressable>
-          )}
-        </View>
-      ))}
-      <Pressable onPress={addImageField} style={cf.addImageBtn}>
-        <Plus size={11} color="#684F44" strokeWidth={2} />
-        <Text style={cf.addImageText}>Add image</Text>
-      </Pressable>
-
-      <View style={cf.actions}>
-        <Pressable onPress={onCancel} style={cf.cancelBtn}>
-          <Text style={cf.cancelText}>Cancel</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => {
-            const imgs = imageUrls.map((u) => u.trim()).filter(Boolean);
-            canSubmit && onSubmit({
-              title: isNote ? (teaser.trim().slice(0, 60) || "Note") : title.trim(),
-              teaser: teaser.trim(),
-              external_url: url.trim(),
-              cover_image_url: imgs[0] || "",
-              post_type: postType,
-              location: location.trim(),
-              images: imgs,
-            });
-          }}
-          style={[cf.submitBtn, !canSubmit && cf.submitBtnDisabled]}
-          disabled={!canSubmit || loading}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#FAF8F0" />
-          ) : (
-            <Text style={cf.submitText}>Post to feed</Text>
-          )}
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
 // ── Inline editable coffee card (owner: add bean flow) ────────────────────────
 // Placeholder: Figma 249:3318 — cream card, 1.5px #C7BAA5 border, centered + circle
 // Edit form:   Figma 249:3486 — slides in from right, fonts match CoffeeLabel exactly
@@ -1754,101 +1590,6 @@ const ec = StyleSheet.create({
   urlModalDoneText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: "#FAF8F0" },
 });
 
-const cf = StyleSheet.create({
-  wrap: {
-    padding: 24,
-    backgroundColor: "#FAF8F0",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  heading: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 14,
-    color: "#351101",
-  },
-  typeRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 4,
-  },
-  typeBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: "#D7D1C4",
-    backgroundColor: "#FEFDFB",
-  },
-  typeBtnActive: {
-    borderColor: "#351101",
-    backgroundColor: "#351101",
-  },
-  typeBtnText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: "#684F44" },
-  typeBtnTextActive: { color: "#FAF8F0" },
-  label: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 11,
-    color: "#684F44",
-    marginBottom: 5,
-    marginTop: 12,
-  },
-  labelMeta: {
-    fontFamily: fonts.bodyRegular,
-    color: "#A09580",
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#D7D1C4",
-    borderRadius: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontFamily: fonts.bodyRegular,
-    fontSize: 13,
-    color: "#351101",
-    backgroundColor: "#FEFDFB",
-  } as any,
-  textarea: {
-    minHeight: 72,
-    textAlignVertical: "top" as any,
-  },
-  actions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 16,
-    justifyContent: "flex-end" as any,
-  },
-  cancelBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: "#D7D1C4",
-  },
-  cancelText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "#684F44" },
-  submitBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 4,
-    backgroundColor: "#351101",
-  },
-  submitBtnDisabled: { backgroundColor: "#A09580" },
-  submitText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: "#FAF8F0" },
-  imageRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 } as any,
-  removeBtn: { padding: 4 },
-  addImageBtn: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    marginTop: 4, marginBottom: 2,
-    paddingVertical: 5, alignSelf: "flex-start" as any,
-  },
-  addImageText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#684F44" },
-  twoCol: { flexDirection: "row", gap: 12 } as any,
-  colHalf: { flex: 1 } as any,
-});
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const NAVBAR_H = 72;
@@ -1924,7 +1665,6 @@ export default function RoasterDetailPage() {
   // Compose form
   const [showCompose, setShowCompose] = useState(false);
   const [composing, setComposing] = useState(false);
-  const [repostTarget, setRepostTarget] = useState<any>(null);
 
   // Right panel tabs
   const ROASTER_POSTS_PER_PAGE = 5;
@@ -2666,23 +2406,6 @@ export default function RoasterDetailPage() {
             onClose={() => setShowHeroUpload(false)}
           />
 
-          {/* Repost floating modal — Figma 116:770 backdrop */}
-          {repostTarget && (
-            <Modal visible transparent animationType="fade" onRequestClose={() => setRepostTarget(null)}>
-              <Pressable style={s.repostOverlay} onPress={() => setRepostTarget(null)}>
-                <Pressable style={s.repostModal} onPress={(e) => e.stopPropagation()}>
-                  <ComposePost
-                    onSubmit={async (data) => { await handleCreatePost(data); setRepostTarget(null); }}
-                    onCancel={() => setRepostTarget(null)}
-                    loading={composing}
-                    repostTarget={repostTarget}
-                    user={user}
-                  />
-                </Pressable>
-              </Pressable>
-            </Modal>
-          )}
-
         </View>
       </View>
     </>
@@ -2993,21 +2716,6 @@ const s = StyleSheet.create({
     justifyContent: "center" as any,
     alignItems: "center" as any,
   },
-  // Repost floating modal — Figma 116:770 backdrop
-  repostOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(104,79,68,0.6)",
-    backdropFilter: "blur(35px)",
-    WebkitBackdropFilter: "blur(35px)",
-    justifyContent: "center",
-    alignItems: "center",
-  } as any,
-  repostModal: {
-    width: "90%",
-    maxWidth: 560,
-    borderRadius: 12,
-    overflow: "hidden",
-  } as any,
   modalCard: {
     backgroundColor: "#FAF8F0",
     borderRadius: 16,

@@ -9,7 +9,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  View, Text, TextInput, Pressable, ScrollView, Modal,
+  View, Text, TextInput, Pressable, ScrollView,
   RefreshControl, StyleSheet, Animated, ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
@@ -28,7 +28,6 @@ import TastingNoteDisplay from "../../src/components/TastingNoteDisplay";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import PostGallery from "../../src/components/PostGallery";
 import ComposePost from "../../src/components/ComposePost";
-import CommentModal from "../../src/components/CommentModal";
 import PostFeedCard, { openPostModal } from "../../src/components/PostFeedCard";
 
 // ── Feed page ─────────────────────────────────────────────────────────────────
@@ -45,7 +44,6 @@ export default function FeedPage() {
   const [refreshing, setRefreshing] = useState(false);
   // ALL hooks must be declared before any early returns
   const [showRoasterCompose, setShowRoasterCompose] = useState(false);
-  const [repostTarget, setRepostTarget] = useState<any>(null);
 
   const isRoaster = user?.account_type === "roaster";
 
@@ -602,21 +600,6 @@ const s = StyleSheet.create({
     paddingBottom: 100,
   },
   emptyText: { textAlign: "center", paddingVertical: 64, fontFamily: fonts.bodyRegular, fontSize: 14, color: colors.textSecondary },
-  // Repost floating modal — Figma 116:770 backdrop
-  repostOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(104,79,68,0.6)",
-    backdropFilter: "blur(35px)",
-    WebkitBackdropFilter: "blur(35px)",
-    justifyContent: "center",
-    alignItems: "center",
-  } as any,
-  repostModal: {
-    width: "90%",
-    maxWidth: 560,
-    borderRadius: 12,
-    overflow: "hidden",
-  } as any,
   // Figma 135:1664 — #D7D1C4 separator line between posts
   feedDivider: { height: 1, backgroundColor: "#D7D1C4" },
 

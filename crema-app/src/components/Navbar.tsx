@@ -18,17 +18,15 @@ import { CroppedAvatar } from "./PostFeedCard";
 import CremaLogo from "./CremaLogo";
 import ProfileDropdown from "./ProfileDropdown";
 import NotificationsDropdown from "./NotificationsDropdown";
-import ProfileEditModal from "./ProfileEditModal";
 
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, backendAvailable, updateProfile } = useAuth();
+  const { user, backendAvailable } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const { unreadCount } = useNotifications(!!user);
 
 
@@ -137,18 +135,7 @@ export default function Navbar() {
       <ProfileDropdown
         visible={showDropdown}
         onClose={() => setShowDropdown(false)}
-        onEditProfile={() => setShowEditModal(true)}
       />
-
-      {/* Profile edit modal — triggered from dropdown "Edit account" */}
-      {user && (
-        <ProfileEditModal
-          visible={showEditModal}
-          user={user}
-          onSave={async (data) => { await updateProfile(data); }}
-          onClose={() => setShowEditModal(false)}
-        />
-      )}
 
     </>
   );

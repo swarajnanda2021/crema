@@ -17,10 +17,9 @@ import { CroppedAvatar } from "./PostFeedCard";
 interface Props {
   visible: boolean;
   onClose: () => void;
-  onEditProfile: () => void;
 }
 
-export default function ProfileDropdown({ visible, onClose, onEditProfile }: Props) {
+export default function ProfileDropdown({ visible, onClose }: Props) {
   const { user, logout, switchAccount, getSavedAccounts, removeSavedAccount } = useAuth();
   const router = useRouter();
   const [switching, setSwitching] = useState(false);

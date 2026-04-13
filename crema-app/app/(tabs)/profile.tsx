@@ -186,7 +186,6 @@ export default function ProfilePage() {
 
   // Compose
   const [showCompose, setShowCompose] = useState(false);
-  const [repostTarget, setRepostTarget] = useState<any>(null);
 
   // ── In-place editing state ──────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(edit === "1");
@@ -359,15 +358,6 @@ export default function ProfilePage() {
       body: JSON.stringify({ ...data, roaster_slug: `user_${user?.id}` }),
     });
     setShowCompose(false);
-    loadData();
-  };
-
-  const handleRepostSubmit = async (data: any) => {
-    await apiFetch("/roaster-posts", {
-      method: "POST",
-      body: JSON.stringify({ ...data, roaster_slug: `user_${user?.id}` }),
-    });
-    setRepostTarget(null);
     loadData();
   };
 
@@ -749,17 +739,6 @@ export default function ProfilePage() {
         </Pressable>
       )}
 
-      {/* Repost modal */}
-      {repostTarget && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setRepostTarget(null)}>
-          <Pressable style={s.repostOverlay} onPress={() => setRepostTarget(null)}>
-            <Pressable style={s.repostModal} onPress={(e) => e.stopPropagation()}>
-              <ComposePost onSubmit={handleRepostSubmit} onCancel={() => setRepostTarget(null)} repostTarget={repostTarget} user={user} />
-            </Pressable>
-          </Pressable>
-        </Modal>
-      )}
-
       {/* Avatar upload modal */}
       <ImageUploadModal
         visible={showAvatarUpload}
@@ -1075,9 +1054,6 @@ const s = StyleSheet.create({
   // FAB
   fab: { position: "absolute", bottom: 28, right: 28, width: 52, height: 52, borderRadius: 26, backgroundColor: "#351101", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 } as any,
 
-  // Repost overlay
-  repostOverlay: { flex: 1, backgroundColor: "rgba(104,79,68,0.6)", justifyContent: "center", alignItems: "center" },
-  repostModal: { width: "90%", maxWidth: 560, borderRadius: 12, backgroundColor: "#FAF8F0", overflow: "hidden", padding: 20 } as any,
 
   // Drink dot (in drink picker modal)
   drinkDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D7D1C4" },
