@@ -20,7 +20,7 @@ import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { apiFetch, resolveUploadUrl } from "../../src/api/client";
 import { colors, fonts, SHELF_LABELS, ShelfKey } from "../../src/theme/colors";
 
-import PostFeedCard from "../../src/components/PostFeedCard";
+import PostFeedCard, { openPostModal } from "../../src/components/PostFeedCard";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
@@ -658,7 +658,13 @@ export default function ProfilePage() {
         ) : (
           posts.slice(0, visiblePostCount).map((post: any, idx: number) => (
             <View key={`post-${post.id}-${idx}`}>
-              <PostFeedCard post={post} onRepost={(p: any) => setRepostTarget(p)} user={user} />
+              <PostFeedCard post={post} user={user}
+                onComment={(p) => openPostModal({ post: p, mode: "comment" })}
+                onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
+                onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
+                isOwner={user?.id === post.user_id}
+                onDelete={async (p) => { await apiFetch(`/roaster-posts/${p.id}`, { method: "DELETE" }); loadData(); }}
+              />
               {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
             </View>
           ))

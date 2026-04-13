@@ -19,7 +19,7 @@ import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { apiFetch, resolveUploadUrl } from "../../src/api/client";
 import { colors, fonts, SHELF_LABELS, ShelfKey } from "../../src/theme/colors";
 
-import PostFeedCard from "../../src/components/PostFeedCard";
+import PostFeedCard, { openPostModal } from "../../src/components/PostFeedCard";
 import ComposePost from "../../src/components/ComposePost";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import Navbar from "../../src/components/Navbar";
@@ -392,7 +392,11 @@ export default function UserProfilePage() {
         ) : (
           posts.slice(0, visiblePostCount).map((post: any, idx: number) => (
             <View key={`post-${post.id}-${idx}`}>
-              <PostFeedCard post={post} onRepost={(p: any) => setRepostTarget(p)} user={authUser} />
+              <PostFeedCard post={post} user={authUser}
+                onComment={(p) => openPostModal({ post: p, mode: "comment" })}
+                onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
+                onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
+              />
               {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
             </View>
           ))

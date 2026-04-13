@@ -20,6 +20,7 @@ import {
   PostLocationPinIcon,
 } from "./icons/FigmaIcons";
 import PostGallery from "./PostGallery";
+import PostMenu from "./PostMenu";
 
 /** Renders an avatar with crop/zoom applied via manual positioning.
  *  Exported so other components can reuse it. */
@@ -68,7 +69,23 @@ export function timeAgo(dateStr: string): string {
   } catch { return ""; }
 }
 
-export default function PostFeedCard({ post, onRepost, user, insideModal }: { post: any; onRepost?: (post: any) => void; user?: any; insideModal?: boolean }) {
+interface PostFeedCardProps {
+  post: any;
+  user?: any;
+  onComment?: (post: any) => void;
+  onRepost?: (post: any) => void;
+  onViewOriginal?: (postId: number) => void;
+  // Three-dots menu (owner only)
+  isOwner?: boolean;
+  onEdit?: (post: any) => void;
+  onPin?: (post: any) => void;
+  onDelete?: (post: any) => void;
+}
+
+export default function PostFeedCard({
+  post, user, onComment, onRepost, onViewOriginal,
+  isOwner, onEdit, onPin, onDelete,
+}: PostFeedCardProps) {
   const router = useRouter();
   const [liked, setLiked] = useState(post.liked_by_me || false);
   const [likeCount, setLikeCount] = useState(post.like_count || 0);
@@ -117,28 +134,38 @@ export default function PostFeedCard({ post, onRepost, user, insideModal }: { po
   return (
     <View style={rp.card}>
       {/* Header */}
-      <Pressable onPress={goToAuthor} style={rp.header}>
-        {post.author_avatar_url ? (
-          <CroppedAvatar
-            url={post.author_avatar_url}
-            cropX={post.author_avatar_crop_x}
-            cropY={post.author_avatar_crop_y}
-            zoom={post.author_avatar_zoom}
-            size={30}
+      <View style={rp.headerRow}>
+        <Pressable onPress={goToAuthor} style={rp.header}>
+          {post.author_avatar_url ? (
+            <CroppedAvatar
+              url={post.author_avatar_url}
+              cropX={post.author_avatar_crop_x}
+              cropY={post.author_avatar_crop_y}
+              zoom={post.author_avatar_zoom}
+              size={30}
+            />
+          ) : (
+            <View style={[rp.avatar, rp.avatarFallback]}>
+              <Text style={rp.avatarLetter}>{(post.author_display_name || "?")[0].toUpperCase()}</Text>
+            </View>
+          )}
+          <View style={rp.headerText}>
+            <View style={rp.nameRow}>
+              <Text style={rp.authorName}>{post.author_display_name}</Text>
+              <Text style={rp.timestamp}>{timeAgo(post.published_at)}</Text>
+            </View>
+            <Text style={rp.subtitle}>{subtitleText}</Text>
+          </View>
+        </Pressable>
+        {isOwner && (
+          <PostMenu
+            onEdit={onEdit ? () => onEdit(post) : undefined}
+            onPin={onPin ? () => onPin(post) : undefined}
+            onDelete={onDelete ? () => onDelete(post) : undefined}
+            isPinned={isPinned}
           />
-        ) : (
-          <View style={[rp.avatar, rp.avatarFallback]}>
-            <Text style={rp.avatarLetter}>{(post.author_display_name || "?")[0].toUpperCase()}</Text>
-          </View>
         )}
-        <View style={rp.headerText}>
-          <View style={rp.nameRow}>
-            <Text style={rp.authorName}>{post.author_display_name}</Text>
-            <Text style={rp.timestamp}>{timeAgo(post.published_at)}</Text>
-          </View>
-          <Text style={rp.subtitle}>{subtitleText}</Text>
-        </View>
-      </Pressable>
+      </View>
 
       {/* Body */}
       <Pressable onPress={handleOpen}>
@@ -155,7 +182,7 @@ export default function PostFeedCard({ post, onRepost, user, insideModal }: { po
 
       {/* Repost: nested original post card — clickable to open original */}
       {post.post_type === "repost" && post.original_post && (
-        <Pressable onPress={insideModal ? undefined : () => openPostModal({ postId: post.original_post.id, mode: "comment" })} style={rp.repostCard}>
+        <Pressable onPress={onViewOriginal ? () => onViewOriginal(post.original_post.id) : undefined} style={rp.repostCard}>
           <View style={rp.repostCardHeader}>
             <Pressable
               onPress={() => {
@@ -219,12 +246,12 @@ export default function PostFeedCard({ post, onRepost, user, insideModal }: { po
           </Animated.View>
           <Text style={[rp.actionCount, liked && { color: "#D798DA" }]}>{likeCount}</Text>
         </Pressable>
-        <Pressable onPress={insideModal ? undefined : () => openPostModal({ post, mode: "comment" })} style={rp.actionBtn}>
+        <Pressable onPress={onComment ? () => onComment(post) : undefined} style={rp.actionBtn}>
           <CommentBubbleIcon size={14} color="#D798DA" />
           <Text style={rp.actionCount}>{commentCount}</Text>
         </Pressable>
         {post.post_type !== "repost" && (
-          <Pressable onPress={insideModal ? undefined : () => openPostModal({ post, mode: "repost" })} style={rp.actionBtn}>
+          <Pressable onPress={onRepost ? () => onRepost(post) : undefined} style={rp.actionBtn}>
             <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
               <Path d="M17 1L21 5L17 9M3 11V9C3 7.93 3.42 6.93 4.17 6.17C4.93 5.42 5.93 5 7 5H21M7 23L3 19L7 15M21 13V15C21 16.06 20.58 17.07 19.83 17.83C19.07 18.58 18.07 19 17 19H3" stroke="#D798DA" strokeWidth={2.095} strokeLinecap="round" strokeLinejoin="round" />
             </Svg>
@@ -261,12 +288,18 @@ const rp = StyleSheet.create({
     paddingBottom: 20,
     marginBottom: 12,
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    marginBottom: 14,
+  },
   header: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    paddingHorizontal: 20,
-    marginBottom: 14,
+    flex: 1,
   },
   avatar: { width: 30, height: 30, borderRadius: 15, overflow: "hidden" } as any,
   avatarFallback: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,

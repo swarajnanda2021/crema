@@ -29,7 +29,7 @@ import CoffeeCard from "../../src/components/CoffeeCard";
 import PostGallery from "../../src/components/PostGallery";
 import ComposePost from "../../src/components/ComposePost";
 import CommentModal from "../../src/components/CommentModal";
-import PostFeedCard from "../../src/components/PostFeedCard";
+import PostFeedCard, { openPostModal } from "../../src/components/PostFeedCard";
 
 // ── Feed page ─────────────────────────────────────────────────────────────────
 
@@ -159,8 +159,13 @@ export default function FeedPage() {
               <PostFeedCard
                 key={`rp-${item.id}-${idx}`}
                 post={item}
-                onRepost={(post: any) => { setRepostTarget(post); }}
                 user={user}
+                onComment={(p) => openPostModal({ post: p, mode: "comment" })}
+                onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
+                onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
+                isOwner={user?.id === item.user_id}
+                onEdit={(p) => openPostModal({ post: p, mode: "comment" })}
+                onDelete={async (p) => { await apiFetch(`/roaster-posts/${p.id}`, { method: "DELETE" }); loadFeed(); }}
               />
             ) : (
               <TastingNoteCard

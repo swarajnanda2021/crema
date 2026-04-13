@@ -30,6 +30,7 @@ import { fonts, colors } from "../../src/theme/colors";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import Navbar from "../../src/components/Navbar";
 import { HeartOutlineIcon, HeartFilledOutlineIcon, CartIcon, CommentBubbleIcon, ShareNodesIcon, PostLocationPinIcon } from "../../src/components/icons/FigmaIcons";
+import { openPostModal } from "../../src/components/PostFeedCard";
 
 const liningNumerals = Platform.OS === "web"
   ? { fontFeatureSettings: "'lnum', 'pnum'" } as any
@@ -730,12 +731,12 @@ function RoasterPostCard({
             </Animated.View>
             <Text style={[pc.actionCount, liked && { color: "#D798DA" }]}>{likeCount}</Text>
           </Pressable>
-          <View style={pc.actionBtn}>
+          <Pressable onPress={() => openPostModal({ post, mode: "comment" })} style={pc.actionBtn}>
             <CommentBubbleIcon size={14} color="#D798DA" />
             <Text style={pc.actionCount}>{commentCount}</Text>
-          </View>
+          </Pressable>
           {post.post_type !== "repost" && (
-            <Pressable onPress={() => onRepost?.(post)} style={pc.actionBtn}>
+            <Pressable onPress={() => openPostModal({ post, mode: "repost" })} style={pc.actionBtn}>
               <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
                 <Path d="M17 1L21 5L17 9M3 11V9C3 7.93 3.42 6.93 4.17 6.17C4.93 5.42 5.93 5 7 5H21M7 23L3 19L7 15M21 13V15C21 16.06 20.58 17.07 19.83 17.83C19.07 18.58 18.07 19 17 19H3" stroke="#D798DA" strokeWidth={2.095} strokeLinecap="round" strokeLinejoin="round" />
               </Svg>
