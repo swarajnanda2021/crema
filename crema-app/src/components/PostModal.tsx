@@ -22,6 +22,7 @@ import { X, Send } from "lucide-react-native";
 import { apiFetch, resolveUploadUrl } from "../api/client";
 import { fonts, cardShadow } from "../theme/colors";
 import PostFeedCard, { CroppedAvatar, timeAgo } from "./PostFeedCard";
+import PostGallery from "./PostGallery";
 
 interface PostModalProps {
   visible: boolean;
@@ -161,17 +162,52 @@ export default function PostModal({
               <Text style={s.emptyText}>Post not found</Text>
             ) : (
               <>
-                {/* Repost input — simple text field above the post card */}
-                {internalMode === "repost" && (
-                  <View style={s.repostSection}>
+                {internalMode === "repost" ? (
+                  /* ── Repost preview: mimics how the repost will look in the feed ── */
+                  <View style={s.repostPreview}>
+                    {/* User header: "You · Reposted" */}
+                    <View style={s.repostPreviewHeader}>
+                      {user?.avatar_url ? (
+                        <CroppedAvatar url={user.avatar_url} cropX={user.avatar_crop_x} cropY={user.avatar_crop_y} zoom={user.avatar_zoom} size={30} />
+                      ) : (
+                        <View style={s.repostPreviewAvatarFb}><Text style={s.repostPreviewAvatarLetter}>{(user?.display_name || "?")[0].toUpperCase()}</Text></View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.repostPreviewName}>{user?.display_name || "You"}</Text>
+                        <Text style={s.repostPreviewSubtitle}>Reposted</Text>
+                      </View>
+                    </View>
+
+                    {/* Editable repost comment */}
                     <TextInput
                       value={repostComment}
                       onChangeText={setRepostComment}
-                      placeholder="Add a comment to your repost..."
+                      placeholder="Add your thoughts..."
                       placeholderTextColor="#A09580"
-                      style={s.repostInput}
+                      style={s.repostCommentInput}
                       multiline
                     />
+
+                    {/* Nested original post card (read-only, same as feed) */}
+                    <View style={s.repostNestedCard}>
+                      <View style={s.repostNestedHeader}>
+                        {post.author_avatar_url ? (
+                          <CroppedAvatar url={post.author_avatar_url} cropX={post.author_avatar_crop_x} cropY={post.author_avatar_crop_y} zoom={post.author_avatar_zoom} size={20} />
+                        ) : (
+                          <View style={[s.repostPreviewAvatarFb, { width: 20, height: 20, borderRadius: 10 }]}><Text style={[s.repostPreviewAvatarLetter, { fontSize: 8 }]}>{(post.author_display_name || "?")[0].toUpperCase()}</Text></View>
+                        )}
+                        <Text style={s.repostNestedAuthor} numberOfLines={1}>{post.author_display_name}</Text>
+                        <Text style={s.repostNestedTime}>{timeAgo(post.published_at)}</Text>
+                      </View>
+                      <Text style={s.repostNestedTeaser} numberOfLines={3}>{post.teaser}</Text>
+                      {post.images?.length > 0 && (
+                        <View style={{ marginTop: 8 }}>
+                          <PostGallery images={post.images} />
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Repost button */}
                     <Pressable
                       onPress={() => handleRepostSubmit({ post_type: "repost", repost_of_id: post.id, teaser: repostComment })}
                       style={[s.repostBtn, !repostComment.trim() && { opacity: 0.5 }]}
@@ -180,23 +216,23 @@ export default function PostModal({
                       <Text style={s.repostBtnText}>Repost</Text>
                     </Pressable>
                   </View>
+                ) : (
+                  /* ── Normal view: post card with comment/repost buttons ── */
+                  <Animated.View style={internalMode === "view" ? {
+                    backgroundColor: flashAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["rgba(215,152,218,0)", "rgba(215,152,218,0.2)"],
+                    }),
+                    borderRadius: 8,
+                  } : undefined}>
+                    <PostFeedCard
+                      post={post}
+                      user={user}
+                      onComment={() => scrollRef.current?.scrollToEnd({ animated: true })}
+                      onRepost={() => setInternalMode("repost")}
+                    />
+                  </Animated.View>
                 )}
-
-                {/* Post card — always visible */}
-                <Animated.View style={internalMode === "view" ? {
-                  backgroundColor: flashAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ["rgba(215,152,218,0)", "rgba(215,152,218,0.2)"],
-                  }),
-                  borderRadius: 8,
-                } : undefined}>
-                  <PostFeedCard
-                    post={post}
-                    user={user}
-                    onComment={internalMode !== "repost" ? () => scrollRef.current?.scrollToEnd({ animated: true }) : undefined}
-                    onRepost={() => setInternalMode("repost")}
-                  />
-                </Animated.View>
 
                 {/* Comment thread — hidden in repost mode */}
                 {showComments && (
@@ -334,26 +370,44 @@ const s = StyleSheet.create({
   },
   commentInputField: { flex: 1, fontFamily: fonts.bodyRegular, fontSize: 13, color: "#351101" },
 
-  // Repost section
-  repostSection: {
+  // Repost preview — mimics feed appearance
+  repostPreview: {
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EDE8E1",
+    paddingVertical: 16,
   },
-  repostInput: {
+  repostPreviewHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 12,
+  },
+  repostPreviewAvatarFb: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: "#351101", alignItems: "center", justifyContent: "center",
+  } as any,
+  repostPreviewAvatarLetter: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: "#FAF8F0" },
+  repostPreviewName: { fontFamily: fonts.bodyMedium, fontSize: 11.8, color: "#351101" },
+  repostPreviewSubtitle: { fontFamily: fonts.bodyMedium, fontSize: 10, color: "#684F44", marginTop: 2 },
+  repostCommentInput: {
     fontFamily: fonts.bodyRegular,
-    fontSize: 14,
+    fontSize: 16.8,
     color: "#351101",
+    lineHeight: 23.5,
     minHeight: 40,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#EDE8E1",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 10,
+    marginBottom: 14,
   },
+  repostNestedCard: {
+    borderWidth: 1,
+    borderColor: "#D7D1C4",
+    borderRadius: 8,
+    backgroundColor: "#FEFDFB",
+    padding: 12,
+    marginBottom: 16,
+  },
+  repostNestedHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 } as any,
+  repostNestedAuthor: { fontFamily: fonts.bodyMedium, fontSize: 11, color: "#351101" },
+  repostNestedTime: { fontFamily: fonts.bodyRegular, fontSize: 10, color: "#A09580" },
+  repostNestedTeaser: { fontFamily: fonts.bodyRegular, fontSize: 13, color: "#684F44", lineHeight: 18 },
   repostBtn: {
     alignSelf: "flex-end",
     backgroundColor: "#351101",
