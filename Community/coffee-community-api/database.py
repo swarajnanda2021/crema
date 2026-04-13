@@ -260,6 +260,31 @@ _MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS idx_post_comments_user ON post_comments(user_id)",
     # Comment replies
     "ALTER TABLE post_comments ADD COLUMN parent_id INTEGER",
+    # Unified products table (CRUD utopia — replaces file-loading)
+    """CREATE TABLE IF NOT EXISTS products (
+        product_id TEXT PRIMARY KEY,
+        roaster_slug TEXT NOT NULL,
+        roaster_name TEXT,
+        coffee_name TEXT NOT NULL,
+        roast_level TEXT,
+        tasting_notes TEXT,
+        origin TEXT,
+        process TEXT,
+        varietal TEXT,
+        altitude_masl INTEGER,
+        bean_type TEXT,
+        flavor_notes TEXT,
+        weight_grams INTEGER,
+        price_inr REAL,
+        image_url TEXT,
+        product_url TEXT,
+        description_raw TEXT,
+        available INTEGER DEFAULT 1,
+        source TEXT DEFAULT 'scraped',
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_products_roaster ON products(roaster_slug)",
+    "CREATE INDEX IF NOT EXISTS idx_products_available ON products(available)",
 ]
 
 
