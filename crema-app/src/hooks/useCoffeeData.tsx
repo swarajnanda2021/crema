@@ -13,8 +13,10 @@ export function CoffeeDataProvider({ children }: { children: ReactNode }) {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch<any[]>("/products");
-      setProducts(data);
+      const res = await apiFetch<any>("/products");
+      // Handle both envelope { data: [...] } and bare array responses
+      const data = res?.data ?? res;
+      setProducts(Array.isArray(data) ? data : []);
     } catch {
       // Fallback to bundled JSON
       setProducts(Array.isArray(fallbackProducts) ? fallbackProducts : []);
@@ -67,7 +69,7 @@ export function CoffeeDataProvider({ children }: { children: ReactNode }) {
       roasterMap.get(p.roaster_slug).coffeeCount++;
     });
     const roasters = Array.from(roasterMap.values()).sort((a: any, b: any) =>
-      a.name.localeCompare(b.name)
+      (a.name || "").localeCompare(b.name || "")
     );
     const roastLevels = [...new Set(normalisedProducts.map((p) => p.roast_level).filter(Boolean))]
       .filter((l) => l !== "Unknown")

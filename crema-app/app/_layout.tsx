@@ -9,8 +9,8 @@ import "../global.css";
 
 import { AuthProvider, useAuth } from "../src/hooks/useAuth";
 import { CoffeeDataProvider } from "../src/hooks/useCoffeeData";
-import { colors } from "../src/theme/colors";
-import PostModal from "../src/components/PostModal";
+import { colors } from "../src/tokens/useTokens";
+import PostModal from "../src/components/shell/PostModal";
 
 export { ErrorBoundary } from "expo-router";
 

@@ -31,7 +31,8 @@ export function useNotifications(enabled: boolean = true) {
   const fetchUnreadCount = useCallback(async () => {
     if (!enabled) return;
     try {
-      const data = await apiFetch<{ count: number }>("/notifications/unread-count");
+      const raw = await apiFetch<any>("/notifications/unread-count");
+      const data = raw?.data ?? raw;
       setUnreadCount(data.count);
     } catch {}
   }, [enabled]);
@@ -40,9 +41,11 @@ export function useNotifications(enabled: boolean = true) {
     if (!enabled) return;
     setLoading(true);
     try {
-      const data = await apiFetch<{ notifications: Notification[] }>("/notifications");
-      setNotifications(data.notifications || []);
-      setUnreadCount(data.notifications?.filter((n) => !n.read).length || 0);
+      const raw = await apiFetch<any>("/notifications");
+      const data = raw?.data ?? raw;
+      const list = Array.isArray(data) ? data : (data.notifications || []);
+      setNotifications(list);
+      setUnreadCount(list.filter((n: any) => !n.read).length || 0);
     } catch {} finally {
       setLoading(false);
     }
