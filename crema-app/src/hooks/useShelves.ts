@@ -47,14 +47,14 @@ export function useShelves() {
         body: JSON.stringify({ product_id: productId, shelf }),
       });
       await fetchShelves();
-    } catch {}
+    } catch (e) { console.warn("Add to shelf failed:", e); }
   }, [fetchShelves]);
 
   const removeFromShelf = useCallback(async (entryId: string | number) => {
     try {
       await apiFetchRaw(`/shelves/${entryId}`, { method: "DELETE" });
       await fetchShelves();
-    } catch {}
+    } catch (e) { console.warn("Remove from shelf failed:", e); }
   }, [fetchShelves]);
 
   const getShelfForProduct = useCallback((productId: string) => {

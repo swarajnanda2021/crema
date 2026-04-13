@@ -13,6 +13,33 @@ from fastapi import HTTPException
 from resources.registry import get_resource, RESOURCES
 
 
+# ── Public helpers for custom endpoints that need registry-aware SQL ─────────
+
+def build_select(res, current_user_id=None):
+    """Public wrapper around the SELECT builder."""
+    return _build_select(res, current_user_id)
+
+
+def row_to_dict(row, res):
+    """Public wrapper around the row processor."""
+    return _row_to_dict(row, res)
+
+
+def resolve_embeds(db, items, res, current_user_id=None):
+    """Resolve self-referencing embeds (e.g. original_post for reposts)."""
+    for embed in res.get("embeds", []):
+        for item in items:
+            fk_val = item.get(embed["self_fk"])
+            if fk_val:
+                embed_row = db.execute(
+                    _build_select(res, current_user_id) + f" WHERE t.{res['pk']} = ?",
+                    (fk_val,)
+                ).fetchone()
+                item[embed["name"]] = _row_to_dict(embed_row, res) if embed_row else None
+            else:
+                item[embed["name"]] = None
+
+
 def _now():
     return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 

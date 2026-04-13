@@ -56,7 +56,7 @@ export default function PostModal({
 
     setLoading(true);
     apiFetchRaw(`/posts/${postId}`)
-      .then((envelope: any) => setPost(envelope.data || envelope))
+      .then((raw: any) => setPost(raw?.data ?? raw))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [visible, postId, postProp]);
@@ -76,15 +76,15 @@ export default function PostModal({
     try {
       await apiFetchRaw("/posts", { method: "POST", body: JSON.stringify(data) });
       onClose();
-    } catch {}
+    } catch (e) { console.warn("Repost failed:", e); }
   }, [onClose]);
 
   const handleEditPost = useCallback(async (postId: number, data: any) => {
     await apiFetchRaw(`/posts/${postId}`, { method: "PUT", body: JSON.stringify(data) });
     setEditingPost(null);
     // Reload the post
-    const envelope: any = await apiFetchRaw(`/posts/${postId}`);
-    setPost(envelope.data || envelope);
+    const raw: any = await apiFetchRaw(`/posts/${postId}`);
+    setPost(raw?.data ?? raw);
   }, []);
 
   if (!visible) return null;

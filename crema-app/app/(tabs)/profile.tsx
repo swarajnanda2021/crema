@@ -301,7 +301,7 @@ export default function ProfilePage() {
       const raw = await apiFetchRaw<any>(`/roasters/${slug}/follow`, { method: "POST" });
       const res = raw?.data ?? raw;
       setMyFollows((prev) => res.following ? [...prev, slug] : prev.filter((s) => s !== slug));
-    } catch {}
+    } catch (e) { console.warn("Follow toggle failed:", e); }
   }, []);
 
   // ── Data loading ───────────────────────────────────────────────────────

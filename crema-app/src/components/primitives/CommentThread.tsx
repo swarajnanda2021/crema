@@ -62,7 +62,7 @@ export default function CommentThread({
       await create(body);
       setCommentText("");
       setReplyTo(null);
-    } catch {} finally {
+    } catch (e) { console.warn("Comment submit failed:", e); } finally {
       setSending(false);
     }
   }, [commentText, user, replyTo, create]);

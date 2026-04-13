@@ -1,10 +1,12 @@
-# Crema ☕
+# Crema
 
 **Indian Specialty Coffee Community Platform**
 
-Crema is a full-stack platform for discovering, tracking, and discussing specialty coffee beans from Indian roasters. It combines a product scraper that aggregates coffee beans from 60+ roasters across India, a social community layer where users maintain coffee shelves and write detailed tasting notes, and a React frontend that ties it all together.
+Crema is a full-stack platform for discovering, tracking, and discussing specialty coffee beans from Indian roasters. It combines a product scraper that aggregates coffee beans from 60+ roasters across India, a social community where users maintain coffee shelves, write tasting notes, and share posts, and two frontends: a React web app for browsing the catalog and a React Native (Expo) mobile-first app for the full community experience.
 
-Built entirely with Claude Code in a single session.
+The community backend uses a **CRUD Utopia** architecture: a declarative resource registry that generates endpoints, a unified response envelope, and a JSON-based design token system. This design makes the codebase portable across platforms (a Swift/iOS app can read the same token JSON and talk to the same API with zero backend changes).
+
+Built with Claude Code.
 
 ---
 
@@ -16,8 +18,9 @@ Built entirely with Claude Code in a single session.
 - [Getting Started](#getting-started)
 - [The Scraper Pipeline](#the-scraper-pipeline)
 - [The Catalog Pipeline](#the-catalog-pipeline)
-- [The Community Backend](#the-community-backend)
-- [The Frontend](#the-frontend)
+- [The Community Backend (CRUD Utopia)](#the-community-backend-crud-utopia)
+- [The Crema App (React Native)](#the-crema-app-react-native)
+- [The Discovery Frontend (React/Vite)](#the-discovery-frontend-reactvite)
 - [Data Flow](#data-flow)
 - [API Reference](#api-reference)
 - [Specification Documents](#specification-documents)
@@ -46,44 +49,41 @@ Built entirely with Claude Code in a single session.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        FRONTEND (React)                         │
-│  Vite + Tailwind CSS 4 + React Router 6 + Lucide Icons          │
-│  Port 5173                                                      │
+│                    CREMA APP (React Native / Expo)               │
+│  Expo Router + React Native 0.81 + TypeScript                   │
+│  Port 8082 (web) / native iOS & Android                         │
 │                                                                 │
-│  Feed ──── My Shelf ──── Browse (Beans/Roasters) ──── Profiles  │
-│  Flip cards with India SVG map on back                          │
-│  Image crop/zoom for profile photos (react-easy-crop)           │
+│  Feed ── Browse (Beans/Roasters) ── My Shelf ── Profiles        │
+│  Posts ── Comments ── Follows ── Notifications                  │
+│                                                                 │
+│  design-tokens.json ─── useResource<T> ─── apiFetchRaw          │
+│  (portable tokens)      (generic CRUD)     (envelope-aware)     │
 └─────────────────────────┬───────────────────────────────────────┘
-                          │ fetch() via Vite proxy
+                          │ apiFetchRaw() → { data, meta }
                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    COMMUNITY BACKEND (FastAPI)                   │
-│  Port 8000 — single server for everything                       │
+│               COMMUNITY BACKEND (FastAPI — CRUD Utopia)          │
+│  Port 8000                                                      │
 │                                                                 │
-│  Auth ── Shelves ── Tasting Notes ── Click Tracking             │
-│  Recommendations ── Feed Timeline ── Popularity                 │
-│  Product & Roaster API (merges scraped + manual + corrections)  │
-│  Unified /api/refresh (catalog discovery + product scraping)    │
+│  registry.py ──→ crud.py ──→ resources.py (auto-generated)      │
+│  (20 resources)   (SQL engine)  (list/get/create/update/delete) │
+│                                                                 │
+│  specific.py (feed, follow, profiles, catalog sync)             │
+│  envelope.py ({ data, meta } on every response)                 │
+│  services/ (auth, notifications, catalog_sync)                  │
 │                                                                 │
 │  SQLite database (coffee_community.db)                          │
 └─────────────────────────┬───────────────────────────────────────┘
                           │ reads from disk
                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                     SCRAPER PIPELINE (Python)                   │
-│  6 parallel workers per roaster site                            │
-│                                                                 │
-│  Platform Detection → Shopify/WooCommerce/Custom scraping       │
-│  → Coffee vs Non-Coffee filtering (Stage 1: title, Stage 2:    │
-│    structural — must have 2+ of roast/process/origin/varietal)  │
-│  → Normalization → products.json                                │
-└─────────────────────────────────────────────────────────────────┘
-┌─────────────────────────────────────────────────────────────────┐
+│  COFFEE DISCOVERY (React/Vite)     SCRAPER PIPELINE (Python)    │
+│  Port 5173 — browse-only UI        6 parallel workers            │
+│  Flip cards + India map             Shopify/WooCommerce/Custom   │
+│  (original catalog frontend)        → products.json              │
+├─────────────────────────────────────────────────────────────────┤
 │                    CATALOG PIPELINE (Python)                     │
-│  Google Places Text Search across 49 Indian cities              │
-│  → Website verification (coffee terms + prices + cart signals)  │
-│  → Profile enrichment (logo, tagline, about, social links)      │
-│  → verified_roasters_catalog.json                               │
+│  Google Places across 49 cities → verify → enrich → catalog     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -97,7 +97,22 @@ Coffee_Aggregator/
 ├── README.md                              ← You are here
 ├── .gitignore
 │
-├── coffee-discovery/                      ← FRONTEND (React + Vite)
+├── crema-app/                             ← CREMA APP (React Native / Expo)
+│   ├── app/                               ← Expo Router file-based routing
+│   │   ├── (tabs)/ index.tsx, browse.tsx, profile.tsx
+│   │   ├── auth.tsx, coffee/[id].tsx, roaster/[slug].tsx, user/[username].tsx
+│   ├── src/
+│   │   ├── api/client.ts                  ← apiFetchRaw, apiUpload (envelope-aware)
+│   │   ├── tokens/design-tokens.json      ← Portable design tokens (colors, fonts, sizes)
+│   │   ├── tokens/useTokens.ts            ← Token provider: t.color.*, t.font.*, helpers
+│   │   ├── resources/useResource.ts       ← Generic CRUD hook for any backend resource
+│   │   ├── resources/useToggle.ts         ← Like/follow toggle with optimistic update
+│   │   ├── resources/types.ts             ← TypeScript interfaces (User, Post, Product, etc.)
+│   │   ├── components/                    ← domain/, primitives/, shell/
+│   │   └── hooks/                         ← useAuth, useNotifications, useShelves, etc.
+│   └── package.json
+│
+├── coffee-discovery/                      ← DISCOVERY FRONTEND (React + Vite)
 │   ├── index.html
 │   ├── package.json
 │   ├── vite.config.js
@@ -166,20 +181,27 @@ Coffee_Aggregator/
 │   │
 │   └── start-vite.sh                     ← Shell wrapper for conda environments
 │
-├── Community/                             ← COMMUNITY BACKEND
-│   ├── COMMUNITY_SPEC.md                  ← Full specification document
+├── Community/                             ← COMMUNITY BACKEND (CRUD Utopia)
+│   ├── COMMUNITY_SPEC.md
 │   └── coffee-community-api/
-│       ├── main.py                        ← FastAPI app — all endpoints + unified refresh
+│       ├── main.py                        ← FastAPI app (57 lines — router registration only)
 │       ├── database.py                    ← SQLite schema + migrations
-│       ├── models.py                      ← Pydantic request/response models
-│       ├── auth.py                        ← Register, login, sessions, profile update
-│       ├── shelves.py                     ← Shelf CRUD (3 shelves per user)
-│       ├── tasting_notes.py               ← Note CRUD with dictionary validation
-│       ├── click_tracking.py              ← Outbound click logging + stats
-│       ├── dictionary.py                  ← 51 flavor tags, 15 drink styles, 8 milk types,
-│       │                                    6 grind sizes, 12 brew methods, physical attributes
+│       ├── models.py                      ← Pydantic models
+│       ├── resources/
+│       │   ├── registry.py                ← 20 declarative resource definitions
+│       │   ├── crud.py                    ← Generic SQL engine (joins, counts, flags, embeds)
+│       │   └── envelope.py                ← { data, meta } response wrapper
+│       ├── routes/
+│       │   ├── resources.py               ← Auto-generated CRUD endpoints from registry
+│       │   ├── specific.py                ← Fixed routes (feed, follow, profiles, catalog)
+│       │   ├── auth.py, uploads.py, dictionary_routes.py
+│       ├── services/
+│       │   ├── auth.py                    ← Token verification, user context
+│       │   ├── notifications.py           ← Hook-driven notification dispatch
+│       │   └── catalog_sync.py            ← Product catalog import from scraper output
+│       ├── dictionary.py                  ← 51 flavor tags, brew methods, drink styles
 │       ├── requirements.txt
-│       └── uploads/                       ← User-uploaded profile photos (gitignored)
+│       └── uploads/                       ← User-uploaded files (gitignored)
 │
 ├── Scraper/                               ← SCRAPER + CATALOG PIPELINES
 │   ├── SCRAPER_SPEC.md                    ← Scraper specification document
@@ -243,56 +265,54 @@ Coffee_Aggregator/
 ## Getting Started
 
 ### Prerequisites
-- Python 3.9+ (via conda or system)
-- Node.js 18+ (via conda: `conda install nodejs`)
-- Google Places API key (for roaster discovery — optional, scraping works without it)
+- Python 3.9+
+- Node.js 18+
+- Google Places API key (for roaster discovery — optional)
 
-### 1. Install Python dependencies
+### 1. Install dependencies
 ```bash
+# Backend
 pip install fastapi uvicorn passlib bcrypt python-multipart sse-starlette
 pip install requests beautifulsoup4 lxml openpyxl
+
+# Crema App (React Native)
+cd crema-app && npm install
+
+# Discovery Frontend (optional)
+cd coffee-discovery && npm install
 ```
 
-### 2. Install frontend dependencies
-```bash
-cd coffee-discovery
-npm install
-```
-
-### 3. Start the backend
+### 2. Start the backend
 ```bash
 cd Community/coffee-community-api
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
-The API is now at http://localhost:8000 (interactive docs at `/docs`).
+API at http://localhost:8000 (Swagger docs at `/docs`).
 
-### 4. Start the frontend
+### 3. Start the Crema App
+```bash
+cd crema-app
+npx expo start --web --port 8082
+```
+Web at http://localhost:8082. For native: scan the QR code with Expo Go.
+
+### 4. Start the Discovery Frontend (optional)
 ```bash
 cd coffee-discovery
 npx vite --host
 ```
-The app is now at http://localhost:5173.
+Browse-only catalog UI at http://localhost:5173.
 
 ### 5. Register and start using
-1. Open http://localhost:5173
-2. Create an account (username + password, localhost only)
-3. Browse coffees → add to your shelf → write tasting notes
-4. Edit your profile: upload photo, set bio, coffee preference, brewing style
+1. Open http://localhost:8082
+2. Create an account (username + password)
+3. Browse coffees, add to shelf, write tasting notes, follow roasters, compose posts
 
 ### 6. Run the scraper (optional)
-To refresh the coffee catalog from all roaster websites:
 ```bash
 curl -N http://localhost:8000/api/refresh
 ```
-This runs the full pipeline: Google Places discovery → website verification → profile enrichment → product scraping. Takes ~5-8 minutes. Progress streams as SSE events.
-
-To skip discovery and just re-scrape products:
-```bash
-# Temporarily hide the API key
-mv Scraper/coffee-catalog/.env Scraper/coffee-catalog/.env.bak
-curl -N http://localhost:8000/api/refresh
-mv Scraper/coffee-catalog/.env.bak Scraper/coffee-catalog/.env
-```
+Full pipeline: Google Places discovery, website verification, profile enrichment, product scraping. Takes ~5-8 minutes via SSE.
 
 ---
 
@@ -339,73 +359,105 @@ For Wix/JS-rendered sites (e.g., Nada Coffee), products are manually entered in 
 
 ---
 
-## The Community Backend
+## The Community Backend (CRUD Utopia)
+
+### Architecture
+
+The backend uses a **declarative resource registry** instead of hand-written endpoints per feature. Every CRUD resource (posts, comments, likes, shelves, notes, follows, notifications, products, roaster profiles, click events) is declared once in `registry.py` with its fields, auth rules, joins, counts, flags, and hooks. A generic SQL engine in `crud.py` reads these declarations and generates queries. Auto-generated endpoints in `routes/resources.py` provide list/get/create/update/delete/toggle for all 20 resources.
+
+```python
+# Example: adding a new resource is ~20 lines, not a new router file
+"post_comments": {
+    "table": "post_comments",
+    "fields": { "comment": {"type": "str", "required": True}, ... },
+    "auth": {"list": None, "create": "required", "update": "owner", "delete": "owner"},
+    "owner": "user_id",
+    "joins": [{"table": "users", "alias": "user", "on": "user_id",
+               "fields": ["username", "display_name", "avatar_url"]}],
+    "counts": [{"name": "like_count", "table": "comment_likes", "fk": "comment_id"}],
+    "flags": [{"name": "liked_by_me", "table": "comment_likes", "fk": "comment_id", "user_col": "user_id"}],
+}
+```
+
+### Response envelope
+
+Every endpoint returns the same shape. The frontend needs exactly one unwrapping pattern (`res?.data ?? res`):
+
+```json
+{ "data": [ ... ], "meta": { "resource": "posts", "total": 148, "limit": 20, "offset": 0 } }
+```
 
 ### Technology
-- **FastAPI** with auto-generated Swagger docs at `/docs`
-- **SQLite** — single file, zero config, perfect for localhost
-- **bcrypt** — password hashing
-- **UUID4 session tokens** — stored in sessions table, 30-day expiry
+- **FastAPI** with Swagger docs at `/docs`
+- **SQLite** — single file, zero config
+- **bcrypt** password hashing, UUID4 session tokens (30-day expiry)
 
-### Database tables
-| Table | Purpose |
-|---|---|
-| `users` | id, username, display_name, password_hash, bio, avatar_url, location, coffee_preference, brewing_style, created_at |
-| `sessions` | token (UUID4), user_id, created_at, expires_at |
-| `shelf_entries` | user_id, product_id, shelf (currently_drinking/drank/want_to_try), added_at, moved_at. UNIQUE(user_id, product_id) |
-| `tasting_notes` | user_id, product_id, acidity/body/sweetness/aftertaste (1-5), flavor_tags (JSON), brew_method, drink_style, milk_type, dose_grams, yield_grams, water_ml, extraction_time_secs, water_temp_celsius, grind_size, brew_ratio, blend_components (JSON), comment |
-| `click_events` | user_id, product_id, roaster_slug, source_page, clicked_at |
+### CRUD resources (20 total)
+| Resource | Type | Features |
+|---|---|---|
+| `posts` | CRUD | author join, like/comment/repost counts, `liked_by_me` flag, `original_post` embed |
+| `post_likes` | Toggle | Notifications on like |
+| `post_comments` | CRUD | user join, like count, `liked_by_me` flag, notifications |
+| `comment_likes` | Toggle | Notifications |
+| `follows` | Toggle (by slug) | Notifications on follow |
+| `shelves` | CRUD | Grouped by shelf category (currently_drinking/drank/want_to_try) |
+| `tasting_notes` | CRUD | Author join, like count, `liked_by_me` flag |
+| `note_likes` | Toggle | |
+| `note_comments` | CRUD | |
+| `notifications` | CRUD | Actor join, read status |
+| `products` | CRUD | Unified catalog (scraped + roaster-created) |
+| `roaster_profiles` | CRUD | |
+| `click_events` | Write-only | Outbound click tracking |
+
+### Fixed routes (specific.py)
+Feed timeline, follow/unfollow, user posts/likes/comments, roaster posts, product popularity, roaster directory, notification management, catalog sync.
 
 ### Tasting note dictionary
-- **51 flavor tags** across 9 categories (Fruity → Berry/Citrus/Stone Fruit/Tropical/Dried Fruit, Floral, Sweet, Nutty, Chocolate, Spices, Roasted, Earthy & Woody, Green & Herbal)
-- **15 drink styles** (Black, Americano, Cortado, Macchiato, Flat White, Cappuccino, Latte, Mocha, Iced, Cold Brew, Filter, South Indian Filter Coffee, Affogato, Lungo, Ristretto)
-- **8 milk types** (None, Whole, Toned, Skim, Oat, Almond, Soy, Coconut)
-- **6 grind sizes** (Extra Fine → Coarse)
-- **12 brew methods** (Pour Over, South Indian Filter, French Press, AeroPress, Espresso, Moka Pot, Cold Brew, Chemex, Clever Dripper, Turkish, Siphon, Instant)
-
-### Recommendations engine
-Three modes with novelty scoring:
-- `source=self` — based on your own shelf (for /profile)
-- `source=community` — based on what everyone is currently drinking (for feed)
-- `source=user&for_user=manav` — based on a specific user's shelf (for their profile)
-
-Scoring: +2 for same roaster, +1 for same origin, +1 for same process. Every recommendation includes `_novel: true/false` indicating whether YOU already have it.
+51 flavor tags, 15 drink styles, 8 milk types, 6 grind sizes, 12 brew methods.
 
 ---
 
-## The Frontend
+## The Crema App (React Native)
 
-### Routes
-| Path | Page | Auth Required |
+The primary frontend. Built with Expo (SDK 54), React Native 0.81, TypeScript, and Expo Router for file-based navigation.
+
+### Screens
+| Path | Screen | Description |
 |---|---|---|
-| `/` | Social feed (temporal tasting note timeline) | Yes |
-| `/profile` | My Shelf (3-column: profile / shelf tabs / recommendations) | Yes |
-| `/user/:username` | Another user's profile (read-only) | Yes |
-| `/browse` | Marketplace with sub-tabs (Beans / Roasters) | No |
-| `/browse?tab=roasters` | Roaster directory | No |
-| `/coffee/:productId` | Individual coffee detail | No |
-| `/roaster/:roasterSlug` | Roaster profile + their coffees | No |
-| `/auth` | Login / register | No |
+| `/` | Feed | Post timeline with compose, like, comment, repost |
+| `/browse` | Browse | Beans tab (search, filter by roast/process/origin) + Roasters tab |
+| `/profile` | My Shelf | Own profile with shelves, posts, following, edit capabilities |
+| `/auth` | Auth | Login / register toggle |
+| `/coffee/:id` | Coffee Detail | Product info, shelf management, tasting notes, related |
+| `/roaster/:slug` | Roaster Profile | Split panel: info/follow left, posts/products right |
+| `/user/:username` | User Profile | Public profile with posts/likes/comments tabs |
 
-### Coffee cards
-Each coffee is a flip card (CSS 3D transform, 0.6s cubic-bezier). Front face shows image, name, roaster (hyperlinked), roast/process/altitude chips, price per 250g, Buy button. Back face shows an SVG India map (Wikimedia cartographic data) with origin + roaster pins, tasting notes, varietal, process, share button, and shelf selector.
+### Design token system
 
-### India map
-The card back uses an inline SVG of India's outline (5.6KB, from Wikimedia Commons public domain data). Estate coordinates are resolved from a lookup table of 33 named estates + 25 coffee regions. The map viewBox dynamically centers on the origin, showing ~60% of India for geographic context.
+All visual values live in `design-tokens.json` — a language-agnostic JSON file that can be read by React Native, Swift, or Kotlin:
 
-### Popularity badges
-Coffee cards with shelf entries show a clickable `[👥 N]` badge. Clicking opens a full-screen modal (portaled to document.body to escape the card's CSS perspective) showing each user who has it: their avatar, name, location, which shelf it's on, and their tasting notes.
-
-### Design system
 | Token | Value | Usage |
 |---|---|---|
-| Background | `#FAF7F2` | Warm off-white (unbleached paper) |
-| Card front | `#FFFFFF` | White cards |
-| Card back | `#2C1810` | Deep coffee brown |
-| Accent | `#C8553D` | Terracotta — buttons, active states, badges |
-| Tag background | `#EDE8E1` | Chip/pill backgrounds |
-| Serif font | Playfair Display | Headings, coffee names |
-| Sans font | Inter | Body text, labels, prices |
+| `color.bg` | `#FAF8F0` | Warm off-white background |
+| `color.text.primary` | `#351101` | Dark brown text |
+| `color.accent` | `#D798DA` | Purple — icons, interactive elements |
+| `color.accent.cta` | `#C8553D` | Rust red — CTA buttons, important actions |
+| `color.navbar.bg` | `#351101` | Dark brown navbar |
+| `font.display` | `CanelaText_Regular` | Coffee names, headings |
+| `font.body.regular` | `Inter_400Regular` | Body text |
+
+### Frontend patterns
+
+- **`useResource<T>(name)`** — generic hook that works for any backend resource. Returns `{ data, loading, error, total, refetch, create, update, remove }`.
+- **`useToggle(resource, id)`** — like/follow with optimistic update and rollback.
+- **`apiFetchRaw(path)`** — centralized fetch with auth token injection. Cross-platform (iOS, Android, web).
+- **`t.color.*`, `t.font.*`** — direct token access. Helpers: `font()`, `shadow()`, `sp()`, `rad()`, `sz()`.
+
+---
+
+## The Discovery Frontend (React/Vite)
+
+The original catalog browsing UI at `coffee-discovery/`. Features flip cards with India SVG maps, roaster directory, and product filtering. Uses React, Vite, and Tailwind CSS. This is the browse-only experience; the full community features live in the Crema App.
 
 ---
 
@@ -450,7 +502,22 @@ SQLite (shelves, notes, clicks) ────────┤
 
 ## API Reference
 
-All endpoints prefixed with `/api`. Interactive docs at http://localhost:8000/docs.
+All endpoints prefixed with `/api`. Interactive docs at http://localhost:8000/docs. Every response is envelope-wrapped: `{ "data": ..., "meta": { "resource", "total", "limit", "offset" } }`.
+
+### Generic CRUD (auto-generated from registry)
+
+For any resource `R` in the registry:
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/{R}` | List with pagination (`?limit=20&offset=0`) and filters |
+| GET | `/api/{R}/{id}` | Get single by ID |
+| POST | `/api/{R}` | Create (auth required per resource config) |
+| PUT | `/api/{R}/{id}` | Update (owner-only per resource config) |
+| DELETE | `/api/{R}/{id}` | Delete (owner-only per resource config) |
+| POST | `/api/{R}/{id}/toggle` | Toggle on/off (for like/follow resources) |
+
+Resources: `posts`, `post_comments`, `shelves`, `tasting_notes`, `note_comments`, `notifications`, `products`, `roaster_profiles`, `click_events`. Toggle resources: `post_likes`, `comment_likes`, `note_likes`, `follows`.
 
 ### Auth
 | Method | Endpoint | Description |
@@ -458,50 +525,56 @@ All endpoints prefixed with `/api`. Interactive docs at http://localhost:8000/do
 | POST | `/api/auth/register` | Create account (username, display_name, password) |
 | POST | `/api/auth/login` | Login (returns session token) |
 | GET | `/api/auth/me` | Current user profile |
-| PUT | `/api/auth/profile` | Update bio, avatar_url, location, coffee_preference, brewing_style |
+| PUT | `/api/auth/profile` | Update profile fields |
 
-### Shelves
+### Social & Feed
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/shelves` | My shelves (currently_drinking, drank, want_to_try) |
-| GET | `/api/shelves/users/:username` | Another user's shelves |
-| POST | `/api/shelves` | Add/move coffee to shelf |
-| DELETE | `/api/shelves/:entry_id` | Remove from shelf |
+| GET | `/api/feed-timeline` | Combined posts feed (sorted by date) |
+| GET | `/api/users/{username}/posts` | Posts by a user |
+| GET | `/api/users/{username}/likes` | Posts liked by a user |
+| GET | `/api/users/{username}/comments` | Comments by a user |
+| GET | `/api/roasters/{slug}/posts` | Posts by a roaster |
+| POST | `/api/roasters/{slug}/follow` | Toggle follow on a roaster |
+| GET | `/api/my-following` | Roasters/users the current user follows |
+| GET | `/api/follow-status/{slug}` | Check if current user follows a roaster |
+| PUT | `/api/posts/{post_id}/pin` | Toggle pin on a post |
 
-### Tasting Notes
+### Comments
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/tasting-notes?product_id=X` | Notes for a product (all users) |
-| GET | `/api/tasting-notes/mine` | All my notes |
-| POST | `/api/tasting-notes` | Create note (with dictionary validation) |
-| PUT | `/api/tasting-notes/:id` | Update note |
-| DELETE | `/api/tasting-notes/:id` | Delete note |
+| GET | `/api/posts/{id}/comments` | Comments on a post |
+| POST | `/api/posts/{id}/comments` | Add a comment |
+| PUT | `/api/post-comments/{id}` | Edit a comment |
+| DELETE | `/api/post-comments/{id}` | Delete a comment |
+| POST | `/api/post-comments/{id}/like` | Like a comment |
 
 ### Products & Roasters
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/products` | All products (scraped + manual + corrections merged) |
-| GET | `/api/roasters` | All roasters (catalog + product-derived + manual merged) |
+| GET | `/api/products` | All products (scraped + roaster-created) |
+| GET | `/api/roasters` | All roasters (profiles + products merged) |
 | GET | `/api/products/popularity` | User count per product |
-| GET | `/api/products/:id/users` | Users who have this product + their notes |
+| GET | `/api/products/{id}/users` | Users on a product's shelf + their notes |
+| POST | `/api/roasters/{slug}/products` | Create product (owner only) |
+| DELETE | `/api/roasters/{slug}/products/{id}` | Delete product (owner only) |
+| PUT | `/api/roasters/{slug}/profile` | Update roaster profile (owner only) |
 
-### Recommendations & Feed
+### Notifications
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/recommendations?source=self&limit=3` | Shelf-based recommendations |
-| GET | `/api/recommendations?source=community&limit=10` | Community-based (for feed) |
-| GET | `/api/recommendations?source=user&for_user=X` | Based on another user's shelf |
-| GET | `/api/feed/timeline` | Temporal feed (newest notes first, all users) |
-| GET | `/api/feed` | User-grouped feed (legacy) |
+| GET | `/api/notification-count` | Unread notification count |
+| POST | `/api/notifications-mark-read` | Mark all notifications as read |
+| POST | `/api/notification-read/{id}` | Mark single notification as read |
 
 ### Other
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/api/upload/avatar` | Upload profile photo (multipart form) |
+| POST | `/api/upload/image` | Upload image for posts/hero (multipart form) |
 | POST | `/api/clicks` | Log outbound click (fire-and-forget) |
-| GET | `/api/clicks/stats` | Click aggregation stats |
-| GET | `/api/dictionary/all` | All tasting vocabulary (flavors, brew methods, etc.) |
-| GET | `/api/refresh` | SSE: run catalog discovery + product scraping end-to-end |
+| GET | `/api/dictionary/brew-methods` | Tasting vocabulary |
+| GET | `/api/link-preview?url=X` | Open Graph metadata for a URL |
 
 ---
 
@@ -536,4 +609,4 @@ This project was built as a personal/prototype platform. No open-source license 
 
 ---
 
-*Built entirely with Claude Code (Anthropic Claude Opus 4) in a single extended session.*
+*Built with Claude Code.*

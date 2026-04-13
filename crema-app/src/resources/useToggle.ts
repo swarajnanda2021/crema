@@ -34,12 +34,13 @@ export function useToggle(resource: string, targetId: string | number, options: 
     setCount(prevToggled ? prevCount - 1 : prevCount + 1);
 
     try {
-      const envelope: Envelope<ToggleResult> = await apiFetchRaw(
+      const raw: any = await apiFetchRaw(
         `/${resource}/${targetId}/toggle`,
         { method: "POST" },
       );
-      setToggled(envelope.data.toggled);
-      setCount(envelope.data.count);
+      const result = raw?.data ?? raw;
+      setToggled(result.toggled);
+      setCount(result.count);
     } catch {
       // Rollback on error
       setToggled(prevToggled);

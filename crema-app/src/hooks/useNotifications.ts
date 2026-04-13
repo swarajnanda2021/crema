@@ -46,7 +46,7 @@ export function useNotifications(enabled: boolean = true) {
       const list = Array.isArray(data) ? data : [];
       setNotifications(list);
       setUnreadCount(list.filter((n: any) => !n.read).length || 0);
-    } catch {} finally {
+    } catch (e) { console.warn("Fetch notifications failed:", e); } finally {
       setLoading(false);
     }
   }, [enabled]);
@@ -56,7 +56,7 @@ export function useNotifications(enabled: boolean = true) {
       await apiFetchRaw("/notifications-mark-read", { method: "POST" });
       setUnreadCount(0);
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch {}
+    } catch (e) { console.warn("Mark all read failed:", e); }
   }, []);
 
   const markRead = useCallback(async (id: number) => {
@@ -66,7 +66,7 @@ export function useNotifications(enabled: boolean = true) {
         prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
       );
       setUnreadCount((c) => Math.max(0, c - 1));
-    } catch {}
+    } catch (e) { console.warn("Mark read failed:", e); }
   }, []);
 
   // Poll unread count every 30s

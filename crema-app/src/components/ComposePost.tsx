@@ -110,7 +110,8 @@ export default function ComposePost({
     debounceRef.current = setTimeout(async () => {
       setLinkLoading(true);
       try {
-        const data = await apiFetchRaw(`/link-preview?url=${encodeURIComponent(detectedUrl)}`);
+        const raw = await apiFetchRaw(`/link-preview?url=${encodeURIComponent(detectedUrl)}`);
+        const data = raw?.data ?? raw;
         setLinkPreview(data);
         if (data.title && !linkTitle) setLinkTitle(data.title);
       } catch { setLinkPreview(null); }

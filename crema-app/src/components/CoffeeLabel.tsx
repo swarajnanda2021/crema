@@ -14,7 +14,7 @@ interface CoffeeLabelProps {
   coffee_name: string;
   roast_level: string;
   tasting_notes: string | null;
-  flavor_notes: string[] | null;
+  flavor_notes: string[] | string | null;
   origin: string | null;
   process: string | null;
   varietal: string | null;

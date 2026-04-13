@@ -329,7 +329,7 @@ export default function RoasterDetailPage() {
       const res = await apiFetchRaw<any>(`/roasters/${roasterSlug}/follow`, { method: "POST" });
       const d = res?.data ?? res;
       setMyFollows((prev) => d.following ? [...prev, roasterSlug] : prev.filter((s) => s !== roasterSlug));
-    } catch {}
+    } catch (e) { console.warn("Follow toggle failed:", e); }
   }, []);
 
   const handlePinToggle = useCallback(async (postId: number) => {
@@ -450,7 +450,7 @@ export default function RoasterDetailPage() {
   const handleHeroWheel = useCallback((e: any) => {
     if (!isEditing || !e.ctrlKey) return;
     e.preventDefault();
-    setEditHeroZoom((z) => Math.round(Math.max(1, Math.min(5, z - e.deltaY * 0.01)) * 100) / 100);
+    setEditHeroZoom((z: number) => Math.round(Math.max(1, Math.min(5, z - e.deltaY * 0.01)) * 100) / 100);
   }, [isEditing]);
 
   // Sorted posts: pinned first, then by date

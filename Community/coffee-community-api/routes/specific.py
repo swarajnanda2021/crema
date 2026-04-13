@@ -6,7 +6,8 @@ These have fixed paths that would otherwise be shadowed by /{resource}/{id}.
 
 from fastapi import APIRouter, Depends, Header
 from database import get_db
-from resources.crud import list_resource
+from resources.crud import list_resource, build_select, row_to_dict, resolve_embeds
+from resources.registry import get_resource
 from resources.envelope import ok
 from services.auth import get_current_user, get_optional_user
 
@@ -131,7 +132,9 @@ def user_posts(username: str, limit: int = 20, offset: int = 0, authorization: s
 
 
 @router.get("/users/{username}/likes")
-def user_likes(username: str, limit: int = 20, offset: int = 0):
+def user_likes(username: str, limit: int = 20, offset: int = 0, authorization: str = Header(None)):
+    current_user = get_optional_user(authorization)
+    uid = current_user["id"] if current_user else None
     db = get_db()
     try:
         user_row = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
@@ -142,47 +145,33 @@ def user_likes(username: str, limit: int = 20, offset: int = 0):
             "SELECT COUNT(*) as c FROM post_likes WHERE user_id = ?",
             (user_row["id"],)
         ).fetchone()["c"]
-        rows = db.execute(
-            "SELECT p.*, u.username as author_username, u.display_name as author_display_name, "
-            "u.avatar_url as author_avatar_url, "
-            "(SELECT COUNT(*) FROM post_likes pl2 WHERE pl2.post_id = p.id) as like_count, "
-            "(SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) as comment_count "
-            "FROM post_likes pl "
-            "JOIN roaster_posts p ON pl.post_id = p.id "
-            "JOIN users u ON p.user_id = u.id "
-            "WHERE pl.user_id = ? "
-            "ORDER BY pl.created_at DESC LIMIT ? OFFSET ?",
-            (user_row["id"], limit, offset),
-        ).fetchall()
-        return ok({"posts": [dict(r) for r in rows], "total": total}, resource="posts")
+        res_def = get_resource("posts")
+        sql = build_select(res_def, uid)
+        sql += ("\n    JOIN post_likes _pl ON t.id = _pl.post_id"
+                "\n    WHERE _pl.user_id = ?"
+                "\n    ORDER BY _pl.created_at DESC LIMIT ? OFFSET ?")
+        rows = db.execute(sql, (user_row["id"], limit, offset)).fetchall()
+        items = [row_to_dict(r, res_def) for r in rows]
+        resolve_embeds(db, items, res_def, uid)
+        return ok({"posts": items, "total": total}, resource="posts")
     finally:
         db.close()
 
 
 @router.get("/users/{username}/comments")
-def user_comments(username: str, limit: int = 20, offset: int = 0):
+def user_comments(username: str, limit: int = 20, offset: int = 0, authorization: str = Header(None)):
+    current_user = get_optional_user(authorization)
+    uid = current_user["id"] if current_user else None
     db = get_db()
     try:
         user_row = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
         if not user_row:
             from fastapi import HTTPException
             raise HTTPException(404, "User not found")
-        total = db.execute(
-            "SELECT COUNT(*) as c FROM post_comments WHERE user_id = ?",
-            (user_row["id"],)
-        ).fetchone()["c"]
-        rows = db.execute(
-            "SELECT pc.id, pc.comment, pc.created_at, pc.post_id, "
-            "p.teaser as post_teaser, "
-            "u.username, u.display_name, u.avatar_url "
-            "FROM post_comments pc "
-            "JOIN roaster_posts p ON pc.post_id = p.id "
-            "JOIN users u ON pc.user_id = u.id "
-            "WHERE pc.user_id = ? "
-            "ORDER BY pc.created_at DESC LIMIT ? OFFSET ?",
-            (user_row["id"], limit, offset),
-        ).fetchall()
-        return ok({"comments": [dict(r) for r in rows], "total": total}, resource="post_comments")
+        items, total = list_resource(db, "post_comments", filters={"user_id": user_row["id"]},
+                                     limit=limit, offset=offset, current_user_id=uid,
+                                     order="created_at DESC")
+        return ok({"comments": items, "total": total}, resource="post_comments")
     finally:
         db.close()
 

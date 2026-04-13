@@ -98,7 +98,8 @@ export default function ImageUploadModal({ visible, title, purpose = "general", 
       const formData = new FormData();
       formData.append("file", blob, filename);
 
-      const res = await apiUpload<{ url: string }>(`/upload/image?purpose=${purpose}`, formData);
+      const raw = await apiUpload<{ url: string }>(`/upload/image?purpose=${purpose}`, formData);
+      const res = (raw as any)?.data ?? raw;
       setPreviewUrl(res.url);
     } catch (e) {
       console.warn("Web upload failed:", e);
@@ -120,7 +121,8 @@ export default function ImageUploadModal({ visible, title, purpose = "general", 
       const formData = new FormData();
       formData.append("file", { uri, name: filename, type: mimeType } as any);
 
-      const res = await apiUpload<{ url: string }>(`/upload/image?purpose=${purpose}`, formData);
+      const raw = await apiUpload<{ url: string }>(`/upload/image?purpose=${purpose}`, formData);
+      const res = (raw as any)?.data ?? raw;
       setPreviewUrl(res.url);
     } catch (e) {
       console.warn("Native upload failed:", e);

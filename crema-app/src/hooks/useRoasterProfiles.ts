@@ -66,7 +66,7 @@ export function useRoasterProfiles() {
       const envelope = raw?.data ?? raw;
       const data = Array.isArray(envelope) ? envelope : [];
       setProfiles(data);
-    } catch {}
+    } catch (e) { console.warn("Refresh roaster profiles failed:", e); }
   }, []);
 
   return { profiles, loading, getProfile, refreshProfiles };
