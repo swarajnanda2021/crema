@@ -188,7 +188,7 @@ export default function BrowsePage() {
             </View>
           )}
 
-          <CoffeeList products={sorted} popularity={popularity} />
+          <CoffeeList coffees={sorted} popularity={popularity} />
         </ScrollView>
       </View>
     </View>
