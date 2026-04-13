@@ -36,7 +36,7 @@ export default function PostCard({
   post, user, isOwner, onComment, onRepost, onViewOriginal, onEdit, onPin, onDelete,
 }: PostCardProps) {
   const router = useRouter();
-  const isPinned = !!post.is_featured;
+  const isPinned = !!post.is_pinned;
   const isArticle = post.post_type === "article";
   const isRepost = post.post_type === "repost";
 
@@ -78,13 +78,12 @@ export default function PostCard({
               <Text style={s.avatarLetter}>{(author.display_name || "?")[0].toUpperCase()}</Text>
             </View>
           )}
-          <View style={{ marginLeft: 10 }}>
-            <Text style={s.authorName}>{author.display_name}</Text>
+          <View style={{ flex: 1 }}>
             <View style={s.metaRow}>
+              <Text style={s.authorName}>{author.display_name}</Text>
               <Text style={s.metaTime}>{timeAgo(post.published_at)}</Text>
-              <Text style={s.metaDot}> · </Text>
-              <Text style={s.metaSubtitle}>{subtitleText}</Text>
             </View>
+            <Text style={s.metaSubtitle}>{subtitleText}</Text>
           </View>
         </Pressable>
         {isOwner && (
@@ -98,7 +97,7 @@ export default function PostCard({
       </View>
 
       {/* Body text */}
-      <Pressable onPress={isRepost ? undefined : handleOpen}>
+      <Pressable onPress={isRepost ? undefined : handleOpen} style={s.bodyWrap}>
         <Text style={s.body}>{post.teaser}</Text>
       </Pressable>
 
@@ -164,7 +163,7 @@ export default function PostCard({
 
       {/* Article thumbnail OR gallery */}
       {isArticle && post.cover_image_url ? (
-        <Pressable onPress={handleOpen} style={s.articleWrap}>
+        <View style={s.articleWrap}>
           <Image source={{ uri: resolveUploadUrl(post.cover_image_url) }} style={s.articleImg} contentFit="cover" />
           <View style={s.articleOverlay}>
             {post.title && <Text style={s.articleTitle} numberOfLines={2}>{post.title}</Text>}
@@ -172,9 +171,9 @@ export default function PostCard({
               {post.external_url?.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]}
             </Text>
           </View>
-        </Pressable>
+        </View>
       ) : (
-        <View style={{ marginTop: 8 }}>
+        <View style={s.galleryWrap}>
           <PostGallery
             images={post.images || (post.cover_image_url ? [post.cover_image_url] : [])}
             onPress={handleOpen}
@@ -198,34 +197,38 @@ export default function PostCard({
 }
 
 const s = StyleSheet.create({
-  card: { paddingVertical: 16 },
-  headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" } as any,
-  header: { flexDirection: "row", alignItems: "center", flex: 1 } as any,
+  card: { backgroundColor: t.color.bg, paddingTop: 20, paddingBottom: 20 },
+  headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 14 } as any,
+  header: { flexDirection: "row", alignItems: "flex-start", gap: 10, flex: 1 } as any,
   avatarFb: { width: 30, height: 30, borderRadius: 15, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"] },
-  authorName: { fontFamily: t.font["body.semibold"], fontSize: t.size["font.md"], color: t.color["text.primary"] },
-  metaRow: { flexDirection: "row", alignItems: "center" } as any,
-  metaTime: { fontFamily: t.font["body.regular"], fontSize: t.size["font.sm"], color: t.color["text.muted"] },
-  metaDot: { color: t.color["text.muted"], fontSize: t.size["font.sm"] },
-  metaSubtitle: { fontFamily: t.font["body.medium"], fontSize: t.size["font.sm"], color: t.color["text.secondary"] },
-  body: { fontFamily: t.font["body.regular"], fontSize: t.size["font.lg"] - 0.2, color: t.color["text.primary"], lineHeight: 23.5, marginTop: 10 },
-  locationRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 } as any,
-  locationText: { fontFamily: t.font["body.regular"], fontSize: t.size["font.sm"], color: t.color.accent },
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-dark"] },
+  authorName: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
+  metaRow: { flexDirection: "row", alignItems: "baseline", gap: 5 } as any,
+  metaTime: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.muted"] },
+  metaDot: { color: t.color["text.muted"], fontSize: 10 },
+  metaSubtitle: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.secondary"], marginTop: 2 },
+  bodyWrap: { paddingHorizontal: 20 },
+  body: { fontFamily: t.font["body.regular"], fontSize: 16.8, color: t.color["text.primary"], lineHeight: 23.5, marginBottom: 10 },
+  locationRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, marginBottom: 14 } as any,
+  locationText: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
 
   // Repost nested card
-  repostCard: { borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.md, backgroundColor: t.color["card.front"], padding: 12, marginTop: 10 },
-  repostHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 } as any,
+  repostCard: { marginHorizontal: 20, marginBottom: 14, borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.md, backgroundColor: "#FEFDFB", padding: 12 },
+  repostHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 } as any,
   repostAuthorRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 } as any,
   repostAvatarFb: { width: 20, height: 20, borderRadius: 10, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,
   repostAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 8, color: t.color["text.on-dark"] },
-  repostAuthor: { fontFamily: t.font["body.medium"], fontSize: t.size["font.sm"], color: t.color["text.primary"] },
-  repostTime: { fontFamily: t.font["body.regular"], fontSize: t.size["font.xs"], color: t.color["text.muted"] },
-  repostTeaser: { fontFamily: t.font["body.regular"], fontSize: t.size["font.base"], color: t.color["text.secondary"], lineHeight: 18 },
+  repostAuthor: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.primary"] },
+  repostTime: { fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["text.muted"] },
+  repostTeaser: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.secondary"], lineHeight: 18 },
 
   // Article thumbnail
-  articleWrap: { borderRadius: t.radius.md, overflow: "hidden", marginTop: 8 } as any,
-  articleImg: { width: "100%", height: 200 } as any,
-  articleOverlay: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 12, backgroundColor: "rgba(53,17,1,0.7)" } as any,
-  articleTitle: { fontFamily: t.font["body.semibold"], fontSize: t.size["font.md"], color: t.color["text.on-dark"] },
-  articleDomain: { fontFamily: t.font["body.regular"], fontSize: t.size["font.sm"], color: t.color["navbar.text"], marginTop: 2 },
+  articleWrap: { marginHorizontal: 20, marginBottom: 14, borderRadius: t.radius.md, overflow: "hidden", position: "relative", height: 200 } as any,
+  articleImg: { width: "100%" as any, height: "100%" as any },
+  articleOverlay: { position: "absolute", bottom: 10, left: 10, backgroundColor: "#FFF", borderRadius: t.radius.md, paddingHorizontal: 14, paddingVertical: 10, maxWidth: "80%" } as any,
+  articleTitle: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"], lineHeight: 19, marginBottom: 2 },
+  articleDomain: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"] },
+
+  // Gallery
+  galleryWrap: { paddingHorizontal: 20 },
 });

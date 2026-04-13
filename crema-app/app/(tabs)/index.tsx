@@ -9,12 +9,12 @@
  */
 
 import { useState, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, RefreshControl, StyleSheet, Modal } from "react-native";
 import { Plus } from "lucide-react-native";
 
 import { useAuth } from "../../src/hooks/useAuth";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
-import { apiFetch } from "../../src/api/client";
+import { apiFetchRaw } from "../../src/api/client";
 import { useResource } from "../../src/resources/useResource";
 import { openPostModal } from "../../src/components/primitives";
 import PostCard from "../../src/components/domain/PostCard";
@@ -30,6 +30,7 @@ export default function FeedPage() {
   const [visibleCount, setVisibleCount] = useState(FEED_PER_PAGE);
   const [refreshing, setRefreshing] = useState(false);
   const [showCompose, setShowCompose] = useState(false);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
 
   // Generic resource hook — fetches all posts sorted by published_at DESC
   const { data: posts, loading, refetch } = useResource<Post>("posts", { limit: 40 });
@@ -41,6 +42,12 @@ export default function FeedPage() {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
+  }, [refetch]);
+
+  const handleEditPost = useCallback(async (postId: number, data: any) => {
+    await apiFetchRaw(`/posts/${postId}`, { method: "PUT", body: JSON.stringify(data) });
+    setEditingPost(null);
+    refetch();
   }, [refetch]);
 
   const handleCreatePost = useCallback(async (data: any) => {
@@ -112,6 +119,7 @@ export default function FeedPage() {
                 onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
                 onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
+                onEdit={(p) => setEditingPost(p)}
                 onDelete={async (p) => {
                   await apiFetchRaw(`/posts/${p.id}`, { method: "DELETE" });
                   refetch();
@@ -129,6 +137,24 @@ export default function FeedPage() {
           <Plus size={22} color={t.color["text.on-dark"]} strokeWidth={2.5} />
         </Pressable>
       )}
+
+      {/* Edit post modal */}
+      <Modal visible={!!editingPost} transparent animationType="fade" onRequestClose={() => setEditingPost(null)}>
+        <View style={s.editOverlayWrap}>
+          <Pressable style={s.editOverlayBg} onPress={() => setEditingPost(null)} />
+          <View style={s.editModal}>
+            {editingPost && (
+              <ComposePost
+                onSubmit={async (data) => { await handleEditPost(editingPost.id, data); }}
+                onCancel={() => setEditingPost(null)}
+                user={user}
+                products={productMap ? Array.from(productMap.values()) : []}
+                initialData={{ body: editingPost.teaser || (editingPost as any).body, images: (editingPost as any).images || [], location: editingPost.location || "" }}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -151,6 +177,9 @@ const s = StyleSheet.create({
     fontFamily: t.font["body.regular"], fontSize: t.size["font.md"], color: t.color["text.secondary"],
   },
   divider: { height: 1, backgroundColor: t.color.divider },
+  editOverlayWrap: { flex: 1, justifyContent: "center", alignItems: "center" } as any,
+  editOverlayBg: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" } as any,
+  editModal: { width: "90%", maxWidth: 680, backgroundColor: "#FAF8F0", borderRadius: 12, overflow: "hidden", maxHeight: "85%", zIndex: 1 } as any,
   fab: {
     position: "absolute", bottom: 28, right: 28,
     width: t.size["fab.size"], height: t.size["fab.size"], borderRadius: t.size["fab.size"] / 2,

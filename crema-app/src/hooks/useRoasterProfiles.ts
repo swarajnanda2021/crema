@@ -10,8 +10,9 @@ export function useRoasterProfiles() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await apiFetch<any[]>("/roasters");
-        setProfiles(data);
+        const raw = await apiFetch<any>("/roasters");
+        const data = Array.isArray(raw) ? raw : raw?.data ?? [];
+        setProfiles(Array.isArray(data) ? data : []);
       } catch {
         setProfiles(Array.isArray(fallbackRoasters) ? fallbackRoasters : []);
       } finally {
@@ -24,7 +25,7 @@ export function useRoasterProfiles() {
     const bySlug = new Map();
     const byDomain = new Map();
     const byNameLower = new Map();
-    for (const r of profiles) {
+    for (const r of (Array.isArray(profiles) ? profiles : [])) {
       if (r.roaster_slug) bySlug.set(r.roaster_slug, r);
       if (r.website) {
         try {
@@ -60,8 +61,9 @@ export function useRoasterProfiles() {
 
   const refreshProfiles = useCallback(async () => {
     try {
-      const data = await apiFetch<any[]>("/roasters");
-      setProfiles(data);
+      const raw = await apiFetch<any>("/roasters");
+      const data = Array.isArray(raw) ? raw : raw?.data ?? [];
+      setProfiles(Array.isArray(data) ? data : []);
     } catch {}
   }, []);
 

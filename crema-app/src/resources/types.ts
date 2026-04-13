@@ -61,6 +61,7 @@ export interface Post {
   original_post: Post | null;
   tasting_note_id: number | null;
   is_featured: boolean | number;
+  is_pinned: boolean | number;
   featured_order: number | null;
   published_at: string;
   created_at: string;

@@ -82,8 +82,8 @@ export default function ActionBar({
 }
 
 const s = StyleSheet.create({
-  bar: { flexDirection: "row", alignItems: "center", gap: 20, paddingTop: 10 } as any,
-  btn: { flexDirection: "row", alignItems: "center", gap: 5 } as any,
-  count: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.muted"] },
-  copiedText: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color.accent },
+  bar: { flexDirection: "row", alignItems: "center", gap: 20, paddingHorizontal: 20, paddingTop: 12 } as any,
+  btn: { flexDirection: "row", alignItems: "center", gap: 6 } as any,
+  count: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
+  copiedText: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color.accent },
 });

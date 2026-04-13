@@ -16,6 +16,7 @@ import {
 import { X } from "lucide-react-native";
 
 import { apiFetch, apiFetchRaw } from "../../api/client";
+import ComposePost from "../ComposePost";
 import { t } from "../../tokens/useTokens";
 import { CroppedAvatar, timeAgo } from "../primitives";
 import CommentThread from "../primitives/CommentThread";
@@ -39,6 +40,7 @@ export default function PostModal({
 }: PostModalProps) {
   const [post, setPost] = useState<Post | null>(postProp || null);
   const [loading, setLoading] = useState(false);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
 
   // Repost state
   const [repostComment, setRepostComment] = useState("");
@@ -77,14 +79,24 @@ export default function PostModal({
     } catch {}
   }, [onClose]);
 
+  const handleEditPost = useCallback(async (postId: number, data: any) => {
+    await apiFetchRaw(`/posts/${postId}`, { method: "PUT", body: JSON.stringify(data) });
+    setEditingPost(null);
+    // Reload the post
+    const envelope: any = await apiFetchRaw(`/posts/${postId}`);
+    setPost(envelope.data || envelope);
+  }, []);
+
   if (!visible) return null;
 
   const showComments = internalMode !== "repost";
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={s.overlay} onPress={onClose}>
-        <Pressable style={s.card} onPress={(e) => e.stopPropagation()}>
+      {/* Overlay: background Pressable + card as sibling so clicks on card don't bubble to close handler */}
+      <View style={s.overlayWrap}>
+        <Pressable style={s.overlayBg} onPress={onClose} />
+        <View style={s.card}>
           {/* Header */}
           <View style={s.header}>
             <Text style={s.headerTitle}>
@@ -176,8 +188,10 @@ export default function PostModal({
                     <PostCard
                       post={post}
                       user={user}
+                      isOwner={!!(user && post && user.id === post.user_id)}
                       onComment={() => scrollRef.current?.scrollToEnd({ animated: true })}
                       onRepost={() => setInternalMode("repost")}
+                      onEdit={(p) => setEditingPost(p)}
                     />
                   </Animated.View>
                 )}
@@ -196,19 +210,41 @@ export default function PostModal({
               </>
             )}
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
+
+      {/* Edit post sub-modal */}
+      {editingPost && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setEditingPost(null)}>
+          <View style={s.overlayWrap}>
+            <Pressable style={s.overlayBg} onPress={() => setEditingPost(null)} />
+            <View style={s.editModal}>
+              <ComposePost
+                onSubmit={async (data) => { await handleEditPost(editingPost.id, data); }}
+                onCancel={() => setEditingPost(null)}
+                user={user}
+                products={[]}
+                initialData={{ body: editingPost.teaser || (editingPost as any).body, images: (editingPost as any).images || [], location: editingPost.location || "" }}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
     </Modal>
   );
 }
 
 const s = StyleSheet.create({
-  overlay: {
+  /* Shared overlay structure: background Pressable + card View as siblings */
+  overlayWrap: {
     flex: 1,
-    backgroundColor: t.color.overlay,
     justifyContent: "center",
     alignItems: "center",
     ...(Platform.OS === "web" ? { backdropFilter: "blur(35px)", WebkitBackdropFilter: "blur(35px)" } : {}),
+  } as any,
+  overlayBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: t.color.overlay,
   } as any,
   card: {
     backgroundColor: t.color.bg,
@@ -217,7 +253,9 @@ const s = StyleSheet.create({
     maxWidth: 700,
     maxHeight: "85%",
     overflow: "hidden",
+    zIndex: 1,
   } as any,
+  editModal: { width: "90%", maxWidth: 680, backgroundColor: "#FAF8F0", borderRadius: 12, overflow: "hidden", maxHeight: "85%", zIndex: 1 } as any,
   header: {
     flexDirection: "row",
     alignItems: "center",

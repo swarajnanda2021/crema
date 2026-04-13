@@ -32,6 +32,7 @@ interface ComposePostProps {
   repostTarget?: any;
   products?: any[];
   user?: { username: string; display_name?: string; avatar_url?: string } | null;
+  initialData?: { body?: string; images?: string[]; location?: string };
 }
 
 const URL_REGEX = /https?:\/\/[^\s]+/;
@@ -55,12 +56,14 @@ export default function ComposePost({
   repostTarget,
   products,
   user,
+  initialData,
 }: ComposePostProps) {
   const isRepost = !!repostTarget;
+  const isEditing = !!initialData;
 
   // Core state
-  const [teaser, setTeaser] = useState("");
-  const [location, setLocation] = useState("");
+  const [teaser, setTeaser] = useState(initialData?.body || "");
+  const [location, setLocation] = useState(initialData?.location || "");
 
   // Auto-detected mode
   const [detectedUrl, setDetectedUrl] = useState("");
@@ -70,7 +73,7 @@ export default function ComposePost({
   const debounceRef = useRef<any>(null);
 
   // Images / tasting notes
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [imageUrls, setImageUrls] = useState<string[]>(initialData?.images || []);
   const [showImgUpload, setShowImgUpload] = useState(false);
   const [showAddCardModal, setShowAddCardModal] = useState(false);
   const [addCardTab, setAddCardTab] = useState<"image" | "tasting_note">("image");
@@ -387,7 +390,7 @@ export default function ComposePost({
       <View style={s.submitRow}>
         <Pressable onPress={onCancel} style={s.cancelBtn}><Text style={s.cancelText}>Cancel</Text></Pressable>
         <Pressable onPress={handleSubmit} style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]} disabled={!canSubmit}>
-          {loading ? <ActivityIndicator size="small" color="#FAF8F0" /> : <Text style={s.submitText}>{isRepost ? "Repost" : "Post"}</Text>}
+          {loading ? <ActivityIndicator size="small" color="#FAF8F0" /> : <Text style={s.submitText}>{isEditing ? "Save" : isRepost ? "Repost" : "Post"}</Text>}
         </Pressable>
       </View>
     </View>

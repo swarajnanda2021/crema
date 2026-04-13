@@ -23,7 +23,9 @@
     "unavailable": "#B0A89F",
     "overlay": "rgba(104,79,68,0.6)",
     "flash": "rgba(215,152,218,0.25)",
-    "shadow": "#351101"
+    "shadow": "#351101",
+    "roaster.panel": "#2a0d00",
+    "roaster.hero.fallback": "#1a0800"
   },
   "font": {
     "display": "CanelaText_Regular",

@@ -53,7 +53,7 @@ export function useNotifications(enabled: boolean = true) {
 
   const markAllRead = useCallback(async () => {
     try {
-      await apiFetch("/notifications-mark-read", { method: "POST" });
+      await apiFetchRaw("/notifications-mark-read", { method: "POST" });
       setUnreadCount(0);
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch {}
@@ -61,7 +61,7 @@ export function useNotifications(enabled: boolean = true) {
 
   const markRead = useCallback(async (id: number) => {
     try {
-      await apiFetch(`/notification-read/${id}`, { method: "POST" });
+      await apiFetchRaw(`/notification-read/${id}`, { method: "POST" });
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
       );

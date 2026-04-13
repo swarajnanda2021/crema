@@ -157,7 +157,7 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
 
         {/* ── Other accounts section ─────────────────────────── */}
         {others.length > 0 && (
-          <>
+          <View>
             <View style={s.divider} />
             <Text style={s.sectionLabel}>Other accounts</Text>
             {others.map((acct) => (
@@ -182,7 +182,7 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
                 </View>
               </Pressable>
             ))}
-          </>
+          </View>
         )}
 
         <View style={s.divider} />

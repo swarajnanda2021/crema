@@ -60,6 +60,7 @@ RESOURCES = {
             "tasting_note_id": {"type": "int"},
             "is_featured": {"type": "int", "default": 0},
             "featured_order": {"type": "int"},
+            "is_pinned": {"type": "int", "default": 0},
             "published_at": {"type": "str", "auto": "now"},
             "created_at": {"type": "str", "ro": True, "auto": "now"},
             "updated_at": {"type": "str"},
@@ -300,6 +301,10 @@ RESOURCES = {
         "auth": {"list": None, "read": None, "create": "required", "delete": "required"},
         "order": "coffee_name ASC",
         "limit": 500,
+        "subfields": [
+            {"name": "roaster_city", "sql": "(SELECT rp.city FROM roaster_profiles rp WHERE rp.roaster_slug = t.roaster_slug)"},
+            {"name": "roaster_state", "sql": "(SELECT rp.state FROM roaster_profiles rp WHERE rp.roaster_slug = t.roaster_slug)"},
+        ],
     },
 
     # ── Roaster Profiles ─────────────────────────────────────────────────
@@ -314,6 +319,7 @@ RESOURCES = {
             "specialties": {"type": "json"},
             "website": {"type": "str"},
             "city": {"type": "str"},
+            "state": {"type": "str"},
             "logo_url": {"type": "str"},
             "hero_image_url": {"type": "str"},
             "hero_crop_x": {"type": "float", "default": 50},

@@ -120,7 +120,7 @@ export default function CommentThread({
                   countSize={11}
                 />
               )}
-              {user && !isReply && (
+              {user && (
                 <Pressable
                   onPress={() => setReplyTo({ id: c.id, username: c.user?.display_name || "user" })}
                   style={s.actionBtn}

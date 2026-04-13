@@ -238,6 +238,9 @@ _MIGRATIONS = [
     # Roaster hero crop X + zoom
     "ALTER TABLE roaster_profiles ADD COLUMN hero_crop_x REAL DEFAULT 50",
     "ALTER TABLE roaster_profiles ADD COLUMN hero_zoom REAL DEFAULT 1",
+    # Roaster profile name + state (for city filter and display)
+    "ALTER TABLE roaster_profiles ADD COLUMN name TEXT",
+    "ALTER TABLE roaster_profiles ADD COLUMN state TEXT",
     # Notifications
     """CREATE TABLE IF NOT EXISTS notifications (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

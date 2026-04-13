@@ -213,6 +213,29 @@ def update_roaster_profile(slug: str, body: dict, user=Depends(get_current_user)
 
 # ── Social compat (old paths) ────────────────────────────────────────────────
 
+@router.put("/posts/{post_id}/pin")
+def toggle_post_pin(post_id: int, user=Depends(get_current_user)):
+    """Toggle pin on a post. Unpins any other pinned post by the same owner first."""
+    db = get_db()
+    try:
+        post = db.execute("SELECT id, user_id, is_pinned FROM roaster_posts WHERE id = ?", (post_id,)).fetchone()
+        if not post:
+            from fastapi import HTTPException
+            raise HTTPException(404, "Post not found")
+        if post["user_id"] != user["id"]:
+            from fastapi import HTTPException
+            raise HTTPException(403, "Not your post")
+        new_pinned = 0 if post["is_pinned"] else 1
+        if new_pinned:
+            # Unpin any existing pinned post by this user
+            db.execute("UPDATE roaster_posts SET is_pinned = 0 WHERE user_id = ? AND is_pinned = 1", (user["id"],))
+        db.execute("UPDATE roaster_posts SET is_pinned = ? WHERE id = ?", (new_pinned, post_id))
+        db.commit()
+        return ok({"pinned": bool(new_pinned)}, resource="posts")
+    finally:
+        db.close()
+
+
 @router.post("/posts/{post_id}/like")
 def toggle_post_like(post_id: int, user=Depends(get_current_user)):
     from resources.crud import toggle_resource

@@ -21,7 +21,7 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [containerW, setContainerW] = useState(0);
   const lastScrollY = useRef(0);
-  const visible = coffees.slice(0, visibleCount);
+  const visible = (Array.isArray(coffees) ? coffees : []).slice(0, visibleCount);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     setContainerW(e.nativeEvent.layout.width);

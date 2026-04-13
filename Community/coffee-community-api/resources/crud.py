@@ -35,6 +35,10 @@ def _build_select(res, current_user_id=None):
     for c in res.get("counts", []):
         cols.append(f'(SELECT COUNT(*) FROM {c["table"]} WHERE {c["fk"]} = t.{pk}) AS {c["name"]}')
 
+    # Scalar subqueries (e.g. roaster_city from roaster_profiles)
+    for sf in res.get("subfields", []):
+        cols.append(f'{sf["sql"]} AS {sf["name"]}')
+
     # Current-user flags (e.g. liked_by_me)
     for fl in res.get("flags", []):
         if current_user_id:

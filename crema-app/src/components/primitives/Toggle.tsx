@@ -57,7 +57,7 @@ export default function Toggle({
         {toggled ? iconOn : iconOff}
       </Animated.View>
       {showCount && count > 0 && (
-        <Text style={[s.count, { fontSize: countSize }, toggled && { color: t.color.accent }]}>
+        <Text style={[s.count, countSize !== 13 && { fontSize: countSize }, toggled && { color: t.color.accent }]}>
           {count}
         </Text>
       )}
@@ -67,5 +67,5 @@ export default function Toggle({
 
 const s = StyleSheet.create({
   btn: { flexDirection: "row", alignItems: "center", gap: 5 } as any,
-  count: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.muted"] },
+  count: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
 });
