@@ -172,7 +172,7 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
                 ) : (
                   <View style={s.avatarSmallFallback}>
                     <Text style={s.avatarSmallInitials}>
-                      {(acct.display_name || acct.username)[0].toUpperCase()}
+                      {(acct.display_name || acct.username || "?")[0].toUpperCase()}
                     </Text>
                   </View>
                 )}

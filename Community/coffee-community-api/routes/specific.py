@@ -397,6 +397,95 @@ def posts_timeline_compat(limit: int = 30, offset: int = 0, authorization: str =
         db.close()
 
 
+# ── Product popularity + users ────────────────────────────────────────────────
+
+@router.get("/products/popularity")
+def product_popularity():
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT product_id, COUNT(DISTINCT user_id) as user_count FROM shelf_entries GROUP BY product_id"
+        ).fetchall()
+        return ok({r["product_id"]: r["user_count"] for r in rows}, resource="products")
+    finally:
+        db.close()
+
+
+@router.get("/products/{product_id}/users")
+def product_users(product_id: str):
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT se.shelf, se.added_at, u.username, u.display_name, u.avatar_url, u.location "
+            "FROM shelf_entries se JOIN users u ON se.user_id = u.id WHERE se.product_id = ?",
+            (product_id,),
+        ).fetchall()
+        users = []
+        for r in rows:
+            notes = db.execute(
+                "SELECT * FROM tasting_notes WHERE user_id = (SELECT id FROM users WHERE username = ?) AND product_id = ?",
+                (r["username"], product_id),
+            ).fetchall()
+            users.append({
+                "username": r["username"], "display_name": r["display_name"],
+                "avatar_url": r["avatar_url"], "location": r["location"],
+                "shelf": r["shelf"], "added_at": r["added_at"],
+                "notes": [dict(n) for n in notes],
+            })
+        return ok({"product_id": product_id, "users": users}, resource="products")
+    finally:
+        db.close()
+
+
+# ── Roasters list (merged from DB + catalog) ─────────────────────────────────
+
+@router.get("/roasters")
+def list_roasters():
+    """Return all roasters from roaster_profiles + products table."""
+    db = get_db()
+    try:
+        # Get roasters from profiles table
+        profiles = db.execute("SELECT * FROM roaster_profiles").fetchall()
+        profile_map = {r["roaster_slug"]: dict(r) for r in profiles}
+
+        # Get roasters from products table (unique slugs)
+        product_roasters = db.execute(
+            "SELECT DISTINCT roaster_slug, roaster_name FROM products WHERE available = 1"
+        ).fetchall()
+
+        # Merge: profiles take priority, fill in from products
+        roasters = []
+        seen = set()
+        for slug, data in profile_map.items():
+            seen.add(slug)
+            roasters.append(data)
+        for r in product_roasters:
+            if r["roaster_slug"] not in seen:
+                seen.add(r["roaster_slug"])
+                roasters.append({"roaster_slug": r["roaster_slug"], "name": r["roaster_name"]})
+
+        # Also load from bundled roasters.json for enrichment
+        import os, json
+        _BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        roasters_json = os.path.join(_BASE, "crema-app", "src", "data", "roasters.json")
+        if os.path.exists(roasters_json):
+            with open(roasters_json) as f:
+                enriched = json.load(f)
+            enriched_map = {r.get("roaster_slug"): r for r in enriched if r.get("roaster_slug")}
+            for roaster in roasters:
+                slug = roaster.get("roaster_slug")
+                if slug in enriched_map:
+                    e = enriched_map[slug]
+                    for key in ["city", "state", "website", "logo_url", "about_blurb", "founding_year",
+                                "sourcing_regions", "specialties", "social_links", "lat", "lng"]:
+                        if key in e and not roaster.get(key):
+                            roaster[key] = e[key]
+
+        return ok(roasters, resource="roasters")
+    finally:
+        db.close()
+
+
 # ── Feed timeline ────────────────────────────────────────────────────────────
 
 @router.get("/feed-timeline")

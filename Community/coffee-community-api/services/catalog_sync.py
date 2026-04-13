@@ -57,7 +57,7 @@ def sync_products():
             with open(_CORRECTIONS) as f:
                 corrections = {c["product_id"]: c for c in json.load(f) if "product_id" in c}
 
-        # Upsert each product
+        # Upsert each product (with quality gate)
         for p in products:
             pid = p.get("product_id")
             if not pid:
@@ -66,6 +66,15 @@ def sync_products():
             # Apply corrections
             if pid in corrections:
                 p.update({k: v for k, v in corrections[pid].items() if k != "product_id"})
+
+            # Quality gate: skip products that shouldn't be shown
+            if not p.get("coffee_name"):
+                continue
+            if not p.get("available", True):
+                continue
+            # Skip non-coffee items (e.g. equipment, merchandise)
+            if p.get("is_coffee_bean") is False:
+                continue
 
             db.execute("""
                 INSERT OR REPLACE INTO products
