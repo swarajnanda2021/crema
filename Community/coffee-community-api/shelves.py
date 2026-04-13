@@ -5,7 +5,7 @@ Shelf CRUD: add/move/remove coffees, list own shelves, view partner's shelves.
 import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from database import get_db
-from auth import get_current_user
+from auth import get_current_user, get_optional_user
 from models import ShelfAddRequest
 
 router = APIRouter(prefix="/api/shelves", tags=["Shelves"])
@@ -58,7 +58,7 @@ def list_my_shelves(user=Depends(get_current_user)):
 
 
 @router.get("/users/{username}")
-def list_user_shelves(username: str, user=Depends(get_current_user)):
+def list_user_shelves(username: str, user=Depends(get_optional_user)):
     db = get_db()
     try:
         target = db.execute(

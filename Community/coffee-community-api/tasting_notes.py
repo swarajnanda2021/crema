@@ -7,7 +7,7 @@ import json
 import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from database import get_db
-from auth import get_current_user
+from auth import get_current_user, get_optional_user
 from models import TastingNoteCreate, TastingNoteUpdate
 from dictionary import (
     validate_flavor_tags, validate_brew_method,
@@ -110,7 +110,7 @@ def _validate_note(req):
 
 
 @router.get("")
-def list_notes(product_id: str = Query(None), user=Depends(get_current_user)):
+def list_notes(product_id: str = Query(None), user=Depends(get_optional_user)):
     db = get_db()
     try:
         if product_id:

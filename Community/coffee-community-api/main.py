@@ -937,7 +937,7 @@ def get_feed_timeline(authorization: str = Header(None)):
 
 
 @app.get("/api/feed")
-def get_feed():
+def get_feed(limit: int = 20, offset: int = 0):
     """
     Community feed: all users' shelf entries + tasting notes, sorted by recency.
     Each feed item is a user's shelf grouped as an island (like their profile card).
@@ -1024,7 +1024,9 @@ def get_feed():
 
         # Sort by latest activity
         feed.sort(key=lambda x: x.get("latest_activity") or "", reverse=True)
-        return {"feed": feed}
+        total = len(feed)
+        paginated = feed[offset: offset + limit]
+        return {"feed": paginated, "total": total, "limit": limit, "offset": offset}
     finally:
         db.close()
 
@@ -1377,10 +1379,10 @@ def _run_full_refresh(queue):
 
 
 @app.get("/api/refresh")
-async def refresh_all():
+async def refresh_all(user=Depends(get_current_user)):
     """
     SSE endpoint: runs catalog discovery + product scraper end-to-end.
-    Streams progress events as each phase completes.
+    Streams progress events as each phase completes. Requires authentication.
     """
     if not _refresh_lock.acquire(blocking=False):
         async def already_running():
