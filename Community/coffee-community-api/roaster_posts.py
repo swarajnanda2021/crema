@@ -76,6 +76,24 @@ def _parse_images(r) -> list:
     return [cover] if cover else []
 
 
+def _post_select(current_user_id=None):
+    """Build post SELECT with inline count subqueries (eliminates N+1)."""
+    liked = (
+        f"(SELECT 1 FROM post_likes WHERE post_id = rp.id AND user_id = {int(current_user_id)})"
+        if current_user_id else "0"
+    )
+    return f"""
+    SELECT rp.*, u.username, u.display_name, u.avatar_url,
+           u.avatar_crop_x, u.avatar_crop_y, u.avatar_zoom,
+           (SELECT COUNT(*) FROM post_likes WHERE post_id = rp.id) AS like_count,
+           (SELECT COUNT(*) FROM post_comments WHERE post_id = rp.id) AS comment_count,
+           (SELECT COUNT(*) FROM roaster_posts rp2 WHERE rp2.repost_of_id = rp.id) AS repost_count,
+           {liked} AS liked_by_me
+    FROM roaster_posts rp
+    JOIN users u ON rp.user_id = u.id
+"""
+
+
 def _row_to_post(r, db=None, current_user_id=None) -> dict:
     keys = r.keys() if hasattr(r, "keys") else []
     repost_of_id = r["repost_of_id"] if "repost_of_id" in keys else None
@@ -85,23 +103,10 @@ def _row_to_post(r, db=None, current_user_id=None) -> dict:
     if repost_of_id and db:
         try:
             orig_row = db.execute(
-                _POST_SELECT + " WHERE rp.id = ?", (repost_of_id,)
+                _post_select(current_user_id) + " WHERE rp.id = ?", (repost_of_id,)
             ).fetchone()
             if orig_row:
                 original_post = _row_to_post(orig_row)  # no db = no recursion
-        except Exception:
-            pass
-
-    # Like, comment, and repost counts
-    post_id = r["id"]
-    like_count = 0
-    comment_count = 0
-    repost_count = 0
-    if db:
-        try:
-            like_count = db.execute("SELECT COUNT(*) as c FROM post_likes WHERE post_id = ?", (post_id,)).fetchone()["c"]
-            comment_count = db.execute("SELECT COUNT(*) as c FROM post_comments WHERE post_id = ?", (post_id,)).fetchone()["c"]
-            repost_count = db.execute("SELECT COUNT(*) as c FROM roaster_posts WHERE repost_of_id = ?", (post_id,)).fetchone()["c"]
         except Exception:
             pass
 
@@ -132,19 +137,11 @@ def _row_to_post(r, db=None, current_user_id=None) -> dict:
         "repost_comment": r["repost_comment"] if "repost_comment" in keys else None,
         "original_post": original_post,
         "tasting_note_id": r["tasting_note_id"] if "tasting_note_id" in keys else None,
-        "like_count": like_count,
-        "comment_count": comment_count,
-        "repost_count": repost_count,
-        "liked_by_me": bool(db.execute("SELECT 1 FROM post_likes WHERE post_id=? AND user_id=?", (post_id, current_user_id)).fetchone()) if db and current_user_id else False,
+        "like_count": r["like_count"] if "like_count" in keys else 0,
+        "comment_count": r["comment_count"] if "comment_count" in keys else 0,
+        "repost_count": r["repost_count"] if "repost_count" in keys else 0,
+        "liked_by_me": bool(r["liked_by_me"]) if "liked_by_me" in keys else False,
     }
-
-
-_POST_SELECT = """
-    SELECT rp.*, u.username, u.display_name, u.avatar_url,
-           u.avatar_crop_x, u.avatar_crop_y, u.avatar_zoom
-    FROM roaster_posts rp
-    JOIN users u ON rp.user_id = u.id
-"""
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -214,7 +211,7 @@ def create_post(req: RoasterPostRequest, user=Depends(get_current_user)):
                 create_notification(db, orig["user_id"], "repost", user["id"], post_id=repost_of_id)
         db.commit()
         row = db.execute(
-            _POST_SELECT + " WHERE rp.id = ?", (cursor.lastrowid,)
+            _post_select(user["id"]) + " WHERE rp.id = ?", (cursor.lastrowid,)
         ).fetchone()
         return _row_to_post(row, db, current_user_id=user["id"])
     finally:
@@ -259,7 +256,7 @@ def update_post(post_id: int, req: PostUpdateRequest, user=Depends(get_current_u
             (title, teaser, external_url, location, images_json_str, cover, _now(), post_id),
         )
         db.commit()
-        updated = db.execute(_POST_SELECT + " WHERE rp.id = ?", (post_id,)).fetchone()
+        updated = db.execute(_post_select(user["id"]) + " WHERE rp.id = ?", (post_id,)).fetchone()
         return _row_to_post(updated, db, current_user_id=user["id"])
     finally:
         db.close()
@@ -276,10 +273,11 @@ def get_single_post(post_id: int, authorization: str = Header(None)):
             pass
     db = get_db()
     try:
-        row = db.execute(_POST_SELECT + " WHERE rp.id = ?", (post_id,)).fetchone()
+        uid = current_user["id"] if current_user else None
+        row = db.execute(_post_select(uid) + " WHERE rp.id = ?", (post_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Post not found")
-        return _row_to_post(row, db, current_user_id=current_user["id"] if current_user else None)
+        return _row_to_post(row, db, current_user_id=uid)
     finally:
         db.close()
 
@@ -300,7 +298,7 @@ def get_user_posts(username: str, limit: int = 20, offset: int = 0, authorizatio
         if not user_row:
             raise HTTPException(404, "User not found")
         rows = db.execute(
-            _POST_SELECT + " WHERE rp.user_id = ? ORDER BY rp.published_at DESC LIMIT ? OFFSET ?",
+            _post_select(uid) + " WHERE rp.user_id = ? ORDER BY rp.published_at DESC LIMIT ? OFFSET ?",
             (user_row["id"], limit, offset),
         ).fetchall()
         total = db.execute(
@@ -317,7 +315,7 @@ def get_featured_posts(slug: str):
     db = get_db()
     try:
         rows = db.execute(
-            _POST_SELECT + """
+            _post_select() + """
             WHERE rp.roaster_slug = ? AND rp.is_featured = 1
             ORDER BY rp.featured_order ASC
             LIMIT 2
@@ -342,7 +340,7 @@ def get_roaster_posts(slug: str, limit: int = 20, offset: int = 0, authorization
     db = get_db()
     try:
         rows = db.execute(
-            _POST_SELECT + " WHERE rp.roaster_slug = ? ORDER BY rp.published_at DESC LIMIT ? OFFSET ?",
+            _post_select(uid) + " WHERE rp.roaster_slug = ? ORDER BY rp.published_at DESC LIMIT ? OFFSET ?",
             (slug, limit, offset),
         ).fetchall()
         total = db.execute(
@@ -470,7 +468,7 @@ def get_posts_timeline(limit: int = 30, offset: int = 0, authorization: str = He
 
         # All posts (articles, notes, reposts, tasting_note posts)
         posts_rows = db.execute(
-            _POST_SELECT + " ORDER BY rp.published_at DESC LIMIT 200"
+            _post_select(uid) + " ORDER BY rp.published_at DESC LIMIT 200"
         ).fetchall()
 
         posts_items = []
