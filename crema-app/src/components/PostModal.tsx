@@ -174,7 +174,7 @@ export default function PostModal({
                       )}
                       <View style={{ flex: 1 }}>
                         <Text style={s.repostPreviewName}>{user?.display_name || "You"}</Text>
-                        <Text style={s.repostPreviewSubtitle}>Reposted</Text>
+                        <Text style={s.repostPreviewSubtitle}>Reposting</Text>
                       </View>
                     </View>
 
