@@ -216,7 +216,7 @@ def create_post(req: RoasterPostRequest, user=Depends(get_current_user)):
         row = db.execute(
             _POST_SELECT + " WHERE rp.id = ?", (cursor.lastrowid,)
         ).fetchone()
-        return _row_to_post(row, db)
+        return _row_to_post(row, db, current_user_id=user["id"])
     finally:
         db.close()
 
@@ -260,7 +260,7 @@ def update_post(post_id: int, req: PostUpdateRequest, user=Depends(get_current_u
         )
         db.commit()
         updated = db.execute(_POST_SELECT + " WHERE rp.id = ?", (post_id,)).fetchone()
-        return _row_to_post(updated, db)
+        return _row_to_post(updated, db, current_user_id=user["id"])
     finally:
         db.close()
 
@@ -285,8 +285,15 @@ def get_single_post(post_id: int, authorization: str = Header(None)):
 
 
 @router.get("/users/{username}/posts")
-def get_user_posts(username: str, limit: int = 20, offset: int = 0):
+def get_user_posts(username: str, limit: int = 20, offset: int = 0, authorization: str = Header(None)):
     """List all posts by a specific user, newest first."""
+    current_user = None
+    if authorization:
+        try:
+            current_user = get_optional_user(authorization)
+        except Exception:
+            pass
+    uid = current_user["id"] if current_user else None
     db = get_db()
     try:
         user_row = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
@@ -299,7 +306,7 @@ def get_user_posts(username: str, limit: int = 20, offset: int = 0):
         total = db.execute(
             "SELECT COUNT(*) as c FROM roaster_posts WHERE user_id = ?", (user_row["id"],)
         ).fetchone()["c"]
-        return {"posts": [_row_to_post(r, db) for r in rows], "total": total}
+        return {"posts": [_row_to_post(r, db, current_user_id=uid) for r in rows], "total": total}
     finally:
         db.close()
 
@@ -323,8 +330,15 @@ def get_featured_posts(slug: str):
 
 
 @router.get("/roasters/{slug}/posts")
-def get_roaster_posts(slug: str, limit: int = 20, offset: int = 0):
+def get_roaster_posts(slug: str, limit: int = 20, offset: int = 0, authorization: str = Header(None)):
     """List all posts for a specific roaster, newest first."""
+    current_user = None
+    if authorization:
+        try:
+            current_user = get_optional_user(authorization)
+        except Exception:
+            pass
+    uid = current_user["id"] if current_user else None
     db = get_db()
     try:
         rows = db.execute(
@@ -334,7 +348,7 @@ def get_roaster_posts(slug: str, limit: int = 20, offset: int = 0):
         total = db.execute(
             "SELECT COUNT(*) as c FROM roaster_posts WHERE roaster_slug = ?", (slug,)
         ).fetchone()["c"]
-        return {"posts": [_row_to_post(r, db) for r in rows], "total": total}
+        return {"posts": [_row_to_post(r, db, current_user_id=uid) for r in rows], "total": total}
     finally:
         db.close()
 
@@ -397,11 +411,18 @@ def delete_post(post_id: int, user=Depends(get_current_user)):
 
 
 @router.get("/posts-timeline")
-def get_posts_timeline(limit: int = 30, offset: int = 0, user=Depends(get_optional_user)):
+def get_posts_timeline(limit: int = 30, offset: int = 0, authorization: str = Header(None)):
     """
     Combined activity feed: tasting notes + roaster posts, sorted newest first.
     Used by the HOME feed tab.
     """
+    current_user = None
+    if authorization:
+        try:
+            current_user = get_optional_user(authorization)
+        except Exception:
+            pass
+    uid = current_user["id"] if current_user else None
     db = get_db()
     try:
         # Tasting notes that DON'T have a corresponding roaster_post yet
@@ -454,7 +475,7 @@ def get_posts_timeline(limit: int = 30, offset: int = 0, user=Depends(get_option
 
         posts_items = []
         for r in posts_rows:
-            item = _row_to_post(r, db)
+            item = _row_to_post(r, db, current_user_id=uid)
             item["sort_key"] = item["published_at"]
             posts_items.append(item)
 
