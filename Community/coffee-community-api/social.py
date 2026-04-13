@@ -274,7 +274,8 @@ def get_post_comments(post_id: int, authorization: str = Header(None)):
     try:
         rows = db.execute("""
             SELECT pc.id, pc.comment, pc.created_at, pc.updated_at,
-                   pc.user_id, u.username, u.display_name, u.avatar_url
+                   pc.user_id, pc.parent_id,
+                   u.username, u.display_name, u.avatar_url
             FROM post_comments pc
             JOIN users u ON pc.user_id = u.id
             WHERE pc.post_id = ?
@@ -283,6 +284,7 @@ def get_post_comments(post_id: int, authorization: str = Header(None)):
 
         comments = []
         for r in rows:
+            keys = r.keys() if hasattr(r, "keys") else []
             like_count = db.execute(
                 "SELECT COUNT(*) as c FROM comment_likes WHERE comment_id = ?", (r["id"],)
             ).fetchone()["c"]
@@ -296,7 +298,8 @@ def get_post_comments(post_id: int, authorization: str = Header(None)):
                 "id": r["id"],
                 "comment": r["comment"],
                 "created_at": r["created_at"],
-                "updated_at": r["updated_at"] if "updated_at" in r.keys() else None,
+                "updated_at": r["updated_at"] if "updated_at" in keys else None,
+                "parent_id": r["parent_id"] if "parent_id" in keys else None,
                 "user": {
                     "id": r["user_id"],
                     "username": r["username"],
@@ -319,22 +322,32 @@ def create_post_comment(post_id: int, body: dict, user=Depends(get_current_user)
     if not comment:
         raise HTTPException(422, "comment is required")
 
+    parent_id = body.get("parent_id")
+
     db = get_db()
     try:
         now = _now()
         cursor = db.execute(
-            "INSERT INTO post_comments (user_id, post_id, comment, created_at) VALUES (?, ?, ?, ?)",
-            (user["id"], post_id, comment, now),
+            "INSERT INTO post_comments (user_id, post_id, comment, created_at, parent_id) VALUES (?, ?, ?, ?, ?)",
+            (user["id"], post_id, comment, now, parent_id),
         )
-        # Notify post author
-        post_row = db.execute("SELECT user_id FROM roaster_posts WHERE id = ?", (post_id,)).fetchone()
-        if post_row:
-            create_notification(db, post_row["user_id"], "comment", user["id"], post_id=post_id, comment_id=cursor.lastrowid)
+        new_id = cursor.lastrowid
+        # Notify post author (for top-level comments)
+        if not parent_id:
+            post_row = db.execute("SELECT user_id FROM roaster_posts WHERE id = ?", (post_id,)).fetchone()
+            if post_row:
+                create_notification(db, post_row["user_id"], "comment", user["id"], post_id=post_id, comment_id=new_id)
+        else:
+            # Notify parent comment author (for replies)
+            parent_row = db.execute("SELECT user_id FROM post_comments WHERE id = ?", (parent_id,)).fetchone()
+            if parent_row and parent_row["user_id"] != user["id"]:
+                create_notification(db, parent_row["user_id"], "reply", user["id"], post_id=post_id, comment_id=new_id)
         db.commit()
         return {
-            "id": cursor.lastrowid,
+            "id": new_id,
             "comment": comment,
             "created_at": now,
+            "parent_id": parent_id,
             "user": {
                 "id": user["id"],
                 "username": user["username"],

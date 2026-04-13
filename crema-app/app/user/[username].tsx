@@ -206,7 +206,7 @@ export default function UserProfilePage() {
       const res = await apiFetch(`/roasters/user_${profileUser.id}/follow`, { method: "POST" });
       setFollowing(res.following);
       setFollowerCount(res.follower_count);
-    } catch {}
+    } catch (e) { console.error("Follow toggle failed:", e); }
   };
 
   // ── Shelf data ──────────────────────────────────────────────────────────

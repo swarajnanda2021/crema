@@ -152,13 +152,13 @@ def create_post(req: RoasterPostRequest, user=Depends(get_current_user)):
     # Use roaster_slug if available, otherwise synthetic user slug
     roaster_slug = user.get("roaster_slug") or f"user_{user['id']}"
 
-    teaser = req.teaser.strip()
-    if not teaser:
+    post_type = req.post_type if req.post_type in VALID_POST_TYPES else "note"
+
+    teaser = req.teaser.strip() if req.teaser else ""
+    if not teaser and post_type != "repost":
         raise HTTPException(422, "teaser is required")
     if len(teaser) > 300:
         raise HTTPException(422, "teaser must be 300 characters or fewer")
-
-    post_type = req.post_type if req.post_type in VALID_POST_TYPES else "note"
 
     title = (req.title or "").strip()
     if post_type == "article" and not title:

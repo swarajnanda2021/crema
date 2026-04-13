@@ -18,7 +18,8 @@ import {
   StyleSheet, Animated, ActivityIndicator, Platform,
 } from "react-native";
 import { Image } from "expo-image";
-import { X, Send } from "lucide-react-native";
+import { X, Send, MessageCircle } from "lucide-react-native";
+import { HeartOutlineIcon, HeartFilledOutlineIcon } from "./icons/FigmaIcons";
 import { apiFetch, resolveUploadUrl } from "../api/client";
 import { fonts, cardShadow } from "../theme/colors";
 import PostFeedCard, { CroppedAvatar, timeAgo } from "./PostFeedCard";
@@ -48,6 +49,8 @@ export default function PostModal({
   const [sending, setSending] = useState(false);
   const [repostComment, setRepostComment] = useState("");
   const [commentCount, setCommentCount] = useState(0);
+  const [replyTo, setReplyTo] = useState<{ id: number; username: string } | null>(null);
+  const [commentLikes, setCommentLikes] = useState<Record<number, { liked: boolean; count: number }>>({});
 
   // Animations
   const flashAnim = useRef(new Animated.Value(0)).current;
@@ -57,7 +60,7 @@ export default function PostModal({
 
   // Fetch post if only ID provided
   useEffect(() => {
-    if (!visible) { setPost(null); setComments([]); setRepostComment(""); return; }
+    if (!visible) { setPost(null); setComments([]); setRepostComment(""); setReplyTo(null); setCommentLikes({}); return; }
     if (postProp) { setPost(postProp); return; }
     if (!postId) return;
 
@@ -88,8 +91,12 @@ export default function PostModal({
     setCommentsLoading(true);
     try {
       const data = await apiFetch(`/posts/${post.id}/comments`);
-      setComments(data.comments || []);
-      setCommentCount(data.comments?.length || 0);
+      const list = data.comments || [];
+      setComments(list);
+      setCommentCount(list.length);
+      const likes: Record<number, { liked: boolean; count: number }> = {};
+      for (const c of list) { likes[c.id] = { liked: c.liked_by_me || false, count: c.like_count || 0 }; }
+      setCommentLikes(likes);
 
       // Highlight specific comment after load
       if (highlightCommentId) {
@@ -115,14 +122,29 @@ export default function PostModal({
     if (!commentText.trim() || !user || !post) return;
     setSending(true);
     try {
+      const body: any = { comment: commentText.trim() };
+      if (replyTo) body.parent_id = replyTo.id;
       await apiFetch(`/posts/${post.id}/comments`, {
         method: "POST",
-        body: JSON.stringify({ comment: commentText.trim() }),
+        body: JSON.stringify(body),
       });
       setCommentText("");
+      setReplyTo(null);
       loadComments();
     } catch {} finally {
       setSending(false);
+    }
+  };
+
+  const handleToggleCommentLike = async (commentId: number) => {
+    if (!user) return;
+    const prev = commentLikes[commentId] || { liked: false, count: 0 };
+    setCommentLikes((s) => ({ ...s, [commentId]: { liked: !prev.liked, count: prev.liked ? prev.count - 1 : prev.count + 1 } }));
+    try {
+      const res = await apiFetch(`/post-comments/${commentId}/like`, { method: "POST" });
+      setCommentLikes((s) => ({ ...s, [commentId]: { liked: res.liked, count: res.like_count } }));
+    } catch {
+      setCommentLikes((s) => ({ ...s, [commentId]: prev }));
     }
   };
 
@@ -209,9 +231,14 @@ export default function PostModal({
 
                     {/* Repost button */}
                     <Pressable
-                      onPress={() => handleRepostSubmit({ post_type: "repost", repost_of_id: post.id, teaser: repostComment })}
-                      style={[s.repostBtn, !repostComment.trim() && { opacity: 0.5 }]}
-                      disabled={!repostComment.trim()}
+                      onPress={() => handleRepostSubmit({
+                        post_type: "repost",
+                        repost_of_id: post.id,
+                        title: "Repost",
+                        teaser: repostComment.trim() || "Repost",
+                        repost_comment: repostComment.trim() || null,
+                      })}
+                      style={s.repostBtn}
                     >
                       <Text style={s.repostBtnText}>Repost</Text>
                     </Pressable>
@@ -244,16 +271,21 @@ export default function PostModal({
                       <ActivityIndicator size="small" color="#D798DA" style={{ paddingVertical: 16 }} />
                     ) : comments.length === 0 ? (
                       <Text style={s.emptyComment}>No comments yet. Be the first!</Text>
-                    ) : (
-                      comments.map((c, idx) => {
+                    ) : (() => {
+                      const topLevel = comments.filter((c) => !c.parent_id);
+                      const replies = comments.filter((c) => c.parent_id);
+                      const renderComment = (c: any, idx: number, isReply = false) => {
                         const isHighlight = highlightCommentId === c.id;
                         const anim = commentFlashAnims[c.id];
+                        const lk = commentLikes[c.id] || { liked: false, count: 0 };
+                        const childReplies = replies.filter((r) => r.parent_id === c.id);
                         return (
                           <Animated.View
                             key={c.id}
                             ref={(ref: any) => { commentRefs[c.id] = ref; }}
                             style={[
                               s.commentRow,
+                              isReply && { marginLeft: 38 },
                               isHighlight && anim ? {
                                 backgroundColor: anim.interpolate({
                                   inputRange: [0, 1],
@@ -266,10 +298,10 @@ export default function PostModal({
                             {idx > 0 && <View style={s.commentRowDivider} />}
                             <View style={s.commentBody}>
                               {c.user?.avatar_url ? (
-                                <CroppedAvatar url={c.user.avatar_url} size={28} />
+                                <CroppedAvatar url={c.user.avatar_url} size={isReply ? 22 : 28} />
                               ) : (
-                                <View style={s.commentAvatarFb}>
-                                  <Text style={s.commentAvatarLetter}>{(c.user?.display_name || "?")[0].toUpperCase()}</Text>
+                                <View style={[s.commentAvatarFb, isReply && { width: 22, height: 22, borderRadius: 11 }]}>
+                                  <Text style={[s.commentAvatarLetter, isReply && { fontSize: 9 }]}>{(c.user?.display_name || "?")[0].toUpperCase()}</Text>
                                 </View>
                               )}
                               <View style={s.commentContent}>
@@ -278,11 +310,37 @@ export default function PostModal({
                                   <Text style={s.commentTime}>{timeAgo(c.created_at)}</Text>
                                 </View>
                                 <Text style={s.commentText}>{c.comment}</Text>
+                                <View style={s.commentActions}>
+                                  <Pressable onPress={() => handleToggleCommentLike(c.id)} style={s.commentActionBtn}>
+                                    {lk.liked
+                                      ? <HeartFilledOutlineIcon size={12} color="#D798DA" />
+                                      : <HeartOutlineIcon size={12} color="#A09580" />}
+                                    {lk.count > 0 && <Text style={[s.commentActionText, lk.liked && { color: "#D798DA" }]}>{lk.count}</Text>}
+                                  </Pressable>
+                                  {user && !isReply && (
+                                    <Pressable onPress={() => { setReplyTo({ id: c.id, username: c.user?.display_name || c.user?.username || "user" }); }} style={s.commentActionBtn}>
+                                      <MessageCircle size={12} color="#A09580" />
+                                      <Text style={s.commentActionText}>Reply</Text>
+                                    </Pressable>
+                                  )}
+                                </View>
                               </View>
                             </View>
+                            {childReplies.map((r, ri) => renderComment(r, ri, true))}
                           </Animated.View>
                         );
-                      })
+                      };
+                      return topLevel.map((c, idx) => renderComment(c, idx));
+                    })()}
+
+                    {/* Reply indicator */}
+                    {replyTo && (
+                      <View style={s.replyIndicator}>
+                        <Text style={s.replyIndicatorText}>Replying to {replyTo.username}</Text>
+                        <Pressable onPress={() => setReplyTo(null)} hitSlop={8}>
+                          <X size={14} color="#A09580" />
+                        </Pressable>
+                      </View>
                     )}
 
                     {/* Comment input */}
@@ -291,7 +349,7 @@ export default function PostModal({
                         <TextInput
                           value={commentText}
                           onChangeText={setCommentText}
-                          placeholder="Write a comment..."
+                          placeholder={replyTo ? `Reply to ${replyTo.username}...` : "Write a comment..."}
                           placeholderTextColor="#A09580"
                           style={s.commentInputField}
                           onSubmitEditing={handleSubmitComment}
@@ -356,6 +414,11 @@ const s = StyleSheet.create({
   commentName: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: "#351101" },
   commentTime: { fontFamily: fonts.bodyRegular, fontSize: 10, color: "#A09580" },
   commentText: { fontFamily: fonts.bodyRegular, fontSize: 13, color: "#351101", lineHeight: 18 },
+  commentActions: { flexDirection: "row", gap: 14, marginTop: 4 } as any,
+  commentActionBtn: { flexDirection: "row", alignItems: "center", gap: 4 } as any,
+  commentActionText: { fontFamily: fonts.bodyRegular, fontSize: 11, color: "#A09580" },
+  replyIndicator: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#F5F0E8", borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6, marginTop: 8 } as any,
+  replyIndicatorText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: "#684F44" },
   commentInput: {
     flexDirection: "row",
     alignItems: "center",

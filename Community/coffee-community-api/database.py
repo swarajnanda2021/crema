@@ -258,6 +258,8 @@ _MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS idx_follows_user_slug ON follows(follower_user_id, roaster_slug)",
     "CREATE INDEX IF NOT EXISTS idx_users_roaster_slug ON users(roaster_slug)",
     "CREATE INDEX IF NOT EXISTS idx_post_comments_user ON post_comments(user_id)",
+    # Comment replies
+    "ALTER TABLE post_comments ADD COLUMN parent_id INTEGER",
 ]
 
 

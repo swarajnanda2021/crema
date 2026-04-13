@@ -506,7 +506,7 @@ function RoasterPostCard({
 
       {/* ── Repost: nested original post card ── */}
       {post.post_type === "repost" && post.original_post && (
-        <View style={pc.repostCard}>
+        <Pressable onPress={() => openPostModal({ postId: post.original_post.id, mode: "comment" })} style={pc.repostCard}>
           <View style={pc.repostCardHeader}>
             <Pressable
               onPress={() => {
@@ -536,7 +536,7 @@ function RoasterPostCard({
               />
             </View>
           )}
-        </View>
+        </Pressable>
       )}
 
       {/* ── Photo gallery / Editable image grid ── */}

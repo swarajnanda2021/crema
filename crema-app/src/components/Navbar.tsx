@@ -103,14 +103,15 @@ export default function Navbar() {
                   style={s.iconBtn}
                 >
                   {user.avatar_url ? (
-                    <CroppedAvatar
-                      url={user.avatar_url}
-                      cropX={user.avatar_crop_x}
-                      cropY={user.avatar_crop_y}
-                      zoom={user.avatar_zoom}
-                      size={28}
-                      style={{ borderWidth: 1.5, borderColor: "#E7D5B8" }}
-                    />
+                    <View style={{ borderWidth: 1.5, borderColor: "#E7D5B8", borderRadius: 16, overflow: "hidden" }}>
+                      <CroppedAvatar
+                        url={user.avatar_url}
+                        cropX={user.avatar_crop_x}
+                        cropY={user.avatar_crop_y}
+                        zoom={user.avatar_zoom}
+                        size={28}
+                      />
+                    </View>
                   ) : (
                     <User size={24} color="#E7D5B8" strokeWidth={1.5} />
                   )}
