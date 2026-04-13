@@ -250,6 +250,14 @@ _MIGRATIONS = [
         created_at TEXT NOT NULL
     )""",
     "CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read)",
+    # Performance indexes added during codebase audit
+    "CREATE INDEX IF NOT EXISTS idx_posts_slug_pub ON roaster_posts(roaster_slug, published_at)",
+    "CREATE INDEX IF NOT EXISTS idx_posts_slug_feat ON roaster_posts(roaster_slug, is_featured)",
+    "CREATE INDEX IF NOT EXISTS idx_posts_published ON roaster_posts(published_at)",
+    "CREATE INDEX IF NOT EXISTS idx_posts_user ON roaster_posts(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_follows_user_slug ON follows(follower_user_id, roaster_slug)",
+    "CREATE INDEX IF NOT EXISTS idx_users_roaster_slug ON users(roaster_slug)",
+    "CREATE INDEX IF NOT EXISTS idx_post_comments_user ON post_comments(user_id)",
 ]
 
 
