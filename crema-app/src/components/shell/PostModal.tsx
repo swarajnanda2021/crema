@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { X } from "lucide-react-native";
 
-import { apiFetch, apiFetchRaw } from "../../api/client";
+import { apiFetchRaw } from "../../api/client";
 import ComposePost from "../ComposePost";
 import { t } from "../../tokens/useTokens";
 import { CroppedAvatar, timeAgo } from "../primitives";

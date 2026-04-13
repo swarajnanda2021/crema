@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { apiFetch, apiFetchRaw, setToken } from "../api/client";
+import { apiFetchRaw, setToken } from "../api/client";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 

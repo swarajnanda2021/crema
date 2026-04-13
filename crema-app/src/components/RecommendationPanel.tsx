@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import { Sparkles, ShoppingCart, Plus, Coffee, MapPin, Mountain, Settings, Share2 } from "lucide-react-native";
-import { colors } from "../tokens/useTokens";
+import { t } from "../tokens/useTokens";
 import { pricePer250g } from "../utils/formatPrice";
 import { trackClick } from "../api/client";
 import { useShelves } from "../hooks/useShelves";
@@ -24,7 +24,7 @@ export default function RecommendationPanel({ recommendations, onAddToShelf, cou
   return (
     <View style={s.container}>
       <View style={s.headerRow}>
-        <Sparkles size={12} color={colors.textSecondary} />
+        <Sparkles size={12} color={t.color["text.secondary"]} />
         <Text style={s.heading}>You might like</Text>
       </View>
 
@@ -76,7 +76,7 @@ function MiniCard({ coffee, onAddToShelf }: { coffee: any; onAddToShelf?: (id: s
             {coffee.image_url ? (
               <Image source={{ uri: coffee.image_url }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
             ) : (
-              <View style={mc.imagePlaceholder}><Coffee size={20} color={colors.border} /></View>
+              <View style={mc.imagePlaceholder}><Coffee size={20} color={t.color.border} /></View>
             )}
           </View>
           {/* Right: details */}
@@ -104,11 +104,11 @@ function MiniCard({ coffee, onAddToShelf }: { coffee: any; onAddToShelf?: (id: s
                   onPress={(e) => { e.stopPropagation?.(); onAddToShelf?.(coffee.product_id, "want_to_try"); }}
                   style={mc.actionBtn}
                 >
-                  <Plus size={10} color={colors.accent} />
+                  <Plus size={10} color={t.color["accent.cta"]} />
                 </Pressable>
                 <Pressable
                   onPress={(e) => { e.stopPropagation?.(); trackClick(coffee.product_id, coffee.roaster_slug, "recommendation"); Linking.openURL(coffee.product_url); }}
-                  style={[mc.actionBtn, { backgroundColor: colors.accent }]}
+                  style={[mc.actionBtn, { backgroundColor: t.color["accent.cta"] }]}
                 >
                   <ShoppingCart size={10} color="white" />
                 </Pressable>
@@ -124,10 +124,10 @@ function MiniCard({ coffee, onAddToShelf }: { coffee: any; onAddToShelf?: (id: s
         <View style={mc.mapOverlay} />
         <View style={mc.backContent}>
           <View style={{ gap: 8, flex: 1 }}>
-            {coffee.tasting_notes && <MiniMeta icon={<Coffee size={10} color={colors.textOnDark} />} label="Tasting Notes" value={coffee.tasting_notes} />}
-            {coffee.origin && <MiniMeta icon={<MapPin size={10} color={colors.textOnDark} />} label="Origin" value={coffee.origin} />}
-            {coffee.altitude_masl && <MiniMeta icon={<Mountain size={10} color={colors.textOnDark} />} label="Altitude" value={`${coffee.altitude_masl.toLocaleString()} m.a.s.l.`} />}
-            {coffee.process && <MiniMeta icon={<Settings size={10} color={colors.textOnDark} />} label="Process" value={coffee.process} />}
+            {coffee.tasting_notes && <MiniMeta icon={<Coffee size={10} color={t.color["text.on-dark"]} />} label="Tasting Notes" value={coffee.tasting_notes} />}
+            {coffee.origin && <MiniMeta icon={<MapPin size={10} color={t.color["text.on-dark"]} />} label="Origin" value={coffee.origin} />}
+            {coffee.altitude_masl && <MiniMeta icon={<Mountain size={10} color={t.color["text.on-dark"]} />} label="Altitude" value={`${coffee.altitude_masl.toLocaleString()} m.a.s.l.`} />}
+            {coffee.process && <MiniMeta icon={<Settings size={10} color={t.color["text.on-dark"]} />} label="Process" value={coffee.process} />}
           </View>
           <Text style={mc.flipHint}>Tap to flip</Text>
         </View>
@@ -138,8 +138,8 @@ function MiniCard({ coffee, onAddToShelf }: { coffee: any; onAddToShelf?: (id: s
 
 function MiniChip({ children }: { children: string }) {
   return (
-    <View style={{ paddingHorizontal: 4, paddingVertical: 1, borderRadius: 9999, backgroundColor: colors.tagBg }}>
-      <Text style={{ fontSize: 8, color: colors.tagText }}>{children}</Text>
+    <View style={{ paddingHorizontal: 4, paddingVertical: 1, borderRadius: 9999, backgroundColor: t.color["tag.bg"] }}>
+      <Text style={{ fontSize: 8, color: t.color["tag.text"] }}>{children}</Text>
     </View>
   );
 }
@@ -149,8 +149,8 @@ function MiniMeta({ icon, label, value }: { icon: any; label: string; value: str
     <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
       <View style={{ marginTop: 2, opacity: 0.6 }}>{icon}</View>
       <View>
-        <Text style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: 0.5, opacity: 0.5, fontWeight: "600", color: colors.textOnDark }}>{label}</Text>
-        <Text style={{ fontSize: 10, lineHeight: 14, color: colors.textOnDark }}>{value}</Text>
+        <Text style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: 0.5, opacity: 0.5, fontWeight: "600", color: t.color["text.on-dark"] }}>{label}</Text>
+        <Text style={{ fontSize: 10, lineHeight: 14, color: t.color["text.on-dark"] }}>{value}</Text>
       </View>
     </View>
   );
@@ -159,13 +159,13 @@ function MiniMeta({ icon, label, value }: { icon: any; label: string; value: str
 const s = StyleSheet.create({
   container: { flex: 1 },
   headerRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-  heading: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1, color: colors.textSecondary },
+  heading: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1, color: t.color["text.secondary"] },
   adPlaceholder: {
     borderRadius: 8, padding: 16, marginTop: 12,
     alignItems: "center",
-    borderWidth: 2, borderStyle: "dashed" as any, borderColor: colors.border,
+    borderWidth: 2, borderStyle: "dashed" as any, borderColor: t.color.border,
   },
-  adText: { fontSize: 10, color: colors.textSecondary },
+  adText: { fontSize: 10, color: t.color["text.secondary"] },
 });
 
 const mc = StyleSheet.create({
@@ -188,20 +188,20 @@ const mc = StyleSheet.create({
     overflow: "hidden",
   },
   backFace: { backgroundColor: "#1A0F0A" },
-  frontRow: { flexDirection: "row", flex: 1, backgroundColor: colors.cardFront },
+  frontRow: { flexDirection: "row", flex: 1, backgroundColor: t.color["card.front"] },
   imageCol: { width: 100, overflow: "hidden" },
-  imagePlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.tagBg },
+  imagePlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: t.color["tag.bg"] },
   detailCol: { flex: 1, padding: 10, justifyContent: "space-between" },
-  novelBadge: { backgroundColor: colors.accent, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 9999, alignSelf: "flex-start", marginBottom: 4 },
+  novelBadge: { backgroundColor: t.color["accent.cta"], paddingHorizontal: 4, paddingVertical: 1, borderRadius: 9999, alignSelf: "flex-start", marginBottom: 4 },
   novelText: { fontSize: 8, fontWeight: "600", color: "white" },
-  coffeeName: { fontSize: 11, fontWeight: "600", lineHeight: 14, color: colors.textPrimary },
-  roasterName: { fontSize: 10, marginTop: 2, color: colors.textSecondary },
+  coffeeName: { fontSize: 11, fontWeight: "600", lineHeight: 14, color: t.color["text.primary"] },
+  roasterName: { fontSize: 10, marginTop: 2, color: t.color["text.secondary"] },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 2, marginTop: 4 },
   priceRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
-  price: { fontSize: 12, fontWeight: "700", color: colors.textPrimary },
-  priceUnit: { fontSize: 8, fontWeight: "400", color: colors.textSecondary },
+  price: { fontSize: 12, fontWeight: "700", color: t.color["text.primary"] },
+  priceUnit: { fontSize: 8, fontWeight: "400", color: t.color["text.secondary"] },
   actionRow: { flexDirection: "row", gap: 4 },
-  actionBtn: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.tagBg },
+  actionBtn: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: t.color["tag.bg"] },
   mapOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1, backgroundColor: "rgba(26,15,10,0.7)" },
   backContent: { flex: 1, padding: 10, justifyContent: "space-between", zIndex: 10 },
   flipHint: { textAlign: "center", fontSize: 8, color: "rgba(255,255,255,0.3)", marginTop: 4 },

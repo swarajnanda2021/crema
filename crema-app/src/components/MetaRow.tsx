@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from "react-native";
 import { ReactNode } from "react";
-import { colors, fonts } from "../tokens/useTokens";
+import { t } from "../tokens/useTokens";
 
 interface MetaRowProps {
   icon: ReactNode;
@@ -26,18 +26,18 @@ const s = StyleSheet.create({
   iconWrap: { marginTop: 2, opacity: 0.6 },
   content: { flex: 1 },
   label: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: t.font["body.semibold"],
     fontSize: 9,
     textTransform: "uppercase",
     letterSpacing: 1.2,
     opacity: 0.5,
-    color: colors.textOnDark,
+    color: t.color["text.on-dark"],
   },
   value: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 13,
     lineHeight: 17,
-    color: colors.textOnDark,
+    color: t.color["text.on-dark"],
     marginTop: 1,
   },
   valueMuted: { opacity: 0.35, fontStyle: "italic" },

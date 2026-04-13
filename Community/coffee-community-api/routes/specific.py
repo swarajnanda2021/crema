@@ -130,6 +130,63 @@ def user_posts(username: str, limit: int = 20, offset: int = 0, authorization: s
         db.close()
 
 
+@router.get("/users/{username}/likes")
+def user_likes(username: str, limit: int = 20, offset: int = 0):
+    db = get_db()
+    try:
+        user_row = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        if not user_row:
+            from fastapi import HTTPException
+            raise HTTPException(404, "User not found")
+        total = db.execute(
+            "SELECT COUNT(*) as c FROM post_likes WHERE user_id = ?",
+            (user_row["id"],)
+        ).fetchone()["c"]
+        rows = db.execute(
+            "SELECT p.*, u.username as author_username, u.display_name as author_display_name, "
+            "u.avatar_url as author_avatar_url, "
+            "(SELECT COUNT(*) FROM post_likes pl2 WHERE pl2.post_id = p.id) as like_count, "
+            "(SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = p.id) as comment_count "
+            "FROM post_likes pl "
+            "JOIN roaster_posts p ON pl.post_id = p.id "
+            "JOIN users u ON p.user_id = u.id "
+            "WHERE pl.user_id = ? "
+            "ORDER BY pl.created_at DESC LIMIT ? OFFSET ?",
+            (user_row["id"], limit, offset),
+        ).fetchall()
+        return ok({"posts": [dict(r) for r in rows], "total": total}, resource="posts")
+    finally:
+        db.close()
+
+
+@router.get("/users/{username}/comments")
+def user_comments(username: str, limit: int = 20, offset: int = 0):
+    db = get_db()
+    try:
+        user_row = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        if not user_row:
+            from fastapi import HTTPException
+            raise HTTPException(404, "User not found")
+        total = db.execute(
+            "SELECT COUNT(*) as c FROM post_comments WHERE user_id = ?",
+            (user_row["id"],)
+        ).fetchone()["c"]
+        rows = db.execute(
+            "SELECT pc.id, pc.comment, pc.created_at, pc.post_id, "
+            "p.teaser as post_teaser, "
+            "u.username, u.display_name, u.avatar_url "
+            "FROM post_comments pc "
+            "JOIN roaster_posts p ON pc.post_id = p.id "
+            "JOIN users u ON pc.user_id = u.id "
+            "WHERE pc.user_id = ? "
+            "ORDER BY pc.created_at DESC LIMIT ? OFFSET ?",
+            (user_row["id"], limit, offset),
+        ).fetchall()
+        return ok({"comments": [dict(r) for r in rows], "total": total}, resource="post_comments")
+    finally:
+        db.close()
+
+
 @router.get("/roasters/{slug}/posts")
 def roaster_posts(slug: str, limit: int = 20, offset: int = 0, authorization: str = Header(None)):
     current_user = get_optional_user(authorization)

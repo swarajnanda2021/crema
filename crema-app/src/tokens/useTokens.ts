@@ -59,41 +59,6 @@ export function sz(key: keyof typeof tokens.size): number {
   return tokens.size[key];
 }
 
-// ── Backward compatibility (drop-in for old colors.ts imports) ──────────────
-
-export const colors = {
-  bg: tokens.color.bg,
-  cardFront: tokens.color["card.front"],
-  cardBack: tokens.color["card.back"],
-  cardInfo: tokens.color["card.info"],
-  textPrimary: tokens.color["text.primary"],
-  textSecondary: tokens.color["text.secondary"],
-  textOnDark: tokens.color["text.on-dark"],
-  textMuted: tokens.color["text.muted"],
-  accent: tokens.color["accent.cta"],
-  accentHover: tokens.color["accent.cta.hover"],
-  like: tokens.color.accent,
-  purple: tokens.color.accent,
-  gold: tokens.color["accent.gold"],
-  navbarBg: tokens.color["navbar.bg"],
-  tagBg: tokens.color["tag.bg"],
-  tagText: tokens.color["tag.text"],
-  border: tokens.color.border,
-  borderLight: tokens.color["border.light"],
-  divider: tokens.color.divider,
-  unavailable: tokens.color.unavailable,
-  accentSoft: tokens.color["accent.soft"],
-  shadowColor: tokens.color.shadow,
-};
-
-export const fonts = {
-  displayRegular: tokens.font.display,
-  bodyRegular: tokens.font["body.regular"],
-  bodyMedium: tokens.font["body.medium"],
-  bodySemiBold: tokens.font["body.semibold"],
-  bodyBold: tokens.font["body.bold"],
-};
-
 export const NAVBAR_HEIGHT = tokens.size["navbar.height"];
 
 export const cardShadow = shadow("card");

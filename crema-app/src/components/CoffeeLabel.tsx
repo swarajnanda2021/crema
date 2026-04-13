@@ -4,7 +4,7 @@
  */
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { useRouter } from "expo-router";
-import { fonts } from "../tokens/useTokens";
+import { t } from "../tokens/useTokens";
 
 const canelaNumeral = Platform.OS === "web"
   ? { fontFeatureSettings: "'lnum', 'pnum'" } as any
@@ -133,7 +133,7 @@ const s = StyleSheet.create({
 
   // Canela Text Regular, 22.722px, #351101
   coffeeName: {
-    fontFamily: fonts.displayRegular,
+    fontFamily: t.font.display,
     fontSize: 22.7,
     color: "#351101",
     lineHeight: 27,
@@ -148,7 +148,7 @@ const s = StyleSheet.create({
     overflow: "hidden",
   },
   roasterLabel: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 10.9,
     color: "#684F44",
   },
@@ -167,14 +167,14 @@ const s = StyleSheet.create({
 
   // Bean type — Inter Regular 10.165px, #684F44
   beanTypeText: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 10.2,
     color: "#684F44",
   },
 
   // Inter Regular, 10.165px, #684F44
   detailText: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 10.2,
     color: "#684F44",
     ...canelaNumeral,
@@ -182,7 +182,7 @@ const s = StyleSheet.create({
 
   // Inter Regular, 10.165px, #684F44
   tastingText: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 10.2,
     color: "#684F44",
     lineHeight: 14.5,
@@ -196,7 +196,7 @@ const s = StyleSheet.create({
 
   // Canela Text Regular, 18.152px, #351101
   priceText: {
-    fontFamily: fonts.displayRegular,
+    fontFamily: t.font.display,
     fontSize: 18.2,
     color: "#351101",
     ...canelaNumeral,
@@ -204,7 +204,7 @@ const s = StyleSheet.create({
 
   // Inter Regular, 10.165px, #351101
   weightText: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 10.2,
     color: "#351101",
     ...canelaNumeral,

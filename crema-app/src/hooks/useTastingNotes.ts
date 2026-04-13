@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { apiFetch } from "../api/client";
+import { apiFetchRaw } from "../api/client";
 
 export function useTastingNotes() {
   const [notes, setNotes] = useState<any[]>([]);
@@ -8,7 +8,8 @@ export function useTastingNotes() {
   const fetchNotes = useCallback(async (productId: string) => {
     setLoading(true);
     try {
-      const data = await apiFetch(`/tasting-notes?product_id=${productId}`);
+      const res = await apiFetchRaw<any>(`/tasting-notes?product_id=${productId}`);
+      const data = res?.data ?? res;
       setNotes(data.notes || []);
     } catch {
       setNotes([]);
@@ -20,7 +21,8 @@ export function useTastingNotes() {
   const fetchMyNotes = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch("/tasting-notes/mine");
+      const res = await apiFetchRaw<any>("/tasting-notes/mine");
+      const data = res?.data ?? res;
       setNotes(data);
     } catch {
       setNotes([]);
@@ -30,15 +32,17 @@ export function useTastingNotes() {
   }, []);
 
   const createNote = useCallback(async (note: any) => {
-    return apiFetch("/tasting-notes", { method: "POST", body: JSON.stringify(note) });
+    const res = await apiFetchRaw<any>("/tasting-notes", { method: "POST", body: JSON.stringify(note) });
+    return res?.data ?? res;
   }, []);
 
   const updateNote = useCallback(async (noteId: number, updates: any) => {
-    return apiFetch(`/tasting-notes/${noteId}`, { method: "PUT", body: JSON.stringify(updates) });
+    const res = await apiFetchRaw<any>(`/tasting-notes/${noteId}`, { method: "PUT", body: JSON.stringify(updates) });
+    return res?.data ?? res;
   }, []);
 
   const deleteNote = useCallback(async (noteId: number) => {
-    await apiFetch(`/tasting-notes/${noteId}`, { method: "DELETE" });
+    await apiFetchRaw(`/tasting-notes/${noteId}`, { method: "DELETE" });
   }, []);
 
   return { notes, loading, fetchNotes, fetchMyNotes, createNote, updateNote, deleteNote };

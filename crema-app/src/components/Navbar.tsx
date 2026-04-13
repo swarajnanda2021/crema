@@ -11,7 +11,7 @@ import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useState } from "react";
 import { User, Search, X, Bell } from "lucide-react-native";
-import { colors, fonts, NAVBAR_HEIGHT } from "../tokens/useTokens";
+import { t, NAVBAR_HEIGHT } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
 import { CroppedAvatar } from "./primitives";
@@ -162,7 +162,7 @@ const s = StyleSheet.create({
   navLink: {},
   // Figma: Inter Semi Bold 14px, uppercase
   navLinkText: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: t.font["body.semibold"],
     fontSize: 14,
     color: "#E7D5B8",
     textTransform: "uppercase",
@@ -203,7 +203,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 3,
   } as any,
-  badgeText: { fontFamily: fonts.bodySemiBold, fontSize: 9, color: "#351101" },
+  badgeText: { fontFamily: t.font["body.semibold"], fontSize: 9, color: "#351101" },
 
   searchContainer: {
     flexDirection: "row",
@@ -217,7 +217,7 @@ const s = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 14,
     color: "#E7D5B8",
   },

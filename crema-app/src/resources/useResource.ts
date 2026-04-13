@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { apiFetch, apiFetchRaw } from "../api/client";
+import { apiFetchRaw } from "../api/client";
 import type { Envelope, ToggleResult } from "./types";
 
 interface UseResourceOptions {
@@ -99,12 +99,13 @@ export function useResource<T = any>(resource: string, options: UseResourceOptio
       } else {
         url = `/${resource}`;
       }
-      const envelope: Envelope<T> = await apiFetch(url, {
+      const res: any = await apiFetchRaw(url, {
         method: "POST",
         body: JSON.stringify(body),
       });
+      const created = res?.data ?? res;
       refetch();
-      return envelope.data;
+      return created;
     } catch (e: any) {
       setError(e.message);
       return null;
@@ -113,12 +114,13 @@ export function useResource<T = any>(resource: string, options: UseResourceOptio
 
   const update = useCallback(async (id: string | number, body: Partial<T>): Promise<T | null> => {
     try {
-      const envelope: Envelope<T> = await apiFetch(`/${resource}/${id}`, {
+      const res: any = await apiFetchRaw(`/${resource}/${id}`, {
         method: "PUT",
         body: JSON.stringify(body),
       });
+      const updated = res?.data ?? res;
       refetch();
-      return envelope.data;
+      return updated;
     } catch (e: any) {
       setError(e.message);
       return null;
@@ -127,7 +129,7 @@ export function useResource<T = any>(resource: string, options: UseResourceOptio
 
   const remove = useCallback(async (id: string | number): Promise<boolean> => {
     try {
-      await apiFetch(`/${resource}/${id}`, { method: "DELETE" });
+      await apiFetchRaw(`/${resource}/${id}`, { method: "DELETE" });
       refetch();
       return true;
     } catch (e: any) {
@@ -151,8 +153,9 @@ export function useResourceById<T = any>(resource: string, id: string | number |
     if (!id) return;
     setLoading(true);
     try {
-      const envelope: Envelope<T> = await apiFetch(`/${resource}/${id}`);
-      setData(envelope.data);
+      const res: any = await apiFetchRaw(`/${resource}/${id}`);
+      const item = res?.data ?? res;
+      setData(item);
     } catch {
       setData(null);
     } finally {

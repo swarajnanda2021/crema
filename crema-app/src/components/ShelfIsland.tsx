@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import { Coffee, ExternalLink, ArrowRight, Trash2, PenLine } from "lucide-react-native";
-import { colors, fonts } from "../tokens/useTokens";
+import { t } from "../tokens/useTokens";
 import { pricePer250g } from "../utils/formatPrice";
 import { useTastingNotes } from "../hooks/useTastingNotes";
 import { trackClick } from "../api/client";
@@ -58,7 +58,7 @@ export default function ShelfIsland({ entry, coffee, isOwner, currentShelf, onRe
               <Image source={{ uri: coffee.image_url }} style={s.coffeeImage} contentFit="cover" />
             ) : (
               <View style={[s.coffeeImage, { backgroundColor: "#e8e0d0", alignItems: "center", justifyContent: "center" }]}>
-                <Coffee size={32} color={colors.divider} />
+                <Coffee size={32} color={t.color.divider} />
               </View>
             )}
           </View>
@@ -82,7 +82,7 @@ export default function ShelfIsland({ entry, coffee, isOwner, currentShelf, onRe
               <View style={s.actions}>
                 {onMove && (
                   <Pressable onPress={() => onMove(coffee.product_id, nextShelf)} style={s.actionBtn}>
-                    <ArrowRight size={10} color={colors.textSecondary} />
+                    <ArrowRight size={10} color={t.color["text.secondary"]} />
                     <Text style={s.actionText}>Move to {SHELF_META[nextShelf]?.label}</Text>
                   </Pressable>
                 )}
@@ -90,7 +90,7 @@ export default function ShelfIsland({ entry, coffee, isOwner, currentShelf, onRe
                   onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "shelf"); Linking.openURL(coffee.product_url); }}
                   style={s.actionBtn}
                 >
-                  <ExternalLink size={10} color={colors.textSecondary} />
+                  <ExternalLink size={10} color={t.color["text.secondary"]} />
                   <Text style={s.actionText}>Buy from roaster</Text>
                 </Pressable>
                 {onRemove && (
@@ -136,7 +136,7 @@ export default function ShelfIsland({ entry, coffee, isOwner, currentShelf, onRe
               />
             ) : (
               <Pressable onPress={() => setShowForm(true)} style={s.addNoteBtn}>
-                <PenLine size={12} color={colors.textPrimary} />
+                <PenLine size={12} color={t.color["text.primary"]} />
                 <Text style={s.addNoteText}>
                   {notes.length > 0 ? "Add another entry" : "Write a tasting note"}
                 </Text>
@@ -157,8 +157,8 @@ const s = StyleSheet.create({
     borderBottomRightRadius: 5,
     overflow: "hidden",
     marginBottom: 16,
-    backgroundColor: colors.cardInfo,
-    shadowColor: colors.shadowColor,
+    backgroundColor: t.color["card.info"],
+    shadowColor: t.color.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
     shadowRadius: 16,
@@ -169,7 +169,7 @@ const s = StyleSheet.create({
     width: 220,
     padding: 16,
     borderRightWidth: 1,
-    borderColor: colors.divider,
+    borderColor: t.color.divider,
   },
   imageWrap: {
     borderRadius: 4,
@@ -181,36 +181,36 @@ const s = StyleSheet.create({
     aspectRatio: 1,
   },
   coffeeName: {
-    fontFamily: fonts.displayRegular,
+    fontFamily: t.font.display,
     fontSize: 16,
-    color: colors.textPrimary,
+    color: t.color["text.primary"],
     lineHeight: 21,
   },
   roasterName: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 11,
     marginTop: 2,
-    color: colors.textSecondary,
+    color: t.color["text.secondary"],
   },
-  divider: { height: 1, backgroundColor: colors.divider, marginVertical: 10 },
+  divider: { height: 1, backgroundColor: t.color.divider, marginVertical: 10 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   actions: { gap: 6 },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
-  actionText: { fontFamily: fonts.bodyRegular, fontSize: 12, color: colors.textSecondary },
+  actionText: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.secondary"] },
 
   rightCol: { flex: 1, minWidth: 0, padding: 16 },
   journalHeader: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: t.font["body.semibold"],
     fontSize: 14,
     marginBottom: 12,
-    color: colors.textPrimary,
+    color: t.color["text.primary"],
   },
-  journalCount: { fontFamily: fonts.bodyRegular, color: colors.textMuted },
+  journalCount: { fontFamily: t.font["body.regular"], color: t.color["text.muted"] },
   emptyText: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 14,
     paddingVertical: 24,
-    color: colors.textMuted,
+    color: t.color["text.muted"],
     textAlign: "center",
   },
   addNoteBtn: {
@@ -223,8 +223,8 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.6)",
   },
   addNoteText: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: t.font["body.medium"],
     fontSize: 13,
-    color: colors.textPrimary,
+    color: t.color["text.primary"],
   },
 });

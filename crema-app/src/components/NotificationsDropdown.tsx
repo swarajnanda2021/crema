@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, Platform, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
-import { fonts, cardShadow } from "../tokens/useTokens";
+import { t, cardShadow } from "../tokens/useTokens";
 import { CroppedAvatar, openPostModal } from "./primitives";
 import { timeAgo } from "./primitives";
 import { useNotifications, Notification } from "../hooks/useNotifications";
@@ -175,11 +175,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  headerTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: "#351101" },
-  markRead: { fontFamily: fonts.bodyMedium, fontSize: 12, color: "#D798DA" },
+  headerTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: "#351101" },
+  markRead: { fontFamily: t.font["body.medium"], fontSize: 12, color: "#D798DA" },
   divider: { height: 1, backgroundColor: "#EDE8E1", marginHorizontal: 12 },
   list: { maxHeight: 400 },
-  empty: { fontFamily: fonts.bodyRegular, fontSize: 13, color: "#A09580", textAlign: "center", paddingVertical: 32 },
+  empty: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#A09580", textAlign: "center", paddingVertical: 32 },
   item: {
     flexDirection: "row",
     alignItems: "center",
@@ -190,14 +190,14 @@ const s = StyleSheet.create({
   itemUnread: { backgroundColor: "rgba(215,152,218,0.06)" },
   itemHover: { backgroundColor: "rgba(215,152,218,0.12)" },
   itemContent: { flex: 1 },
-  itemText: { fontFamily: fonts.bodyRegular, fontSize: 13, color: "#351101", lineHeight: 18 },
-  actorName: { fontFamily: fonts.bodySemiBold },
-  itemTime: { fontFamily: fonts.bodyRegular, fontSize: 11, color: "#A09580", marginTop: 2 },
+  itemText: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#351101", lineHeight: 18 },
+  actorName: { fontFamily: t.font["body.semibold"] },
+  itemTime: { fontFamily: t.font["body.regular"], fontSize: 11, color: "#A09580", marginTop: 2 },
   itemDivider: { height: 1, backgroundColor: "rgba(237,232,225,0.5)", marginHorizontal: 16 },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D798DA" },
   avatarFallback: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: "#351101", alignItems: "center", justifyContent: "center",
   } as any,
-  avatarInitial: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: "#FAF8F0" },
+  avatarInitial: { fontFamily: t.font["body.semibold"], fontSize: 14, color: "#FAF8F0" },
 });

@@ -2,8 +2,7 @@ import { useState, useMemo } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { Search, Plus, X } from "lucide-react-native";
 import { Image } from "expo-image";
-import { colors, fonts } from "../tokens/useTokens";
-import { SHELF_LABELS, ShelfKey } from "../tokens/useTokens";
+import { t, SHELF_LABELS, ShelfKey } from "../tokens/useTokens";
 
 const SHELF_KEYS: ShelfKey[] = ["currently_drinking", "drank", "want_to_try"];
 
@@ -36,17 +35,17 @@ export default function CoffeeSearch({ products, onAddToShelf }: Props) {
   return (
     <View style={s.container}>
       <View style={s.searchBar}>
-        <Search size={14} color={colors.textMuted} />
+        <Search size={14} color={t.color["text.muted"]} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Search coffees to add..."
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor={t.color["text.muted"]}
           style={s.input}
         />
         {query ? (
           <Pressable onPress={() => { setQuery(""); setShelfPicker(null); }}>
-            <X size={14} color={colors.textSecondary} />
+            <X size={14} color={t.color["text.secondary"]} />
           </Pressable>
         ) : null}
       </View>
@@ -58,7 +57,7 @@ export default function CoffeeSearch({ products, onAddToShelf }: Props) {
               {p.image_url ? (
                 <Image source={{ uri: p.image_url }} style={s.thumb} contentFit="cover" />
               ) : (
-                <View style={[s.thumb, { backgroundColor: colors.tagBg }]} />
+                <View style={[s.thumb, { backgroundColor: t.color["tag.bg"] }]} />
               )}
               <View style={s.resultInfo}>
                 <Text style={s.resultName} numberOfLines={1}>{p.coffee_name}</Text>
@@ -76,7 +75,7 @@ export default function CoffeeSearch({ products, onAddToShelf }: Props) {
                 </View>
               ) : (
                 <Pressable onPress={() => setShelfPicker(p.product_id)} style={s.addBtn}>
-                  <Plus size={14} color={colors.textPrimary} />
+                  <Plus size={14} color={t.color["text.primary"]} />
                 </Pressable>
               )}
             </View>
@@ -93,20 +92,20 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: colors.cardFront,
+    backgroundColor: t.color["card.front"],
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: t.color["border.light"],
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  input: { flex: 1, fontFamily: fonts.bodyRegular, fontSize: 13, color: colors.textPrimary },
+  input: { flex: 1, fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.primary"] },
   results: {
     marginTop: 4,
-    backgroundColor: colors.cardFront,
+    backgroundColor: t.color["card.front"],
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: t.color["border.light"],
     overflow: "hidden",
   },
   resultRow: {
@@ -116,17 +115,17 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: t.color["border.light"],
   },
   thumb: { width: 36, height: 36, borderRadius: 4 },
   resultInfo: { flex: 1, minWidth: 0 },
-  resultName: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.textPrimary },
-  resultRoaster: { fontFamily: fonts.bodyRegular, fontSize: 11, color: colors.textMuted },
+  resultName: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.primary"] },
+  resultRoaster: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"] },
   addBtn: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.tagBg,
+    backgroundColor: t.color["tag.bg"],
     alignItems: "center",
     justifyContent: "center",
   },
@@ -138,8 +137,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: colors.tagBg,
+    backgroundColor: t.color["tag.bg"],
   },
   shelfDot: { width: 6, height: 6, borderRadius: 3 },
-  shelfLabel: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.textPrimary },
+  shelfLabel: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.primary"] },
 });

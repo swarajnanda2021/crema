@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { apiFetch } from "../api/client";
+import { apiFetchRaw } from "../api/client";
 
 import fallbackRoasters from "../data/roasters.json";
 
@@ -10,9 +10,10 @@ export function useRoasterProfiles() {
   useEffect(() => {
     (async () => {
       try {
-        const raw = await apiFetch<any>("/roasters");
-        const data = Array.isArray(raw) ? raw : raw?.data ?? [];
-        setProfiles(Array.isArray(data) ? data : []);
+        const raw = await apiFetchRaw<any>("/roasters");
+        const envelope = raw?.data ?? raw;
+        const data = Array.isArray(envelope) ? envelope : [];
+        setProfiles(data);
       } catch {
         setProfiles(Array.isArray(fallbackRoasters) ? fallbackRoasters : []);
       } finally {
@@ -61,9 +62,10 @@ export function useRoasterProfiles() {
 
   const refreshProfiles = useCallback(async () => {
     try {
-      const raw = await apiFetch<any>("/roasters");
-      const data = Array.isArray(raw) ? raw : raw?.data ?? [];
-      setProfiles(Array.isArray(data) ? data : []);
+      const raw = await apiFetchRaw<any>("/roasters");
+      const envelope = raw?.data ?? raw;
+      const data = Array.isArray(envelope) ? envelope : [];
+      setProfiles(data);
     } catch {}
   }, []);
 

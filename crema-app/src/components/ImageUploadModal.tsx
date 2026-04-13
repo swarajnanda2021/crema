@@ -11,7 +11,7 @@ import { View, Text, TextInput, Pressable, Modal, StyleSheet, ActivityIndicator,
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { X, ImageIcon, Camera, Link2 } from "lucide-react-native";
-import { colors, fonts } from "../tokens/useTokens";
+import { t } from "../tokens/useTokens";
 import { apiUpload } from "../api/client";
 
 interface Props {
@@ -154,19 +154,19 @@ export default function ImageUploadModal({ visible, title, purpose = "general", 
           <View style={s.header}>
             <Text style={s.title}>{title}</Text>
             <Pressable onPress={onClose} style={s.closeBtn}>
-              <X size={18} color={colors.textPrimary} />
+              <X size={18} color={t.color["text.primary"]} />
             </Pressable>
           </View>
 
           {/* ── Preview ────────────────────────────────── */}
           <View style={s.previewWrap}>
             {uploading ? (
-              <ActivityIndicator size="large" color={colors.textMuted} />
+              <ActivityIndicator size="large" color={t.color["text.muted"]} />
             ) : previewUrl ? (
               <Image source={{ uri: previewUrl }} style={s.previewImg} contentFit="cover" transition={200} />
             ) : (
               <View style={s.previewEmpty}>
-                <ImageIcon size={32} color={colors.divider} strokeWidth={1.2} />
+                <ImageIcon size={32} color={t.color.divider} strokeWidth={1.2} />
                 <Text style={s.previewHint}>No image selected</Text>
               </View>
             )}
@@ -205,7 +205,7 @@ export default function ImageUploadModal({ visible, title, purpose = "general", 
                 value={urlInput}
                 onChangeText={setUrlInput}
                 placeholder="https://example.com/image.jpg"
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor={t.color["text.muted"]}
                 autoCapitalize="none"
                 autoCorrect={false}
                 onSubmitEditing={handleUseUrl}
@@ -276,7 +276,7 @@ const s = StyleSheet.create({
   card: {
     width: "100%",
     maxWidth: 440,
-    backgroundColor: colors.cardFront,
+    backgroundColor: t.color["card.front"],
     borderRadius: 16,
     overflow: "hidden",
     shadowColor: "#000",
@@ -296,9 +296,9 @@ const s = StyleSheet.create({
     paddingBottom: 16,
   },
   title: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: t.font["body.semibold"],
     fontSize: 18,
-    color: colors.textPrimary,
+    color: t.color["text.primary"],
   },
   closeBtn: { padding: 4 },
 
@@ -307,7 +307,7 @@ const s = StyleSheet.create({
     marginHorizontal: 24,
     height: 180,
     borderRadius: 12,
-    backgroundColor: colors.tagBg,
+    backgroundColor: t.color["tag.bg"],
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
@@ -321,9 +321,9 @@ const s = StyleSheet.create({
     gap: 8,
   },
   previewHint: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 13,
-    color: colors.textMuted,
+    color: t.color["text.muted"],
   },
 
   // Action buttons
@@ -339,24 +339,24 @@ const s = StyleSheet.create({
     paddingVertical: 13,
     paddingHorizontal: 16,
     borderRadius: 10,
-    backgroundColor: colors.bg,
+    backgroundColor: t.color.bg,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: t.color["border.light"],
   },
   actionBtnActive: {
-    borderColor: colors.textPrimary,
+    borderColor: t.color["text.primary"],
     backgroundColor: "#F5F0E6",
   },
   actionBtnPressed: {
     backgroundColor: "#EDE8DE",
   },
   actionLabel: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: t.font["body.medium"],
     fontSize: 14,
-    color: colors.textPrimary,
+    color: t.color["text.primary"],
   },
   actionLabelActive: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: t.font["body.semibold"],
   },
 
   // URL input row
@@ -369,13 +369,13 @@ const s = StyleSheet.create({
   },
   urlInput: {
     flex: 1,
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 13,
-    color: colors.textPrimary,
-    backgroundColor: colors.bg,
+    color: t.color["text.primary"],
+    backgroundColor: t.color.bg,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: t.color["border.light"],
     paddingHorizontal: 12,
     paddingVertical: 10,
   } as any,
@@ -383,12 +383,12 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: t.color["text.primary"],
   },
   urlGoText: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: t.font["body.semibold"],
     fontSize: 13,
-    color: colors.textOnDark,
+    color: t.color["text.on-dark"],
   },
 
   // Footer
@@ -405,22 +405,22 @@ const s = StyleSheet.create({
     paddingVertical: 10,
   },
   cancelText: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: t.font["body.medium"],
     fontSize: 14,
-    color: colors.textSecondary,
+    color: t.color["text.secondary"],
   },
   confirmBtn: {
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 10,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: t.color["text.primary"],
   },
   confirmBtnDisabled: {
-    backgroundColor: colors.textMuted,
+    backgroundColor: t.color["text.muted"],
   },
   confirmText: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: t.font["body.semibold"],
     fontSize: 14,
-    color: colors.textOnDark,
+    color: t.color["text.on-dark"],
   },
 });

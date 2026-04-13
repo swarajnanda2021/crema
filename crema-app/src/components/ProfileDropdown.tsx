@@ -9,7 +9,7 @@ import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Settings, PenLine, LogOut, UserPlus } from "lucide-react-native";
-import { colors, fonts, cardShadow } from "../tokens/useTokens";
+import { t, cardShadow } from "../tokens/useTokens";
 import { resolveUploadUrl } from "../api/client";
 import { useAuth, SavedAccount } from "../hooks/useAuth";
 import { CroppedAvatar } from "./primitives";
@@ -249,7 +249,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   avatarLargeInitials: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: t.font["body.semibold"],
     fontSize: 18,
     color: "#FAF8F0",
   },
@@ -258,12 +258,12 @@ const s = StyleSheet.create({
     minWidth: 0,
   },
   displayName: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: t.font["body.semibold"],
     fontSize: 15,
     color: "#351101",
   },
   username: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 13,
     color: "#A09580",
     marginTop: 1,
@@ -289,14 +289,14 @@ const s = StyleSheet.create({
     backgroundColor: "#FAF8F0",
   },
   menuItemText: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: t.font["body.medium"],
     fontSize: 14,
     color: "#351101",
   },
 
   // ── Section label
   sectionLabel: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: t.font["body.medium"],
     fontSize: 11,
     color: "#A09580",
     textTransform: "uppercase" as any,
@@ -315,12 +315,12 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
   },
   accountRowName: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: t.font["body.medium"],
     fontSize: 13,
     color: "#351101",
   },
   accountRowUser: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 11,
     color: "#A09580",
   },
@@ -338,7 +338,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   avatarSmallInitials: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: t.font["body.semibold"],
     fontSize: 13,
     color: "#FAF8F0",
   },

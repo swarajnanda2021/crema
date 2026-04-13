@@ -2,7 +2,7 @@ import { useState } from "react";
 import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAuth } from "../src/hooks/useAuth";
-import { colors, fonts } from "../src/tokens/useTokens";
+import { t } from "../src/tokens/useTokens";
 import CremaLogo from "../src/components/CremaLogo";
 
 export default function AuthPage() {
@@ -58,7 +58,7 @@ export default function AuthPage() {
 
           <TextInput
             placeholder="Username"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={t.color["text.muted"]}
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
@@ -69,7 +69,7 @@ export default function AuthPage() {
           {!isLogin && (
             <TextInput
               placeholder="Display Name"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={t.color["text.muted"]}
               value={displayName}
               onChangeText={setDisplayName}
               style={styles.input}
@@ -78,7 +78,7 @@ export default function AuthPage() {
 
           <TextInput
             placeholder="Password"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={t.color["text.muted"]}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -92,7 +92,7 @@ export default function AuthPage() {
           <Pressable
             onPress={handleSubmit}
             disabled={loading}
-            style={[styles.submitBtn, { backgroundColor: loading ? colors.textMuted : colors.textPrimary }]}
+            style={[styles.submitBtn, { backgroundColor: loading ? t.color["text.muted"] : t.color["text.primary"] }]}
           >
             <Text style={styles.submitText}>
               {loading ? "..." : isLogin ? "Sign In" : "Create Account"}
@@ -118,7 +118,7 @@ export default function AuthPage() {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: t.color.bg,
   },
   scrollContent: {
     flexGrow: 1,
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
   },
   logoSection: {
     alignItems: "center",
-    backgroundColor: colors.navbarBg,
+    backgroundColor: t.color["navbar.bg"],
     marginHorizontal: -24,
     marginTop: -24,
     paddingTop: 64,
@@ -137,53 +137,53 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 32,
   },
   logoSubtitle: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 14,
     marginTop: 12,
-    color: colors.textOnDark,
+    color: t.color["text.on-dark"],
     letterSpacing: 0.5,
     opacity: 0.7,
   },
   formCard: {
     borderRadius: 16,
     padding: 28,
-    backgroundColor: colors.cardFront,
-    shadowColor: colors.shadowColor,
+    backgroundColor: t.color["card.front"],
+    shadowColor: t.color.shadow,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
     shadowRadius: 24,
     elevation: 6,
   },
   formTitle: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: t.font["body.semibold"],
     fontSize: 22,
     marginBottom: 28,
     textAlign: "center",
-    color: colors.textPrimary,
+    color: t.color["text.primary"],
   },
   addAccountHint: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 13,
-    color: colors.textMuted,
+    color: t.color["text.muted"],
     textAlign: "center",
     marginTop: -20,
     marginBottom: 20,
     lineHeight: 18,
   },
   input: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 14,
     marginBottom: 12,
-    backgroundColor: colors.bg,
-    color: colors.textPrimary,
+    backgroundColor: t.color.bg,
+    color: t.color["text.primary"],
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: t.color["border.light"],
   },
   errorText: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 14,
     marginBottom: 12,
     textAlign: "center",
@@ -196,21 +196,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   submitText: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: t.font["body.semibold"],
     fontSize: 14,
     color: "white",
     letterSpacing: 0.3,
   },
   toggleText: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: t.font["body.medium"],
     fontSize: 14,
     textAlign: "center",
-    color: colors.textSecondary,
+    color: t.color["text.secondary"],
   },
   browseText: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 14,
     textAlign: "center",
-    color: colors.textMuted,
+    color: t.color["text.muted"],
   },
 });

@@ -290,7 +290,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!showFollowersModal || !user) return;
     (async () => {
-      const raw = await apiFetchRaw<{ following: string[] }>("/my-following");
+      const raw = await apiFetchRaw<any>("/my-following");
       const d = raw?.data ?? raw;
       setMyFollows(d.slugs || d.following || []);
     })().catch(() => {});
@@ -298,7 +298,7 @@ export default function ProfilePage() {
 
   const handleToggleFollowInModal = useCallback(async (slug: string) => {
     try {
-      const raw = await apiFetchRaw<{ following: boolean }>(`/roasters/${slug}/follow`, { method: "POST" });
+      const raw = await apiFetchRaw<any>(`/roasters/${slug}/follow`, { method: "POST" });
       const res = raw?.data ?? raw;
       setMyFollows((prev) => res.following ? [...prev, slug] : prev.filter((s) => s !== slug));
     } catch {}

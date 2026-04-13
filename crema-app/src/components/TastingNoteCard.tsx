@@ -9,7 +9,7 @@
 
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import * as Linking from "expo-linking";
-import { fonts } from "../tokens/useTokens";
+import { t } from "../tokens/useTokens";
 import { CartIcon } from "./icons/FigmaIcons";
 
 const BASE_W = 281;
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   } as any,
 
   sectionLabel: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: t.font["body.medium"],
     color: "#A09580",
   },
 
@@ -216,12 +216,12 @@ const styles = StyleSheet.create({
   } as any,
 
   label: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: t.font["body.medium"],
     color: "#351101",
   },
 
   score: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: t.font["body.medium"],
     color: "#351101",
     textAlign: "right",
   } as any,
@@ -244,12 +244,12 @@ const styles = StyleSheet.create({
   } as any,
 
   coffeeName: {
-    fontFamily: fonts.displayRegular,
+    fontFamily: t.font.display,
     color: "#351101",
   },
 
   roasterText: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     color: "#684F44",
   },
 
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   } as any,
 
   metaText: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     color: "#684F44",
     flex: 1,
     marginRight: 8,

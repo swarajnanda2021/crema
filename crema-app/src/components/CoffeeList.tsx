@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { View, Text, ScrollView, StyleSheet, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
-import { colors, fonts } from "../tokens/useTokens";
+import { t } from "../tokens/useTokens";
 import CoffeeCard from "./CoffeeCard";
 
 const PAGE_SIZE = 24;
@@ -89,6 +89,6 @@ const s = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap" },
   emptyContainer: { alignItems: "center", paddingVertical: 80, paddingHorizontal: 16 },
   emptyEmoji: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontFamily: fonts.bodySemiBold, fontSize: 20, marginBottom: 8, color: "#351101" },
-  emptySubtitle: { fontFamily: fonts.bodyRegular, fontSize: 14, color: "#684F44" },
+  emptyTitle: { fontFamily: t.font["body.semibold"], fontSize: 20, marginBottom: 8, color: "#351101" },
+  emptySubtitle: { fontFamily: t.font["body.regular"], fontSize: 14, color: "#684F44" },
 });

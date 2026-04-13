@@ -6,7 +6,7 @@
 import { useState, useRef } from "react";
 import { View, Text, Pressable, Modal, StyleSheet, Platform } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
-import { fonts } from "../tokens/useTokens";
+import { t } from "../tokens/useTokens";
 
 interface PostMenuProps {
   onEdit?: () => void;
@@ -119,6 +119,6 @@ const s = StyleSheet.create({
     paddingVertical: 12,
   },
   menuItemPressed: { backgroundColor: "#FAF8F0" },
-  menuText: { fontFamily: fonts.bodyRegular, fontSize: 13.573, color: "#684F44" },
+  menuText: { fontFamily: t.font["body.regular"], fontSize: 13.573, color: "#684F44" },
   menuDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(215,209,196,0.4)", marginHorizontal: 10 },
 });

@@ -23,7 +23,7 @@ import { Plus, X, PenLine, Camera, MapPin, Check } from "lucide-react-native";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { useAuth } from "../../src/hooks/useAuth";
-import { apiFetch, apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
+import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t } from "../../src/tokens/useTokens";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import Navbar from "../../src/components/Navbar";
@@ -304,8 +304,8 @@ export default function RoasterDetailPage() {
   // Fetch my follows when followers modal opens
   useEffect(() => {
     if (!showFollowersModal || !user) return;
-    apiFetch<{ following: string[] }>("/my-following")
-      .then((d) => setMyFollows(d.following || []))
+    apiFetchRaw<any>("/my-following")
+      .then((res) => { const d = res?.data ?? res; setMyFollows(d.following || []); })
       .catch(() => {});
   }, [showFollowersModal, user]);
 
@@ -326,8 +326,9 @@ export default function RoasterDetailPage() {
 
   const handleToggleFollowInModal = useCallback(async (roasterSlug: string) => {
     try {
-      const res = await apiFetch<{ following: boolean }>(`/roasters/${roasterSlug}/follow`, { method: "POST" });
-      setMyFollows((prev) => res.following ? [...prev, roasterSlug] : prev.filter((s) => s !== roasterSlug));
+      const res = await apiFetchRaw<any>(`/roasters/${roasterSlug}/follow`, { method: "POST" });
+      const d = res?.data ?? res;
+      setMyFollows((prev) => d.following ? [...prev, roasterSlug] : prev.filter((s) => s !== roasterSlug));
     } catch {}
   }, []);
 

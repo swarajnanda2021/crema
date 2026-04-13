@@ -9,7 +9,7 @@ import "../global.css";
 
 import { AuthProvider, useAuth } from "../src/hooks/useAuth";
 import { CoffeeDataProvider } from "../src/hooks/useCoffeeData";
-import { colors } from "../src/tokens/useTokens";
+import { t } from "../src/tokens/useTokens";
 import PostModal from "../src/components/shell/PostModal";
 
 export { ErrorBoundary } from "expo-router";
@@ -87,7 +87,7 @@ export default function RootLayout() {
           <Stack
             screenOptions={{
               headerShown: false,
-              contentStyle: { backgroundColor: colors.bg },
+              contentStyle: { backgroundColor: t.color.bg },
             }}
           >
             <Stack.Screen name="(tabs)" />
@@ -97,8 +97,8 @@ export default function RootLayout() {
               options={{
                 headerShown: true,
                 title: "",
-                headerTintColor: colors.accent,
-                headerStyle: { backgroundColor: colors.bg },
+                headerTintColor: t.color["accent.cta"],
+                headerStyle: { backgroundColor: t.color.bg },
                 headerShadowVisible: false,
               }}
             />
@@ -107,8 +107,8 @@ export default function RootLayout() {
               options={{
                 headerShown: true,
                 title: "",
-                headerTintColor: colors.accent,
-                headerStyle: { backgroundColor: colors.bg },
+                headerTintColor: t.color["accent.cta"],
+                headerStyle: { backgroundColor: t.color.bg },
                 headerShadowVisible: false,
               }}
             />
@@ -117,8 +117,8 @@ export default function RootLayout() {
               options={{
                 headerShown: true,
                 title: "",
-                headerTintColor: colors.accent,
-                headerStyle: { backgroundColor: colors.bg },
+                headerTintColor: t.color["accent.cta"],
+                headerStyle: { backgroundColor: t.color.bg },
                 headerShadowVisible: false,
               }}
             />

@@ -6,7 +6,7 @@ import { MapPin, Mountain, Leaf, Settings } from "lucide-react-native";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useShare } from "../../src/hooks/useShare";
 import { trackClick } from "../../src/api/client";
-import { colors, fonts, cardShadow } from "../../src/tokens/useTokens";
+import { t, cardShadow } from "../../src/tokens/useTokens";
 import { pricePer250g } from "../../src/utils/formatPrice";
 import { ShareIcon, CartIcon } from "../../src/components/icons/FigmaIcons";
 import Chip from "../../src/components/Chip";
@@ -27,7 +27,7 @@ export default function CoffeeDetailPage() {
   if (!coffee) {
     return (
       <View style={st.notFound}>
-        <Text style={{ fontFamily: fonts.bodyRegular, color: colors.textSecondary }}>Coffee not found</Text>
+        <Text style={{ fontFamily: t.font["body.regular"], color: t.color["text.secondary"] }}>Coffee not found</Text>
       </View>
     );
   }
@@ -37,7 +37,7 @@ export default function CoffeeDetailPage() {
 
   return (
     <>
-      <Stack.Screen options={{ title: coffee.coffee_name, headerTintColor: colors.textPrimary, headerStyle: { backgroundColor: colors.bg } }} />
+      <Stack.Screen options={{ title: coffee.coffee_name, headerTintColor: t.color["text.primary"], headerStyle: { backgroundColor: t.color.bg } }} />
       <ScrollView style={st.container} showsVerticalScrollIndicator={false}>
         {/* Hero image */}
         {coffee.image_url && (
@@ -69,7 +69,7 @@ export default function CoffeeDetailPage() {
             </View>
             <View style={st.actionRow}>
               <Pressable onPress={() => share(coffee)} style={st.shareBtn}>
-                <ShareIcon size={18} color={colors.textSecondary} />
+                <ShareIcon size={18} color={t.color["text.secondary"]} />
               </Pressable>
               <Pressable
                 onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "coffee_page"); Linking.openURL(coffee.product_url); }}
@@ -87,10 +87,10 @@ export default function CoffeeDetailPage() {
           {/* Details */}
           <View style={st.detailsSection}>
             {coffee.tasting_notes && <DetailRow label="Tasting Notes" value={coffee.tasting_notes} />}
-            {coffee.origin && <DetailRow label="Origin" value={coffee.origin} icon={<MapPin size={14} color={colors.textMuted} />} />}
-            {coffee.altitude_masl && <DetailRow label="Altitude" value={`${coffee.altitude_masl.toLocaleString()} m.a.s.l.`} icon={<Mountain size={14} color={colors.textMuted} />} />}
-            {coffee.varietal && <DetailRow label="Varietal" value={coffee.varietal} icon={<Leaf size={14} color={colors.textMuted} />} />}
-            {coffee.process && <DetailRow label="Process" value={coffee.process} icon={<Settings size={14} color={colors.textMuted} />} />}
+            {coffee.origin && <DetailRow label="Origin" value={coffee.origin} icon={<MapPin size={14} color={t.color["text.muted"]} />} />}
+            {coffee.altitude_masl && <DetailRow label="Altitude" value={`${coffee.altitude_masl.toLocaleString()} m.a.s.l.`} icon={<Mountain size={14} color={t.color["text.muted"]} />} />}
+            {coffee.varietal && <DetailRow label="Varietal" value={coffee.varietal} icon={<Leaf size={14} color={t.color["text.muted"]} />} />}
+            {coffee.process && <DetailRow label="Process" value={coffee.process} icon={<Settings size={14} color={t.color["text.muted"]} />} />}
           </View>
 
           {/* Related coffees */}
@@ -126,8 +126,8 @@ function DetailRow({ label, value, icon }: { label: string; value: string; icon?
 }
 
 const st = StyleSheet.create({
-  notFound: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
-  container: { flex: 1, backgroundColor: colors.bg },
+  notFound: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: t.color.bg },
+  container: { flex: 1, backgroundColor: t.color.bg },
   heroWrap: { borderBottomLeftRadius: 5, borderBottomRightRadius: 5, overflow: "hidden" },
   heroImage: { width: "100%" as any, height: 320 },
   body: {
@@ -138,17 +138,17 @@ const st = StyleSheet.create({
     paddingVertical: 24,
   },
   title: {
-    fontFamily: fonts.displayRegular,
+    fontFamily: t.font.display,
     fontSize: 28,
-    color: colors.textPrimary,
+    color: t.color["text.primary"],
     lineHeight: 34,
     ...canelaNumeral,
   },
   roasterLink: {
-    fontFamily: fonts.bodyMedium,
+    fontFamily: t.font["body.medium"],
     fontSize: 14,
     marginTop: 6,
-    color: colors.textSecondary,
+    color: t.color["text.secondary"],
   },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
   priceSection: {
@@ -159,12 +159,12 @@ const st = StyleSheet.create({
     paddingVertical: 16,
   },
   price: {
-    fontFamily: fonts.displayRegular,
+    fontFamily: t.font.display,
     fontSize: 28,
-    color: colors.textPrimary,
+    color: t.color["text.primary"],
     ...canelaNumeral,
   },
-  priceLabel: { fontFamily: fonts.bodyRegular, fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  priceLabel: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.muted"], marginTop: 2 },
   actionRow: { flexDirection: "row", gap: 10 },
   shareBtn: {
     width: 44,
@@ -172,7 +172,7 @@ const st = StyleSheet.create({
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.tagBg,
+    backgroundColor: t.color["tag.bg"],
   },
   buyBtn: {
     flexDirection: "row",
@@ -181,17 +181,17 @@ const st = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 22,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: t.color["text.primary"],
   },
-  buyText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.textOnDark },
-  divider: { height: 1, backgroundColor: colors.divider, marginVertical: 4 },
+  buyText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.on-dark"] },
+  divider: { height: 1, backgroundColor: t.color.divider, marginVertical: 4 },
   detailsSection: { marginTop: 16, gap: 16 },
   relatedSection: { marginTop: 32 },
-  relatedTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, marginBottom: 16, color: colors.textPrimary },
+  relatedTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, marginBottom: 16, color: t.color["text.primary"] },
 });
 
 const dt = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  label: { fontFamily: fonts.bodySemiBold, fontSize: 12, letterSpacing: 0.5, color: colors.textMuted },
-  value: { fontFamily: fonts.bodyRegular, fontSize: 14, marginTop: 2, lineHeight: 20, color: colors.textPrimary },
+  label: { fontFamily: t.font["body.semibold"], fontSize: 12, letterSpacing: 0.5, color: t.color["text.muted"] },
+  value: { fontFamily: t.font["body.regular"], fontSize: 14, marginTop: 2, lineHeight: 20, color: t.color["text.primary"] },
 });

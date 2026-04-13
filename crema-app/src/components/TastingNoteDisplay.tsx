@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react-native";
-import { colors, fonts } from "../tokens/useTokens";
+import { t } from "../tokens/useTokens";
 import Chip from "./Chip";
 
 function formatDate(iso: string): string {
@@ -56,7 +56,7 @@ export default function TastingNoteDisplay({ note, isOwner, onEdit, onDelete }: 
           <Text style={styles.toggleText}>
             {showBrew ? "Hide brew details" : "Show brew details"}
           </Text>
-          {showBrew ? <ChevronUp size={14} color={colors.accent} /> : <ChevronDown size={14} color={colors.accent} />}
+          {showBrew ? <ChevronUp size={14} color={t.color["accent.cta"]} /> : <ChevronDown size={14} color={t.color["accent.cta"]} />}
         </Pressable>
       )}
 
@@ -93,10 +93,10 @@ export default function TastingNoteDisplay({ note, isOwner, onEdit, onDelete }: 
         {isOwner && (
           <View style={styles.footerActions}>
             {onEdit && (
-              <Pressable onPress={onEdit}><Pencil size={14} color={colors.textSecondary} /></Pressable>
+              <Pressable onPress={onEdit}><Pencil size={14} color={t.color["text.secondary"]} /></Pressable>
             )}
             {onDelete && (
-              <Pressable onPress={onDelete}><Trash2 size={14} color={colors.like} /></Pressable>
+              <Pressable onPress={onDelete}><Trash2 size={14} color={t.color.accent} /></Pressable>
             )}
           </View>
         )}
@@ -120,7 +120,7 @@ function AttributeBar({ label, value }: { label: string; value: number }) {
       <Text style={attrStyles.label}>{label}</Text>
       <View style={attrStyles.barContainer}>
         {[1, 2, 3, 4, 5].map((i) => (
-          <View key={i} style={[attrStyles.segment, { backgroundColor: i <= value ? colors.accent : colors.border }]} />
+          <View key={i} style={[attrStyles.segment, { backgroundColor: i <= value ? t.color["accent.cta"] : t.color.border }]} />
         ))}
       </View>
       <Text style={attrStyles.valueText}>{value}</Text>
@@ -133,21 +133,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    backgroundColor: colors.cardFront,
+    backgroundColor: t.color["card.front"],
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: t.color["border.light"],
   },
   comment: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 8,
-    color: colors.textPrimary,
+    color: t.color["text.primary"],
   },
   drinkLine: {
     fontSize: 12,
     marginBottom: 8,
-    color: colors.textSecondary,
+    color: t.color["text.secondary"],
   },
   capitalize: {
     textTransform: "capitalize",
@@ -167,13 +167,13 @@ const styles = StyleSheet.create({
   toggleText: {
     fontSize: 12,
     fontWeight: "500",
-    color: colors.accent,
+    color: t.color["accent.cta"],
   },
   brewSection: {
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderColor: colors.border,
+    borderColor: t.color.border,
   },
   recipeGrid: {
     flexDirection: "row",
@@ -192,11 +192,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderColor: colors.border,
+    borderColor: t.color.border,
   },
   dateText: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: t.color["text.secondary"],
   },
   footerActions: {
     flexDirection: "row",
@@ -209,12 +209,12 @@ const miniStyles = StyleSheet.create({
     fontSize: 10,
     textTransform: "uppercase",
     opacity: 0.5,
-    color: colors.textSecondary,
+    color: t.color["text.secondary"],
   },
   value: {
     fontSize: 12,
     fontWeight: "500",
-    color: colors.textPrimary,
+    color: t.color["text.primary"],
   },
 });
 
@@ -227,7 +227,7 @@ const attrStyles = StyleSheet.create({
   label: {
     fontSize: 10,
     width: 64,
-    color: colors.textSecondary,
+    color: t.color["text.secondary"],
   },
   barContainer: {
     flex: 1,
@@ -243,6 +243,6 @@ const attrStyles = StyleSheet.create({
     fontSize: 10,
     width: 12,
     textAlign: "right",
-    color: colors.textSecondary,
+    color: t.color["text.secondary"],
   },
 });

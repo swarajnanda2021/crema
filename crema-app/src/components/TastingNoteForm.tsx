@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from "react-native";
 import { ChevronDown, ChevronUp, Send } from "lucide-react-native";
-import { colors, fonts } from "../tokens/useTokens";
+import { t } from "../tokens/useTokens";
 
 const DRINK_STYLES = ["black","espresso","americano","lungo","cortado","macchiato","cappuccino","flat-white","latte","mocha","cold-brew","iced-latte","filter-coffee","pour-over"];
 const BREW_METHODS = ["pour-over","french-press","aeropress","espresso-machine","moka-pot","cold-brew","siphon","turkish","drip-machine","chemex","south-indian-filter","instant"];
@@ -61,7 +61,7 @@ export default function TastingNoteForm({ productId, onSubmit }: Props) {
       {/* Comment */}
       <TextInput
         placeholder="How was this coffee?"
-        placeholderTextColor={colors.unavailable}
+        placeholderTextColor={t.color.unavailable}
         value={comment}
         onChangeText={setComment}
         multiline
@@ -80,7 +80,7 @@ export default function TastingNoteForm({ productId, onSubmit }: Props) {
         <Text style={styles.advancedText}>
           {showAdvanced ? "Hide advanced" : "Show advanced"}
         </Text>
-        {showAdvanced ? <ChevronUp size={14} color={colors.accent} /> : <ChevronDown size={14} color={colors.accent} />}
+        {showAdvanced ? <ChevronUp size={14} color={t.color["accent.cta"]} /> : <ChevronDown size={14} color={t.color["accent.cta"]} />}
       </Pressable>
 
       {showAdvanced && (
@@ -101,7 +101,7 @@ export default function TastingNoteForm({ productId, onSubmit }: Props) {
       <Pressable
         onPress={handleSubmit}
         disabled={submitting}
-        style={[styles.submitBtn, { backgroundColor: submitting ? colors.unavailable : colors.accent }]}
+        style={[styles.submitBtn, { backgroundColor: submitting ? t.color.unavailable : t.color["accent.cta"] }]}
       >
         <Send size={16} color="white" />
         <Text style={styles.submitText}>
@@ -118,12 +118,12 @@ function DropdownChips({ label, options, selected, onSelect }: { label: string; 
     <View>
       <Pressable
         onPress={() => setOpen(!open)}
-        style={[dropStyles.chip, { backgroundColor: selected ? colors.accent : colors.tagBg }]}
+        style={[dropStyles.chip, { backgroundColor: selected ? t.color["accent.cta"] : t.color["tag.bg"] }]}
       >
-        <Text style={[dropStyles.chipText, { color: selected ? "white" : colors.tagText }]}>
+        <Text style={[dropStyles.chipText, { color: selected ? "white" : t.color["tag.text"] }]}>
           {selected ? selected.replace(/-/g, " ") : label}
         </Text>
-        <ChevronDown size={12} color={selected ? "white" : colors.tagText} />
+        <ChevronDown size={12} color={selected ? "white" : t.color["tag.text"]} />
       </Pressable>
       {open && (
         <ScrollView style={dropStyles.dropdown}>
@@ -132,7 +132,7 @@ function DropdownChips({ label, options, selected, onSelect }: { label: string; 
           </Pressable>
           {options.map((o) => (
             <Pressable key={o} onPress={() => { onSelect(o); setOpen(false); }} style={dropStyles.option}>
-              <Text style={[dropStyles.optionText, { color: o === selected ? colors.accent : colors.textPrimary }]}>
+              <Text style={[dropStyles.optionText, { color: o === selected ? t.color["accent.cta"] : t.color["text.primary"] }]}>
                 {o.replace(/-/g, " ")}
               </Text>
             </Pressable>
@@ -161,17 +161,17 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 12,
     padding: 16,
-    backgroundColor: colors.cardFront,
+    backgroundColor: t.color["card.front"],
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: t.color.border,
   },
   commentInput: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 12,
     minHeight: 60,
-    color: colors.textPrimary,
+    color: t.color["text.primary"],
   },
   selectorsRow: {
     flexDirection: "row",
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   advancedText: {
     fontSize: 12,
     fontWeight: "500",
-    color: colors.accent,
+    color: t.color["accent.cta"],
   },
   advancedSection: {
     gap: 8,
@@ -233,9 +233,9 @@ const dropStyles = StyleSheet.create({
     borderRadius: 8,
     zIndex: 50,
     maxHeight: 160,
-    backgroundColor: colors.cardFront,
+    backgroundColor: t.color["card.front"],
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: t.color.border,
     width: 160,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -249,7 +249,7 @@ const dropStyles = StyleSheet.create({
   },
   optionTextClear: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: t.color["text.secondary"],
   },
   optionText: {
     fontSize: 12,
@@ -262,16 +262,16 @@ const numStyles = StyleSheet.create({
     fontSize: 10,
     textTransform: "uppercase",
     marginBottom: 4,
-    color: colors.textSecondary,
+    color: t.color["text.secondary"],
   },
   input: {
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 14,
-    backgroundColor: colors.bg,
-    color: colors.textPrimary,
+    backgroundColor: t.color.bg,
+    color: t.color["text.primary"],
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: t.color.border,
   },
 });

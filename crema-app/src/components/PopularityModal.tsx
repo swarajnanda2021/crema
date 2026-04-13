@@ -3,8 +3,8 @@ import { View, Text, Pressable, Modal, ScrollView, StyleSheet } from "react-nati
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { X, Coffee, Check, Star, MapPin } from "lucide-react-native";
-import { colors, fonts } from "../tokens/useTokens";
-import { apiFetch, resolveUploadUrl } from "../api/client";
+import { t } from "../tokens/useTokens";
+import { apiFetchRaw, resolveUploadUrl } from "../api/client";
 import TastingNoteDisplay from "./TastingNoteDisplay";
 
 const SHELF_LABELS: Record<string, { label: string; icon: any; color: string }> = {
@@ -28,8 +28,8 @@ export default function PopularityModal({ visible, productId, coffeeName, onClos
   useEffect(() => {
     if (!visible) return;
     setLoading(true);
-    apiFetch(`/products/${productId}/users`)
-      .then(setData)
+    apiFetchRaw<any>(`/products/${productId}/users`)
+      .then((res) => { const d = res?.data ?? res; setData(d); })
       .catch(() => setData({ users: [] }))
       .finally(() => setLoading(false));
   }, [visible, productId]);
@@ -47,7 +47,7 @@ export default function PopularityModal({ visible, productId, coffeeName, onClos
           <View style={s.header}>
             <Text style={s.title} numberOfLines={1}>{coffeeName}</Text>
             <Pressable onPress={onClose} style={s.closeBtn}>
-              <X size={18} color={colors.textSecondary} />
+              <X size={18} color={t.color["text.secondary"]} />
             </Pressable>
           </View>
 
@@ -85,7 +85,7 @@ export default function PopularityModal({ visible, productId, coffeeName, onClos
                         <View style={s.metaRow}>
                           {u.location && (
                             <View style={s.metaItem}>
-                              <MapPin size={8} color={colors.textMuted} />
+                              <MapPin size={8} color={t.color["text.muted"]} />
                               <Text style={s.metaText}>{u.location}</Text>
                             </View>
                           )}
@@ -128,7 +128,7 @@ const s = StyleSheet.create({
     width: "100%",
     maxWidth: 540,
     maxHeight: "70%",
-    backgroundColor: colors.bg,
+    backgroundColor: t.color.bg,
     borderRadius: 16,
     overflow: "hidden",
     shadowColor: "#000",
@@ -144,12 +144,12 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: t.color["border.light"],
   },
   title: {
-    fontFamily: fonts.bodySemiBold,
+    fontFamily: t.font["body.semibold"],
     fontSize: 16,
-    color: colors.textPrimary,
+    color: t.color["text.primary"],
     flex: 1,
     marginRight: 12,
   },
@@ -159,11 +159,11 @@ const s = StyleSheet.create({
     minHeight: 0,
   },
   emptyText: {
-    fontFamily: fonts.bodyRegular,
+    fontFamily: t.font["body.regular"],
     textAlign: "center",
     paddingVertical: 32,
     fontSize: 14,
-    color: colors.textMuted,
+    color: t.color["text.muted"],
   },
   userBlock: {
     marginBottom: 20,
@@ -181,12 +181,12 @@ const s = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.tagBg,
+    backgroundColor: t.color["tag.bg"],
   },
-  avatarLetter: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.tagText },
-  userName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.textPrimary },
+  avatarLetter: { fontFamily: t.font["body.bold"], fontSize: 12, color: t.color["tag.text"] },
+  userName: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"] },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 3 },
-  metaText: { fontFamily: fonts.bodyRegular, fontSize: 10, color: colors.textMuted },
+  metaText: { fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["text.muted"] },
   notesArea: { marginLeft: 42, marginTop: 4 },
 });

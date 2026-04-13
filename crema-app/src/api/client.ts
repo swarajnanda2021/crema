@@ -58,33 +58,6 @@ export async function setToken(token: string | null): Promise<void> {
 }
 
 // ── API Fetch ───────────────────────────────────────────────────
-export async function apiFetch<T = any>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const token = await getToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
-  };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API ${res.status}: ${text}`);
-  }
-  return res.json();
-}
-
-/** Fetch without auto-unwrapping — returns full { data, meta } envelope.
- *  Used by useResource which needs meta for pagination totals. */
 export async function apiFetchRaw<T = any>(
   path: string,
   options: RequestInit = {}
@@ -133,7 +106,7 @@ export function trackClick(
   roasterSlug: string,
   sourcePage: string
 ): void {
-  apiFetch("/clicks", {
+  apiFetchRaw("/clicks", {
     method: "POST",
     body: JSON.stringify({
       product_id: productId,
