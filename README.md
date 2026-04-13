@@ -104,75 +104,6 @@ Coffee_Aggregator/
 │   │   └── hooks/                         ← useAuth, useNotifications, useShelves, etc.
 │   └── package.json
 │
-├── coffee-discovery/                      ← LEGACY v0 frontend (React + Vite, superseded by crema-app)
-│   ├── index.html
-│   ├── package.json
-│   ├── vite.config.js
-│   ├── src/
-│   │   ├── main.jsx                       ← Entry point
-│   │   ├── App.jsx                        ← Router + auth guard
-│   │   ├── styles/index.css               ← Tailwind + custom CSS (flip cards, map overlay)
-│   │   │
-│   │   ├── components/                    ← Shared UI components
-│   │   │   ├── CoffeeCard.jsx             ← Flip card with front/back faces
-│   │   │   ├── CardGrid.jsx              ← Infinite-scroll responsive grid
-│   │   │   ├── IndiaMap.jsx              ← SVG India outline with coordinate pins
-│   │   │   ├── Navbar.jsx                ← Top nav (Crema / My Shelf / Browse / Search)
-│   │   │   ├── FilterSidebar.jsx         ← Roaster/roast/process multi-select filters
-│   │   │   ├── ShareButton.jsx           ← Share dropdown (copy, WhatsApp, Twitter)
-│   │   │   ├── LikeButton.jsx            ← Heart toggle (legacy, replaced by shelves)
-│   │   │   ├── VariantSelector.jsx       ← Weight/grind variant pills
-│   │   │   └── ScrapeProgress.jsx        ← SSE progress bar for live scraping
-│   │   │
-│   │   ├── community/                     ← Community layer (social features)
-│   │   │   ├── api.js                     ← API client with dynamic host + auth headers
-│   │   │   ├── components/
-│   │   │   │   ├── ProfileCard.jsx        ← Full-bleed avatar + cream overlay bio
-│   │   │   │   ├── ProfileEditForm.jsx    ← Edit profile modal with image crop
-│   │   │   │   ├── ImageCropModal.jsx     ← Trackpad-native zoom/pan/crop (react-easy-crop)
-│   │   │   │   ├── ShelfIsland.jsx        ← Shelf tab content with two-column coffee cards
-│   │   │   │   ├── ShelfSelector.jsx      ← Dropdown to add/move coffee between shelves
-│   │   │   │   ├── QuickAddModal.jsx      ← Search + add coffee without leaving the page
-│   │   │   │   ├── RecommendationPanel.jsx ← Compact flip cards with novelty badges
-│   │   │   │   ├── TastingNoteForm.jsx    ← Full brew recipe form (light + advanced mode)
-│   │   │   │   ├── TastingNoteDisplay.jsx ← Read-only note with collapsible brew details
-│   │   │   │   └── PopularityModal.jsx    ← Who has this coffee + their tasting notes
-│   │   │   ├── hooks/
-│   │   │   │   ├── useAuth.jsx            ← AuthProvider context, login/register/logout
-│   │   │   │   ├── useShelves.js          ← Shelf CRUD (add/move/remove)
-│   │   │   │   ├── useTastingNotes.js     ← Note CRUD
-│   │   │   │   └── useRecommendations.js  ← Fetch recs (self/community/user modes)
-│   │   │   └── pages/
-│   │   │       ├── FeedPage.jsx           ← Temporal social feed (newest notes first)
-│   │   │       ├── MyShelfPage.jsx        ← 3-column: profile / shelf tabs / recommendations
-│   │   │       ├── UserProfilePage.jsx    ← Other user's profile (read-only notes)
-│   │   │       └── AuthPage.jsx           ← Login / register
-│   │   │
-│   │   ├── pages/                         ← Non-community pages
-│   │   │   ├── BrowsePage.jsx             ← Sub-tabs: Beans / Roasters / (Apparatus) / (Spots)
-│   │   │   ├── HomePage.jsx               ← Coffee card grid with filters + popularity
-│   │   │   ├── CoffeePage.jsx             ← Individual coffee detail
-│   │   │   ├── RoasterPage.jsx            ← Roaster profile + their coffees
-│   │   │   └── RoastersPage.jsx           ← Roaster directory with search
-│   │   │
-│   │   ├── hooks/                         ← Data hooks
-│   │   │   ├── useCoffeeData.jsx          ← Fetch products from API, build indexes
-│   │   │   ├── useFilters.js              ← URL-synced filter state
-│   │   │   ├── useRoasterProfiles.js      ← Fetch roaster profiles with domain matching
-│   │   │   └── useShare.js                ← Share URL generation + clipboard
-│   │   │
-│   │   ├── utils/
-│   │   │   ├── filterCoffees.js           ← Filter + sort logic (hides sold-out + unknown roast)
-│   │   │   ├── searchCoffees.js           ← Substring search across name/roaster/notes/tags
-│   │   │   └── formatPrice.js             ← ₹ formatting, price-per-250g standard
-│   │   │
-│   │   └── data/
-│   │       ├── coffeeRegions.js           ← 33 estates + 25 regions → lat/lng lookup
-│   │       ├── products.json              ← Cached product data (API fallback)
-│   │       └── roasters.json              ← Cached roaster profiles (API fallback)
-│   │
-│   └── start-vite.sh                     ← Shell wrapper for conda environments
-│
 ├── Community/                             ← COMMUNITY BACKEND (CRUD Utopia)
 │   ├── COMMUNITY_SPEC.md
 │   └── coffee-community-api/
@@ -269,9 +200,6 @@ pip install requests beautifulsoup4 lxml openpyxl
 
 # Crema App (React Native)
 cd crema-app && npm install
-
-# Discovery Frontend (optional)
-cd coffee-discovery && npm install
 ```
 
 ### 2. Start the backend
