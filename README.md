@@ -2,9 +2,9 @@
 
 **Indian Specialty Coffee Community Platform**
 
-Crema is a full-stack platform for discovering, tracking, and discussing specialty coffee beans from Indian roasters. It combines a product scraper that aggregates coffee beans from 60+ roasters across India, a social community where users maintain coffee shelves, write tasting notes, and share posts, and two frontends: a React web app for browsing the catalog and a React Native (Expo) mobile-first app for the full community experience.
+Crema is a full-stack platform for discovering, tracking, and discussing specialty coffee beans from Indian roasters. Users browse 470+ coffees from 68 roasters, maintain coffee shelves, write tasting notes, follow roasters, and share posts. A product scraper aggregates the catalog from roaster websites in the background.
 
-The community backend uses a **CRUD Utopia** architecture: a declarative resource registry that generates endpoints, a unified response envelope, and a JSON-based design token system. This design makes the codebase portable across platforms (a Swift/iOS app can read the same token JSON and talk to the same API with zero backend changes).
+The frontend is a React Native (Expo) app. The backend uses a **CRUD Utopia** architecture: a declarative resource registry that generates endpoints, a unified response envelope, and a JSON-based design token system. This makes the codebase portable — a Swift/iOS app can read the same token JSON and talk to the same API with zero backend changes.
 
 Built with Claude Code.
 
@@ -20,7 +20,6 @@ Built with Claude Code.
 - [The Catalog Pipeline](#the-catalog-pipeline)
 - [The Community Backend (CRUD Utopia)](#the-community-backend-crud-utopia)
 - [The Crema App (React Native)](#the-crema-app-react-native)
-- [The Discovery Frontend (React/Vite)](#the-discovery-frontend-reactvite)
 - [Data Flow](#data-flow)
 - [API Reference](#api-reference)
 - [Specification Documents](#specification-documents)
@@ -29,19 +28,14 @@ Built with Claude Code.
 
 ## What It Does
 
-### For Coffee Drinkers
-- **Browse** 470+ specialty coffees from 68 Indian roasters in a card-based UI with flip animations
+- **Browse** 470+ specialty coffees from 68 Indian roasters with search, filters, and roaster profiles
 - **Track** what you're drinking, what you've had, and what you want to try across three shelves
-- **Write tasting notes** with full barista-level recipe detail: drink style (cortado, flat white, etc.), milk type, dose, yield, extraction time, temperature, grind size, brew ratio, plus structured tasting sliders and flavor tags from a curated 51-descriptor dictionary
-- **Discover** new coffees through community-based recommendations with novelty scoring ("New to you" badges)
-- **See what others drink** through a temporal social feed of tasting notes
-- **Click the popularity badge** on any coffee to see exactly who has it on their shelf and what they thought of it
+- **Write tasting notes** with structured tasting sliders, flavor tags, and full brew recipe detail
+- **Follow roasters** and other users, compose posts, comment, repost, like
+- **See what others drink** through a social feed of posts and tasting notes
+- **View popularity** on any coffee to see who has it on their shelf and what they thought
 
-### For the Platform
-- **Automated scraping** of Shopify, WooCommerce, and custom roaster websites with a two-stage coffee bean filter (title keywords + structural attribute check)
-- **Google Places discovery** of roasters across 49 Indian cities with automated website verification and profile enrichment
-- **Click tracking** on every outbound "Buy" link — data for future roaster partnerships
-- **Manual product/roaster support** for Wix and JS-rendered sites that HTTP scrapers can't reach
+A scraper pipeline runs in the background to keep the product catalog current (Shopify, WooCommerce, and custom site scraping). A catalog pipeline discovers new roasters via Google Places across 49 Indian cities.
 
 ---
 
@@ -77,10 +71,8 @@ Built with Claude Code.
                           │ reads from disk
                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  COFFEE DISCOVERY (React/Vite)     SCRAPER PIPELINE (Python)    │
-│  Port 5173 — browse-only UI        6 parallel workers            │
-│  Flip cards + India map             Shopify/WooCommerce/Custom   │
-│  (original catalog frontend)        → products.json              │
+│                     SCRAPER PIPELINE (Python)                    │
+│  Shopify/WooCommerce/Custom scraping → products.json            │
 ├─────────────────────────────────────────────────────────────────┤
 │                    CATALOG PIPELINE (Python)                     │
 │  Google Places across 49 cities → verify → enrich → catalog     │
@@ -112,7 +104,7 @@ Coffee_Aggregator/
 │   │   └── hooks/                         ← useAuth, useNotifications, useShelves, etc.
 │   └── package.json
 │
-├── coffee-discovery/                      ← DISCOVERY FRONTEND (React + Vite)
+├── coffee-discovery/                      ← LEGACY v0 frontend (React + Vite, superseded by crema-app)
 │   ├── index.html
 │   ├── package.json
 │   ├── vite.config.js
@@ -296,19 +288,12 @@ npx expo start --web --port 8082
 ```
 Web at http://localhost:8082. For native: scan the QR code with Expo Go.
 
-### 4. Start the Discovery Frontend (optional)
-```bash
-cd coffee-discovery
-npx vite --host
-```
-Browse-only catalog UI at http://localhost:5173.
-
-### 5. Register and start using
+### 4. Register and start using
 1. Open http://localhost:8082
 2. Create an account (username + password)
 3. Browse coffees, add to shelf, write tasting notes, follow roasters, compose posts
 
-### 6. Run the scraper (optional)
+### 5. Run the scraper (optional)
 ```bash
 curl -N http://localhost:8000/api/refresh
 ```
@@ -454,10 +439,6 @@ All visual values live in `design-tokens.json` — a language-agnostic JSON file
 - **`t.color.*`, `t.font.*`** — direct token access. Helpers: `font()`, `shadow()`, `sp()`, `rad()`, `sz()`.
 
 ---
-
-## The Discovery Frontend (React/Vite)
-
-The original catalog browsing UI at `coffee-discovery/`. Features flip cards with India SVG maps, roaster directory, and product filtering. Uses React, Vite, and Tailwind CSS. This is the browse-only experience; the full community features live in the Crema App.
 
 ---
 
