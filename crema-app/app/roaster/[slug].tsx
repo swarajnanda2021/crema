@@ -1642,12 +1642,12 @@ export default function RoasterDetailPage() {
   useEffect(() => {
     if (!slug) return;
     // Load followers
-    apiFetch(`/roasters/${slug}/followers`).then((d) => {
+    apiFetch(`/followers/${slug}`).then((d) => {
       setFollowerCount(d.follower_count);
       setFollowers(d.followers || []);
     }).catch(() => {});
     // Load follow status for current user
-    apiFetch(`/roasters/${slug}/follow-status`).then((d) => setFollowing(d.following)).catch(() => {});
+    apiFetch(`/follow-status/${slug}`).then((d) => setFollowing(d.following)).catch(() => {});
   }, [slug]);
 
   const handleFollowToggle = useCallback(async () => {
@@ -1656,7 +1656,7 @@ export default function RoasterDetailPage() {
       setFollowing(res.following);
       setFollowerCount(res.follower_count);
       // Refresh followers list
-      apiFetch(`/roasters/${slug}/followers`).then((d) => setFollowers(d.followers || [])).catch(() => {});
+      apiFetch(`/followers/${slug}`).then((d) => setFollowers(d.followers || [])).catch(() => {});
     } catch {
       setFollowing((f) => !f);
     }
@@ -1677,7 +1677,7 @@ export default function RoasterDetailPage() {
   // Fetch which roasters I follow when modal opens
   useEffect(() => {
     if (!showFollowersModal || !user) return;
-    apiFetch<{ following: string[] }>("/me/following")
+    apiFetch<{ following: string[] }>("/my-following")
       .then((d) => setMyFollows(d.following || []))
       .catch(() => {});
   }, [showFollowersModal, user]);
@@ -1845,7 +1845,7 @@ export default function RoasterDetailPage() {
 
   const handlePinToggle = useCallback(async (postId: number) => {
     try {
-      await apiFetch(`/roaster-posts/${postId}/pin`, { method: "PUT" });
+      await apiFetch(`/posts/${postId}/pin`, { method: "PUT" });
       await loadPosts();
     } catch (e: any) {
       console.warn("Pin toggle error:", e.message);
@@ -1854,7 +1854,7 @@ export default function RoasterDetailPage() {
 
   const handleDeletePost = useCallback(async (postId: number) => {
     try {
-      await apiFetch(`/roaster-posts/${postId}`, { method: "DELETE" });
+      await apiFetch(`/posts/${postId}`, { method: "DELETE" });
       setAllPosts((prev) => prev.filter((p) => p.id !== postId));
     } catch (e: any) {
       console.warn("Delete post error:", e.message);
@@ -1862,7 +1862,7 @@ export default function RoasterDetailPage() {
   }, []);
 
   const handleEditPost = useCallback(async (postId: number, data: any) => {
-    await apiFetch(`/roaster-posts/${postId}`, {
+    await apiFetch(`/posts/${postId}`, {
       method: "PUT",
       body: JSON.stringify(data),
     });
@@ -1895,7 +1895,7 @@ export default function RoasterDetailPage() {
   const handleCreatePost = useCallback(async (data: any) => {
     try {
       setComposing(true);
-      await apiFetch("/roaster-posts", {
+      await apiFetch("/posts", {
         method: "POST",
         body: JSON.stringify({
           title: data.title,

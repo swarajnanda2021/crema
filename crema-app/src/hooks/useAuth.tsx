@@ -104,8 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const token = await getStoredToken();
         if (token) {
-          const meRes = await apiFetch<any>("/auth/me");
-          const me = meRes?.data ?? meRes;
+          const me = await apiFetch<User>("/auth/me");
           setUser(me);
           upsertAccount(me, token);
         }
@@ -118,11 +117,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
-    const raw = await apiFetch<any>("/auth/login", {
+    const res = await apiFetch<{ token: string; user: User }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     });
-    const res = raw?.data ?? raw;
     await setToken(res.token);
     setUser(res.user);
     upsertAccount(res.user, res.token);
@@ -130,11 +128,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(async (username: string, displayName: string, password: string) => {
-    const raw = await apiFetch<any>("/auth/register", {
+    const res = await apiFetch<{ token: string; user: User }>("/auth/register", {
       method: "POST",
       body: JSON.stringify({ username, display_name: displayName, password }),
     });
-    const res = raw?.data ?? raw;
     await setToken(res.token);
     setUser(res.user);
     upsertAccount(res.user, res.token);
@@ -149,11 +146,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const updateProfile = useCallback(async (profileData: Partial<User>) => {
-    const raw = await apiFetch<any>("/auth/profile", {
+    const updated = await apiFetch<User>("/auth/profile", {
       method: "PUT",
       body: JSON.stringify(profileData),
     });
-    const updated = raw?.data ?? raw;
     setUser(updated);
     // Update saved account entry with new display name / avatar
     const token = await getStoredToken();
@@ -163,8 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const switchAccount = useCallback(async (token: string) => {
     await setToken(token);
-    const meRes = await apiFetch<any>("/auth/me");
-    const me = meRes?.data ?? meRes;
+    const me = await apiFetch<User>("/auth/me");
     setUser(me);
     upsertAccount(me, token);
     return me;

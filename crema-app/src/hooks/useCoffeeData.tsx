@@ -13,9 +13,7 @@ export function CoffeeDataProvider({ children }: { children: ReactNode }) {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch<any>("/products");
-      // Handle both envelope { data: [...] } and bare array responses
-      const data = res?.data ?? res;
+      const data = await apiFetch<any[]>("/products");
       setProducts(Array.isArray(data) ? data : []);
     } catch {
       // Fallback to bundled JSON

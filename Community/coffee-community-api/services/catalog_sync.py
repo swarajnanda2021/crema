@@ -12,10 +12,13 @@ import datetime
 from database import get_db
 
 
-_BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_API_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_BASE = os.path.dirname(os.path.dirname(_API_DIR))  # Coffee_Aggregator root
 _SCRAPER_OUTPUT = os.path.join(_BASE, "Scraper", "output")
 _MANUAL_PRODUCTS = os.path.join(_SCRAPER_OUTPUT, "..", "input", "manual_products.json")
 _CORRECTIONS = os.path.join(_SCRAPER_OUTPUT, "..", "input", "product_corrections.json")
+# Bundled frontend data (full catalog with images, names, prices)
+_BUNDLED_PRODUCTS = os.path.join(_BASE, "crema-app", "src", "data", "products.json")
 
 
 def _now():
@@ -29,19 +32,24 @@ def sync_products():
     imported = 0
 
     try:
-        # Load scraped products
+        # Load products — prefer bundled (has images/names), then scraper output
         products = []
-        for fname in ["products_enriched.json", "products.json"]:
-            path = os.path.join(_SCRAPER_OUTPUT, fname)
+        for path in [_BUNDLED_PRODUCTS,
+                     os.path.join(_SCRAPER_OUTPUT, "products_enriched.json"),
+                     os.path.join(_SCRAPER_OUTPUT, "products.json")]:
             if os.path.exists(path):
                 with open(path) as f:
                     products = json.load(f)
-                break
+                if products:
+                    break
 
         # Load manual products
         if os.path.exists(_MANUAL_PRODUCTS):
             with open(_MANUAL_PRODUCTS) as f:
-                products.extend(json.load(f))
+                manual = json.load(f)
+                # Avoid duplicating products already loaded
+                existing_ids = {p.get("product_id") for p in products}
+                products.extend(p for p in manual if p.get("product_id") not in existing_ids)
 
         # Load corrections
         corrections = {}
@@ -68,14 +76,17 @@ def sync_products():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 pid, p.get("roaster_slug"), p.get("roaster_name"), p.get("coffee_name"),
-                p.get("roast_level"), p.get("tasting_notes"), p.get("origin"),
+                p.get("roast_level"),
+                p.get("tasting_notes") if isinstance(p.get("tasting_notes"), str) else json.dumps(p.get("tasting_notes")) if p.get("tasting_notes") else None,
+                p.get("origin"),
                 p.get("process"), p.get("varietal"), p.get("altitude_masl"),
-                p.get("bean_type"), p.get("flavor_notes"),
+                p.get("bean_type"),
+                json.dumps(p.get("flavor_notes")) if isinstance(p.get("flavor_notes"), list) else p.get("flavor_notes"),
                 p.get("weight_grams"), p.get("price_inr"),
                 p.get("image_url"), p.get("product_url"),
-                p.get("description_raw"),
+                p.get("description_raw") if isinstance(p.get("description_raw"), str) else None,
                 1 if p.get("available", True) else 0,
-                "manual" if p in products[-10:] else "scraped",  # rough heuristic
+                "scraped",
                 now,
             ))
             imported += 1

@@ -172,9 +172,9 @@ export default function UserProfilePage() {
       setProfileUser(u);
       // Fetch follower count and follow status
       const slug = `user_${u.id}`;
-      apiFetch(`/roasters/${slug}/followers`).then((d) => setFollowerCount(d.follower_count || 0)).catch(() => {});
+      apiFetch(`/followers/${slug}`).then((d) => setFollowerCount(d.follower_count || 0)).catch(() => {});
       if (authUser && !isOwn) {
-        apiFetch(`/roasters/${slug}/follow-status`).then((d) => setFollowing(d.following)).catch(() => {});
+        apiFetch(`/follow-status/${slug}`).then((d) => setFollowing(d.following)).catch(() => {});
       }
     }
     if (postsRes.status === "fulfilled") setPosts(postsRes.value.posts || postsRes.value || []);
@@ -189,7 +189,7 @@ export default function UserProfilePage() {
     if (activeTab !== "following" || !profileUser) return;
     // For public profiles, we can't fetch /me/following — only show this tab for own profile
     if (isOwn) {
-      apiFetch("/me/following").then((d) => setFollowingList(d.following || [])).catch(() => {});
+      apiFetch("/my-following").then((d) => setFollowingList(d.following || [])).catch(() => {});
     }
   }, [activeTab, profileUser, isOwn]);
 

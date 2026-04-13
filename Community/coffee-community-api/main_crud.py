@@ -53,13 +53,14 @@ app.mount("/uploads", StaticFiles(directory=_UPLOADS_DIR), name="uploads")
 from routes.auth import router as auth_router
 from routes.uploads import router as uploads_router
 from routes.dictionary_routes import router as dictionary_router
+from routes.specific import router as specific_router
 from routes.resources import router as resources_router
 
 app.include_router(auth_router)
 app.include_router(uploads_router)
 app.include_router(dictionary_router)
-# Resources router MUST be last (it has /{resource} catch-all)
-app.include_router(resources_router)
+app.include_router(specific_router)  # specific routes BEFORE catch-all
+app.include_router(resources_router)  # catch-all LAST
 
 
 # ── Root ─────────────────────────────────────────────────────────────────────

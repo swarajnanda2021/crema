@@ -10,8 +10,8 @@
  * When building iOS: this becomes a Swift ObservableObject with @Published properties.
  */
 
-import { useState, useEffect, useCallback } from "react";
-import { apiFetch } from "../api/client";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { apiFetch, apiFetchRaw } from "../api/client";
 import type { Envelope, ToggleResult } from "./types";
 
 interface UseResourceOptions {
@@ -35,48 +35,57 @@ export function useResource<T = any>(resource: string, options: UseResourceOptio
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
 
-  const buildUrl = useCallback(() => {
-    let base: string;
-    if (parent) {
-      base = `/${parent.resource}/${parent.id}/${resource}`;
-    } else if (filters && Object.keys(filters).length > 0) {
+  // Stabilize dependencies with serialized keys to prevent infinite loops
+  const parentKey = parent ? `${parent.resource}/${parent.id}` : "";
+  const filterKey = filters ? JSON.stringify(filters) : "";
+
+  const url = useMemo(() => {
+    if (parentKey) {
+      const [pRes, pId] = parentKey.split("/");
+      let base = `/${pRes}/${pId}/${resource}`;
       const params = new URLSearchParams();
-      for (const [k, v] of Object.entries(filters)) {
+      if (limit) params.set("limit", String(limit));
+      if (offset) params.set("offset", String(offset));
+      const qs = params.toString();
+      return qs ? `${base}?${qs}` : base;
+    } else if (filterKey && filterKey !== "{}") {
+      const params = new URLSearchParams();
+      const f = JSON.parse(filterKey);
+      for (const [k, v] of Object.entries(f)) {
         if (v !== undefined && v !== null) params.set(k, String(v));
       }
       if (limit) params.set("limit", String(limit));
       if (offset) params.set("offset", String(offset));
       return `/${resource}/filter?${params.toString()}`;
     } else {
-      base = `/${resource}`;
+      let base = `/${resource}`;
+      const params = new URLSearchParams();
+      if (limit) params.set("limit", String(limit));
+      if (offset) params.set("offset", String(offset));
+      const qs = params.toString();
+      return qs ? `${base}?${qs}` : base;
     }
-    const params = new URLSearchParams();
-    if (limit) params.set("limit", String(limit));
-    if (offset) params.set("offset", String(offset));
-    const qs = params.toString();
-    return qs ? `${base}?${qs}` : base;
-  }, [resource, parent, filters, limit, offset]);
+  }, [resource, parentKey, filterKey, limit, offset]);
 
   const refetch = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const url = buildUrl();
-      const envelope: Envelope<T[]> = await apiFetch(url);
-      const items = envelope.data;
+      // Use raw fetch to get both data and meta (for pagination)
+      const raw: any = await apiFetchRaw(url);
+      const items = raw?.data ?? raw;
       if (Array.isArray(items)) {
         setData(items);
       } else {
-        // Grouped data (e.g. shelves) — flatten or pass through
         setData(items as any);
       }
-      setTotal(envelope.meta?.total ?? 0);
+      setTotal(raw?.meta?.total ?? (Array.isArray(items) ? items.length : 0));
     } catch (e: any) {
       setError(e.message || "Failed to fetch");
     } finally {
       setLoading(false);
     }
-  }, [buildUrl]);
+  }, [url]);
 
   useEffect(() => {
     if (autoFetch) refetch();

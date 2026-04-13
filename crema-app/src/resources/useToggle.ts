@@ -12,7 +12,7 @@
  */
 
 import { useState, useCallback } from "react";
-import { apiFetch } from "../api/client";
+import { apiFetchRaw } from "../api/client";
 import type { Envelope, ToggleResult } from "./types";
 
 interface ToggleOptions {
@@ -34,7 +34,7 @@ export function useToggle(resource: string, targetId: string | number, options: 
     setCount(prevToggled ? prevCount - 1 : prevCount + 1);
 
     try {
-      const envelope: Envelope<ToggleResult> = await apiFetch(
+      const envelope: Envelope<ToggleResult> = await apiFetchRaw(
         `/${resource}/${targetId}/toggle`,
         { method: "POST" },
       );

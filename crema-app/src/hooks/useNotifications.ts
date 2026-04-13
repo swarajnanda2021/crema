@@ -31,8 +31,7 @@ export function useNotifications(enabled: boolean = true) {
   const fetchUnreadCount = useCallback(async () => {
     if (!enabled) return;
     try {
-      const raw = await apiFetch<any>("/notifications/unread-count");
-      const data = raw?.data ?? raw;
+      const data = await apiFetch<{ count: number }>("/notification-count");
       setUnreadCount(data.count);
     } catch {}
   }, [enabled]);
@@ -41,8 +40,7 @@ export function useNotifications(enabled: boolean = true) {
     if (!enabled) return;
     setLoading(true);
     try {
-      const raw = await apiFetch<any>("/notifications");
-      const data = raw?.data ?? raw;
+      const data = await apiFetch<any>("/notifications");
       const list = Array.isArray(data) ? data : (data.notifications || []);
       setNotifications(list);
       setUnreadCount(list.filter((n: any) => !n.read).length || 0);
@@ -53,7 +51,7 @@ export function useNotifications(enabled: boolean = true) {
 
   const markAllRead = useCallback(async () => {
     try {
-      await apiFetch("/notifications/read", { method: "POST" });
+      await apiFetch("/notifications-mark-read", { method: "POST" });
       setUnreadCount(0);
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch {}
@@ -61,7 +59,7 @@ export function useNotifications(enabled: boolean = true) {
 
   const markRead = useCallback(async (id: number) => {
     try {
-      await apiFetch(`/notifications/${id}/read`, { method: "POST" });
+      await apiFetch(`/notification-read/${id}`, { method: "POST" });
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
       );

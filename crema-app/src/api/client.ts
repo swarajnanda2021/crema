@@ -80,6 +80,33 @@ export async function apiFetch<T = any>(
     const text = await res.text().catch(() => "");
     throw new Error(`API ${res.status}: ${text}`);
   }
+  const json = await res.json();
+  // Auto-unwrap CRUD Utopia envelope: { data, meta } → data
+  // Old endpoints return bare objects/arrays, new ones wrap in envelope.
+  // This makes all existing code compatible with both.
+  if (json && typeof json === "object" && "data" in json && "meta" in json) {
+    return json.data;
+  }
+  return json;
+}
+
+/** Fetch without auto-unwrapping — returns full { data, meta } envelope.
+ *  Used by useResource which needs meta for pagination totals. */
+export async function apiFetchRaw<T = any>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = await getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API ${res.status}: ${text}`);
+  }
   return res.json();
 }
 

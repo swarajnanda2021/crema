@@ -284,7 +284,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!showFollowersModal || !user) return;
-    apiFetch<{ following: string[] }>("/me/following")
+    apiFetch<{ following: string[] }>("/my-following")
       .then((d) => setMyFollows(d.slugs || d.following || []))
       .catch(() => {});
   }, [showFollowersModal, user]);
@@ -301,8 +301,8 @@ export default function ProfilePage() {
     if (!user) return;
     const [postsRes, followingRes, followersRes] = await Promise.allSettled([
       apiFetch(`/users/${user.username}/posts`),
-      apiFetch("/me/following"),
-      apiFetch(`/roasters/user_${user.id}/followers`),
+      apiFetch("/my-following"),
+      apiFetch(`/followers/user_${user.id}`),
     ]);
     if (postsRes.status === "fulfilled") setPosts(postsRes.value.posts || postsRes.value || []);
     if (followingRes.status === "fulfilled") setFollowingList(followingRes.value.following || []);
@@ -353,7 +353,7 @@ export default function ProfilePage() {
 
   // ── Compose handlers ──────────────────────────────────────────────────
   const handlePostSubmit = async (data: any) => {
-    await apiFetch("/roaster-posts", {
+    await apiFetch("/posts", {
       method: "POST",
       body: JSON.stringify({ ...data, roaster_slug: `user_${user?.id}` }),
     });

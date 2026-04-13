@@ -150,7 +150,7 @@ export default function PostModal({
 
   const handleRepostSubmit = async (data: any) => {
     try {
-      await apiFetch("/roaster-posts", { method: "POST", body: JSON.stringify(data) });
+      await apiFetch("/posts", { method: "POST", body: JSON.stringify(data) });
       onClose();
     } catch {}
   };

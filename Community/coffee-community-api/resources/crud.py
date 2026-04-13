@@ -66,14 +66,14 @@ def _row_to_dict(row, res):
     for h in res.get("hidden", []):
         d.pop(h, None)
 
-    # Structure joined fields as nested objects
+    # Structure joined fields as nested objects AND keep flat for backward compat
     for j in res.get("joins", []):
         alias = j["alias"]
         nested = {}
         for f in j["fields"]:
             key = f"{alias}_{f}"
             if key in d:
-                nested[f] = d.pop(key)
+                nested[f] = d[key]  # keep flat key AND add to nested
         d[alias] = nested
 
     # Parse JSON fields
