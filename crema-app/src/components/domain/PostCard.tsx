@@ -213,7 +213,7 @@ const s = StyleSheet.create({
   locationText: { fontFamily: t.font["body.regular"], fontSize: t.size["font.sm"], color: t.color.accent },
 
   // Repost nested card
-  repostCard: { borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.md, padding: 12, marginTop: 10 },
+  repostCard: { borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.md, backgroundColor: t.color["card.front"], padding: 12, marginTop: 10 },
   repostHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 } as any,
   repostAuthorRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 } as any,
   repostAvatarFb: { width: 20, height: 20, borderRadius: 10, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,
