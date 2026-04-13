@@ -2,7 +2,7 @@ import { useState } from "react";
 import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAuth } from "../src/hooks/useAuth";
-import { colors, fonts } from "../src/theme/colors";
+import { colors, fonts } from "../src/tokens/useTokens";
 import CremaLogo from "../src/components/CremaLogo";
 
 export default function AuthPage() {
