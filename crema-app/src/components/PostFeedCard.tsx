@@ -68,7 +68,7 @@ export function timeAgo(dateStr: string): string {
   } catch { return ""; }
 }
 
-export default function PostFeedCard({ post, onRepost, user }: { post: any; onRepost?: (post: any) => void; user?: any }) {
+export default function PostFeedCard({ post, onRepost, user, insideModal }: { post: any; onRepost?: (post: any) => void; user?: any; insideModal?: boolean }) {
   const router = useRouter();
   const [liked, setLiked] = useState(post.liked_by_me || false);
   const [likeCount, setLikeCount] = useState(post.like_count || 0);
@@ -155,7 +155,7 @@ export default function PostFeedCard({ post, onRepost, user }: { post: any; onRe
 
       {/* Repost: nested original post card — clickable to open original */}
       {post.post_type === "repost" && post.original_post && (
-        <Pressable onPress={() => openPostModal({ postId: post.original_post.id, mode: "comment" })} style={rp.repostCard}>
+        <Pressable onPress={insideModal ? undefined : () => openPostModal({ postId: post.original_post.id, mode: "comment" })} style={rp.repostCard}>
           <View style={rp.repostCardHeader}>
             <Pressable
               onPress={() => {
@@ -219,12 +219,12 @@ export default function PostFeedCard({ post, onRepost, user }: { post: any; onRe
           </Animated.View>
           <Text style={[rp.actionCount, liked && { color: "#D798DA" }]}>{likeCount}</Text>
         </Pressable>
-        <Pressable onPress={() => openPostModal({ post, mode: "comment" })} style={rp.actionBtn}>
+        <Pressable onPress={insideModal ? undefined : () => openPostModal({ post, mode: "comment" })} style={rp.actionBtn}>
           <CommentBubbleIcon size={14} color="#D798DA" />
           <Text style={rp.actionCount}>{commentCount}</Text>
         </Pressable>
         {post.post_type !== "repost" && (
-          <Pressable onPress={() => openPostModal({ post, mode: "repost" })} style={rp.actionBtn}>
+          <Pressable onPress={insideModal ? undefined : () => openPostModal({ post, mode: "repost" })} style={rp.actionBtn}>
             <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
               <Path d="M17 1L21 5L17 9M3 11V9C3 7.93 3.42 6.93 4.17 6.17C4.93 5.42 5.93 5 7 5H21M7 23L3 19L7 15M21 13V15C21 16.06 20.58 17.07 19.83 17.83C19.07 18.58 18.07 19 17 19H3" stroke="#D798DA" strokeWidth={2.095} strokeLinecap="round" strokeLinejoin="round" />
             </Svg>

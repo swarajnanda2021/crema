@@ -179,7 +179,7 @@ export default function PostModal({
                     }),
                     borderRadius: 8,
                   } : undefined}>
-                    <PostFeedCard post={post} user={user} />
+                    <PostFeedCard post={post} user={user} insideModal />
                   </Animated.View>
                 )}
 
