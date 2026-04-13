@@ -1,7 +1,8 @@
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Platform } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 import "../global.css";
@@ -9,10 +10,36 @@ import "../global.css";
 import { AuthProvider, useAuth } from "../src/hooks/useAuth";
 import { CoffeeDataProvider } from "../src/hooks/useCoffeeData";
 import { colors } from "../src/theme/colors";
+import PostModal from "../src/components/PostModal";
 
 export { ErrorBoundary } from "expo-router";
 
 SplashScreen.preventAutoHideAsync();
+
+/** Single sitewide PostModal — rendered once at root, listens for crema:open-post */
+function GlobalPostModal() {
+  const { user } = useAuth();
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const handler = (e: any) => setData(e.detail);
+    window.addEventListener("crema:open-post", handler);
+    return () => window.removeEventListener("crema:open-post", handler);
+  }, []);
+
+  return (
+    <PostModal
+      visible={!!data}
+      postId={data?.postId}
+      post={data?.post}
+      mode={data?.mode || "view"}
+      highlightCommentId={data?.highlightCommentId}
+      onClose={() => setData(null)}
+      user={user}
+    />
+  );
+}
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading, backendAvailable } = useAuth();
@@ -97,6 +124,7 @@ export default function RootLayout() {
             />
           </Stack>
           <StatusBar style="light" />
+          <GlobalPostModal />
         </AuthGate>
       </CoffeeDataProvider>
     </AuthProvider>

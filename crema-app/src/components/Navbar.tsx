@@ -9,8 +9,7 @@
  */
 import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import { useRouter, usePathname } from "expo-router";
-import { useState, useEffect } from "react";
-import { Platform } from "react-native";
+import { useState } from "react";
 import { User, Search, X, Bell } from "lucide-react-native";
 import { colors, fonts, NAVBAR_HEIGHT } from "../theme/colors";
 import { useAuth } from "../hooks/useAuth";
@@ -19,7 +18,6 @@ import { CroppedAvatar } from "./PostFeedCard";
 import CremaLogo from "./CremaLogo";
 import ProfileDropdown from "./ProfileDropdown";
 import NotificationsDropdown from "./NotificationsDropdown";
-import PostModal from "./PostModal";
 import ProfileEditModal from "./ProfileEditModal";
 
 export default function Navbar() {
@@ -33,14 +31,6 @@ export default function Navbar() {
   const [showEditModal, setShowEditModal] = useState(false);
   const { unreadCount } = useNotifications(!!user);
 
-  // Sitewide PostModal — triggered by crema:open-post event
-  const [postModalData, setPostModalData] = useState<any>(null);
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") return;
-    const handler = (e: any) => setPostModalData(e.detail);
-    window.addEventListener("crema:open-post", handler);
-    return () => window.removeEventListener("crema:open-post", handler);
-  }, []);
 
   const handleSearch = () => {
     if (query.trim()) {
@@ -160,16 +150,6 @@ export default function Navbar() {
         />
       )}
 
-      {/* Sitewide PostModal — triggered by crema:open-post event */}
-      <PostModal
-        visible={!!postModalData}
-        postId={postModalData?.postId}
-        post={postModalData?.post}
-        mode={postModalData?.mode || "view"}
-        highlightCommentId={postModalData?.highlightCommentId}
-        onClose={() => setPostModalData(null)}
-        user={user}
-      />
     </>
   );
 }
