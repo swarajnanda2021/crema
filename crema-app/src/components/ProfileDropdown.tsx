@@ -9,10 +9,10 @@ import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Settings, PenLine, LogOut, UserPlus } from "lucide-react-native";
-import { colors, fonts, cardShadow } from "../theme/colors";
+import { colors, fonts, cardShadow } from "../tokens/useTokens";
 import { resolveUploadUrl } from "../api/client";
 import { useAuth, SavedAccount } from "../hooks/useAuth";
-import { CroppedAvatar } from "./PostFeedCard";
+import { CroppedAvatar } from "./primitives";
 
 interface Props {
   visible: boolean;

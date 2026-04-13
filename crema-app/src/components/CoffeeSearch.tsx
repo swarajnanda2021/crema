@@ -2,8 +2,8 @@ import { useState, useMemo } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { Search, Plus, X } from "lucide-react-native";
 import { Image } from "expo-image";
-import { colors, fonts } from "../theme/colors";
-import { SHELF_LABELS, ShelfKey } from "../theme/colors";
+import { colors, fonts } from "../tokens/useTokens";
+import { SHELF_LABELS, ShelfKey } from "../tokens/useTokens";
 
 const SHELF_KEYS: ShelfKey[] = ["currently_drinking", "drank", "want_to_try"];
 

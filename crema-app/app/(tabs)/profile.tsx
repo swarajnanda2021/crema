@@ -17,10 +17,11 @@ import Svg, { Path, Circle } from "react-native-svg";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useShelves } from "../../src/hooks/useShelves";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
-import { apiFetch, resolveUploadUrl } from "../../src/api/client";
-import { colors, fonts, SHELF_LABELS, ShelfKey } from "../../src/theme/colors";
+import { apiFetch, apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
+import { colors, fonts, SHELF_LABELS, ShelfKey } from "../../src/tokens/useTokens";
 
-import PostFeedCard, { openPostModal } from "../../src/components/PostFeedCard";
+import { openPostModal, CroppedAvatar } from "../../src/components/primitives";
+import PostCard from "../../src/components/domain/PostCard";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
@@ -300,9 +301,9 @@ export default function ProfilePage() {
   const loadData = useCallback(async () => {
     if (!user) return;
     const [postsRes, followingRes, followersRes] = await Promise.allSettled([
-      apiFetch(`/users/${user.username}/posts`),
-      apiFetch("/my-following"),
-      apiFetch(`/followers/user_${user.id}`),
+      apiFetchRaw(`/users/${user.username}/posts`),
+      apiFetchRaw("/my-following"),
+      apiFetchRaw(`/followers/user_${user.id}`),
     ]);
     if (postsRes.status === "fulfilled") setPosts(postsRes.value.posts || postsRes.value || []);
     if (followingRes.status === "fulfilled") setFollowingList(followingRes.value.following || []);
@@ -353,7 +354,7 @@ export default function ProfilePage() {
 
   // ── Compose handlers ──────────────────────────────────────────────────
   const handlePostSubmit = async (data: any) => {
-    await apiFetch("/posts", {
+    await apiFetchRaw("/posts", {
       method: "POST",
       body: JSON.stringify({ ...data, roaster_slug: `user_${user?.id}` }),
     });
@@ -363,7 +364,7 @@ export default function ProfilePage() {
 
   // ── Follow toggle in following list ────────────────────────────────────
   const handleUnfollow = async (slug: string) => {
-    await apiFetch(`/roasters/${slug}/follow`, { method: "POST" });
+    await apiFetchRaw(`/roasters/${slug}/follow`, { method: "POST" });
     setFollowingList((prev) => prev.filter((f) => f.slug !== slug));
   };
 
@@ -648,12 +649,12 @@ export default function ProfilePage() {
         ) : (
           posts.slice(0, visiblePostCount).map((post: any, idx: number) => (
             <View key={`post-${post.id}-${idx}`}>
-              <PostFeedCard post={post} user={user}
+              <PostCard post={post} user={user}
                 onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
                 onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
                 isOwner={user?.id === post.user_id}
-                onDelete={async (p) => { await apiFetch(`/roaster-posts/${p.id}`, { method: "DELETE" }); loadData(); }}
+                onDelete={async (p) => { await apiFetchRaw(`/roaster-posts/${p.id}`, { method: "DELETE" }); loadData(); }}
               />
               {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
             </View>

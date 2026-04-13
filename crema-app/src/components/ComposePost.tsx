@@ -18,8 +18,8 @@ import {
 import { Image } from "expo-image";
 import { Camera, Plus, X } from "lucide-react-native";
 
-import { apiFetch, resolveUploadUrl } from "../api/client";
-import { fonts } from "../theme/colors";
+import { apiFetch, apiFetchRaw, resolveUploadUrl } from "../api/client";
+import { fonts } from "../tokens/useTokens";
 import { PostLocationPinIcon } from "./icons/FigmaIcons";
 import ImageUploadModal from "./ImageUploadModal";
 import TastingNoteCard from "./TastingNoteCard";
@@ -107,7 +107,7 @@ export default function ComposePost({
     debounceRef.current = setTimeout(async () => {
       setLinkLoading(true);
       try {
-        const data = await apiFetch(`/link-preview?url=${encodeURIComponent(detectedUrl)}`);
+        const data = await apiFetchRaw(`/link-preview?url=${encodeURIComponent(detectedUrl)}`);
         setLinkPreview(data);
         if (data.title && !linkTitle) setLinkTitle(data.title);
       } catch { setLinkPreview(null); }

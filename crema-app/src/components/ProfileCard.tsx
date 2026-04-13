@@ -1,7 +1,7 @@
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { MapPin, Calendar, Coffee, Settings, PenLine } from "lucide-react-native";
-import { colors, fonts, cardShadow } from "../theme/colors";
+import { colors, fonts, cardShadow } from "../tokens/useTokens";
 import { resolveUploadUrl } from "../api/client";
 
 const PREF_LABELS: Record<string, string> = { light: "Light Roast", medium: "Medium Roast", dark: "Dark Roast" };

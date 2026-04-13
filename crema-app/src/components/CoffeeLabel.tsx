@@ -4,7 +4,7 @@
  */
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { useRouter } from "expo-router";
-import { fonts } from "../theme/colors";
+import { fonts } from "../tokens/useTokens";
 
 const canelaNumeral = Platform.OS === "web"
   ? { fontFeatureSettings: "'lnum', 'pnum'" } as any

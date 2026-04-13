@@ -1,7 +1,7 @@
 import { View, Platform, StyleSheet } from "react-native";
 import { Tabs } from "expo-router";
 import { Coffee, User, ShoppingBag } from "lucide-react-native";
-import { colors, fonts } from "../../src/theme/colors";
+import { colors, fonts } from "../../src/tokens/useTokens";
 import Navbar from "../../src/components/Navbar";
 
 export default function TabLayout() {

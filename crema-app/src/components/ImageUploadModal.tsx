@@ -11,7 +11,7 @@ import { View, Text, TextInput, Pressable, Modal, StyleSheet, ActivityIndicator,
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { X, ImageIcon, Camera, Link2 } from "lucide-react-native";
-import { colors, fonts } from "../theme/colors";
+import { colors, fonts } from "../tokens/useTokens";
 import { apiUpload } from "../api/client";
 
 interface Props {

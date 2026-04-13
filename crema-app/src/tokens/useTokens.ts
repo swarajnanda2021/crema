@@ -82,6 +82,8 @@ export const colors = {
   borderLight: tokens.color["border.light"],
   divider: tokens.color.divider,
   unavailable: tokens.color.unavailable,
+  accentSoft: tokens.color["accent.soft"],
+  shadowColor: tokens.color.shadow,
 };
 
 export const fonts = {
@@ -98,3 +100,5 @@ export const cardShadow = shadow("card");
 export const cardShadowHover = shadow("card.hover");
 
 export const SHELF_LABELS = tokens.shelf;
+
+export type ShelfKey = "currently_drinking" | "drank" | "want_to_try";

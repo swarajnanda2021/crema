@@ -9,7 +9,7 @@
 
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import * as Linking from "expo-linking";
-import { fonts } from "../theme/colors";
+import { fonts } from "../tokens/useTokens";
 import { CartIcon } from "./icons/FigmaIcons";
 
 const BASE_W = 281;

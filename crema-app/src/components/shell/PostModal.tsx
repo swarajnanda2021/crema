@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { X } from "lucide-react-native";
 
-import { apiFetch } from "../../api/client";
+import { apiFetch, apiFetchRaw } from "../../api/client";
 import { t } from "../../tokens/useTokens";
 import { CroppedAvatar, timeAgo } from "../primitives";
 import CommentThread from "../primitives/CommentThread";
@@ -53,7 +53,7 @@ export default function PostModal({
     if (!postId) return;
 
     setLoading(true);
-    apiFetch(`/posts/${postId}`)
+    apiFetchRaw(`/posts/${postId}`)
       .then((envelope: any) => setPost(envelope.data || envelope))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -72,7 +72,7 @@ export default function PostModal({
 
   const handleRepostSubmit = useCallback(async (data: any) => {
     try {
-      await apiFetch("/posts", { method: "POST", body: JSON.stringify(data) });
+      await apiFetchRaw("/posts", { method: "POST", body: JSON.stringify(data) });
       onClose();
     } catch {}
   }, [onClose]);

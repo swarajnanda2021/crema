@@ -1,83 +1,103 @@
+/**
+ * useSocial — CRUD Utopia edition.
+ * Uses apiFetchRaw for envelope-aware fetching.
+ */
+
 import { useState, useCallback } from "react";
-import { apiFetch } from "../api/client";
+import { apiFetchRaw } from "../api/client";
 
 export function useSocial() {
   const [likeStates, setLikeStates] = useState<Record<number, { liked: boolean; count: number }>>({});
 
-  const toggleLike = useCallback(async (noteId: number) => {
-    const res = await apiFetch<{ liked: boolean; like_count: number }>(`/notes/${noteId}/like`, { method: "POST" });
-    setLikeStates(prev => ({ ...prev, [noteId]: { liked: res.liked, count: res.like_count } }));
-    return res;
-  }, []);
-
   const setInitialLikeState = useCallback((noteId: number, liked: boolean, count: number) => {
-    setLikeStates(prev => {
-      if (prev[noteId]) return prev;
-      return { ...prev, [noteId]: { liked, count } };
-    });
+    setLikeStates((prev) => ({ ...prev, [noteId]: { liked, count } }));
   }, []);
 
   const getLikeState = useCallback((noteId: number) => {
     return likeStates[noteId] || { liked: false, count: 0 };
   }, [likeStates]);
 
-  const fetchComments = useCallback(async (noteId: number) => {
-    return apiFetch<{ comments: any[] }>(`/notes/${noteId}/comments`);
+  const toggleLike = useCallback(async (noteId: number) => {
+    const prev = likeStates[noteId] || { liked: false, count: 0 };
+    setLikeStates((s) => ({ ...s, [noteId]: { liked: !prev.liked, count: prev.liked ? prev.count - 1 : prev.count + 1 } }));
+    try {
+      const res = await apiFetchRaw<any>(`/notes/${noteId}/like`, { method: "POST" });
+      const data = res?.data ?? res;
+      setLikeStates((s) => ({ ...s, [noteId]: { liked: data.liked, count: data.like_count } }));
+    } catch {
+      setLikeStates((s) => ({ ...s, [noteId]: prev }));
+    }
+  }, [likeStates]);
+
+  const togglePostLike = useCallback(async (postId: number) => {
+    const res = await apiFetchRaw<any>(`/posts/${postId}/like`, { method: "POST" });
+    return res?.data ?? res;
   }, []);
 
-  const createComment = useCallback(async (noteId: number, comment: string) => {
-    return apiFetch(`/notes/${noteId}/comments`, {
+  const fetchComments = useCallback(async (noteId: number) => {
+    const res = await apiFetchRaw<any>(`/notes/${noteId}/comments`);
+    return res?.data ?? res;
+  }, []);
+
+  const createComment = useCallback(async (noteId: number, text: string) => {
+    const res = await apiFetchRaw<any>(`/notes/${noteId}/comments`, {
       method: "POST",
-      body: JSON.stringify({ comment }),
+      body: JSON.stringify({ comment: text }),
     });
+    return res?.data ?? res;
   }, []);
 
   const deleteComment = useCallback(async (commentId: number) => {
-    return apiFetch(`/comments/${commentId}`, { method: "DELETE" });
-  }, []);
-
-  const fetchUserLikes = useCallback(async (username: string) => {
-    return apiFetch<{ likes: any[] }>(`/users/${username}/likes`);
-  }, []);
-
-  const fetchUserComments = useCallback(async (username: string) => {
-    return apiFetch<{ comments: any[] }>(`/users/${username}/comments`);
-  }, []);
-
-  // ── Post-level social (roaster_posts) ──────────────────────────────────────
-
-  const togglePostLike = useCallback(async (postId: number) => {
-    return apiFetch<{ liked: boolean; like_count: number }>(`/posts/${postId}/like`, { method: "POST" });
+    await apiFetchRaw(`/post-comments/${commentId}`, { method: "DELETE" });
   }, []);
 
   const fetchPostComments = useCallback(async (postId: number) => {
-    return apiFetch<{ comments: any[] }>(`/posts/${postId}/comments`);
+    const res = await apiFetchRaw<any>(`/posts/${postId}/comments`);
+    return res?.data ?? res;
   }, []);
 
-  const createPostComment = useCallback(async (postId: number, comment: string) => {
-    return apiFetch(`/posts/${postId}/comments`, {
+  const createPostComment = useCallback(async (postId: number, text: string, parentId?: number) => {
+    const body: any = { comment: text };
+    if (parentId) body.parent_id = parentId;
+    const res = await apiFetchRaw<any>(`/posts/${postId}/comments`, {
       method: "POST",
-      body: JSON.stringify({ comment }),
+      body: JSON.stringify(body),
     });
+    return res?.data ?? res;
   }, []);
 
-  const editPostComment = useCallback(async (commentId: number, comment: string) => {
-    return apiFetch(`/post-comments/${commentId}`, {
+  const editPostComment = useCallback(async (commentId: number, text: string) => {
+    const res = await apiFetchRaw<any>(`/post-comments/${commentId}`, {
       method: "PUT",
-      body: JSON.stringify({ comment }),
+      body: JSON.stringify({ comment: text }),
     });
+    return res?.data ?? res;
   }, []);
 
   const deletePostComment = useCallback(async (commentId: number) => {
-    return apiFetch(`/post-comments/${commentId}`, { method: "DELETE" });
+    await apiFetchRaw(`/post-comments/${commentId}`, { method: "DELETE" });
   }, []);
 
   const toggleCommentLike = useCallback(async (commentId: number) => {
-    return apiFetch<{ liked: boolean; like_count: number }>(`/post-comments/${commentId}/like`, { method: "POST" });
+    const res = await apiFetchRaw<any>(`/post-comments/${commentId}/like`, { method: "POST" });
+    return res?.data ?? res;
+  }, []);
+
+  const fetchUserLikes = useCallback(async (username: string) => {
+    const res = await apiFetchRaw<any>(`/users/${username}/likes`);
+    return res?.data ?? res;
+  }, []);
+
+  const fetchUserComments = useCallback(async (username: string) => {
+    const res = await apiFetchRaw<any>(`/users/${username}/comments`);
+    return res?.data ?? res;
   }, []);
 
   return {
-    toggleLike, setInitialLikeState, getLikeState, fetchComments, createComment, deleteComment, fetchUserLikes, fetchUserComments,
-    togglePostLike, fetchPostComments, createPostComment, editPostComment, deletePostComment, toggleCommentLike,
+    likeStates, setInitialLikeState, getLikeState,
+    toggleLike, togglePostLike,
+    fetchComments, createComment, deleteComment,
+    fetchPostComments, createPostComment, editPostComment, deletePostComment,
+    toggleCommentLike, fetchUserLikes, fetchUserComments,
   };
 }

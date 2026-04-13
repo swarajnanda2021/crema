@@ -9,7 +9,7 @@ import { Image } from "expo-image";
 import * as Linking from "expo-linking";
 import { Coffee } from "lucide-react-native";
 import Svg, { Circle, Path, G } from "react-native-svg";
-import { colors, fonts, cardShadow, SHELF_LABELS, ShelfKey } from "../theme/colors";
+import { colors, fonts, cardShadow, SHELF_LABELS, ShelfKey } from "../tokens/useTokens";
 import { HeartIcon, HeartFilledIcon, ShareIcon, CartIcon, UsersIcon } from "./icons/FigmaIcons";
 import CoffeeLabel, { CoffeeLabelPrice } from "./CoffeeLabel";
 import { trackClick } from "../api/client";

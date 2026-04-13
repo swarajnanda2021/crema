@@ -16,10 +16,11 @@ import Svg, { Path, Circle } from "react-native-svg";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useShelves } from "../../src/hooks/useShelves";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
-import { apiFetch, resolveUploadUrl } from "../../src/api/client";
-import { colors, fonts, SHELF_LABELS, ShelfKey } from "../../src/theme/colors";
+import { apiFetch, apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
+import { colors, fonts, SHELF_LABELS, ShelfKey } from "../../src/tokens/useTokens";
 
-import PostFeedCard, { openPostModal } from "../../src/components/PostFeedCard";
+import { openPostModal } from "../../src/components/primitives";
+import PostCard from "../../src/components/domain/PostCard";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import Navbar from "../../src/components/Navbar";
 
@@ -163,8 +164,8 @@ export default function UserProfilePage() {
   const loadData = useCallback(async () => {
     if (!username) return;
     const [userRes, postsRes, shelfRes] = await Promise.allSettled([
-      apiFetch(`/auth/users/${username}`),
-      apiFetch(`/users/${username}/posts`),
+      apiFetchRaw(`/auth/users/${username}`),
+      apiFetchRaw(`/users/${username}/posts`),
       fetchUserShelves(username),
     ]);
     if (userRes.status === "fulfilled") {
@@ -172,9 +173,9 @@ export default function UserProfilePage() {
       setProfileUser(u);
       // Fetch follower count and follow status
       const slug = `user_${u.id}`;
-      apiFetch(`/followers/${slug}`).then((d) => setFollowerCount(d.follower_count || 0)).catch(() => {});
+      apiFetchRaw(`/followers/${slug}`).then((d) => setFollowerCount(d.follower_count || 0)).catch(() => {});
       if (authUser && !isOwn) {
-        apiFetch(`/follow-status/${slug}`).then((d) => setFollowing(d.following)).catch(() => {});
+        apiFetchRaw(`/follow-status/${slug}`).then((d) => setFollowing(d.following)).catch(() => {});
       }
     }
     if (postsRes.status === "fulfilled") setPosts(postsRes.value.posts || postsRes.value || []);
@@ -189,7 +190,7 @@ export default function UserProfilePage() {
     if (activeTab !== "following" || !profileUser) return;
     // For public profiles, we can't fetch /me/following — only show this tab for own profile
     if (isOwn) {
-      apiFetch("/my-following").then((d) => setFollowingList(d.following || [])).catch(() => {});
+      apiFetchRaw("/my-following").then((d) => setFollowingList(d.following || [])).catch(() => {});
     }
   }, [activeTab, profileUser, isOwn]);
 
@@ -203,7 +204,7 @@ export default function UserProfilePage() {
   const handleFollowToggle = async () => {
     if (!profileUser) return;
     try {
-      const res = await apiFetch(`/roasters/user_${profileUser.id}/follow`, { method: "POST" });
+      const res = await apiFetchRaw(`/roasters/user_${profileUser.id}/follow`, { method: "POST" });
       setFollowing(res.following);
       setFollowerCount(res.follower_count);
     } catch (e) { console.error("Follow toggle failed:", e); }
@@ -390,7 +391,7 @@ export default function UserProfilePage() {
         ) : (
           posts.slice(0, visiblePostCount).map((post: any, idx: number) => (
             <View key={`post-${post.id}-${idx}`}>
-              <PostFeedCard post={post} user={authUser}
+              <PostCard post={post} user={authUser}
                 onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
                 onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}

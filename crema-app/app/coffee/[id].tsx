@@ -6,7 +6,7 @@ import { MapPin, Mountain, Leaf, Settings } from "lucide-react-native";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useShare } from "../../src/hooks/useShare";
 import { trackClick } from "../../src/api/client";
-import { colors, fonts, cardShadow } from "../../src/theme/colors";
+import { colors, fonts, cardShadow } from "../../src/tokens/useTokens";
 import { pricePer250g } from "../../src/utils/formatPrice";
 import { ShareIcon, CartIcon } from "../../src/components/icons/FigmaIcons";
 import Chip from "../../src/components/Chip";

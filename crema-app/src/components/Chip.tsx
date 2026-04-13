@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from "react-native";
-import { colors, fonts } from "../theme/colors";
+import { colors, fonts } from "../tokens/useTokens";
 
 interface ChipProps {
   children: string;

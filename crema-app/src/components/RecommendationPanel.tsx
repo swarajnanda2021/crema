@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import { Sparkles, ShoppingCart, Plus, Coffee, MapPin, Mountain, Settings, Share2 } from "lucide-react-native";
-import { colors } from "../theme/colors";
+import { colors } from "../tokens/useTokens";
 import { pricePer250g } from "../utils/formatPrice";
 import { trackClick } from "../api/client";
 import { useShelves } from "../hooks/useShelves";

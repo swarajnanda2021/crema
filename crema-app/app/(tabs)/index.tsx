@@ -45,7 +45,7 @@ export default function FeedPage() {
 
   const handleCreatePost = useCallback(async (data: any) => {
     try {
-      await apiFetch("/posts", {
+      await apiFetchRaw("/posts", {
         method: "POST",
         body: JSON.stringify({
           ...data,
@@ -113,7 +113,7 @@ export default function FeedPage() {
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
                 onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
                 onDelete={async (p) => {
-                  await apiFetch(`/posts/${p.id}`, { method: "DELETE" });
+                  await apiFetchRaw(`/posts/${p.id}`, { method: "DELETE" });
                   refetch();
                 }}
               />

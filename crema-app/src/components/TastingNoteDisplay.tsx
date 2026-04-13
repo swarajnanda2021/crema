@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react-native";
-import { colors, fonts } from "../theme/colors";
+import { colors, fonts } from "../tokens/useTokens";
 import Chip from "./Chip";
 
 function formatDate(iso: string): string {

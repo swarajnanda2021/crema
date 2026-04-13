@@ -6,7 +6,7 @@
 import { useState, useRef } from "react";
 import { View, Text, Pressable, Modal, StyleSheet, Platform } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
-import { fonts } from "../theme/colors";
+import { fonts } from "../tokens/useTokens";
 
 interface PostMenuProps {
   onEdit?: () => void;

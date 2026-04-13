@@ -80,14 +80,7 @@ export async function apiFetch<T = any>(
     const text = await res.text().catch(() => "");
     throw new Error(`API ${res.status}: ${text}`);
   }
-  const json = await res.json();
-  // Auto-unwrap CRUD Utopia envelope: { data, meta } → data
-  // Old endpoints return bare objects/arrays, new ones wrap in envelope.
-  // This makes all existing code compatible with both.
-  if (json && typeof json === "object" && "data" in json && "meta" in json) {
-    return json.data;
-  }
-  return json;
+  return res.json();
 }
 
 /** Fetch without auto-unwrapping — returns full { data, meta } envelope.

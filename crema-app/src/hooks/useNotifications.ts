@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { apiFetch } from "../api/client";
+import { apiFetchRaw } from "../api/client";
 
 export interface Notification {
   id: number;
@@ -31,8 +31,9 @@ export function useNotifications(enabled: boolean = true) {
   const fetchUnreadCount = useCallback(async () => {
     if (!enabled) return;
     try {
-      const data = await apiFetch<{ count: number }>("/notification-count");
-      setUnreadCount(data.count);
+      const raw = await apiFetchRaw<any>("/notification-count");
+      const data = raw?.data ?? raw;
+      setUnreadCount(data.count ?? 0);
     } catch {}
   }, [enabled]);
 
@@ -40,8 +41,9 @@ export function useNotifications(enabled: boolean = true) {
     if (!enabled) return;
     setLoading(true);
     try {
-      const data = await apiFetch<any>("/notifications");
-      const list = Array.isArray(data) ? data : (data.notifications || []);
+      const raw = await apiFetchRaw<any>("/notifications");
+      const data = raw?.data ?? raw;
+      const list = Array.isArray(data) ? data : [];
       setNotifications(list);
       setUnreadCount(list.filter((n: any) => !n.read).length || 0);
     } catch {} finally {

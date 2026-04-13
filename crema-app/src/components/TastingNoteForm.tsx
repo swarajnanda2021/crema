@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from "react-native";
 import { ChevronDown, ChevronUp, Send } from "lucide-react-native";
-import { colors, fonts } from "../theme/colors";
+import { colors, fonts } from "../tokens/useTokens";
 
 const DRINK_STYLES = ["black","espresso","americano","lungo","cortado","macchiato","cappuccino","flat-white","latte","mocha","cold-brew","iced-latte","filter-coffee","pour-over"];
 const BREW_METHODS = ["pour-over","french-press","aeropress","espresso-machine","moka-pot","cold-brew","siphon","turkish","drip-machine","chemex","south-indian-filter","instant"];

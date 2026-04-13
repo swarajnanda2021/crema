@@ -3,7 +3,7 @@ import { View, Text, Pressable, Modal, ScrollView, StyleSheet } from "react-nati
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { X, Coffee, Check, Star, MapPin } from "lucide-react-native";
-import { colors, fonts } from "../theme/colors";
+import { colors, fonts } from "../tokens/useTokens";
 import { apiFetch, resolveUploadUrl } from "../api/client";
 import TastingNoteDisplay from "./TastingNoteDisplay";
 

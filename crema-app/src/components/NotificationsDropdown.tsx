@@ -7,9 +7,9 @@
 import { useEffect, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, Platform, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
-import { fonts, cardShadow } from "../theme/colors";
-import { CroppedAvatar, openPostModal } from "./PostFeedCard";
-import { timeAgo } from "./PostFeedCard";
+import { fonts, cardShadow } from "../tokens/useTokens";
+import { CroppedAvatar, openPostModal } from "./primitives";
+import { timeAgo } from "./primitives";
 import { useNotifications, Notification } from "../hooks/useNotifications";
 
 interface Props {

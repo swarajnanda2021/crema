@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { apiFetch, setToken } from "../api/client";
+import { apiFetch, apiFetchRaw, setToken } from "../api/client";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
@@ -99,12 +99,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        await apiFetch("/dictionary/brew-methods");
+        await apiFetchRaw("/dictionary/brew-methods");
         setBackendAvailable(true);
 
         const token = await getStoredToken();
         if (token) {
-          const me = await apiFetch<User>("/auth/me");
+          const meRes = await apiFetchRaw<any>("/auth/me");
+          const me = meRes?.data ?? meRes;
           setUser(me);
           upsertAccount(me, token);
         }
@@ -117,10 +118,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
-    const res = await apiFetch<{ token: string; user: User }>("/auth/login", {
+    const raw = await apiFetchRaw<any>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     });
+    const res = raw?.data ?? raw;
     await setToken(res.token);
     setUser(res.user);
     upsertAccount(res.user, res.token);
@@ -128,10 +130,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(async (username: string, displayName: string, password: string) => {
-    const res = await apiFetch<{ token: string; user: User }>("/auth/register", {
+    const raw = await apiFetchRaw<any>("/auth/register", {
       method: "POST",
       body: JSON.stringify({ username, display_name: displayName, password }),
     });
+    const res = raw?.data ?? raw;
     await setToken(res.token);
     setUser(res.user);
     upsertAccount(res.user, res.token);
@@ -146,10 +149,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const updateProfile = useCallback(async (profileData: Partial<User>) => {
-    const updated = await apiFetch<User>("/auth/profile", {
+    const raw = await apiFetchRaw<any>("/auth/profile", {
       method: "PUT",
       body: JSON.stringify(profileData),
     });
+    const updated = raw?.data ?? raw;
     setUser(updated);
     // Update saved account entry with new display name / avatar
     const token = await getStoredToken();
@@ -159,7 +163,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const switchAccount = useCallback(async (token: string) => {
     await setToken(token);
-    const me = await apiFetch<User>("/auth/me");
+    const meRes = await apiFetchRaw<any>("/auth/me");
+    const me = meRes?.data ?? meRes;
     setUser(me);
     upsertAccount(me, token);
     return me;

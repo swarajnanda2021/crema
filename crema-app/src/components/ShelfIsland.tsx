@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import { Coffee, ExternalLink, ArrowRight, Trash2, PenLine } from "lucide-react-native";
-import { colors, fonts } from "../theme/colors";
+import { colors, fonts } from "../tokens/useTokens";
 import { pricePer250g } from "../utils/formatPrice";
 import { useTastingNotes } from "../hooks/useTastingNotes";
 import { trackClick } from "../api/client";

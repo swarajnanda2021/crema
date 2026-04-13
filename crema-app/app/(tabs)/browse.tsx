@@ -4,10 +4,10 @@ import { Image } from "expo-image";
 import { Search, X, ArrowRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
-import { colors, fonts } from "../../src/theme/colors";
+import { colors, fonts } from "../../src/tokens/useTokens";
 import { filterCoffees } from "../../src/utils/filterCoffees";
 import CoffeeList from "../../src/components/CoffeeList";
-import { apiFetch } from "../../src/api/client";
+import { apiFetch, apiFetchRaw } from "../../src/api/client";
 
 export default function BrowsePage() {
   const { products, roasters, roastLevels, processes } = useCoffeeData();
@@ -23,7 +23,7 @@ export default function BrowsePage() {
   const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
   const [searchBarHidden, setSearchBarHidden] = useState(false);
 
-  useEffect(() => { apiFetch("/products/popularity").then(setPopularity).catch(() => {}); }, []);
+  useEffect(() => { apiFetchRaw("/products/popularity").then(setPopularity).catch(() => {}); }, []);
 
   const filters = useMemo(() => ({
     roasters: selectedRoasters,

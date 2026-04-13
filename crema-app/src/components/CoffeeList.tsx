@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { View, Text, ScrollView, StyleSheet, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
-import { colors, fonts } from "../theme/colors";
+import { colors, fonts } from "../tokens/useTokens";
 import CoffeeCard from "./CoffeeCard";
 
 const PAGE_SIZE = 24;

@@ -25,12 +25,12 @@ import ComposePost from "../../src/components/ComposePost";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { useAuth } from "../../src/hooks/useAuth";
-import { apiFetch, resolveUploadUrl } from "../../src/api/client";
-import { fonts, colors } from "../../src/theme/colors";
+import { apiFetch, apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
+import { fonts, colors } from "../../src/tokens/useTokens";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import Navbar from "../../src/components/Navbar";
 import { HeartOutlineIcon, HeartFilledOutlineIcon, CartIcon, CommentBubbleIcon, ShareNodesIcon, PostLocationPinIcon } from "../../src/components/icons/FigmaIcons";
-import { openPostModal } from "../../src/components/PostFeedCard";
+import { openPostModal } from "../../src/components/primitives";
 
 const liningNumerals = Platform.OS === "web"
   ? { fontFeatureSettings: "'lnum', 'pnum'" } as any
@@ -1642,21 +1642,21 @@ export default function RoasterDetailPage() {
   useEffect(() => {
     if (!slug) return;
     // Load followers
-    apiFetch(`/followers/${slug}`).then((d) => {
+    apiFetchRaw(`/followers/${slug}`).then((d) => {
       setFollowerCount(d.follower_count);
       setFollowers(d.followers || []);
     }).catch(() => {});
     // Load follow status for current user
-    apiFetch(`/follow-status/${slug}`).then((d) => setFollowing(d.following)).catch(() => {});
+    apiFetchRaw(`/follow-status/${slug}`).then((d) => setFollowing(d.following)).catch(() => {});
   }, [slug]);
 
   const handleFollowToggle = useCallback(async () => {
     try {
-      const res = await apiFetch(`/roasters/${slug}/follow`, { method: "POST" });
+      const res = await apiFetchRaw(`/roasters/${slug}/follow`, { method: "POST" });
       setFollowing(res.following);
       setFollowerCount(res.follower_count);
       // Refresh followers list
-      apiFetch(`/followers/${slug}`).then((d) => setFollowers(d.followers || [])).catch(() => {});
+      apiFetchRaw(`/followers/${slug}`).then((d) => setFollowers(d.followers || [])).catch(() => {});
     } catch {
       setFollowing((f) => !f);
     }
@@ -1761,7 +1761,7 @@ export default function RoasterDetailPage() {
     setSaving(true);
     try {
       const specs = editSpecialties.split(",").map((s) => s.trim()).filter(Boolean);
-      await apiFetch(`/roasters/${slug}/profile`, {
+      await apiFetchRaw(`/roasters/${slug}/profile`, {
         method: "PUT",
         body: JSON.stringify({
           about_blurb: editAbout,
@@ -1845,7 +1845,7 @@ export default function RoasterDetailPage() {
 
   const handlePinToggle = useCallback(async (postId: number) => {
     try {
-      await apiFetch(`/posts/${postId}/pin`, { method: "PUT" });
+      await apiFetchRaw(`/posts/${postId}/pin`, { method: "PUT" });
       await loadPosts();
     } catch (e: any) {
       console.warn("Pin toggle error:", e.message);
@@ -1854,7 +1854,7 @@ export default function RoasterDetailPage() {
 
   const handleDeletePost = useCallback(async (postId: number) => {
     try {
-      await apiFetch(`/posts/${postId}`, { method: "DELETE" });
+      await apiFetchRaw(`/posts/${postId}`, { method: "DELETE" });
       setAllPosts((prev) => prev.filter((p) => p.id !== postId));
     } catch (e: any) {
       console.warn("Delete post error:", e.message);
@@ -1862,7 +1862,7 @@ export default function RoasterDetailPage() {
   }, []);
 
   const handleEditPost = useCallback(async (postId: number, data: any) => {
-    await apiFetch(`/posts/${postId}`, {
+    await apiFetchRaw(`/posts/${postId}`, {
       method: "PUT",
       body: JSON.stringify(data),
     });
@@ -1879,10 +1879,10 @@ export default function RoasterDetailPage() {
       if (isRoasterManaged) {
         // Roaster-managed product — real DELETE from DB
         const numericId = productId.replace(/^rp_/, "");
-        await apiFetch(`/roasters/${slug}/products/${numericId}`, { method: "DELETE" });
+        await apiFetchRaw(`/roasters/${slug}/products/${numericId}`, { method: "DELETE" });
       } else {
         // Scraped product — persistently hide via hidden_products table
-        await apiFetch(`/roasters/${slug}/products/hide`, {
+        await apiFetchRaw(`/roasters/${slug}/products/hide`, {
           method: "POST",
           body: JSON.stringify({ product_id: productId }),
         });
@@ -1895,7 +1895,7 @@ export default function RoasterDetailPage() {
   const handleCreatePost = useCallback(async (data: any) => {
     try {
       setComposing(true);
-      await apiFetch("/posts", {
+      await apiFetchRaw("/posts", {
         method: "POST",
         body: JSON.stringify({
           title: data.title,
@@ -1918,7 +1918,7 @@ export default function RoasterDetailPage() {
 
   const handleCreateProduct = useCallback(async (data: any) => {
     try {
-      const raw = await apiFetch(`/roasters/${slug}/products`, {
+      const raw = await apiFetchRaw(`/roasters/${slug}/products`, {
         method: "POST",
         body: JSON.stringify(data),
       });

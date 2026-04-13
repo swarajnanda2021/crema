@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from "react";
-import { apiFetch } from "../api/client";
+import { apiFetchRaw } from "../api/client";
 
 // Bundled fallback data
 import fallbackProducts from "../data/products.json";
@@ -13,7 +13,8 @@ export function CoffeeDataProvider({ children }: { children: ReactNode }) {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch<any[]>("/products");
+      const res = await apiFetchRaw<any>("/products");
+      const data = res?.data ?? res;
       setProducts(Array.isArray(data) ? data : []);
     } catch {
       // Fallback to bundled JSON
