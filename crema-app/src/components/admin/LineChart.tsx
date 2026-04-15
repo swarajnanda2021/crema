@@ -56,6 +56,7 @@ export default function LineChart({
     pointXs,
     pointYs,
     pathD,
+    xLabelIdxs,
   } = useMemo(() => {
     const values = data.map((d) => d.value);
     const rawMax = Math.max(1, ...values);
@@ -85,6 +86,21 @@ export default function LineChart({
       .map((x, i) => `${i === 0 ? "M" : "L"} ${x} ${pointYs[i]}`)
       .join(" ");
 
+    // Pick ~6 x-axis labels spaced evenly — first and last always included
+    // so readers can anchor the date range at a glance.
+    const MAX_LABELS = 6;
+    let xLabelIdxs: number[];
+    if (n <= MAX_LABELS) {
+      xLabelIdxs = Array.from({ length: n }, (_, i) => i);
+    } else {
+      const stride = (n - 1) / (MAX_LABELS - 1);
+      const seen = new Set<number>();
+      for (let k = 0; k < MAX_LABELS; k++) {
+        seen.add(Math.round(k * stride));
+      }
+      xLabelIdxs = [...seen].sort((a, b) => a - b);
+    }
+
     return {
       plotWidth,
       plotHeight,
@@ -97,11 +113,14 @@ export default function LineChart({
       pointXs,
       pointYs,
       pathD,
+      xLabelIdxs,
     };
   }, [data, height]);
 
   const chartW = 520;
   const chartH = topPad + plotHeight + bottomPad;
+
+  const isEmpty = data.length === 0;
 
   return (
     <>
@@ -119,6 +138,11 @@ export default function LineChart({
         {valueLabel ? <Text style={s.valueHeader}>{valueLabel}</Text> : null}
       </View>
 
+      {isEmpty ? (
+        <View style={s.emptyBox}>
+          <Text style={s.emptyText}>No activity yet.</Text>
+        </View>
+      ) : (
       <View style={{ width: "100%", alignItems: "flex-start" } as any}>
         <Svg width="100%" height={chartH} viewBox={`0 0 ${chartW} ${chartH}`}>
           {/* Y gridlines + tick labels */}
@@ -158,8 +182,8 @@ export default function LineChart({
             strokeWidth={1}
           />
 
-          {/* X axis labels */}
-          {data.map((d, i) => (
+          {/* X axis labels — spaced to ~6 evenly across the range */}
+          {xLabelIdxs.map((i) => (
             <SvgText
               key={`xl-${i}`}
               x={pointXs[i]}
@@ -169,7 +193,7 @@ export default function LineChart({
               fill={t.color["text.secondary"]}
               textAnchor="middle"
             >
-              {d.label}
+              {data[i].label}
             </SvgText>
           ))}
 
@@ -210,33 +234,54 @@ export default function LineChart({
                       } as any)
                     : {})}
                 />
-                {active ? (
-                  <G>
-                    <Rect
-                      x={Math.min(pointXs[i] + 10, leftPad + plotWidth - 120)}
-                      y={pointYs[i] - 28}
-                      width={110}
-                      height={26}
-                      rx={4}
-                      fill={t.color["text.primary"]}
-                    />
-                    <SvgText
-                      x={Math.min(pointXs[i] + 10, leftPad + plotWidth - 120) + 10}
-                      y={pointYs[i] - 11}
-                      fontSize={11}
-                      fontFamily={t.font["body.semibold"]}
-                      fill={t.color["text.on-dark"]}
-                    >
-                      {d.label}: {d.value}
-                    </SvgText>
-                  </G>
-                ) : null}
+                {active ? (() => {
+                  // Boundary-aware positioning:
+                  //  • Horizontal: clamp so tooltip never leaves plot area.
+                  //  • Vertical: default above the point; flip below when
+                  //    too close to the top.
+                  const TIP_W = 120;
+                  const TIP_H = 26;
+                  const xLeft = Math.max(
+                    leftPad,
+                    Math.min(
+                      pointXs[i] - TIP_W / 2,
+                      leftPad + plotWidth - TIP_W,
+                    ),
+                  );
+                  const above = pointYs[i] - TIP_H - 10 >= topPad;
+                  const yTop = above
+                    ? pointYs[i] - TIP_H - 10
+                    : pointYs[i] + 10;
+                  return (
+                    <G>
+                      <Rect
+                        x={xLeft}
+                        y={yTop}
+                        width={TIP_W}
+                        height={TIP_H}
+                        rx={4}
+                        fill={t.color["text.primary"]}
+                      />
+                      <SvgText
+                        x={xLeft + TIP_W / 2}
+                        y={yTop + 17}
+                        fontSize={11}
+                        fontFamily={t.font["body.semibold"]}
+                        fill={t.color["text.on-dark"]}
+                        textAnchor="middle"
+                      >
+                        {d.label}: {d.value}
+                      </SvgText>
+                    </G>
+                  );
+                })() : null}
               </G>
             );
           })}
         </Svg>
         <Text style={s.hint}>Hover a point to see its value.</Text>
       </View>
+      )}
     </View>
     {info ? (
       <InfoModal
@@ -302,5 +347,14 @@ const s = StyleSheet.create({
     fontSize: t.size["font.xs"],
     color: t.color["text.muted"],
     marginTop: t.spacing.xs,
+  },
+  emptyBox: {
+    paddingVertical: t.spacing["3xl"],
+    alignItems: "center",
+  },
+  emptyText: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.muted"],
   },
 });

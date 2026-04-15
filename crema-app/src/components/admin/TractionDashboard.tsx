@@ -268,10 +268,39 @@ function grid(children: React.ReactNode) {
   return <View style={s.grid}>{children}</View>;
 }
 
+const MONTH_NAMES_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function ordinal(n: number): string {
+  if (n >= 11 && n <= 13) return `${n}th`;
+  const last = n % 10;
+  if (last === 1) return `${n}st`;
+  if (last === 2) return `${n}nd`;
+  if (last === 3) return `${n}rd`;
+  return `${n}th`;
+}
+
+// "2026-04-01" → "Apr 1st" — friendlier than MM-DD for non-data-scientists.
+function prettyDate(iso: string): string {
+  const [_y, mm, dd] = iso.split("-");
+  const month = MONTH_NAMES_SHORT[Math.max(0, Math.min(11, parseInt(mm, 10) - 1))];
+  return `${month} ${ordinal(parseInt(dd, 10))}`;
+}
+
+// "2026-04" → "Apr" (or "Apr '26" when crossing years, but rare in 6-mo window)
+function prettyMonth(iso: string): string {
+  const [y, mm] = iso.split("-");
+  const month = MONTH_NAMES_SHORT[Math.max(0, Math.min(11, parseInt(mm, 10) - 1))];
+  // Suffix year only if it differs from the current year
+  const now = new Date().getUTCFullYear();
+  return parseInt(y, 10) === now ? month : `${month} '${y.slice(2)}`;
+}
+
 function toLineData(series: Array<{ date: string; count: number }>) {
   return series.map((pt) => ({
-    // Strip the year to keep axis labels compact (MM-DD)
-    label: pt.date.slice(5),
+    label: prettyDate(pt.date),
     value: pt.count,
   }));
 }
@@ -474,7 +503,7 @@ function renderCommerce(stats: any, basis: any) {
             title="Monthly clicks (last 6 mo)"
             valueLabel="Clicks"
             data={(c.monthly_clicks || []).map((m: any) => ({
-              label: m.month?.slice(5) || m.month,
+              label: m.month ? prettyMonth(m.month) : "",
               value: m.clicks,
             }))}
             info={E.monthlyClicks}
@@ -628,7 +657,7 @@ function renderRetention(stats: any, basis: any) {
             title="D7 retention by cohort"
             valueLabel="D7 %"
             data={cohortsOldFirst.map((c: any) => ({
-              label: c.week_start?.slice(5) || c.week,
+              label: c.week_start ? prettyDate(c.week_start) : c.week,
               value: c.d7_pct ?? 0,
             }))}
             info={E.d7Series}
@@ -638,7 +667,7 @@ function renderRetention(stats: any, basis: any) {
             title="D30 retention by cohort"
             valueLabel="D30 %"
             data={cohortsOldFirst.map((c: any) => ({
-              label: c.week_start?.slice(5) || c.week,
+              label: c.week_start ? prettyDate(c.week_start) : c.week,
               value: c.d30_pct ?? 0,
             }))}
             info={E.d30Series}
@@ -648,7 +677,7 @@ function renderRetention(stats: any, basis: any) {
             title="Signups per week"
             valueLabel="Signups"
             data={cohortsOldFirst.map((c: any) => ({
-              label: c.week_start?.slice(5) || c.week,
+              label: c.week_start ? prettyDate(c.week_start) : c.week,
               value: c.signups ?? 0,
             }))}
             info={E.signupsSeries}

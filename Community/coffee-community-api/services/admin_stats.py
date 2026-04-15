@@ -44,15 +44,31 @@ def _daily_series(db, days: int, sql: str, params: tuple = ()) -> list:
     """Run a query that returns (date, count) rows grouped by date, then
     fill in missing days with 0 so the chart has a continuous x-axis.
 
-    `sql` must return rows shaped (date TEXT 'YYYY-MM-DD', count INTEGER)
-    ordered by date ascending."""
+    The window is then trimmed so the returned series starts one day
+    before the first non-zero datapoint (or at the requested window edge,
+    whichever is later). This prevents charts from displaying a long
+    stretch of pre-project zeros — if the project is a week old, a
+    90-day chart shouldn't show 83 days of empty dates.
+
+    `sql` must return rows shaped (date TEXT 'YYYY-MM-DD', count INTEGER).
+    """
     rows = {r["date"]: _n(r["count"]) for r in db.execute(sql, params).fetchall()}
-    series = []
+    series: list = []
     today = _dt.datetime.utcnow().date()
     for i in range(days - 1, -1, -1):
         d = (today - _dt.timedelta(days=i)).strftime("%Y-%m-%d")
         series.append({"date": d, "count": rows.get(d, 0)})
-    return series
+
+    # If the whole window is empty, return an empty series — the chart
+    # renders a "no data yet" state, which is honest.
+    if not any(pt["count"] > 0 for pt in series):
+        return []
+
+    # Otherwise, trim leading zero-days but keep one day of breathing room
+    # before the first real value so the line doesn't start mid-spike.
+    first_nonzero = next(i for i, pt in enumerate(series) if pt["count"] > 0)
+    start = max(0, first_nonzero - 1)
+    return series[start:]
 
 
 # ── Engagement ───────────────────────────────────────────────────────────────

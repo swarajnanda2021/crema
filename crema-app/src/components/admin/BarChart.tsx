@@ -179,32 +179,46 @@ export default function BarChart({
                 >
                   {truncate(d.label, 14)}
                 </SvgText>
-                {/* Hover tooltip */}
-                {active ? (
-                  <G>
-                    <Rect
-                      x={x + barWidth / 2 - 58}
-                      y={y - 36}
-                      width={116}
-                      height={28}
-                      rx={4}
-                      fill={t.color["text.primary"]}
-                    />
-                    <SvgText
-                      x={x + barWidth / 2}
-                      y={y - 18}
-                      fontSize={11}
-                      fontFamily={t.font["body.semibold"]}
-                      fill={t.color["text.on-dark"]}
-                      textAnchor="middle"
-                    >
-                      {d.label}: {d.value}
-                      {showRatio && total > 0
-                        ? `  (${Math.round((d.value / total) * 100)}%)`
-                        : ""}
-                    </SvgText>
-                  </G>
-                ) : null}
+                {/* Hover tooltip — boundary-aware: flips below the bar top
+                    when the bar is tall enough to push the tip off-screen.*/}
+                {active ? (() => {
+                  const TIP_W = 130;
+                  const TIP_H = 28;
+                  const tipX = Math.max(
+                    leftPad,
+                    Math.min(
+                      x + barWidth / 2 - TIP_W / 2,
+                      leftPad + plotWidth - TIP_W,
+                    ),
+                  );
+                  const above = y - TIP_H - 8 >= topPad;
+                  const tipY = above ? y - TIP_H - 8 : y + 6;
+                  return (
+                    <G>
+                      <Rect
+                        x={tipX}
+                        y={tipY}
+                        width={TIP_W}
+                        height={TIP_H}
+                        rx={4}
+                        fill={t.color["text.primary"]}
+                      />
+                      <SvgText
+                        x={tipX + TIP_W / 2}
+                        y={tipY + 18}
+                        fontSize={11}
+                        fontFamily={t.font["body.semibold"]}
+                        fill={t.color["text.on-dark"]}
+                        textAnchor="middle"
+                      >
+                        {d.label}: {d.value}
+                        {showRatio && total > 0
+                          ? `  (${Math.round((d.value / total) * 100)}%)`
+                          : ""}
+                      </SvgText>
+                    </G>
+                  );
+                })() : null}
               </G>
             );
           })}
