@@ -40,6 +40,21 @@ def _days_ago(days: int) -> str:
     )
 
 
+def _daily_series(db, days: int, sql: str, params: tuple = ()) -> list:
+    """Run a query that returns (date, count) rows grouped by date, then
+    fill in missing days with 0 so the chart has a continuous x-axis.
+
+    `sql` must return rows shaped (date TEXT 'YYYY-MM-DD', count INTEGER)
+    ordered by date ascending."""
+    rows = {r["date"]: _n(r["count"]) for r in db.execute(sql, params).fetchall()}
+    series = []
+    today = _dt.datetime.utcnow().date()
+    for i in range(days - 1, -1, -1):
+        d = (today - _dt.timedelta(days=i)).strftime("%Y-%m-%d")
+        series.append({"date": d, "count": rows.get(d, 0)})
+    return series
+
+
 # ── Engagement ───────────────────────────────────────────────────────────────
 
 def _engagement(db) -> dict:
@@ -179,6 +194,49 @@ def _engagement(db) -> dict:
         round(reposts / total_posts * 100.0, 1) if total_posts else 0.0
     )
 
+    # Time series — signups per day (90d) and active users per day (30d).
+    # Active = any action on that calendar day (UTC).
+    daily_signups = _daily_series(
+        db,
+        90,
+        """
+        SELECT DATE(created_at) AS date, COUNT(*) AS count
+        FROM users WHERE account_type = 'user'
+          AND DATE(created_at) >= DATE('now', '-89 days')
+        GROUP BY date ORDER BY date
+        """,
+    )
+    daily_active_users = _daily_series(
+        db,
+        30,
+        """
+        SELECT date, COUNT(DISTINCT user_id) AS count FROM (
+            SELECT DATE(created_at) AS date, user_id FROM tasting_notes
+              WHERE DATE(created_at) >= DATE('now', '-29 days')
+            UNION SELECT DATE(created_at), user_id FROM roaster_posts
+              WHERE DATE(created_at) >= DATE('now', '-29 days')
+            UNION SELECT DATE(created_at), user_id FROM post_comments
+              WHERE DATE(created_at) >= DATE('now', '-29 days')
+            UNION SELECT DATE(created_at), user_id FROM post_likes
+              WHERE DATE(created_at) >= DATE('now', '-29 days')
+            UNION SELECT DATE(added_at), user_id FROM shelf_entries
+              WHERE DATE(added_at) >= DATE('now', '-29 days')
+            UNION SELECT DATE(scanned_at), user_id FROM stamps
+              WHERE DATE(scanned_at) >= DATE('now', '-29 days')
+        ) GROUP BY date ORDER BY date
+        """,
+    )
+    daily_posts = _daily_series(
+        db,
+        30,
+        """
+        SELECT DATE(created_at) AS date, COUNT(*) AS count
+        FROM roaster_posts
+        WHERE DATE(created_at) >= DATE('now', '-29 days')
+        GROUP BY date ORDER BY date
+        """,
+    )
+
     return {
         "total_users": total_users,
         "total_roasters": total_roasters,
@@ -197,6 +255,9 @@ def _engagement(db) -> dict:
         "like_distribution": like_distribution,
         "total_reposts": reposts,
         "repost_rate_pct": repost_rate,
+        "daily_signups": daily_signups,
+        "daily_active_users": daily_active_users,
+        "daily_posts": daily_posts,
     }
 
 
@@ -287,9 +348,21 @@ def _commerce(db) -> dict:
         ).fetchone()[0]
     )
 
+    daily_clicks = _daily_series(
+        db,
+        30,
+        """
+        SELECT DATE(clicked_at) AS date, COUNT(*) AS count
+        FROM click_events
+        WHERE DATE(clicked_at) >= DATE('now', '-29 days')
+        GROUP BY date ORDER BY date
+        """,
+    )
+
     return {
         "total_clicks": total_clicks,
         "monthly_clicks": monthly_clicks,
+        "daily_clicks": daily_clicks,
         "clicks_by_source": clicks_by_source,
         "top_products": top_products,
         "funnel": {
@@ -399,6 +472,17 @@ def _loyalty(db) -> dict:
         for r in top_rows
     ]
 
+    daily_stamps = _daily_series(
+        db,
+        90,
+        """
+        SELECT DATE(scanned_at) AS date, COUNT(*) AS count
+        FROM stamps
+        WHERE DATE(scanned_at) >= DATE('now', '-89 days')
+        GROUP BY date ORDER BY date
+        """,
+    )
+
     return {
         "total_stamps": total_stamps,
         "stamps_7d": stamps_7,
@@ -411,6 +495,7 @@ def _loyalty(db) -> dict:
         "rewards_redeemed": rewards_total,
         "reward_conversion_pct": reward_conversion_pct,
         "top_cafes": top_cafes,
+        "daily_stamps": daily_stamps,
     }
 
 

@@ -5,11 +5,16 @@
  * MetricTable — simple ranked rows (rank, label, optional sublabel, value).
  * Used for Top-N lists: top cafés by stamps, top-clicked products, top
  * followed roasters. Mirrors the browse-page roaster-list row styling.
+ *
+ * When `maxHeight` is set, the row body scrolls internally so the table
+ * card keeps its shape inside a carousel slide even as the list grows.
  */
 
-import { View, Text, StyleSheet } from "react-native";
+import { useState } from "react";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
 
 import { t } from "../../tokens/useTokens";
+import InfoModal, { InfoButton } from "./InfoModal";
 
 export interface MetricRow {
   label: string;
@@ -23,6 +28,10 @@ interface MetricTableProps {
   /** Column header shown above the value column (e.g. "Clicks"). */
   valueHeader?: string;
   emptyLabel?: string;
+  /** Cap the rendered height of the row list; overflow scrolls internally. */
+  maxHeight?: number;
+  /** Explanation shown in a floating modal when the "?" icon is tapped. */
+  info?: string;
 }
 
 export default function MetricTable({
@@ -30,34 +39,75 @@ export default function MetricTable({
   rows,
   valueHeader,
   emptyLabel = "No data yet.",
+  maxHeight,
+  info,
 }: MetricTableProps) {
-  return (
-    <View style={s.wrap}>
-      <View style={s.header}>
-        <Text style={s.title}>{title}</Text>
-        {valueHeader ? <Text style={s.valueHeader}>{valueHeader}</Text> : null}
-      </View>
-      {rows.length === 0 ? (
-        <Text style={s.empty}>{emptyLabel}</Text>
-      ) : (
-        rows.map((row, idx) => (
-          <View key={`${row.label}-${idx}`} style={s.row}>
-            <Text style={s.rank}>{String(idx + 1).padStart(2, "0")}</Text>
-            <View style={s.labelCol}>
-              <Text style={s.label} numberOfLines={1}>
-                {row.label}
+  const [showInfo, setShowInfo] = useState(false);
+  const body =
+    rows.length === 0 ? (
+      <Text style={s.empty}>{emptyLabel}</Text>
+    ) : (
+      rows.map((row, idx) => (
+        <View
+          key={`${row.label}-${idx}`}
+          style={[s.row, idx < rows.length - 1 && s.rowDivider]}
+        >
+          <Text style={s.rank}>{String(idx + 1).padStart(2, "0")}</Text>
+          <View style={s.labelCol}>
+            <Text style={s.label} numberOfLines={1}>
+              {row.label}
+            </Text>
+            {row.sub ? (
+              <Text style={s.sub} numberOfLines={1}>
+                {row.sub}
               </Text>
-              {row.sub ? (
-                <Text style={s.sub} numberOfLines={1}>
-                  {row.sub}
-                </Text>
-              ) : null}
-            </View>
-            <Text style={s.value}>{row.value}</Text>
+            ) : null}
           </View>
-        ))
-      )}
-    </View>
+          <Text style={s.value}>{row.value}</Text>
+        </View>
+      ))
+    );
+
+  return (
+    <>
+      <View style={s.wrap}>
+        <View style={s.header}>
+          <View style={s.headerLeft}>
+            <Text style={s.title} numberOfLines={1}>
+              {title}
+            </Text>
+            {info ? (
+              <InfoButton
+                onPress={() => setShowInfo(true)}
+                accessibilityLabel={`What does "${title}" mean?`}
+              />
+            ) : null}
+          </View>
+          {valueHeader ? (
+            <Text style={s.valueHeader}>{valueHeader}</Text>
+          ) : null}
+        </View>
+        {maxHeight ? (
+          <ScrollView
+            style={{ maxHeight }}
+            showsVerticalScrollIndicator
+            nestedScrollEnabled
+          >
+            {body}
+          </ScrollView>
+        ) : (
+          <View>{body}</View>
+        )}
+      </View>
+      {info ? (
+        <InfoModal
+          visible={showInfo}
+          title={title}
+          body={info}
+          onClose={() => setShowInfo(false)}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -80,6 +130,13 @@ const s = StyleSheet.create({
     marginBottom: t.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: t.color["border.light"],
+    gap: t.spacing.md,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: t.spacing.sm,
+    flex: 1,
   },
   title: {
     fontFamily: t.font["body.semibold"],
@@ -100,6 +157,10 @@ const s = StyleSheet.create({
     alignItems: "center",
     paddingVertical: t.spacing.sm,
     gap: t.spacing.md,
+  },
+  rowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: t.color["border.light"],
   },
   rank: {
     fontFamily: t.font["body.medium"],

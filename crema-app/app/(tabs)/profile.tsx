@@ -29,33 +29,9 @@ import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 import Navbar from "../../src/components/Navbar";
 import StampBookList from "../../src/components/StampBookList";
-import TractionDashboard, {
-  type AdminSection,
-} from "../../src/components/admin/TractionDashboard";
+import TractionDashboard from "../../src/components/admin/TractionDashboard";
 
-type ProfileTab =
-  | "posts"
-  | "shelf"
-  | "stamps"
-  | "following"
-  | AdminSection;
-
-const ADMIN_TABS: AdminSection[] = [
-  "engagement",
-  "commerce",
-  "loyalty",
-  "network",
-  "retention",
-  "supply",
-];
-const ADMIN_TAB_LABELS: Record<AdminSection, string> = {
-  engagement: "ENGAGEMENT",
-  commerce: "COMMERCE",
-  loyalty: "LOYALTY",
-  network: "NETWORK",
-  retention: "RETENTION",
-  supply: "SUPPLY",
-};
+type ProfileTab = "posts" | "shelf" | "stamps" | "following" | "analytics";
 
 // Admin check — defense in depth: slug match + flag match. The backend
 // endpoint enforces this same predicate on /api/stats/traction, so a
@@ -689,13 +665,14 @@ export default function ProfilePage() {
   ) : null;
 
   // ── Tab bar ─────────────────────────────────────────────────────────
-  // Admin tabs (engagement / commerce / …) only surface on the Crema admin's
-  // own profile. Other users — and the admin viewing other users' profiles
-  // (handled by user/[username].tsx) — see only the base four.
+  // One extra tab ("SITE ANALYTICS") appears only on the Crema admin's own
+  // profile. Other users — and the admin viewing other users' profiles
+  // (handled by user/[username].tsx) — see only the base four. The six
+  // admin sections live inside that tab as a sub-tab carousel.
   const isAdmin = isAdminUser(user);
   const baseTabs: ProfileTab[] = ["posts", "shelf", "stamps", "following"];
   const visibleTabs: ProfileTab[] = isAdmin
-    ? [...baseTabs, ...ADMIN_TABS]
+    ? [...baseTabs, "analytics"]
     : baseTabs;
   const baseLabel = (tab: ProfileTab) =>
     tab === "posts"
@@ -706,40 +683,31 @@ export default function ProfilePage() {
       ? "STAMP BOOK"
       : tab === "following"
       ? "FOLLOWING"
-      : ADMIN_TAB_LABELS[tab as AdminSection];
+      : "SITE ANALYTICS";
 
   const tabBar = (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={s.tabBarScroll}
-      contentContainerStyle={s.tabBar}
-    >
-      {visibleTabs.map((tab) => {
-        const isAdminTab = ADMIN_TABS.includes(tab as AdminSection);
-        return (
-          <Pressable
-            key={tab}
-            onPress={() => {
-              setActiveTab(tab);
-              setVisiblePostCount(POSTS_PER_PAGE);
-            }}
-            style={s.tab}
+    <View style={s.tabBar}>
+      {visibleTabs.map((tab) => (
+        <Pressable
+          key={tab}
+          onPress={() => {
+            setActiveTab(tab);
+            setVisiblePostCount(POSTS_PER_PAGE);
+          }}
+          style={s.tab}
+        >
+          <Text
+            style={[
+              s.tabText,
+              activeTab === tab && s.tabTextActive,
+            ]}
           >
-            <Text
-              style={[
-                s.tabText,
-                isAdminTab && s.tabTextAdmin,
-                activeTab === tab && s.tabTextActive,
-              ]}
-            >
-              {baseLabel(tab)}
-            </Text>
-            {activeTab === tab && <View style={s.tabUnderline} />}
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+            {baseLabel(tab)}
+          </Text>
+          {activeTab === tab && <View style={s.tabUnderline} />}
+        </Pressable>
+      ))}
+    </View>
   );
 
   // ── Tab content ────────────────────────────────────────────────────────
@@ -801,10 +769,10 @@ export default function ProfilePage() {
         <StampBookList username={user.username} isOwnProfile />
       </View>
     );
-  } else if (isAdmin && ADMIN_TABS.includes(activeTab as AdminSection)) {
+  } else if (isAdmin && activeTab === "analytics") {
     tabContent = (
       <View style={s.adminTabContent}>
-        <TractionDashboard section={activeTab as AdminSection} />
+        <TractionDashboard />
       </View>
     );
   } else if (activeTab === "following") {
@@ -1162,32 +1130,28 @@ const s = StyleSheet.create({
   miniChipTextActive: { color: "#351101" },
 
   // Tab bar — left edge aligns with profile image left edge (same padding as hero)
-  tabBarScroll: {
+  tabBar: {
+    flexDirection: "row",
+    alignItems: "stretch",
     alignSelf: "center",
     width: "100%",
-    maxWidth: 1280,
-    backgroundColor: t.color.bg,
+    maxWidth: 860,
+    backgroundColor: "#FAF8F0",
+    height: 80,
+    gap: 48,
     borderTopWidth: 1,
     borderTopColor: "rgba(215,209,196,0.5)",
     borderBottomWidth: 1,
     borderBottomColor: "rgba(215,209,196,0.5)",
-  } as any,
-  tabBar: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    height: 80,
-    gap: 48,
-    paddingHorizontal: t.spacing.xl,
   },
   tab: { justifyContent: "center", position: "relative" } as any,
   tabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: "#A09580", letterSpacing: 0.5, textTransform: "uppercase" },
   tabTextActive: { color: "#351101" },
-  tabTextAdmin: { color: t.color.accent } as any,
   tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: "#351101" } as any,
   adminTabContent: {
     alignSelf: "center",
     width: "100%",
-    maxWidth: 1280,
+    maxWidth: 860,
     paddingBottom: 100,
   } as any,
 

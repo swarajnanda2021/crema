@@ -7,13 +7,16 @@
  * Heat-tone: percentages above 50% tint the cell with the accent (purple).
  */
 
+import { useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 
 import { t } from "../../tokens/useTokens";
 import type { RetentionCohort } from "../../resources/types";
+import InfoModal, { InfoButton } from "./InfoModal";
 
 interface RetentionTableProps {
   cohorts: RetentionCohort[];
+  info?: string;
 }
 
 function heatColor(pct: number): string {
@@ -24,9 +27,20 @@ function heatColor(pct: number): string {
   return `rgba(215,152,218,${alpha.toFixed(2)})`;
 }
 
-export default function RetentionTable({ cohorts }: RetentionTableProps) {
+export default function RetentionTable({ cohorts, info }: RetentionTableProps) {
+  const [showInfo, setShowInfo] = useState(false);
   return (
+    <>
     <View style={s.wrap}>
+      {info ? (
+        <View style={s.titleRow}>
+          <Text style={s.titleText}>Weekly cohorts</Text>
+          <InfoButton
+            onPress={() => setShowInfo(true)}
+            accessibilityLabel={'What does "Weekly cohorts" mean?'}
+          />
+        </View>
+      ) : null}
       <View style={s.headerRow}>
         <Text style={[s.headerCell, s.weekCol]}>Cohort</Text>
         <Text style={[s.headerCell, s.numCol]}>Signups</Text>
@@ -83,6 +97,15 @@ export default function RetentionTable({ cohorts }: RetentionTableProps) {
         ))
       )}
     </View>
+    {info ? (
+      <InfoModal
+        visible={showInfo}
+        title="Weekly cohorts"
+        body={info}
+        onClose={() => setShowInfo(false)}
+      />
+    ) : null}
+    </>
   );
 }
 
@@ -94,6 +117,23 @@ const s = StyleSheet.create({
     borderRadius: t.radius.md,
     paddingVertical: t.spacing.md,
     paddingHorizontal: t.spacing.xl,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: t.spacing.sm,
+    paddingBottom: t.spacing.md,
+    marginBottom: t.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: t.color["border.light"],
+  },
+  titleText: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.md"],
+    color: t.color["text.primary"],
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    flex: 1,
   },
   headerRow: {
     flexDirection: "row",

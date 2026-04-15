@@ -338,6 +338,11 @@ export interface StampResult {
 
 // ── Admin Traction Dashboard (see services/admin_stats.py) ──────────────────
 
+export interface DailyPoint {
+  date: string; // YYYY-MM-DD
+  count: number;
+}
+
 export interface EngagementStats {
   total_users: number;
   total_roasters: number;
@@ -356,6 +361,9 @@ export interface EngagementStats {
   like_distribution: Record<"0" | "1-5" | "6-20" | "21+" | string, number>;
   total_reposts: number;
   repost_rate_pct: number;
+  daily_signups: DailyPoint[];
+  daily_active_users: DailyPoint[];
+  daily_posts: DailyPoint[];
 }
 
 export interface MonthlyClickPoint {
@@ -379,6 +387,7 @@ export interface TopClickedProduct {
 export interface CommerceStats {
   total_clicks: number;
   monthly_clicks: MonthlyClickPoint[];
+  daily_clicks: DailyPoint[];
   clicks_by_source: ClicksBySource[];
   top_products: TopClickedProduct[];
   funnel: {
@@ -408,6 +417,7 @@ export interface LoyaltyStats {
   rewards_redeemed: number;
   reward_conversion_pct: number;
   top_cafes: TopStampedCafe[];
+  daily_stamps: DailyPoint[];
 }
 
 export interface TopFollowedEntity {
