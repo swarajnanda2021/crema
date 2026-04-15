@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Coffee, Camera, PenLine, Plus, Trash2 } from "lucide-react-native";
+import { ArrowLeft, Check, Coffee, Camera, PenLine, Plus, Trash2, Users } from "lucide-react-native";
 import Svg, { Path } from "react-native-svg";
 import { t } from "../../src/tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
@@ -56,6 +56,13 @@ function InstagramIcon({ color = t.color.accent }: { color?: string }) {
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatSeasonal(open: number | null, close: number | null): string {
+  if (open == null || close == null) return "Open year-round";
+  const openName = MONTHS[Math.max(0, Math.min(11, open - 1))];
+  const closeName = MONTHS[Math.max(0, Math.min(11, close - 1))];
+  return `Open ${openName}–${closeName}`;
+}
 const DAYS_OF_WEEK = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const DAY_LABELS: Record<string, string> = {
   mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday",
@@ -112,6 +119,19 @@ export default function CafeDetailPage() {
   const logoWrapRef = useRef<View>(null);
   const logoDragRef = useRef({ x: 0, y: 0, cropX: 50, cropY: 50 });
 
+  // Seasonal + loyalty editables
+  const [editSeasonalOpen, setEditSeasonalOpen] = useState<number | null>(null);
+  const [editSeasonalClose, setEditSeasonalClose] = useState<number | null>(null);
+  const [editStampTarget, setEditStampTarget] = useState(10);
+  const [editStampReward, setEditStampReward] = useState("Free coffee");
+  const [showSeasonalPicker, setShowSeasonalPicker] = useState(false);
+  const [showRewardPicker, setShowRewardPicker] = useState(false);
+
+  // Follow state (café can be followed just like a roaster; target_type
+  // discriminates on the follows table).
+  const [following, setFollowing] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+
   // Auto-open edit mode from ?edit=1 query (set by navbar dropdown)
   useEffect(() => { if (edit === "1" && isOwner) setIsEditing(true); }, [edit, isOwner]);
 
@@ -146,6 +166,10 @@ export default function CafeDetailPage() {
         setEditLogoCropX(cafeData.logo_crop_x ?? 50);
         setEditLogoCropY(cafeData.logo_crop_y ?? 50);
         setEditLogoZoom(cafeData.logo_zoom ?? 1);
+        setEditSeasonalOpen(cafeData.seasonal_open_month ?? null);
+        setEditSeasonalClose(cafeData.seasonal_close_month ?? null);
+        setEditStampTarget(cafeData.stamp_target ?? 10);
+        setEditStampReward(cafeData.stamp_reward || "Free coffee");
       }
     } catch (e) {
       console.warn("Café fetch failed:", e);
@@ -173,6 +197,10 @@ export default function CafeDetailPage() {
           logo_crop_x: editLogoCropX,
           logo_crop_y: editLogoCropY,
           logo_zoom: editLogoZoom,
+          seasonal_open_month: editSeasonalOpen,
+          seasonal_close_month: editSeasonalClose,
+          stamp_target: editStampTarget,
+          stamp_reward: editStampReward || "Free coffee",
         }),
       });
       setIsEditing(false);
@@ -184,6 +212,7 @@ export default function CafeDetailPage() {
     slug, editAbout, editAddress, editInstagram, editWebsite, editCover, editLogo,
     editHeroCropX, editHeroCropY, editHeroZoom,
     editLogoCropX, editLogoCropY, editLogoZoom,
+    editSeasonalOpen, editSeasonalClose, editStampTarget, editStampReward,
     fetchAll,
   ]);
 
@@ -372,11 +401,19 @@ export default function CafeDetailPage() {
               <Text style={s.aboutBlurb}>{cafe.about_blurb}</Text>
             ) : null}
 
-            {/* Seasonal badge */}
-            {seasonalText && (
-              <View style={s.seasonalBadge}>
-                <Text style={s.seasonalText}>{seasonalText}</Text>
-              </View>
+            {/* Seasonal badge — tappable in edit mode to open picker */}
+            {(isEditing || seasonalText) && (
+              <Pressable
+                onPress={isEditing ? () => setShowSeasonalPicker(true) : undefined}
+                style={[s.seasonalBadge, isEditing && s.editableChip]}
+              >
+                <Text style={s.seasonalText}>
+                  {isEditing
+                    ? formatSeasonal(editSeasonalOpen, editSeasonalClose)
+                    : seasonalText}
+                </Text>
+                {isEditing && <PenLine size={10} color={t.color["text.on-dark"]} strokeWidth={2} />}
+              </Pressable>
             )}
 
             {/* Meta rows — match roaster profile pattern: icon + Inter medium, no underline */}
@@ -515,7 +552,16 @@ export default function CafeDetailPage() {
               </View>
 
               {activeTab === "bio" && (
-                <BioTab cafe={cafe} isOwner={isOwner} onScan={() => setShowScanner(true)} />
+                <BioTab
+                  cafe={cafe}
+                  isOwner={isOwner}
+                  isEditing={isEditing}
+                  editStampTarget={editStampTarget}
+                  onStampTargetChange={setEditStampTarget}
+                  editStampReward={editStampReward}
+                  onOpenRewardPicker={() => setShowRewardPicker(true)}
+                  onScan={() => setShowScanner(true)}
+                />
               )}
               {activeTab === "menu" && (
                 <MenuTab cafe_slug={slug} menu={menu} isOwner={isOwner} onChange={fetchAll} />
@@ -617,7 +663,18 @@ export default function CafeDetailPage() {
                 </Pressable>
               ))}
             </View>
-            {activeTab === "bio" && (<BioTab cafe={cafe} isOwner={isOwner} onScan={() => setShowScanner(true)} />)}
+            {activeTab === "bio" && (
+              <BioTab
+                cafe={cafe}
+                isOwner={isOwner}
+                isEditing={isEditing}
+                editStampTarget={editStampTarget}
+                onStampTargetChange={setEditStampTarget}
+                editStampReward={editStampReward}
+                onOpenRewardPicker={() => setShowRewardPicker(true)}
+                onScan={() => setShowScanner(true)}
+              />
+            )}
             {activeTab === "menu" && (<MenuTab cafe_slug={slug} menu={menu} isOwner={isOwner} onChange={fetchAll} />)}
             {activeTab === "posts" && (<PostsTab posts={posts} onRefresh={fetchAll} />)}
           </View>
@@ -647,25 +704,79 @@ export default function CafeDetailPage() {
         onConfirm={(url) => setEditLogo(url)}
         onClose={() => setShowLogoUpload(false)}
       />
+
+      {/* Seasonal picker — open/close months + year-round toggle */}
+      <SeasonalPicker
+        visible={showSeasonalPicker}
+        openMonth={editSeasonalOpen}
+        closeMonth={editSeasonalClose}
+        onChange={(o, c) => { setEditSeasonalOpen(o); setEditSeasonalClose(c); }}
+        onClose={() => setShowSeasonalPicker(false)}
+      />
+
+      {/* Reward picker — choose what "X stamps for a ___" is from the
+          café's menu drinks (cafés can also type a custom reward). */}
+      <RewardPicker
+        visible={showRewardPicker}
+        value={editStampReward}
+        menu={menu}
+        onChange={setEditStampReward}
+        onClose={() => setShowRewardPicker(false)}
+      />
     </>
   );
 }
 
 // ── Bio Tab ────────────────────────────────────────────────────────────────
 
-function BioTab({ cafe, isOwner, onScan }: {
-  cafe: Cafe; isOwner: boolean; onScan: () => void;
+function BioTab({
+  cafe, isOwner, isEditing,
+  editStampTarget, onStampTargetChange,
+  editStampReward, onOpenRewardPicker,
+  onScan,
+}: {
+  cafe: Cafe;
+  isOwner: boolean;
+  isEditing: boolean;
+  editStampTarget: number;
+  onStampTargetChange: (n: number) => void;
+  editStampReward: string;
+  onOpenRewardPicker: () => void;
+  onScan: () => void;
 }) {
   const hours = cafe.hours_json;
+  const displayTarget = isEditing ? editStampTarget : cafe.stamp_target;
+  const displayReward = isEditing ? editStampReward : (cafe.stamp_reward || "free coffee");
   return (
     <View style={s.tabContent}>
       {/* Stamps stats sentence + (owner only) compact scan QR icon */}
       {cafe.stamps_enabled === 1 && (
         <View style={s.statsRowInline}>
           <Text style={s.statsSentence}>
-            <Text style={s.statsNumber}>{cafe.stamps_given ?? 0}</Text> stamps given out · <Text style={s.statsNumber}>{cafe.rewards_redeemed ?? 0}</Text> {(cafe.stamp_reward || "rewards").toLowerCase()}{(cafe.rewards_redeemed ?? 0) === 1 ? "" : "s"} claimed · <Text style={s.statsNumber}>{cafe.stamp_target}</Text> stamps for a {(cafe.stamp_reward || "reward").toLowerCase()}.
+            <Text style={s.statsNumber}>{cafe.stamps_given ?? 0}</Text> stamps given out ·{" "}
+            <Text style={s.statsNumber}>{cafe.rewards_redeemed ?? 0}</Text>{" "}
+            {displayReward.toLowerCase()}{(cafe.rewards_redeemed ?? 0) === 1 ? "" : "s"} claimed ·{" "}
+            {isEditing ? (
+              <Text style={[s.statsNumber, s.editableInline]} onPress={() => {
+                // Cycle through common targets — 5/8/10/12/15
+                const options = [5, 8, 10, 12, 15];
+                const idx = options.indexOf(editStampTarget);
+                onStampTargetChange(options[(idx + 1) % options.length]);
+              }}>
+                {editStampTarget}
+              </Text>
+            ) : (
+              <Text style={s.statsNumber}>{displayTarget}</Text>
+            )}{" "}stamps for a{" "}
+            {isEditing ? (
+              <Text style={s.editableInline} onPress={onOpenRewardPicker}>
+                {displayReward.toLowerCase()}
+              </Text>
+            ) : (
+              displayReward.toLowerCase()
+            )}.
           </Text>
-          {isOwner && (
+          {isOwner && !isEditing && (
             <Pressable onPress={onScan} style={s.scanIconBtn} hitSlop={8} accessibilityLabel="Scan QR to stamp">
               <Camera size={18} color={t.color["text.primary"]} />
             </Pressable>
@@ -1018,6 +1129,259 @@ function PostsTab({ posts, onRefresh }: { posts: any[]; onRefresh: () => void })
   );
 }
 
+// ── Pickers: Seasonal + Reward (floating modals, site language) ───────────
+
+function SeasonalPicker({
+  visible, openMonth, closeMonth, onChange, onClose,
+}: {
+  visible: boolean;
+  openMonth: number | null;
+  closeMonth: number | null;
+  onChange: (open: number | null, close: number | null) => void;
+  onClose: () => void;
+}) {
+  const [o, setO] = useState<number | null>(openMonth);
+  const [c, setC] = useState<number | null>(closeMonth);
+  useEffect(() => { setO(openMonth); setC(closeMonth); }, [openMonth, closeMonth, visible]);
+  const yearRound = o == null || c == null;
+  return (
+    <FloatingModal
+      visible={visible}
+      title="Seasonal schedule"
+      onClose={onClose}
+      onConfirm={() => { onChange(yearRound ? null : o, yearRound ? null : c); onClose(); }}
+    >
+      <Pressable
+        onPress={() => { setO(null); setC(null); }}
+        style={[sp.yearRoundBtn, yearRound && sp.yearRoundBtnActive]}
+      >
+        <Text style={[sp.yearRoundText, yearRound && sp.yearRoundTextActive]}>Open year-round</Text>
+      </Pressable>
+      <Text style={sp.label}>Opens in</Text>
+      <View style={sp.monthGrid}>
+        {MONTHS.map((m, i) => {
+          const active = !yearRound && o === i + 1;
+          return (
+            <Pressable
+              key={m}
+              onPress={() => setO(i + 1)}
+              style={[sp.monthChip, active && sp.monthChipActive]}
+            >
+              <Text style={[sp.monthText, active && sp.monthTextActive]}>{m}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={sp.label}>Closes after</Text>
+      <View style={sp.monthGrid}>
+        {MONTHS.map((m, i) => {
+          const active = !yearRound && c === i + 1;
+          return (
+            <Pressable
+              key={m}
+              onPress={() => setC(i + 1)}
+              style={[sp.monthChip, active && sp.monthChipActive]}
+            >
+              <Text style={[sp.monthText, active && sp.monthTextActive]}>{m}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </FloatingModal>
+  );
+}
+
+function RewardPicker({
+  visible, value, menu, onChange, onClose,
+}: {
+  visible: boolean;
+  value: string;
+  menu: CafeMenuItem[];
+  onChange: (v: string) => void;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState(value);
+  useEffect(() => { setText(value); }, [value, visible]);
+  // Distinct drink names from the current menu
+  const drinks = useMemo(() => {
+    const seen = new Set<string>();
+    const arr: string[] = [];
+    for (const m of menu) {
+      const d = m.drink_name?.trim();
+      if (d && !seen.has(d.toLowerCase())) { seen.add(d.toLowerCase()); arr.push(d); }
+    }
+    return arr;
+  }, [menu]);
+  const presets = ["Free coffee", ...drinks.map((d) => `Free ${d.toLowerCase()}`)];
+  return (
+    <FloatingModal
+      visible={visible}
+      title="Reward"
+      onClose={onClose}
+      onConfirm={() => { onChange(text.trim() || "Free coffee"); onClose(); }}
+    >
+      <Text style={sp.label}>Pick from the menu</Text>
+      <View style={sp.presetColumn}>
+        {presets.map((p) => {
+          const active = p.toLowerCase() === text.trim().toLowerCase();
+          return (
+            <Pressable
+              key={p}
+              onPress={() => setText(p)}
+              style={[sp.presetRow, active && sp.presetRowActive]}
+            >
+              <Text style={[sp.presetText, active && sp.presetTextActive]}>{p}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={sp.label}>Or write your own</Text>
+      <TextInput
+        value={text}
+        onChangeText={setText}
+        placeholder="Free affogato"
+        placeholderTextColor="rgba(104,79,68,0.4)"
+        style={sp.customInput}
+      />
+    </FloatingModal>
+  );
+}
+
+// Minimal reusable floating modal that follows the site's PostModal
+// pattern (overlayWrap + backdrop blur + card + X).
+function FloatingModal({
+  visible, title, onClose, onConfirm, children,
+}: {
+  visible: boolean;
+  title: string;
+  onClose: () => void;
+  onConfirm?: () => void;
+  children: React.ReactNode;
+}) {
+  // Local import to avoid pulling the whole Modal namespace when unused
+  const { Modal } = require("react-native");
+  if (!visible) return null;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={sp.overlayWrap}>
+        <Pressable style={sp.overlayBg} onPress={onClose} />
+        <View style={sp.card}>
+          <View style={sp.header}>
+            <Text style={sp.title}>{title}</Text>
+            <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
+              {onConfirm ? (
+                <Pressable onPress={onConfirm} style={sp.doneBtn}>
+                  <Text style={sp.doneText}>Done</Text>
+                </Pressable>
+              ) : null}
+              <Pressable onPress={onClose} hitSlop={8}>
+                <Text style={sp.closeText}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+          <ScrollView contentContainerStyle={sp.body}>
+            {children}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const sp = StyleSheet.create({
+  overlayWrap: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    ...(Platform.OS === "web" ? ({ backdropFilter: "blur(35px)", WebkitBackdropFilter: "blur(35px)" } as any) : {}),
+  } as any,
+  overlayBg: { ...StyleSheet.absoluteFillObject, backgroundColor: t.color.overlay } as any,
+  card: {
+    backgroundColor: t.color.bg,
+    borderRadius: t.radius.lg,
+    width: "92%",
+    maxWidth: 440,
+    maxHeight: "85%",
+    overflow: "hidden",
+    zIndex: 1,
+  } as any,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: t.spacing.xl,
+    paddingVertical: t.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: t.color["border.light"],
+  },
+  title: { fontFamily: t.font["body.semibold"], fontSize: t.size["font.lg"], color: t.color["text.primary"] },
+  doneBtn: {
+    backgroundColor: t.color.accent,
+    paddingHorizontal: t.spacing.md,
+    paddingVertical: t.spacing.xs,
+    borderRadius: t.radius.sm,
+  },
+  doneText: { fontFamily: t.font["body.semibold"], fontSize: t.size["font.sm"], color: t.color["text.primary"] },
+  closeText: { fontFamily: t.font["body.medium"], fontSize: t.size["font.sm"], color: t.color["text.muted"] },
+  body: { padding: t.spacing.xl, gap: t.spacing.md },
+
+  // Seasonal picker
+  yearRoundBtn: {
+    paddingVertical: t.spacing.sm,
+    paddingHorizontal: t.spacing.md,
+    borderRadius: t.radius.sm,
+    borderWidth: 1,
+    borderColor: t.color.border,
+    alignItems: "center",
+    marginBottom: t.spacing.sm,
+  },
+  yearRoundBtnActive: {
+    backgroundColor: t.color.accent,
+    borderColor: t.color.accent,
+  },
+  yearRoundText: { fontFamily: t.font["body.medium"], fontSize: t.size["font.sm"], color: t.color["text.primary"] },
+  yearRoundTextActive: { color: t.color["text.primary"] },
+  label: {
+    fontFamily: t.font["body.medium"],
+    fontSize: t.size["font.xs"],
+    color: t.color["text.muted"],
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: t.spacing.sm,
+    marginBottom: t.spacing.xs,
+  },
+  monthGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 } as any,
+  monthChip: {
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: t.radius.sm,
+    backgroundColor: t.color["card.info"],
+  },
+  monthChipActive: { backgroundColor: t.color.accent },
+  monthText: { fontFamily: t.font["body.medium"], fontSize: t.size["font.sm"], color: t.color["text.secondary"] },
+  monthTextActive: { color: t.color["text.primary"] },
+
+  // Reward picker
+  presetColumn: { gap: 4 },
+  presetRow: {
+    paddingVertical: 10, paddingHorizontal: 14,
+    borderRadius: t.radius.sm,
+    backgroundColor: t.color["card.info"],
+  },
+  presetRowActive: { backgroundColor: t.color.accent },
+  presetText: { fontFamily: t.font["body.medium"], fontSize: t.size["font.md"], color: t.color["text.primary"] },
+  presetTextActive: { color: t.color["text.primary"] },
+  customInput: {
+    backgroundColor: t.color["card.info"],
+    borderRadius: t.radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.md"],
+    color: t.color["text.primary"],
+    outlineStyle: "none" as any,
+  } as any,
+});
+
 // ── Styles ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
@@ -1208,6 +1572,21 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     backgroundColor: "#FFFFFF",
   },
+  // Inline editable token — draws attention as tappable (matches the
+  // inlineEdit bubble used elsewhere in edit mode).
+  editableInline: {
+    backgroundColor: "rgba(215,152,218,0.25)",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    color: t.color["text.primary"],
+    fontFamily: t.font["body.semibold"],
+  } as any,
+  editableChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  } as any,
 
   // Baristas
   // (baristas feature removed; styles dropped)
