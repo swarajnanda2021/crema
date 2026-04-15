@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from "../src/hooks/useAuth";
 import { CoffeeDataProvider } from "../src/hooks/useCoffeeData";
 import { t } from "../src/tokens/useTokens";
 import PostModal from "../src/components/shell/PostModal";
+import AuthModal from "../src/components/AuthModal";
 
 export { ErrorBoundary } from "expo-router";
 
@@ -131,6 +132,9 @@ export default function RootLayout() {
           </Stack>
           <StatusBar style="light" />
           <GlobalPostModal />
+          {/* Sitewide floating auth modal — opened from ProfileDropdown's
+              "Add another account" item via crema:open-auth-modal event. */}
+          <AuthModal />
         </AuthGate>
       </CoffeeDataProvider>
     </AuthProvider>

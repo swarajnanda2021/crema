@@ -27,6 +27,7 @@ export interface SavedAccount {
   username: string;
   display_name: string;
   avatar_url: string | null;
+  account_type?: "user" | "roaster" | "cafe";
   token: string;
 }
 
@@ -72,16 +73,23 @@ function writeSavedAccounts(accounts: SavedAccount[]) {
 }
 
 function upsertAccount(user: User, token: string) {
-  const accounts = readSavedAccounts();
+  // Enforce one account per type — replace any existing saved account
+  // with the same account_type (except the current user row we're about
+  // to insert/overwrite). Keeps the saved pool at most one user + one
+  // roaster + one café at any moment.
+  const type = user.account_type || "user";
+  const accounts = readSavedAccounts().filter((a) => {
+    if (a.username === user.username) return false; // will re-insert
+    return (a.account_type || "user") !== type;
+  });
   const entry: SavedAccount = {
     username: user.username,
     display_name: user.display_name,
     avatar_url: user.avatar_url || null,
+    account_type: type,
     token,
   };
-  const idx = accounts.findIndex((a) => a.username === user.username);
-  if (idx >= 0) accounts[idx] = entry;
-  else accounts.push(entry);
+  accounts.push(entry);
   writeSavedAccounts(accounts);
 }
 

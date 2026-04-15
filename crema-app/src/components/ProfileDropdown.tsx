@@ -99,7 +99,13 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
 
   const handleAddAccount = () => {
     onClose();
-    router.push("/auth?addAccount=1");
+    // Open the sitewide floating AuthModal instead of navigating away —
+    // users keep their current page and can add a second account inline.
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("crema:open-auth-modal"));
+    } else {
+      router.push("/auth?addAccount=1");
+    }
   };
 
   // Inline styles for fixed positioning (StyleSheet.create can't handle conditional spreads)
