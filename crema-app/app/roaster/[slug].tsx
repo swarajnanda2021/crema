@@ -31,6 +31,7 @@ import PostCard from "../../src/components/domain/PostCard";
 import EditableCoffeeCard from "../../src/components/domain/EditableCoffeeCard";
 import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
+import PostPromptModal from "../../src/components/PostPromptModal";
 import { openPostModal } from "../../src/components/primitives";
 
 // ── Icons (Figma SVG paths, left panel only) ─────────────────────────────────
@@ -183,6 +184,12 @@ export default function RoasterDetailPage() {
   const catalogCoffees = useMemo(() => products.filter((p: any) => p.roaster_slug === slug), [products, slug]);
   const [localCoffees, setLocalCoffees] = useState<any[]>([]);
   const [deletedProductIds, setDeletedProductIds] = useState<Set<string>>(new Set());
+  // Post-prompt state — same pattern as the café page
+  const [postPrompt, setPostPrompt] = useState<{
+    title: string; body: string; teaser: string;
+  } | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerPrefill, setComposerPrefill] = useState<string>("");
   const coffees = useMemo(() => {
     const seen = new Set<string>();
     return [...localCoffees, ...catalogCoffees].filter((c) => {
@@ -383,10 +390,20 @@ export default function RoasterDetailPage() {
       };
       setLocalCoffees((prev) => [normalised, ...prev]);
       appendProducts([normalised]);
+      // Offer the roaster a chance to announce the new coffee in a post.
+      const subject = data?.coffee_name || "a new coffee";
+      setPostPrompt({
+        title: "New coffee added",
+        body: `You just added "${subject}" to your catalog.`,
+        teaser: `New in: ${subject}. Just added to our lineup.`,
+      });
     } catch (e: any) { console.warn("Create product error:", e.message); }
   }, [slug, appendProducts, roaster]);
 
   const handleDeleteProduct = useCallback(async (productId: string) => {
+    // Capture the coffee name before optimistic removal for the prompt
+    const gone = localCoffees.find((c) => (c.product_id ?? c.id) === productId);
+    const subject = gone?.coffee_name || "a coffee";
     setDeletedProductIds((prev) => new Set([...prev, productId]));
     setLocalCoffees((prev) => prev.filter((c) => (c.product_id ?? c.id) !== productId));
     removeProduct(productId);
@@ -399,8 +416,13 @@ export default function RoasterDetailPage() {
           method: "POST", body: JSON.stringify({ product_id: productId }),
         });
       }
+      setPostPrompt({
+        title: "Coffee removed",
+        body: `You just removed "${subject}" from your catalog.`,
+        teaser: `${subject} has been taken off our catalog for now.`,
+      });
     } catch (e: any) { console.warn("Delete product error:", e.message); }
-  }, [slug, removeProduct]);
+  }, [slug, removeProduct, localCoffees]);
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -816,6 +838,49 @@ export default function RoasterDetailPage() {
             onConfirm={(url) => setEditLogo(url)} onClose={() => setShowLogoUpload(false)} />
           <ImageUploadModal visible={showHeroUpload} title="Upload Cover Image" purpose="hero" currentUrl={editHero}
             onConfirm={(url) => setEditHero(url)} onClose={() => setShowHeroUpload(false)} />
+
+          {/* Post-prompt after product mutation */}
+          <PostPromptModal
+            visible={!!postPrompt}
+            title={postPrompt?.title || ""}
+            body={postPrompt?.body || ""}
+            onConfirm={() => {
+              setComposerPrefill(postPrompt?.teaser || "");
+              setComposerOpen(true);
+              setPostPrompt(null);
+            }}
+            onClose={() => setPostPrompt(null)}
+          />
+
+          {/* Composer modal, pre-filled with the post-prompt teaser. */}
+          <Modal
+            visible={composerOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setComposerOpen(false)}
+          >
+            <View style={s.composerOverlayWrap}>
+              <Pressable style={s.composerOverlayBg} onPress={() => setComposerOpen(false)} />
+              <View style={s.composerCard}>
+                <ComposePost
+                  onSubmit={async (data) => {
+                    try {
+                      await apiFetchRaw("/roaster-posts", {
+                        method: "POST",
+                        body: JSON.stringify({ ...data, roaster_slug: slug }),
+                      });
+                      setComposerOpen(false);
+                      loadPosts?.();
+                    } catch (e) { console.warn("Post create failed:", e); }
+                  }}
+                  onCancel={() => setComposerOpen(false)}
+                  user={user}
+                  products={[]}
+                  initialData={{ body: composerPrefill, images: [], location: "" }}
+                />
+              </View>
+            </View>
+          </Modal>
         </View>
       </View>
       </ResponsiveWrapper>
@@ -842,6 +907,17 @@ const liningNumerals = Platform.OS === "web"
 const s = StyleSheet.create({
   notFound: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: t.color.bg },
   notFoundText: { fontFamily: t.font["body.regular"], fontSize: 16, color: t.color["text.primary"] },
+
+  // Post-prompt composer modal shell — matches the café + feed composers
+  composerOverlayWrap: {
+    flex: 1, justifyContent: "center", alignItems: "center",
+    ...(Platform.OS === "web" ? ({ backdropFilter: "blur(35px)", WebkitBackdropFilter: "blur(35px)" } as any) : {}),
+  } as any,
+  composerOverlayBg: { ...StyleSheet.absoluteFillObject, backgroundColor: t.color.overlay } as any,
+  composerCard: {
+    width: "90%", maxWidth: 680, backgroundColor: t.color.bg,
+    borderRadius: t.radius.lg, overflow: "hidden", maxHeight: "85%", zIndex: 1,
+  } as any,
 
   pageContainer: { flexDirection: "row", overflow: "hidden" } as any,
 

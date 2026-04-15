@@ -8,7 +8,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   View, Text, ScrollView, Pressable, StyleSheet, TextInput,
   ActivityIndicator, useWindowDimensions, Linking, Image as RNImage,
-  Platform, Animated, Easing,
+  Platform, Animated, Easing, Modal,
 } from "react-native";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -20,6 +20,8 @@ import { useAuth } from "../../src/hooks/useAuth";
 import Navbar from "../../src/components/Navbar";
 import ScannerModal from "../../src/components/ScannerModal";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
+import PostPromptModal from "../../src/components/PostPromptModal";
+import ComposePost from "../../src/components/ComposePost";
 import PostCard from "../../src/components/domain/PostCard";
 import { openPostModal } from "../../src/components/primitives";
 import type { Cafe, CafeMenuItem } from "../../src/resources/types";
@@ -164,6 +166,14 @@ export default function CafeDetailPage() {
   // discriminates on the follows table).
   const [following, setFollowing] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
+
+  // Post-prompt state — after a menu mutation succeeds we offer the owner
+  // a chance to announce the change in a post.
+  const [postPrompt, setPostPrompt] = useState<{
+    title: string; body: string; teaser: string;
+  } | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerPrefill, setComposerPrefill] = useState<string>("");
 
   // Auto-open edit mode from ?edit=1 query (set by navbar dropdown)
   useEffect(() => { if (edit === "1" && isOwner) setIsEditing(true); }, [edit, isOwner]);
@@ -644,7 +654,32 @@ export default function CafeDetailPage() {
                 />
               )}
               {activeTab === "menu" && (
-                <MenuTab cafe_slug={slug} menu={menu} isOwner={isOwner} isEditing={isEditing} onChange={fetchAll} />
+                <MenuTab
+                  cafe_slug={slug}
+                  menu={menu}
+                  isOwner={isOwner}
+                  isEditing={isEditing}
+                  onChange={fetchAll}
+                  onCatalogChange={(change, subject) => {
+                    if (!isOwner) return;
+                    const verbMap: Record<string, { title: string; verb: string }> = {
+                      added:   { title: "Menu added", verb: "added" },
+                      updated: { title: "Menu updated", verb: "updated" },
+                      removed: { title: "Menu removed", verb: "removed" },
+                    };
+                    const info = verbMap[change] || verbMap.updated;
+                    setPostPrompt({
+                      title: info.title,
+                      body: `You just ${info.verb} "${subject}" on the menu.`,
+                      teaser:
+                        change === "added"
+                          ? `We just added ${subject} to the menu. Come give it a try!`
+                          : change === "removed"
+                          ? `${subject} has been taken off the menu for now.`
+                          : `We've updated ${subject} on the menu.`,
+                    });
+                  }}
+                />
               )}
               {activeTab === "posts" && (
                 <PostsTab posts={posts} onRefresh={fetchAll} />
@@ -768,7 +803,34 @@ export default function CafeDetailPage() {
                 onScan={() => setShowScanner(true)}
               />
             )}
-            {activeTab === "menu" && (<MenuTab cafe_slug={slug} menu={menu} isOwner={isOwner} isEditing={isEditing} onChange={fetchAll} />)}
+            {activeTab === "menu" && (
+              <MenuTab
+                cafe_slug={slug}
+                menu={menu}
+                isOwner={isOwner}
+                isEditing={isEditing}
+                onChange={fetchAll}
+                onCatalogChange={(change, subject) => {
+                  if (!isOwner) return;
+                  const verbMap: Record<string, { title: string; verb: string }> = {
+                    added:   { title: "Menu added", verb: "added" },
+                    updated: { title: "Menu updated", verb: "updated" },
+                    removed: { title: "Menu removed", verb: "removed" },
+                  };
+                  const info = verbMap[change] || verbMap.updated;
+                  setPostPrompt({
+                    title: info.title,
+                    body: `You just ${info.verb} "${subject}" on the menu.`,
+                    teaser:
+                      change === "added"
+                        ? `We just added ${subject} to the menu. Come give it a try!`
+                        : change === "removed"
+                        ? `${subject} has been taken off the menu for now.`
+                        : `We've updated ${subject} on the menu.`,
+                  });
+                }}
+              />
+            )}
             {activeTab === "posts" && (<PostsTab posts={posts} onRefresh={fetchAll} />)}
           </View>
         </ScrollView>
@@ -821,6 +883,54 @@ export default function CafeDetailPage() {
         }}
         onClose={() => setShowRewardPicker(false)}
       />
+
+      {/* Post-prompt after a menu mutation */}
+      <PostPromptModal
+        visible={!!postPrompt}
+        title={postPrompt?.title || ""}
+        body={postPrompt?.body || ""}
+        onConfirm={() => {
+          setComposerPrefill(postPrompt?.teaser || "");
+          setComposerOpen(true);
+          setPostPrompt(null);
+        }}
+        onClose={() => setPostPrompt(null)}
+      />
+
+      {/* Composer modal, pre-filled with the post-prompt teaser when
+          launched from a catalog change. Reuses the site's floating
+          overlay pattern (same as the feed composer). */}
+      <Modal
+        visible={composerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setComposerOpen(false)}
+      >
+        <View style={s.composerOverlayWrap}>
+          <Pressable style={s.composerOverlayBg} onPress={() => setComposerOpen(false)} />
+          <View style={s.composerCard}>
+            <ComposePost
+              onSubmit={async (data) => {
+                try {
+                  // Posts published from a café owner are auto-tagged to
+                  // their own café so followers see the update land under
+                  // the café's feed.
+                  await apiFetchRaw("/roaster-posts", {
+                    method: "POST",
+                    body: JSON.stringify({ ...data, cafe_slug: slug, roaster_slug: `user_${user?.id}` }),
+                  });
+                  setComposerOpen(false);
+                  fetchAll();
+                } catch (e) { console.warn("Post create failed:", e); }
+              }}
+              onCancel={() => setComposerOpen(false)}
+              user={user}
+              products={[]}
+              initialData={{ body: composerPrefill, images: [], location: "" }}
+            />
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -916,12 +1026,15 @@ function BioTab({
 
 // ── Menu Tab ───────────────────────────────────────────────────────────────
 
-function MenuTab({ cafe_slug, menu, isOwner, isEditing, onChange }: {
+function MenuTab({
+  cafe_slug, menu, isOwner, isEditing, onChange, onCatalogChange,
+}: {
   cafe_slug: string;
   menu: CafeMenuItem[];
   isOwner: boolean;
   isEditing: boolean;
   onChange: () => void;
+  onCatalogChange?: (change: "added" | "updated" | "removed", subject: string) => void;
 }) {
   const router = useRouter();
 
@@ -937,9 +1050,15 @@ function MenuTab({ cafe_slug, menu, isOwner, isEditing, onChange }: {
   }, [menu]);
 
   const handleDelete = async (id: number) => {
+    // Capture subject before deletion so the prompt reads sensibly
+    const item = menu.find((m) => m.id === id);
+    const subject = item
+      ? `${item.drink_name}${item.manual_bean_name ? ` (${item.manual_bean_name})` : ""}`
+      : "a menu item";
     try {
       await apiFetchRaw(`/cafe_menu_items/${id}`, { method: "DELETE" });
       onChange();
+      onCatalogChange?.("removed", subject);
     } catch (e) { console.warn("Menu delete failed:", e); }
   };
 
@@ -950,6 +1069,11 @@ function MenuTab({ cafe_slug, menu, isOwner, isEditing, onChange }: {
         body: JSON.stringify(body),
       });
       onChange();
+      const item = menu.find((m) => m.id === id);
+      const subject = item
+        ? `${item.drink_name}${body.manual_bean_name || item.manual_bean_name ? ` (${body.manual_bean_name ?? item.manual_bean_name})` : ""}`
+        : "a menu item";
+      onCatalogChange?.("updated", subject);
     } catch (e) { console.warn("Menu update failed:", e); }
   };
 
@@ -960,6 +1084,10 @@ function MenuTab({ cafe_slug, menu, isOwner, isEditing, onChange }: {
         body: JSON.stringify({ cafe_slug, drink_name, ...body }),
       });
       onChange();
+      const subject = body.manual_bean_name
+        ? `${drink_name} (${body.manual_bean_name})`
+        : drink_name;
+      onCatalogChange?.("added", subject);
     } catch (e) { console.warn("Menu add bean failed:", e); }
   };
 
@@ -1999,6 +2127,15 @@ const s = StyleSheet.create({
     fontSize: t.size["font.sm"],
     color: t.color["text.primary"],
   },
+  composerOverlayWrap: {
+    flex: 1, justifyContent: "center", alignItems: "center",
+    ...(Platform.OS === "web" ? ({ backdropFilter: "blur(35px)", WebkitBackdropFilter: "blur(35px)" } as any) : {}),
+  } as any,
+  composerOverlayBg: { ...StyleSheet.absoluteFillObject, backgroundColor: t.color.overlay } as any,
+  composerCard: {
+    width: "90%", maxWidth: 680, backgroundColor: t.color.bg,
+    borderRadius: t.radius.lg, overflow: "hidden", maxHeight: "85%", zIndex: 1,
+  } as any,
 
   // Baristas
   // (baristas feature removed; styles dropped)
