@@ -999,7 +999,9 @@ function BioTab({
               hitSlop={8}
               accessibilityLabel="Disable loyalty program"
             >
-              <Trash2 size={16} color={t.color["accent.cta"]} />
+              {/* Matches the coffee-card delete button: cream circle +
+                  primary-dark trash icon (see CoffeeCard.binBtn). */}
+              <Trash2 size={14} color={t.color["text.primary"]} strokeWidth={1.5} />
             </Pressable>
           )}
         </View>
@@ -2129,16 +2131,16 @@ const s = StyleSheet.create({
     color: t.color["text.primary"],
   },
   // Small trash button that sits next to the editable stats sentence
-  // and turns the loyalty program off. Rust outline to signal it's a
-  // destructive action without overweighting the row.
+  // and turns the loyalty program off. Reuses the coffee-card delete
+  // language (cream circle + dark primary trash glyph) — same visual
+  // weight as CoffeeCard.binBtn, scaled for an inline row.
   loyaltyDisableBtn: {
     width: 28,
     height: 28,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: t.color["accent.cta"],
+    backgroundColor: t.color["card.info"],
   },
   composerOverlayWrap: {
     flex: 1, justifyContent: "center", alignItems: "center",
