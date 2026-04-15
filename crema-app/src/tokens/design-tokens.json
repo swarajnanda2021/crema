@@ -1,4 +1,5 @@
 {
+  "_directive": "CRUD Utopia — this file is the source of truth for all visual values. See CRUD_UTOPIA.md at repo root. No hex codes, fonts, or magic numbers anywhere else.",
   "color": {
     "bg": "#FAF8F0",
     "card.front": "#FFFFFF",
@@ -102,9 +103,13 @@
     }
   },
   "shelf": {
-    "currently_drinking": { "label": "Drinking", "color": "#C8553D" },
-    "drank": { "label": "Drank", "color": "#6B5B4F" },
-    "want_to_try": { "label": "Want to Try", "color": "#E8C07A" }
+    "open_bags": { "label": "Open Bags", "color": "#D798DA" },
+    "on_the_list": { "label": "On the List", "color": "#D798DA" }
+  },
+  "cafe": {
+    "stamp.filled": "#D798DA",
+    "stamp.empty": "#D7D1C4",
+    "stamp.target": "#351101"
   },
   "lineHeight": {
     "tight": 16,

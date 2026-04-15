@@ -1,4 +1,9 @@
 /**
+ * CRUD Utopia — this is the primary frontend data-fetch primitive.
+ * Every screen that reads from the backend uses this hook (or apiFetchRaw
+ * as the escape hatch). Do not roll your own fetch logic.
+ * See CRUD_UTOPIA.md at repo root.
+ *
  * Generic resource hook — fetches, caches, and mutates any CRUD resource.
  *
  * Usage:

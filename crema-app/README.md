@@ -2,6 +2,8 @@
 
 React Native (Expo) frontend for the Crema coffee community platform.
 
+> **Read [CRUD_UTOPIA.md](../CRUD_UTOPIA.md) at repo root before contributing.** This app is part of a registry-driven architecture — tokens, types, hooks, and API calls all follow a specific pattern. Load-bearing files (`useResource.ts`, `useTokens.ts`, `client.ts`) carry directive headers.
+
 ## Stack
 
 - **Expo SDK 54** with Expo Router (file-based navigation)

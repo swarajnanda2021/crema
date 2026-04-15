@@ -11,6 +11,7 @@ import { Image } from "expo-image";
 import { Search, X, ArrowRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
+import { useCafes } from "../../src/hooks/useCafes";
 import { t } from "../../src/tokens/useTokens";
 import CoffeeList from "../../src/components/CoffeeList";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
@@ -22,7 +23,7 @@ export default function BrowsePage() {
   const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
   const [query, setQuery] = useState("");
   const [popularity, setPopularity] = useState<Record<string, number>>({});
-  const [activeTab, setActiveTab] = useState<"beans" | "roasters">("beans");
+  const [activeTab, setActiveTab] = useState<"beans" | "roasters" | "cafes">("beans");
   const [sortBy, setSortBy] = useState<string>("featured");
   const [selectedRoasters, setSelectedRoasters] = useState<string[]>([]);
   const [selectedRoasts, setSelectedRoasts] = useState<string[]>([]);
@@ -87,6 +88,7 @@ export default function BrowsePage() {
           <View style={s.tabBarRight}>
             <TabButton label="BEANS" active={activeTab === "beans"} onPress={() => setActiveTab("beans")} />
             <TabButton label="ROASTERS" active={activeTab === "roasters"} onPress={() => setActiveTab("roasters")} />
+            <TabButton label="CAFÉS" active={activeTab === "cafes"} onPress={() => setActiveTab("cafes")} />
           </View>
         </View>
       </View>
@@ -170,8 +172,10 @@ export default function BrowsePage() {
             />
           </View>
         </View>
-      ) : (
+      ) : activeTab === "roasters" ? (
         <RoastersList />
+      ) : (
+        <CafesList />
       )}
     </View>
   );
@@ -356,6 +360,146 @@ function RoastersList() {
               <RoasterRow key={r.slug} roaster={r} imageUrl={roasterImages[r.slug]} />
             ))}
           </View>
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
+
+// ─── Cafés tab ───────────────────────────────────────────────────────────────
+
+function CafeRow({ cafe, popularity }: { cafe: any; popularity?: number }) {
+  const router = useRouter();
+  const [hovered, setHovered] = useState(false);
+  const subParts: string[] = [];
+  if (cafe.city) subParts.push([cafe.city, cafe.state].filter(Boolean).join(", "));
+  if (popularity != null && popularity > 0) subParts.push(`${popularity} ${popularity === 1 ? "visitor" : "visitors"}`);
+
+  return (
+    <>
+      <Pressable
+        onPress={() => router.push(`/cafe/${cafe.cafe_slug}` as any)}
+        style={[s.rRow, hovered && s.rRowHovered] as any}
+        onHoverIn={() => setHovered(true)}
+        onHoverOut={() => setHovered(false)}
+      >
+        <View style={s.rImage}>
+          {cafe.cover_image_url || cafe.logo_url ? (
+            <Image source={{ uri: resolveUploadUrl(cafe.cover_image_url || cafe.logo_url) }} style={StyleSheet.absoluteFillObject as any} contentFit="cover" />
+          ) : (
+            <View style={[StyleSheet.absoluteFillObject as any, { alignItems: "center", justifyContent: "center" }]}>
+              <Text style={{ fontFamily: t.font.display, fontSize: 28, color: t.color["text.muted"] }}>
+                {(cafe.name || "?")[0]}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={s.rInfo}>
+          <Text style={s.rName} numberOfLines={1}>{cafe.name}</Text>
+          <Text style={s.rSub} numberOfLines={1}>{subParts.join("  \u00B7  ")}</Text>
+        </View>
+        <View style={[s.rArrowBtn, hovered && s.rArrowBtnHovered] as any}>
+          <ArrowRight size={18} color={hovered ? t.color["text.primary"] : t.color["text.muted"]} strokeWidth={1.5} />
+        </View>
+      </Pressable>
+      <View style={s.rDivider} />
+    </>
+  );
+}
+
+function CafesList() {
+  const { cafes, popularity, loading } = useCafes();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 1024;
+  const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
+  const [cafeQuery, setCafeQuery] = useState("");
+  const [selectedCities, setSelectedCities] = useState<string[]>([]);
+  const [searchBarHidden, setSearchBarHidden] = useState(false);
+  const lastScrollY = useRef(0);
+
+  const cities = useMemo(() => {
+    const set = new Set<string>();
+    cafes.forEach((c) => { if (c.city) set.add(c.city); });
+    return Array.from(set).sort();
+  }, [cafes]);
+
+  const filteredCafes = useMemo(() => {
+    let result = cafes;
+    if (cafeQuery) {
+      const q = cafeQuery.toLowerCase();
+      result = result.filter((c) =>
+        (c.name || "").toLowerCase().includes(q) ||
+        (c.city || "").toLowerCase().includes(q) ||
+        (c.about_blurb || "").toLowerCase().includes(q)
+      );
+    }
+    if (selectedCities.length > 0) {
+      result = result.filter((c) => c.city && selectedCities.includes(c.city));
+    }
+    return result;
+  }, [cafes, cafeQuery, selectedCities]);
+
+  const toggleCity = (city: string) => {
+    setSelectedCities(prev => prev.includes(city) ? prev.filter(c => c !== city) : [...prev, city]);
+  };
+
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const currentY = e.nativeEvent.contentOffset.y;
+    setSearchBarHidden(currentY > lastScrollY.current && currentY > 10);
+    lastScrollY.current = currentY;
+  }, []);
+
+  return (
+    <View style={s.browseLayout}>
+      {isDesktop && (
+        <ScrollView
+          style={[s.sidebar, { width: sidebarW, minWidth: sidebarW, maxWidth: sidebarW }]}
+          contentContainerStyle={{ paddingRight: 16, paddingTop: 20, paddingBottom: 60 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={s.sidebarCount}>
+            <Text style={s.sidebarCountBold}>{filteredCafes.length}</Text> cafés
+          </Text>
+          <View style={s.filterDivider} />
+          {cities.length > 0 && (
+            <FilterSection
+              title="Location"
+              items={cities.map(c => ({ key: c, label: c }))}
+              selected={selectedCities}
+              onToggle={toggleCity}
+              maxVisible={20}
+            />
+          )}
+        </ScrollView>
+      )}
+
+      {isDesktop && <View style={s.verticalDivider} />}
+
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={[s.searchBarWrap, searchBarHidden && s.searchBarWrapHidden] as any}>
+          <View style={s.stickySearchWrap}>
+            <View style={s.searchBar}>
+              <Search size={16} color={t.color["text.muted"]} />
+              <TextInput placeholder="Search cafés" placeholderTextColor={t.color["text.muted"]} value={cafeQuery} onChangeText={setCafeQuery} style={s.searchInput} />
+              {cafeQuery ? <Pressable onPress={() => setCafeQuery("")}><X size={16} color={t.color["text.muted"]} /></Pressable> : null}
+            </View>
+          </View>
+        </View>
+
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} onScroll={handleScroll} scrollEventThrottle={50}>
+          <Text style={s.rPageTitle} numberOfLines={1}>Discover specialty coffee cafés</Text>
+          <View style={s.rDivider} />
+          {loading ? (
+            <Text style={[s.rSub, { padding: 20 }]}>Loading…</Text>
+          ) : filteredCafes.length === 0 ? (
+            <Text style={[s.rSub, { padding: 20 }]}>No cafés match.</Text>
+          ) : (
+            <View>
+              {filteredCafes.map((c) => (
+                <CafeRow key={c.cafe_slug} cafe={c} popularity={popularity[c.cafe_slug]} />
+              ))}
+            </View>
+          )}
         </ScrollView>
       </View>
     </View>

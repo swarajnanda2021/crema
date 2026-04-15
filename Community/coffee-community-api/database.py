@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS shelf_entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id),
     product_id TEXT NOT NULL,
-    shelf TEXT NOT NULL CHECK (shelf IN ('currently_drinking', 'drank', 'want_to_try')),
+    shelf TEXT NOT NULL CHECK (shelf IN ('open_bags', 'on_the_list')),
     added_at TEXT NOT NULL,
     moved_at TEXT NOT NULL,
     UNIQUE(user_id, product_id)
@@ -288,7 +288,129 @@ _MIGRATIONS = [
     )""",
     "CREATE INDEX IF NOT EXISTS idx_products_roaster ON products(roaster_slug)",
     "CREATE INDEX IF NOT EXISTS idx_products_available ON products(available)",
+    # ── Café entity (see CRUD_UTOPIA.md) ───────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS cafe_profiles (
+        cafe_slug TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        about_blurb TEXT,
+        cover_image_url TEXT,
+        logo_url TEXT,
+        hero_crop_x REAL DEFAULT 50,
+        hero_crop_y REAL DEFAULT 50,
+        hero_zoom REAL DEFAULT 1,
+        address TEXT,
+        city TEXT,
+        state TEXT,
+        lat REAL,
+        lng REAL,
+        instagram_handle TEXT,
+        website TEXT,
+        phone TEXT,
+        hours_json TEXT,
+        seasonal_open_month INTEGER,
+        seasonal_close_month INTEGER,
+        stamps_enabled INTEGER DEFAULT 0,
+        stamp_target INTEGER DEFAULT 10,
+        stamp_reward TEXT DEFAULT 'Free coffee',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_cafes_city ON cafe_profiles(city)",
+    """CREATE TABLE IF NOT EXISTS cafe_menu_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cafe_slug TEXT NOT NULL REFERENCES cafe_profiles(cafe_slug) ON DELETE CASCADE,
+        drink_name TEXT NOT NULL,
+        drink_order INTEGER DEFAULT 0,
+        roaster_slug TEXT,
+        product_id TEXT,
+        manual_roaster_name TEXT,
+        manual_roaster_url TEXT,
+        manual_bean_name TEXT,
+        roast_level TEXT,
+        process TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_menu_cafe ON cafe_menu_items(cafe_slug, drink_order)",
+    """CREATE TABLE IF NOT EXISTS cafe_baristas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cafe_slug TEXT NOT NULL REFERENCES cafe_profiles(cafe_slug) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        photo_url TEXT,
+        specialty TEXT,
+        display_order INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_baristas_cafe ON cafe_baristas(cafe_slug, display_order)",
+    """CREATE TABLE IF NOT EXISTS stamps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        cafe_slug TEXT NOT NULL REFERENCES cafe_profiles(cafe_slug) ON DELETE CASCADE,
+        barista_id INTEGER,
+        scanned_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_stamps_user ON stamps(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_stamps_cafe ON stamps(cafe_slug)",
+    "CREATE INDEX IF NOT EXISTS idx_stamps_user_cafe ON stamps(user_id, cafe_slug)",
+    """CREATE TABLE IF NOT EXISTS stamp_rewards (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        cafe_slug TEXT NOT NULL REFERENCES cafe_profiles(cafe_slug) ON DELETE CASCADE,
+        stamps_used INTEGER NOT NULL,
+        redeemed_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_rewards_user_cafe ON stamp_rewards(user_id, cafe_slug)",
+    """CREATE TABLE IF NOT EXISTS qr_tokens (
+        token TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        issued_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_qr_user ON qr_tokens(user_id)",
+    # Extend users to support café owner accounts
+    "ALTER TABLE users ADD COLUMN cafe_slug TEXT",
+    # Extend follows with target_type discriminator (for café follows alongside roaster follows)
+    "ALTER TABLE follows ADD COLUMN target_type TEXT NOT NULL DEFAULT 'roaster'",
+    # Posts can tag a café as location entity
+    "ALTER TABLE roaster_posts ADD COLUMN cafe_slug TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_posts_cafe ON roaster_posts(cafe_slug)",
 ]
+
+
+def _migrate_shelf_categories(conn):
+    """Migrate shelf categories: currently_drinking→open_bags, want_to_try→on_the_list, delete drank.
+    Rebuilds the table to update the CHECK constraint (SQLite doesn't support ALTER CONSTRAINT)."""
+    # Check if migration is needed
+    row = conn.execute("SELECT shelf FROM shelf_entries WHERE shelf = 'currently_drinking' LIMIT 1").fetchone()
+    if not row:
+        return  # Already migrated or empty
+
+    conn.executescript("""
+        PRAGMA foreign_keys = OFF;
+        BEGIN TRANSACTION;
+        CREATE TABLE shelf_entries_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            product_id TEXT NOT NULL,
+            shelf TEXT NOT NULL CHECK (shelf IN ('open_bags', 'on_the_list')),
+            added_at TEXT NOT NULL,
+            moved_at TEXT NOT NULL,
+            UNIQUE(user_id, product_id)
+        );
+        INSERT INTO shelf_entries_new (id, user_id, product_id, shelf, added_at, moved_at)
+            SELECT id, user_id, product_id,
+                CASE shelf
+                    WHEN 'currently_drinking' THEN 'open_bags'
+                    WHEN 'want_to_try' THEN 'on_the_list'
+                END,
+                added_at, moved_at
+            FROM shelf_entries
+            WHERE shelf IN ('currently_drinking', 'want_to_try');
+        DROP TABLE shelf_entries;
+        ALTER TABLE shelf_entries_new RENAME TO shelf_entries;
+        COMMIT;
+        PRAGMA foreign_keys = ON;
+    """)
 
 
 def init_db():
@@ -303,4 +425,67 @@ def init_db():
             conn.commit()
         except sqlite3.OperationalError:
             pass  # Column already exists
+    # Shelf category migration (table rebuild — must run after normal migrations)
+    try:
+        _migrate_shelf_categories(conn)
+    except Exception as e:
+        print(f"Shelf migration note: {e}")
+    # Seed pilot cafés (idempotent)
+    try:
+        _seed_pilot_cafes(conn)
+    except Exception as e:
+        print(f"Café seed note: {e}")
     conn.close()
+
+
+def _seed_pilot_cafes(conn):
+    """Seed Brightside Café and Prana Goa — the Goa pilot. Idempotent."""
+    import datetime as _dt
+    now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    existing = conn.execute("SELECT cafe_slug FROM cafe_profiles WHERE cafe_slug IN ('brightside-mandrem', 'prana-goa')").fetchall()
+    existing_slugs = {r[0] for r in existing}
+
+    if 'brightside-mandrem' not in existing_slugs:
+        conn.execute("""
+            INSERT INTO cafe_profiles (
+                cafe_slug, name, about_blurb, address, city, state,
+                instagram_handle, seasonal_open_month, seasonal_close_month,
+                stamps_enabled, stamp_target, stamp_reward,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            'brightside-mandrem',
+            'Brightside Café',
+            'A small café opposite the Mahalaxmi Temple in Mandrem. Known for bagels, continental brunch, and some of the best coffee in Goa. Closed during monsoon.',
+            'Junas Waddo, opposite Mahalaxmi Temple, Mandrem',
+            'Mandrem', 'Goa',
+            'brightsidecafe_goa',
+            10,  # opens October
+            5,   # closes end of May (i.e. closed June-September)
+            1, 10, 'Free coffee',
+            now, now,
+        ))
+
+    if 'prana-goa' not in existing_slugs:
+        conn.execute("""
+            INSERT INTO cafe_profiles (
+                cafe_slug, name, about_blurb, address, city, state,
+                instagram_handle, website,
+                seasonal_open_month, seasonal_close_month,
+                stamps_enabled, stamp_target, stamp_reward,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            'prana-goa',
+            'Prana Goa',
+            'Wellness café at Vaayu Waterman''s Village in Ashwem. Multi-roaster pour menu, open year-round.',
+            'Vaayu Waterman''s Village, Ashwem, Mandrem',
+            'Mandrem', 'Goa',
+            'prana.goa',
+            'https://pranagoa.com',
+            None, None,  # year-round
+            1, 10, 'Free coffee',
+            now, now,
+        ))
+
+    conn.commit()

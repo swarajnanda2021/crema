@@ -25,14 +25,14 @@ import PostCard from "../../src/components/domain/PostCard";
 import { openPostModal } from "../../src/components/primitives";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import Navbar from "../../src/components/Navbar";
+import StampBookList from "../../src/components/StampBookList";
 
-type ProfileTab = "posts" | "shelf" | "following";
-type ShelfSub = "currently_drinking" | "drank" | "want_to_try";
-const SHELF_KEYS: ShelfSub[] = ["currently_drinking", "drank", "want_to_try"];
-const SHELF_SUB_LABELS: Record<ShelfSub, string> = {
-  currently_drinking: "Currently Drinking",
-  drank: "Drank",
-  want_to_try: "Want to Try",
+type ProfileTab = "posts" | "shelf" | "stamps" | "following";
+type ShelfKey = "open_bags" | "on_the_list";
+const SHELF_KEYS: ShelfKey[] = ["open_bags", "on_the_list"];
+const SHELF_SECTION_LABELS: Record<ShelfKey, string> = {
+  open_bags: "Open Bags",
+  on_the_list: "On the List",
 };
 
 // ── Hero icons (Figma-faithful, #D798DA, ~15px) ─────────────────────────────
@@ -78,38 +78,45 @@ function HeroPinIcon() {
   );
 }
 
-// ── CoffeeGrid ──────────────────────────────────────────────────────────────
+// ── ShelfCarousel — horizontal scroll of coffee cards ────────────────────────
 
-const GAP = 20;
-const TARGET_CARD_W = 240;
-const CARD_ASPECT = 400 / 240;
-const GRID_PAD = 16;
+const CAROUSEL_CARD_W = 240;
+const CAROUSEL_CARD_H = Math.floor(240 * (400 / 240));
+const CAROUSEL_GAP = 16;
+const CAROUSEL_PAD = 20;
 
-function CoffeeGrid({ coffees }: { coffees: Array<{ coffee: any; entryId: string }> }) {
-  const [containerW, setContainerW] = useState(0);
-  const onLayout = useCallback((e: LayoutChangeEvent) => { setContainerW(e.nativeEvent.layout.width); }, []);
-  const availableWidth = containerW > 0 ? containerW - GRID_PAD * 2 : 960;
-  const numCols = Math.max(1, Math.min(5, Math.round((availableWidth + GAP) / (TARGET_CARD_W + GAP))));
-  const cardWidth = Math.floor((availableWidth - GAP * (numCols - 1)) / numCols);
-  const cardHeight = Math.floor(cardWidth * CARD_ASPECT);
-
+function ShelfCarousel({ coffees, isOwner, onAddToShelf }: {
+  coffees: Array<{ coffee: any; entryId: string }>;
+  isOwner?: boolean;
+  onAddToShelf?: (productId: string) => void;
+}) {
   if (coffees.length === 0) {
     return <View style={g.empty}><Text style={g.emptyText}>Nothing here yet.</Text></View>;
   }
 
   return (
-    <View onLayout={onLayout} style={[g.grid, { gap: GAP, paddingHorizontal: GRID_PAD, paddingBottom: 60 }]}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ paddingHorizontal: CAROUSEL_PAD, gap: CAROUSEL_GAP, paddingBottom: 8 }}
+    >
       {coffees.map(({ coffee, entryId }) => (
-        <View key={entryId} style={{ width: cardWidth, height: cardHeight }}>
-          <CoffeeCard coffee={coffee} width={cardWidth} height={cardHeight} />
+        <View key={entryId} style={{ width: CAROUSEL_CARD_W, height: CAROUSEL_CARD_H }}>
+          <CoffeeCard
+            coffee={coffee}
+            width={CAROUSEL_CARD_W}
+            height={CAROUSEL_CARD_H}
+            shelfMode
+            isOwner={isOwner}
+            onAddToShelf={!isOwner ? onAddToShelf : undefined}
+          />
         </View>
       ))}
-    </View>
+    </ScrollView>
   );
 }
 
 const g = StyleSheet.create({
-  grid: { flexDirection: "row", flexWrap: "wrap" },
   empty: { paddingVertical: 60, alignItems: "center", paddingHorizontal: 32 },
   emptyText: { fontFamily: t.font["body.semibold"], fontSize: 15, color: t.color["text.primary"], marginBottom: 6 },
 });
@@ -119,7 +126,7 @@ const g = StyleSheet.create({
 export default function UserProfilePage() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const { user: authUser } = useAuth();
-  const { fetchUserShelves } = useShelves();
+  const { fetchUserShelves, addToShelf } = useShelves();
   const { productMap } = useCoffeeData();
   const router = useRouter();
   const { width: screenW } = useWindowDimensions();
@@ -135,9 +142,9 @@ export default function UserProfilePage() {
   const [profileUser, setProfileUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
-  const [activeShelf, setActiveShelf] = useState<ShelfSub>("currently_drinking");
+  // No sub-tab state — both shelf sections render at once
   const [posts, setPosts] = useState<any[]>([]);
-  const [shelves, setShelves] = useState<any>({ currently_drinking: [], drank: [], want_to_try: [] });
+  const [shelves, setShelves] = useState<any>({ open_bags: [], on_the_list: [] });
   const [followingList, setFollowingList] = useState<any[]>([]);
   const [followerCount, setFollowerCount] = useState(0);
   const [following, setFollowing] = useState(false);
@@ -168,7 +175,7 @@ export default function UserProfilePage() {
       const p = d?.posts ?? d;
       setPosts(Array.isArray(p) ? p : []);
     }
-    if (shelfRes.status === "fulfilled") setShelves(shelfRes.value || { currently_drinking: [], drank: [], want_to_try: [] });
+    if (shelfRes.status === "fulfilled") setShelves(shelfRes.value || { open_bags: [], on_the_list: [] });
     setLoading(false);
   }, [username, authUser]);
 
@@ -193,9 +200,15 @@ export default function UserProfilePage() {
     } catch (e) { console.error("Follow toggle failed:", e); }
   };
 
-  const shelfEntries = (shelves[activeShelf] || []).map((entry: any) => ({
-    coffee: productMap?.get(entry.product_id) || { product_id: entry.product_id, name: entry.product_id },
-    entryId: String(entry.id),
+  const shelfSections = SHELF_KEYS.map((key) => ({
+    key,
+    label: SHELF_SECTION_LABELS[key],
+    entries: (shelves[key] || []).map((entry: any) => ({
+      coffee: productMap?.get(entry.product_id),
+      entryId: String(entry.id),
+    }))
+      .filter((e: any) => e.coffee?.coffee_name)
+      .filter((e: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.coffee?.product_id === e.coffee?.product_id) === i),
   }));
 
   if (loading) {
@@ -301,13 +314,13 @@ export default function UserProfilePage() {
   );
 
   // ── Tab bar ──
-  const tabs: ProfileTab[] = isOwn ? ["posts", "shelf", "following"] : ["posts", "shelf"];
+  const tabs: ProfileTab[] = isOwn ? ["posts", "shelf", "stamps", "following"] : ["posts", "shelf", "stamps"];
   const tabBar = (
     <View style={s.tabBar}>
       {tabs.map((tab) => (
         <Pressable key={tab} onPress={() => { setActiveTab(tab); setVisiblePostCount(POSTS_PER_PAGE); }} style={s.tab}>
           <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
-            {tab === "posts" ? "POSTS" : tab === "shelf" ? "COFFEE SHELF" : "FOLLOWING"}
+            {tab === "posts" ? "POSTS" : tab === "shelf" ? "COFFEE SHELF" : tab === "stamps" ? "STAMP BOOK" : "FOLLOWING"}
           </Text>
           {activeTab === tab && <View style={s.tabUnderline} />}
         </Pressable>
@@ -340,17 +353,25 @@ export default function UserProfilePage() {
   } else if (activeTab === "shelf") {
     tabContent = (
       <View style={s.tabContent}>
-        <View style={s.shelfSubTabs}>
-          {SHELF_KEYS.map((key) => (
-            <Pressable key={key} onPress={() => setActiveShelf(key)} style={s.shelfSubTab}>
-              <Text style={[s.shelfSubTabText, activeShelf === key && s.shelfSubTabTextActive]}>
-                {SHELF_SUB_LABELS[key]}
+        {shelfSections.map((section) => (
+          <View key={section.key} style={s.shelfSection}>
+            <Text style={s.shelfSectionTitle}>{section.label}</Text>
+            <View style={s.shelfSectionMeta}>
+              <HeroCoffeeIcon />
+              <Text style={s.shelfSectionCount}>
+                {section.entries.length} {section.entries.length === 1 ? "Coffee" : "Coffees"}
               </Text>
-              {activeShelf === key && <View style={s.shelfSubTabUnderline} />}
-            </Pressable>
-          ))}
-        </View>
-        <CoffeeGrid coffees={shelfEntries} />
+            </View>
+            <View style={s.shelfSectionDivider} />
+            <ShelfCarousel coffees={section.entries} isOwner={isOwn} onAddToShelf={(productId: string) => { addToShelf(productId, "open_bags"); }} />
+          </View>
+        ))}
+      </View>
+    );
+  } else if (activeTab === "stamps") {
+    tabContent = (
+      <View style={s.tabContent}>
+        <StampBookList username={username as string} isOwnProfile={isOwn} />
       </View>
     );
   } else if (activeTab === "following" && isOwn) {
@@ -470,14 +491,11 @@ const s = StyleSheet.create({
   postDivider: { height: 1, backgroundColor: "rgba(215,209,196,0.5)", marginVertical: 4 },
 
   // Shelf sub-tabs
-  shelfSubTabs: {
-    flexDirection: "row", gap: 32, paddingHorizontal: 20, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.3)", marginBottom: 16,
-  },
-  shelfSubTab: { position: "relative", paddingBottom: 8 } as any,
-  shelfSubTabText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.muted"] },
-  shelfSubTabTextActive: { color: t.color["text.primary"] },
-  shelfSubTabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 3, backgroundColor: t.color["text.primary"] } as any,
+  shelfSection: { marginBottom: 40 },
+  shelfSectionTitle: { fontFamily: t.font.display, fontSize: 35, color: t.color["text.primary"], lineHeight: 42, paddingHorizontal: 20, marginTop: 16 },
+  shelfSectionMeta: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, marginTop: 8, marginBottom: 12 },
+  shelfSectionCount: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.primary"] },
+  shelfSectionDivider: { height: 1, backgroundColor: t.color.divider, marginHorizontal: 20, marginBottom: 16 },
 
   // Following list
   followRow: {

@@ -8,7 +8,9 @@
 
 ## 1. Overview
 
-The community layer adds social features to Crema: user accounts, coffee shelves (Currently Drinking / Drank / Want to Try), detailed tasting notes with full brew recipes, a temporal feed, user profiles, popularity tracking, and a recommendations engine.
+The community layer adds social features to Crema: user accounts, coffee shelves (Open Bags / On the List), detailed tasting notes with full brew recipes, a social post feed, user profiles, popularity tracking, and a recommendations engine.
+
+> **Note:** This spec was written for the v0 React/Vite frontend. The current app is React Native (Expo) with a CRUD Utopia backend. Shelf categories have been simplified from three (currently_drinking / drank / want_to_try) to two (open_bags / on_the_list). See the root README and `crema-app/README.md` for current architecture.
 
 **Backend:** FastAPI + SQLite + bcrypt (direct, no passlib)
 **Frontend:** React components integrated into the main app, auth-gated via `AuthGuard`

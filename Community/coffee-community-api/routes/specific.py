@@ -10,6 +10,7 @@ from resources.crud import list_resource, build_select, row_to_dict, resolve_emb
 from resources.registry import get_resource
 from resources.envelope import ok
 from services.auth import get_current_user, get_optional_user
+from services.qr_tokens import issue_qr_token, verify_qr_token
 
 router = APIRouter(prefix="/api", tags=["Specific"])
 
@@ -568,5 +569,219 @@ def feed_timeline(limit: int = 30, offset: int = 0, authorization: str = Header(
         items.sort(key=lambda x: x.get("published_at", ""), reverse=True)
         paginated = items[offset: offset + limit]
         return ok(paginated, resource="posts", total=total, limit=limit, offset=offset)
+    finally:
+        db.close()
+
+
+# ── Café composite endpoints (see CRUD_UTOPIA.md) ────────────────────────────
+
+@router.post("/me/qr-token")
+def my_qr_token(user=Depends(get_current_user)):
+    """Issue a short-lived QR token for the current user's identity card.
+    Only regular users get QR tokens (sellers scan, they don't get scanned)."""
+    if user.get("account_type") != "user":
+        from fastapi import HTTPException
+        raise HTTPException(403, "Only users can generate QR tokens")
+    db = get_db()
+    try:
+        payload = issue_qr_token(db, user["id"])
+        return ok(payload, resource="qr_token")
+    finally:
+        db.close()
+
+
+@router.post("/cafes/{slug}/stamp")
+def cafe_stamp(slug: str, body: dict, user=Depends(get_current_user)):
+    """Café owner scans a user's QR token; award one stamp.
+    Rate limit: max 1 stamp per user per café per 24h."""
+    from fastapi import HTTPException
+    import datetime as _dt
+
+    # Verify caller is the owner of this café
+    if user.get("account_type") != "cafe" or user.get("cafe_slug") != slug:
+        raise HTTPException(403, "Only the café owner can award stamps at this café")
+
+    qr_token = body.get("qr_token")
+    if not qr_token:
+        raise HTTPException(422, "qr_token is required")
+
+    db = get_db()
+    try:
+        stamped_user = verify_qr_token(db, qr_token)
+        if not stamped_user:
+            raise HTTPException(400, "Invalid or expired QR token")
+        if stamped_user.get("account_type") != "user":
+            raise HTTPException(400, "Only user accounts can receive stamps")
+
+        # Rate limit check — 24h window
+        yesterday = (_dt.datetime.utcnow() - _dt.timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        recent = db.execute(
+            "SELECT id FROM stamps WHERE user_id = ? AND cafe_slug = ? AND scanned_at > ? LIMIT 1",
+            (stamped_user["id"], slug, yesterday),
+        ).fetchone()
+        if recent:
+            raise HTTPException(429, "Already stamped this user within the last 24 hours")
+
+        # Fetch café config
+        cafe = db.execute(
+            "SELECT stamp_target, name FROM cafe_profiles WHERE cafe_slug = ?", (slug,)
+        ).fetchone()
+        if not cafe:
+            raise HTTPException(404, "Café not found")
+
+        # Insert stamp
+        now_str = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        db.execute(
+            "INSERT INTO stamps (user_id, cafe_slug, scanned_at) VALUES (?, ?, ?)",
+            (stamped_user["id"], slug, now_str),
+        )
+        db.commit()
+
+        # Compute progress (total stamps minus consumed stamps)
+        total_stamps = db.execute(
+            "SELECT COUNT(*) as c FROM stamps WHERE user_id = ? AND cafe_slug = ?",
+            (stamped_user["id"], slug),
+        ).fetchone()["c"]
+        rewards = db.execute(
+            "SELECT COUNT(*) as c FROM stamp_rewards WHERE user_id = ? AND cafe_slug = ?",
+            (stamped_user["id"], slug),
+        ).fetchone()["c"]
+        target = cafe["stamp_target"]
+        progress = total_stamps - (rewards * target)
+        reward_earned = progress >= target
+
+        return ok({
+            "user_id": stamped_user["id"],
+            "display_name": stamped_user.get("display_name"),
+            "username": stamped_user.get("username"),
+            "avatar_url": stamped_user.get("avatar_url"),
+            "stamps_progress": progress,
+            "stamp_target": target,
+            "reward_earned": reward_earned,
+            "total_stamps_ever": total_stamps,
+            "rewards_ever": rewards,
+        }, resource="stamp")
+    finally:
+        db.close()
+
+
+@router.post("/cafes/{slug}/redeem")
+def cafe_redeem(slug: str, body: dict, user=Depends(get_current_user)):
+    """Café owner redeems a user's reward. Creates a stamp_rewards row."""
+    from fastapi import HTTPException
+    import datetime as _dt
+
+    if user.get("account_type") != "cafe" or user.get("cafe_slug") != slug:
+        raise HTTPException(403, "Only the café owner can redeem rewards")
+
+    target_user_id = body.get("user_id")
+    if not target_user_id:
+        raise HTTPException(422, "user_id is required")
+
+    db = get_db()
+    try:
+        cafe = db.execute(
+            "SELECT stamp_target FROM cafe_profiles WHERE cafe_slug = ?", (slug,)
+        ).fetchone()
+        if not cafe:
+            raise HTTPException(404, "Café not found")
+
+        target = cafe["stamp_target"]
+
+        # Verify the user actually has enough stamps to redeem
+        total_stamps = db.execute(
+            "SELECT COUNT(*) as c FROM stamps WHERE user_id = ? AND cafe_slug = ?",
+            (target_user_id, slug),
+        ).fetchone()["c"]
+        rewards = db.execute(
+            "SELECT COUNT(*) as c FROM stamp_rewards WHERE user_id = ? AND cafe_slug = ?",
+            (target_user_id, slug),
+        ).fetchone()["c"]
+        progress = total_stamps - (rewards * target)
+        if progress < target:
+            raise HTTPException(400, f"Not enough stamps: {progress}/{target}")
+
+        now_str = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        db.execute(
+            "INSERT INTO stamp_rewards (user_id, cafe_slug, stamps_used, redeemed_at) VALUES (?, ?, ?, ?)",
+            (target_user_id, slug, target, now_str),
+        )
+        db.commit()
+
+        return ok({
+            "user_id": target_user_id,
+            "cafe_slug": slug,
+            "stamps_used": target,
+            "redeemed_at": now_str,
+        }, resource="stamp_reward")
+    finally:
+        db.close()
+
+
+@router.get("/cafes/popularity")
+def cafes_popularity():
+    """Unique visitor count per café, mirrors /products/popularity pattern."""
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT cafe_slug, COUNT(DISTINCT user_id) AS visitors FROM stamps GROUP BY cafe_slug"
+        ).fetchall()
+        return ok({r["cafe_slug"]: r["visitors"] for r in rows}, resource="cafe_popularity")
+    finally:
+        db.close()
+
+
+@router.get("/users/{username}/stamp-book")
+def user_stamp_book(username: str, authorization: str = Header(None)):
+    """Return every café the user has been stamped at, with progress.
+    Mirrors the shelf pattern — semi-public: list is visible, QR is own-only."""
+    from fastapi import HTTPException
+    db = get_db()
+    try:
+        user_row = db.execute(
+            "SELECT id FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        if not user_row:
+            raise HTTPException(404, "User not found")
+        uid = user_row["id"]
+
+        rows = db.execute("""
+            SELECT
+                cp.cafe_slug,
+                cp.name,
+                cp.logo_url,
+                cp.city,
+                cp.state,
+                cp.stamp_target,
+                cp.stamp_reward,
+                (SELECT COUNT(*) FROM stamps s WHERE s.user_id = ? AND s.cafe_slug = cp.cafe_slug) AS total_stamps,
+                (SELECT COUNT(*) FROM stamp_rewards sr WHERE sr.user_id = ? AND sr.cafe_slug = cp.cafe_slug) AS rewards_redeemed,
+                (SELECT MAX(scanned_at) FROM stamps s WHERE s.user_id = ? AND s.cafe_slug = cp.cafe_slug) AS last_visit
+            FROM cafe_profiles cp
+            WHERE EXISTS (SELECT 1 FROM stamps s WHERE s.user_id = ? AND s.cafe_slug = cp.cafe_slug)
+            ORDER BY last_visit DESC
+        """, (uid, uid, uid, uid)).fetchall()
+
+        entries = []
+        for r in rows:
+            target = r["stamp_target"] or 10
+            total = r["total_stamps"]
+            redeemed = r["rewards_redeemed"]
+            progress = total - (redeemed * target)
+            entries.append({
+                "cafe_slug": r["cafe_slug"],
+                "name": r["name"],
+                "logo_url": r["logo_url"],
+                "city": r["city"],
+                "state": r["state"],
+                "stamp_target": target,
+                "stamp_reward": r["stamp_reward"],
+                "progress": progress,
+                "total_stamps": total,
+                "rewards_redeemed": redeemed,
+                "last_visit": r["last_visit"],
+            })
+
+        return ok(entries, resource="stamp_book", total=len(entries))
     finally:
         db.close()

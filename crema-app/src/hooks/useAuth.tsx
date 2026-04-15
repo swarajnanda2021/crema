@@ -17,8 +17,9 @@ interface User {
   avatar_crop_x?: number;
   avatar_crop_y?: number;
   avatar_zoom?: number;
-  account_type?: "user" | "roaster";
+  account_type?: "user" | "roaster" | "cafe";
   roaster_slug?: string;
+  cafe_slug?: string;
   created_at: string;
 }
 

@@ -7,17 +7,24 @@ import { useState, useCallback } from "react";
 import { apiFetchRaw } from "../api/client";
 
 export function useShelves() {
-  const [shelves, setShelves] = useState<any>({ currently_drinking: [], drank: [], want_to_try: [] });
+  const [shelves, setShelves] = useState<any>({ open_bags: [], on_the_list: [] });
   const [loading, setLoading] = useState(false);
 
   const fetchShelves = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetchRaw<any>("/shelves");
-      const data = res?.data ?? res;
-      setShelves(data && typeof data === "object" ? data : { currently_drinking: [], drank: [], want_to_try: [] });
+      // Get current user ID, then fetch their shelves specifically
+      const meRes = await apiFetchRaw<any>("/auth/me");
+      const me = meRes?.data ?? meRes;
+      if (me?.id) {
+        const shelfRes = await apiFetchRaw<any>(`/shelves/filter?user_id=${me.id}`);
+        const data = shelfRes?.data ?? shelfRes;
+        setShelves(data && typeof data === "object" ? data : { open_bags: [], on_the_list: [] });
+      } else {
+        setShelves({ open_bags: [], on_the_list: [] });
+      }
     } catch {
-      setShelves({ currently_drinking: [], drank: [], want_to_try: [] });
+      setShelves({ open_bags: [], on_the_list: [] });
     } finally {
       setLoading(false);
     }
@@ -25,18 +32,16 @@ export function useShelves() {
 
   const fetchUserShelves = useCallback(async (username: string) => {
     try {
-      const res = await apiFetchRaw<any>(`/shelves/filter?user_id=0`);
-      // Use the specific user shelves endpoint
-      const res2 = await apiFetchRaw<any>(`/auth/users/${username}`);
-      const user = res2?.data ?? res2;
+      const res = await apiFetchRaw<any>(`/auth/users/${username}`);
+      const user = res?.data ?? res;
       if (user?.id) {
         const shelfRes = await apiFetchRaw<any>(`/shelves/filter?user_id=${user.id}`);
         const data = shelfRes?.data ?? shelfRes;
-        return data && typeof data === "object" ? data : { currently_drinking: [], drank: [], want_to_try: [] };
+        return data && typeof data === "object" ? data : { open_bags: [], on_the_list: [] };
       }
-      return { currently_drinking: [], drank: [], want_to_try: [] };
+      return { open_bags: [], on_the_list: [] };
     } catch {
-      return { currently_drinking: [], drank: [], want_to_try: [] };
+      return { open_bags: [], on_the_list: [] };
     }
   }, []);
 

@@ -8,9 +8,8 @@ import { apiFetchRaw, resolveUploadUrl } from "../api/client";
 import TastingNoteDisplay from "./TastingNoteDisplay";
 
 const SHELF_LABELS: Record<string, { label: string; icon: any; color: string }> = {
-  currently_drinking: { label: "Drinking", icon: Coffee, color: "#C8553D" },
-  drank: { label: "Drank", icon: Check, color: "#6B5B4F" },
-  want_to_try: { label: "Want to Try", icon: Star, color: "#E8C07A" },
+  open_bags: { label: "Open Bags", icon: Coffee, color: "#D798DA" },
+  on_the_list: { label: "On the List", icon: Star, color: "#D798DA" },
 };
 
 interface Props {
@@ -63,7 +62,7 @@ export default function PopularityModal({ visible, productId, coffeeName, onClos
               <Text style={s.emptyText}>Nobody has this on their shelf yet.</Text>
             ) : (
               sortedUsers.map((u: any) => {
-                const shelfMeta = SHELF_LABELS[u.shelf] || SHELF_LABELS.currently_drinking;
+                const shelfMeta = SHELF_LABELS[u.shelf] || SHELF_LABELS.open_bags;
                 const ShelfIcon = shelfMeta.icon;
                 return (
                   <View key={u.username} style={s.userBlock}>

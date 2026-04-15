@@ -1,4 +1,9 @@
 /**
+ * CRUD Utopia — every visual value comes from design-tokens.json through
+ * this file. No hex literals inline, no magic numbers. This is what makes
+ * the app portable to Swift/Kotlin: same JSON, different language binding.
+ * See CRUD_UTOPIA.md at repo root.
+ *
  * Design token provider — reads from design-tokens.json.
  *
  * This is the ONLY file that maps raw token values to platform-specific styles.
@@ -66,4 +71,4 @@ export const cardShadowHover = shadow("card.hover");
 
 export const SHELF_LABELS = tokens.shelf;
 
-export type ShelfKey = "currently_drinking" | "drank" | "want_to_try";
+export type ShelfKey = "open_bags" | "on_the_list";

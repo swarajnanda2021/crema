@@ -6,6 +6,8 @@ Crema is a full-stack platform for discovering, tracking, and discussing special
 
 The frontend is a React Native (Expo) app. The backend uses a **CRUD Utopia** architecture: a declarative resource registry that generates endpoints, a unified response envelope, and a JSON-based design token system. This makes the codebase portable — a Swift/iOS app can read the same token JSON and talk to the same API with zero backend changes.
 
+> **Before contributing, read [CRUD_UTOPIA.md](./CRUD_UTOPIA.md) at the repo root.** It is the architectural directive this codebase holds to. Every load-bearing file carries a header pointing back to it.
+
 Built with Claude Code.
 
 ---
@@ -29,7 +31,7 @@ Built with Claude Code.
 ## What It Does
 
 - **Browse** 470+ specialty coffees from 68 Indian roasters with search, filters, and roaster profiles
-- **Track** what you're drinking, what you've had, and what you want to try across three shelves
+- **Track** your open bags and coffees on your list across two shelves (Open Bags / On the List)
 - **Write tasting notes** with structured tasting sliders, flavor tags, and full brew recipe detail
 - **Follow roasters** and other users, compose posts, comment, repost, like
 - **See what others drink** through a social feed of posts and tasting notes
@@ -313,7 +315,7 @@ Every endpoint returns the same shape. The frontend needs exactly one unwrapping
 | `post_comments` | CRUD | user join, like count, `liked_by_me` flag, notifications |
 | `comment_likes` | Toggle | Notifications |
 | `follows` | Toggle (by slug) | Notifications on follow |
-| `shelves` | CRUD | Grouped by shelf category (currently_drinking/drank/want_to_try) |
+| `shelves` | CRUD | Grouped by shelf category (open_bags/on_the_list) |
 | `tasting_notes` | CRUD | Author join, like count, `liked_by_me` flag |
 | `note_likes` | Toggle | |
 | `note_comments` | CRUD | |

@@ -1,5 +1,9 @@
 """
-Standard response envelope — every API response follows this shape.
+CRUD Utopia — every API response is wrapped with ok() from this file.
+The frontend unwraps with `res?.data ?? res`. No exceptions.
+See CRUD_UTOPIA.md at repo root.
+
+Standard response envelope — every API response follows this shape:
 
 { "data": ... , "meta": { "resource": "posts", "total": 148, "limit": 20, "offset": 0 } }
 

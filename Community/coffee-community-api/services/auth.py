@@ -35,6 +35,7 @@ def _user_to_dict(row) -> dict:
         "brewing_style": row["brewing_style"] if "brewing_style" in keys else None,
         "account_type": row["account_type"] if "account_type" in keys else "user",
         "roaster_slug": row["roaster_slug"] if "roaster_slug" in keys else None,
+        "cafe_slug": row["cafe_slug"] if "cafe_slug" in keys else None,
         "favorite_drink": row["favorite_drink"] if "favorite_drink" in keys else None,
         "favorite_cafe": row["favorite_cafe"] if "favorite_cafe" in keys else None,
         "avatar_crop_x": row["avatar_crop_x"] if "avatar_crop_x" in keys else 50,

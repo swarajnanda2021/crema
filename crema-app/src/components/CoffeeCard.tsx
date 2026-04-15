@@ -24,17 +24,19 @@ interface CoffeeCardProps {
   width?: number;
   height?: number;
   shelfMode?: boolean;
+  isOwner?: boolean;
   currentShelf?: ShelfKey;
   onMoveShelf?: (productId: string, shelf: string) => void;
   onRemove?: () => void;
+  onAddToShelf?: (productId: string) => void;
 }
 
 // Figma: image 160/372, info 212/372
 const IMAGE_RATIO = 160 / 372;
-const SHELF_KEYS: ShelfKey[] = ["currently_drinking", "drank", "want_to_try"];
+const SHELF_KEYS: ShelfKey[] = ["open_bags", "on_the_list"];
 const BTN_SIZE = 31;
 
-export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 240, height: cardH = 372, shelfMode, currentShelf, onMoveShelf, onRemove }: CoffeeCardProps) {
+export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 240, height: cardH = 372, shelfMode, isOwner = true, currentShelf, onMoveShelf, onRemove, onAddToShelf }: CoffeeCardProps) {
   const [showPopularity, setShowPopularity] = useState(false);
   const [showShelfPicker, setShowShelfPicker] = useState(false);
   const [shelvedAs, setShelvedAs] = useState<ShelfKey | null>(currentShelf || null);
@@ -68,8 +70,8 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
         )}
       </View>
 
-      {/* Overlay buttons — positioned from card level */}
-      {shelfMode && onRemove ? (
+      {/* Top-left overlay: delete (own shelf), heart (other's shelf), or social badge */}
+      {shelfMode && isOwner && onRemove ? (
         <Pressable onPress={onRemove} style={s.binBtn}>
           <Svg width={BTN_SIZE} height={BTN_SIZE} viewBox="0 0 29.1645 29.1645" fill="none">
             <G>
@@ -84,12 +86,24 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
             </G>
           </Svg>
         </Pressable>
+      ) : shelfMode && !isOwner && onAddToShelf ? (
+        <Pressable onPress={() => { setShowShelfPicker(!showShelfPicker); }} style={s.binBtn}>
+          {shelvedAs ? <HeartFilledIcon size={BTN_SIZE} /> : <HeartIcon size={BTN_SIZE} />}
+        </Pressable>
       ) : userCount != null && userCount > 0 ? (
         <Pressable onPress={() => setShowPopularity(true)} style={s.friendsBadge}>
           <UsersIcon size={15} color="#351101" />
           <Text style={s.friendsCount}>{userCount}</Text>
         </Pressable>
       ) : null}
+
+      {/* Social badge — top-right in shelf mode (alongside delete/heart on top-left) */}
+      {shelfMode && userCount != null && userCount > 0 && (
+        <Pressable onPress={() => setShowPopularity(true)} style={s.socialBadge}>
+          <UsersIcon size={15} color="#351101" />
+          <Text style={s.friendsCount}>{userCount}</Text>
+        </Pressable>
+      )}
 
       {/* Heart — top right, hidden when owner is managing their own beans (shelfMode) */}
       {!shelfMode && (
@@ -103,7 +117,6 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
         <View style={s.shelfPicker}>
           {SHELF_KEYS.map((key) => (
             <Pressable key={key} onPress={() => handleShelfSelect(key)} style={[s.shelfOption, shelvedAs === key && s.shelfOptionActive]}>
-              <View style={[s.shelfDot, { backgroundColor: SHELF_LABELS[key].color }]} />
               <Text style={[s.shelfOptionText, shelvedAs === key && s.shelfOptionTextActive]}>{SHELF_LABELS[key].label}</Text>
             </Pressable>
           ))}
@@ -206,6 +219,21 @@ const s = StyleSheet.create({
     color: "#351101",
   },
 
+  // Social badge — top right in shelf mode
+  socialBadge: {
+    position: "absolute",
+    top: 10,
+    right: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#EFE9DB",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    zIndex: 10,
+  },
+
   // Heart — top right (SVG includes its own 31px circle bg)
   heartBtn: {
     position: "absolute",
@@ -238,7 +266,6 @@ const s = StyleSheet.create({
     paddingVertical: 8,
   },
   shelfOptionActive: { backgroundColor: "#EFE9DB" },
-  shelfDot: { width: 8, height: 8, borderRadius: 4 },
   shelfOptionText: { fontFamily: t.font["body.medium"], fontSize: 13, color: "#351101" },
   shelfOptionTextActive: { fontFamily: t.font["body.semibold"] },
 

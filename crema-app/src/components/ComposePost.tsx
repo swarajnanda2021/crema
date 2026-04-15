@@ -24,6 +24,7 @@ import { PostLocationPinIcon } from "./icons/FigmaIcons";
 import ImageUploadModal from "./ImageUploadModal";
 import TastingNoteCard from "./TastingNoteCard";
 import PostGallery, { GALLERY_ASPECT, PG_RADIUS } from "./PostGallery";
+import { useCafes } from "../hooks/useCafes";
 
 interface ComposePostProps {
   onSubmit: (data: any) => Promise<void>;
@@ -64,6 +65,10 @@ export default function ComposePost({
   // Core state
   const [teaser, setTeaser] = useState(initialData?.body || "");
   const [location, setLocation] = useState(initialData?.location || "");
+  const [cafeSlug, setCafeSlug] = useState<string | null>(null);
+  const [cafePickerOpen, setCafePickerOpen] = useState(false);
+  const { cafes } = useCafes();
+  const selectedCafe = cafeSlug ? cafes.find((c) => c.cafe_slug === cafeSlug) : null;
 
   // Auto-detected mode
   const [detectedUrl, setDetectedUrl] = useState("");
@@ -163,6 +168,7 @@ export default function ComposePost({
         teaser: teaser.trim(),
         post_type: "note",
         location: location.trim() || null,
+        cafe_slug: cafeSlug,
         images: imgs,
         cover_image_url: imgs[0] || null,
       });
@@ -284,6 +290,52 @@ export default function ComposePost({
               placeholderTextColor="#A09580"
             />
           </View>
+
+          {/* Café tag (optional, links the post to a café entity) */}
+          <View style={s.locationRow}>
+            <PostLocationPinIcon size={12} color={t.color["accent.cta"]} />
+            {selectedCafe ? (
+              <Pressable onPress={() => setCafeSlug(null)} style={s.cafeChip}>
+                <Text style={s.cafeChipText}>{selectedCafe.name}</Text>
+                <X size={12} color={t.color["text.muted"]} />
+              </Pressable>
+            ) : (
+              <Pressable onPress={() => setCafePickerOpen(true)}>
+                <Text style={s.cafePlaceholder}>Tag a café (optional)</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {/* Café picker modal */}
+          {cafePickerOpen && (
+            <Modal visible transparent animationType="fade" onRequestClose={() => setCafePickerOpen(false)}>
+              <View style={s.pickerOverlay}>
+                <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setCafePickerOpen(false)} />
+                <View style={s.pickerCard}>
+                  <View style={s.pickerHeader}>
+                    <Text style={s.pickerTitle}>Tag a café</Text>
+                    <Pressable onPress={() => setCafePickerOpen(false)}><X size={18} color={t.color["text.primary"]} /></Pressable>
+                  </View>
+                  <ScrollView style={{ maxHeight: 400 }}>
+                    {cafes.length === 0 ? (
+                      <Text style={s.pickerEmpty}>No cafés available</Text>
+                    ) : (
+                      cafes.map((c) => (
+                        <Pressable
+                          key={c.cafe_slug}
+                          onPress={() => { setCafeSlug(c.cafe_slug); setCafePickerOpen(false); }}
+                          style={s.pickerRow}
+                        >
+                          <Text style={s.pickerRowName}>{c.name}</Text>
+                          {c.city && <Text style={s.pickerRowSub}>{c.city}, {c.state}</Text>}
+                        </Pressable>
+                      ))
+                    )}
+                  </ScrollView>
+                </View>
+              </View>
+            </Modal>
+          )}
 
           {/* Image upload modal */}
           <ImageUploadModal
@@ -426,6 +478,20 @@ const s = StyleSheet.create({
   noteSection: { marginBottom: 8 },
   locationRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, marginBottom: 4 } as any,
   locationInput: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#351101", flex: 1 },
+
+  // Café picker
+  cafeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: t.color["accent.soft"], borderRadius: 12 } as any,
+  cafeChipText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["accent.cta"] },
+  cafePlaceholder: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.muted"] },
+  pickerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" } as any,
+  pickerCard: { backgroundColor: t.color.bg, borderRadius: 12, width: "90%", maxWidth: 420 } as any,
+  pickerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: t.color["border.light"] } as any,
+  pickerTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: t.color["text.primary"] },
+  pickerEmpty: { padding: 20, textAlign: "center" as any, fontFamily: t.font["body.regular"], color: t.color["text.muted"] },
+  pickerRow: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.color["border.light"] } as any,
+  pickerRowName: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"] },
+  pickerRowSub: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.muted"], marginTop: 2 },
+
   imageGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 } as any,
   imageThumb: { borderRadius: PG_RADIUS, overflow: "hidden", position: "relative" } as any,
   imageRemove: { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" } as any,

@@ -52,7 +52,7 @@ class AuthResponse(BaseModel):
 
 class ShelfAddRequest(BaseModel):
     product_id: str
-    shelf: str = Field(pattern=r"^(currently_drinking|drank|want_to_try)$")
+    shelf: str = Field(pattern=r"^(open_bags|on_the_list)$")
 
 
 class ShelfEntryResponse(BaseModel):

@@ -1,4 +1,9 @@
 /**
+ * CRUD Utopia — apiFetchRaw is the only way to talk to the backend.
+ * Every call site unwraps responses with `res?.data ?? res`. useResource
+ * wraps this for CRUD; use apiFetchRaw directly for composite endpoints.
+ * See CRUD_UTOPIA.md at repo root.
+ *
  * Platform-abstracted API client for Crema.
  *
  * Replaces the web-only api.js that used window.location.hostname + localStorage.

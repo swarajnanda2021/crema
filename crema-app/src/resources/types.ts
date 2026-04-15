@@ -38,8 +38,9 @@ export interface User {
   avatar_crop_x: number;
   avatar_crop_y: number;
   avatar_zoom: number;
-  account_type: "user" | "roaster";
+  account_type: "user" | "roaster" | "cafe";
   roaster_slug?: string;
+  cafe_slug?: string;
   created_at: string;
 }
 
@@ -55,6 +56,7 @@ export interface Post {
   cover_image_url: string | null;
   post_type: "article" | "note" | "repost" | "tasting_note";
   location: string | null;
+  cafe_slug: string | null;
   images: string[];
   repost_of_id: number | null;
   repost_comment: string | null;
@@ -129,7 +131,7 @@ export interface Product {
 
 // ── Shelves ─────────────────────────────────────────────────────────────────
 
-export type ShelfCategory = "currently_drinking" | "drank" | "want_to_try";
+export type ShelfCategory = "open_bags" | "on_the_list";
 
 export interface ShelfEntry {
   id: number;
@@ -226,4 +228,108 @@ export interface FollowInfo {
   roaster_slug: string | null;
   follower_count: number;
   is_roaster: boolean;
+}
+
+// ── Cafés (see CRUD_UTOPIA.md) ──────────────────────────────────────────────
+
+export interface Cafe {
+  cafe_slug: string;
+  name: string;
+  about_blurb: string | null;
+  cover_image_url: string | null;
+  logo_url: string | null;
+  hero_crop_x: number;
+  hero_crop_y: number;
+  hero_zoom: number;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  lat: number | null;
+  lng: number | null;
+  instagram_handle: string | null;
+  website: string | null;
+  phone: string | null;
+  hours_json: Record<string, string> | null;
+  seasonal_open_month: number | null;
+  seasonal_close_month: number | null;
+  stamps_enabled: number;
+  stamp_target: number;
+  stamp_reward: string;
+  stamps_given?: number;
+  rewards_redeemed?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CafeMenuItem {
+  id: number;
+  cafe_slug: string;
+  drink_name: string;
+  drink_order: number;
+  roaster_slug: string | null;
+  product_id: string | null;
+  manual_roaster_name: string | null;
+  manual_roaster_url: string | null;
+  manual_bean_name: string | null;
+  roast_level: string | null;
+  process: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface CafeBarista {
+  id: number;
+  cafe_slug: string;
+  name: string;
+  photo_url: string | null;
+  specialty: string | null;
+  display_order: number;
+  created_at: string;
+}
+
+export interface Stamp {
+  id: number;
+  user_id: number;
+  cafe_slug: string;
+  barista_id: number | null;
+  scanned_at: string;
+}
+
+export interface StampReward {
+  id: number;
+  user_id: number;
+  cafe_slug: string;
+  stamps_used: number;
+  redeemed_at: string;
+}
+
+export interface StampBookEntry {
+  cafe_slug: string;
+  name: string;
+  logo_url: string | null;
+  city: string | null;
+  state: string | null;
+  stamp_target: number;
+  stamp_reward: string;
+  progress: number;
+  total_stamps: number;
+  rewards_redeemed: number;
+  last_visit: string;
+}
+
+export interface QRTokenResponse {
+  token: string;
+  expires_at: string;
+}
+
+export interface StampResult {
+  user_id: number;
+  display_name: string;
+  username: string;
+  avatar_url: string | null;
+  stamps_progress: number;
+  stamp_target: number;
+  reward_earned: boolean;
+  total_stamps_ever: number;
+  rewards_ever: number;
 }

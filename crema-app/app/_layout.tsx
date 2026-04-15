@@ -122,6 +122,12 @@ export default function RootLayout() {
                 headerShadowVisible: false,
               }}
             />
+            <Stack.Screen
+              name="cafe/[slug]"
+              options={{
+                headerShown: false,
+              }}
+            />
           </Stack>
           <StatusBar style="light" />
           <GlobalPostModal />

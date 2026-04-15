@@ -2,6 +2,8 @@
 
 FastAPI backend for the Crema coffee community platform. Uses a **CRUD Utopia** architecture: a declarative resource registry generates endpoints, a generic SQL engine handles queries, and a standard response envelope wraps every response.
 
+> **Read [CRUD_UTOPIA.md](../../CRUD_UTOPIA.md) at repo root before contributing.** `registry.py` and `crud.py` are the spec and the engine — both carry directive headers explaining their role. Composite endpoints (tokens, custom joins) go in `routes/specific.py` only when they can't fit the generic pattern.
+
 ## Quick Start
 
 ```bash

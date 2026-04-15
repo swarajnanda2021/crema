@@ -119,6 +119,9 @@ def resource_get(resource: str, id: str, authorization: str = Header(None)):
 def resource_create(resource: str, body: dict, user=Depends(get_current_user)):
     res = get_resource(resource)
     auth_req = res.get("auth", {}).get("create")
+    if auth_req == "blocked":
+        from fastapi import HTTPException
+        raise HTTPException(403, f"{resource} cannot be created via generic endpoint — use specific route")
     if auth_req == "required" and not user:
         from fastapi import HTTPException
         raise HTTPException(401, "Authentication required")

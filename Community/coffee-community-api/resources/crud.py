@@ -1,4 +1,17 @@
 """
+╔══════════════════════════════════════════════════════════════════════════╗
+║  CRUD UTOPIA — THIS FILE IS THE BACKEND ENGINE                           ║
+║                                                                          ║
+║  Reads declarations from registry.py and generates SQL. Handles joins,   ║
+║  counts, flags, embeds, pagination, ownership checks, hook dispatch.     ║
+║                                                                          ║
+║  Public helpers (build_select, row_to_dict, resolve_embeds) are exposed  ║
+║  for custom endpoints in specific.py that need registry-aware SQL with   ║
+║  non-standard JOINs.                                                     ║
+║                                                                          ║
+║  Before editing: read CRUD_UTOPIA.md at repo root.                       ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
 Generic CRUD engine — reads resource definitions from registry and executes
 list / get / create / update / delete / toggle operations.
 
@@ -281,13 +294,16 @@ def update_resource(db, name, id_val, data, *, current_user=None):
     pk = res.get("pk", "id")
     fields = res.get("fields", {})
 
-    # Ownership check
+    # Ownership check — supports two patterns:
+    #   1. "owner": "user_id"          → row[owner_col] == current_user["id"]  (default)
+    #   2. "owner": "cafe_slug", "owner_user_field": "cafe_slug"  → row[owner_col] == current_user["cafe_slug"]
     if res.get("owner") and current_user:
         owner_col = res["owner"]
+        owner_user_field = res.get("owner_user_field", "id")
         row = db.execute(f"SELECT {owner_col} FROM {res['table']} WHERE {pk} = ?", (id_val,)).fetchone()
         if not row:
             raise HTTPException(404, f"{name} not found")
-        if row[owner_col] != current_user["id"]:
+        if row[owner_col] != current_user.get(owner_user_field):
             raise HTTPException(403, "Not authorized")
 
     sets = []
@@ -321,10 +337,11 @@ def delete_resource(db, name, id_val, *, current_user=None):
 
     if res.get("owner") and current_user:
         owner_col = res["owner"]
+        owner_user_field = res.get("owner_user_field", "id")
         row = db.execute(f"SELECT {owner_col} FROM {res['table']} WHERE {pk} = ?", (id_val,)).fetchone()
         if not row:
             raise HTTPException(404, f"{name} not found")
-        if row[owner_col] != current_user["id"]:
+        if row[owner_col] != current_user.get(owner_user_field):
             raise HTTPException(403, "Not authorized")
 
     db.execute(f"DELETE FROM {res['table']} WHERE {pk} = ?", (id_val,))

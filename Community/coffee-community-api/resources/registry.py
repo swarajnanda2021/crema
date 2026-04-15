@@ -1,4 +1,15 @@
 """
+╔══════════════════════════════════════════════════════════════════════════╗
+║  CRUD UTOPIA — THIS FILE IS THE BACKEND SPEC                             ║
+║                                                                          ║
+║  Every CRUD resource lives here. The generic engine in crud.py reads     ║
+║  these declarations and generates SQL. Adding a resource is a ~20-line   ║
+║  entry — not a new router file.                                          ║
+║                                                                          ║
+║  Before editing: read CRUD_UTOPIA.md at repo root.                       ║
+║  Before adding: check if it fits an existing pattern first.              ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
 Resource Registry — declarative definitions for every CRUD resource.
 
 Each resource maps to a database table and declares:
@@ -54,6 +65,7 @@ RESOURCES = {
             "cover_image_url": {"type": "str"},
             "post_type": {"type": "str", "default": "note"},
             "location": {"type": "str"},
+            "cafe_slug": {"type": "str"},  # optional café tag (CRUD Utopia: see CRUD_UTOPIA.md)
             "images_json": {"type": "json"},
             "repost_of_id": {"type": "int"},
             "repost_comment": {"type": "str"},
@@ -345,6 +357,130 @@ RESOURCES = {
         },
         "auth": {"create": None},
         "write_only": True,
+    },
+
+    # ── Café entity (see CRUD_UTOPIA.md) ─────────────────────────────────
+    "cafe_profiles": {
+        "table": "cafe_profiles",
+        "pk": "cafe_slug",
+        "fields": {
+            "cafe_slug": {"type": "str", "required": True},
+            "name": {"type": "str", "required": True},
+            "about_blurb": {"type": "str"},
+            "cover_image_url": {"type": "str"},
+            "logo_url": {"type": "str"},
+            "hero_crop_x": {"type": "float", "default": 50},
+            "hero_crop_y": {"type": "float", "default": 50},
+            "hero_zoom": {"type": "float", "default": 1},
+            "address": {"type": "str"},
+            "city": {"type": "str"},
+            "state": {"type": "str"},
+            "lat": {"type": "float"},
+            "lng": {"type": "float"},
+            "instagram_handle": {"type": "str"},
+            "website": {"type": "str"},
+            "phone": {"type": "str"},
+            "hours_json": {"type": "json"},
+            "seasonal_open_month": {"type": "int"},
+            "seasonal_close_month": {"type": "int"},
+            "stamps_enabled": {"type": "int", "default": 0},
+            "stamp_target": {"type": "int", "default": 10},
+            "stamp_reward": {"type": "str", "default": "Free coffee"},
+            "created_at": {"type": "str", "ro": True, "auto": "now"},
+            "updated_at": {"type": "str", "ro": True, "auto": "now"},
+        },
+        "auth": {"list": None, "read": None, "create": "required", "update": "owner", "delete": "owner"},
+        "owner": "cafe_slug",
+        "owner_user_field": "cafe_slug",  # user.cafe_slug must match row.cafe_slug
+        "pk_type": "str",
+        "counts": [
+            {"name": "stamps_given", "table": "stamps", "fk": "cafe_slug"},
+            {"name": "rewards_redeemed", "table": "stamp_rewards", "fk": "cafe_slug"},
+        ],
+        "order": "name ASC",
+        "limit": 100,
+    },
+
+    "cafe_menu_items": {
+        "table": "cafe_menu_items",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "cafe_slug": {"type": "str", "required": True},
+            "drink_name": {"type": "str", "required": True},
+            "drink_order": {"type": "int", "default": 0},
+            "roaster_slug": {"type": "str"},
+            "product_id": {"type": "str"},
+            "manual_roaster_name": {"type": "str"},
+            "manual_roaster_url": {"type": "str"},
+            "manual_bean_name": {"type": "str"},
+            "roast_level": {"type": "str"},
+            "process": {"type": "str"},
+            "notes": {"type": "str"},
+            "created_at": {"type": "str", "ro": True, "auto": "now"},
+        },
+        "parent": "cafe_profiles",
+        "parent_table": "cafe_profiles",
+        "fk": "cafe_slug",
+        "auth": {"list": None, "read": None, "create": "required", "update": "owner", "delete": "owner"},
+        "owner": "cafe_slug",
+        "owner_user_field": "cafe_slug",
+        "order": "drink_order ASC, id ASC",
+        "limit": 50,
+    },
+
+    "cafe_baristas": {
+        "table": "cafe_baristas",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "cafe_slug": {"type": "str", "required": True},
+            "name": {"type": "str", "required": True},
+            "photo_url": {"type": "str"},
+            "specialty": {"type": "str"},
+            "display_order": {"type": "int", "default": 0},
+            "created_at": {"type": "str", "ro": True, "auto": "now"},
+        },
+        "parent": "cafe_profiles",
+        "parent_table": "cafe_profiles",
+        "fk": "cafe_slug",
+        "auth": {"list": None, "read": None, "create": "required", "update": "owner", "delete": "owner"},
+        "owner": "cafe_slug",
+        "owner_user_field": "cafe_slug",
+        "order": "display_order ASC, id ASC",
+        "limit": 30,
+    },
+
+    "stamps": {
+        "table": "stamps",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "user_id": {"type": "int", "required": True},
+            "cafe_slug": {"type": "str", "required": True},
+            "barista_id": {"type": "int"},
+            "scanned_at": {"type": "str", "ro": True, "auto": "now"},
+        },
+        # Creation happens via specific endpoint (QR verification + rate limit);
+        # list allowed so user profiles can show stamp history
+        "auth": {"list": None, "read": None, "create": "blocked", "delete": "blocked"},
+        "order": "scanned_at DESC",
+        "limit": 500,
+    },
+
+    "stamp_rewards": {
+        "table": "stamp_rewards",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "user_id": {"type": "int", "required": True},
+            "cafe_slug": {"type": "str", "required": True},
+            "stamps_used": {"type": "int", "required": True},
+            "redeemed_at": {"type": "str", "ro": True, "auto": "now"},
+        },
+        "auth": {"list": None, "read": None, "create": "blocked", "delete": "blocked"},
+        "order": "redeemed_at DESC",
+        "limit": 200,
     },
 }
 

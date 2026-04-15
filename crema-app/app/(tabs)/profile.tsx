@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Plus, Check, X, PenLine, Camera } from "lucide-react-native";
+import { Plus, Check, X, PenLine, Camera, Coffee } from "lucide-react-native";
 import Svg, { Path, Circle } from "react-native-svg";
 
 import { useAuth } from "../../src/hooks/useAuth";
@@ -20,7 +20,7 @@ import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t, SHELF_LABELS } from "../../src/tokens/useTokens";
 
-type ShelfKey = "currently_drinking" | "drank" | "want_to_try";
+type ShelfKey = "open_bags" | "on_the_list";
 
 import PostCard from "../../src/components/domain/PostCard";
 import { openPostModal } from "../../src/components/primitives";
@@ -28,14 +28,13 @@ import CoffeeCard from "../../src/components/CoffeeCard";
 import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 import Navbar from "../../src/components/Navbar";
+import StampBookList from "../../src/components/StampBookList";
 
-type ProfileTab = "posts" | "shelf" | "following";
-type ShelfSub = "currently_drinking" | "drank" | "want_to_try";
-const SHELF_KEYS: ShelfKey[] = ["currently_drinking", "drank", "want_to_try"];
-const SHELF_SUB_LABELS: Record<ShelfSub, string> = {
-  currently_drinking: "Currently Drinking",
-  drank: "Drank",
-  want_to_try: "Want to Try",
+type ProfileTab = "posts" | "shelf" | "stamps" | "following";
+const SHELF_KEYS: ShelfKey[] = ["open_bags", "on_the_list"];
+const SHELF_SECTION_LABELS: Record<ShelfKey, string> = {
+  open_bags: "Open Bags",
+  on_the_list: "On the List",
 };
 
 const DRINK_OPTIONS = ["Cortado", "Espresso", "Cappuccino", "Latte", "Flat White", "Americano", "Pour Over", "Cold Brew", "Mocha", "Macchiato", "Filter Coffee"];
@@ -97,32 +96,25 @@ function HeroEditIcon() {
   );
 }
 
-// ── CoffeeGrid ──────────────────────────────────────────────────────────────
+// ── ShelfCarousel — horizontal scroll of coffee cards ────────────────────────
 
-const GAP = 20;
-const TARGET_CARD_W = 240;
-const CARD_ASPECT = 400 / 240;
-const GRID_PAD = 16;
+const CAROUSEL_CARD_W = 240;
+const CAROUSEL_CARD_H = Math.floor(240 * (400 / 240));
+const CAROUSEL_GAP = 16;
+const CAROUSEL_PAD = 20;
 
-function CoffeeGrid({
-  coffees, shelfMode, activeShelf, onMove, onRemove,
+function ShelfCarousel({
+  coffees, shelfMode, activeShelf, onMove, onRemove, popularity, isOwner = true, onAddToShelf,
 }: {
   coffees: Array<{ coffee: any; entryId: string }>;
   shelfMode?: boolean;
   activeShelf?: ShelfKey;
   onMove?: (productId: string, shelf: string) => void;
   onRemove?: (entryId: string) => void;
+  popularity?: Record<string, number>;
+  isOwner?: boolean;
+  onAddToShelf?: (productId: string) => void;
 }) {
-  const [containerW, setContainerW] = useState(0);
-  const onLayout = useCallback((e: LayoutChangeEvent) => {
-    setContainerW(e.nativeEvent.layout.width);
-  }, []);
-
-  const availableWidth = containerW > 0 ? containerW - GRID_PAD * 2 : 960;
-  const numCols = Math.max(1, Math.min(5, Math.round((availableWidth + GAP) / (TARGET_CARD_W + GAP))));
-  const cardWidth = Math.floor((availableWidth - GAP * (numCols - 1)) / numCols);
-  const cardHeight = Math.floor(cardWidth * CARD_ASPECT);
-
   if (coffees.length === 0) {
     return (
       <View style={g.empty}>
@@ -133,26 +125,32 @@ function CoffeeGrid({
   }
 
   return (
-    <View onLayout={onLayout} style={[g.grid, { gap: GAP, paddingHorizontal: GRID_PAD, paddingBottom: 60 }]}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ paddingHorizontal: CAROUSEL_PAD, gap: CAROUSEL_GAP, paddingBottom: 8 }}
+    >
       {coffees.map(({ coffee, entryId }) => (
-        <View key={entryId} style={{ width: cardWidth, height: cardHeight }}>
+        <View key={entryId} style={{ width: CAROUSEL_CARD_W, height: CAROUSEL_CARD_H }}>
           <CoffeeCard
             coffee={coffee}
-            width={cardWidth}
-            height={cardHeight}
+            width={CAROUSEL_CARD_W}
+            height={CAROUSEL_CARD_H}
             shelfMode={shelfMode}
+            isOwner={isOwner}
             currentShelf={activeShelf}
             onMoveShelf={onMove}
             onRemove={onRemove ? () => onRemove(entryId) : undefined}
+            onAddToShelf={!isOwner ? onAddToShelf : undefined}
+            userCount={popularity?.[coffee.product_id] || 0}
           />
         </View>
       ))}
-    </View>
+    </ScrollView>
   );
 }
 
 const g = StyleSheet.create({
-  grid: { flexDirection: "row", flexWrap: "wrap" },
   empty: { paddingVertical: 60, alignItems: "center", paddingHorizontal: 32 },
   emptyText: { fontFamily: t.font["body.semibold"], fontSize: 15, color: t.color["text.primary"], marginBottom: 6 },
   emptySubtext: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.secondary"], textAlign: "center" },
@@ -178,7 +176,7 @@ export default function ProfilePage() {
 
   // Tab state
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
-  const [activeShelf, setActiveShelf] = useState<ShelfSub>("currently_drinking");
+  // No more sub-tab state — both shelf sections render at once
 
   // Data
   const POSTS_PER_PAGE = 5;
@@ -187,6 +185,7 @@ export default function ProfilePage() {
   const [followingList, setFollowingList] = useState<any[]>([]);
   const [followerCount, setFollowerCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [popularity, setPopularity] = useState<Record<string, number>>({});
 
   // Compose
   const [showCompose, setShowCompose] = useState(false);
@@ -329,6 +328,10 @@ export default function ProfilePage() {
       setFollowers(d.followers || []);
     }
     fetchShelves();
+    apiFetchRaw("/products/popularity").then((r: any) => {
+      const d = r?.data ?? r;
+      setPopularity(typeof d === "object" && !Array.isArray(d) ? d : {});
+    }).catch(() => {});
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -396,10 +399,17 @@ export default function ProfilePage() {
     setFollowingList((prev) => prev.filter((f) => f.slug !== slug));
   };
 
-  // ── Shelf data ─────────────────────────────────────────────────────────
-  const shelfEntries = (shelves[activeShelf] || []).map((entry: any) => ({
-    coffee: productMap?.get(entry.product_id) || { product_id: entry.product_id, name: entry.product_id },
-    entryId: String(entry.id),
+  // ── Shelf data — both sections rendered simultaneously ─────────────────
+  const shelfSections = SHELF_KEYS.map((key) => ({
+    key,
+    label: SHELF_SECTION_LABELS[key],
+    entries: (shelves[key] || [])
+      .map((entry: any) => ({
+        coffee: productMap?.get(entry.product_id),
+        entryId: String(entry.id),
+      }))
+      .filter((e: any) => e.coffee?.coffee_name)  // skip ghost entries with no matching product
+      .filter((e: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.coffee?.product_id === e.coffee?.product_id) === i),  // deduplicate by product_id
   }));
 
   const handleMoveShelf = (productId: string, shelf: string) => { addToShelf(productId, shelf); };
@@ -647,10 +657,10 @@ export default function ProfilePage() {
   // ── Tab bar ─────────────────────────────────────────────────────────
   const tabBar = (
     <View style={s.tabBar}>
-      {(["posts", "shelf", "following"] as ProfileTab[]).map((tab) => (
+      {(["posts", "shelf", "stamps", "following"] as ProfileTab[]).map((tab) => (
         <Pressable key={tab} onPress={() => { setActiveTab(tab); setVisiblePostCount(POSTS_PER_PAGE); }} style={s.tab}>
           <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
-            {tab === "posts" ? "POSTS" : tab === "shelf" ? "COFFEE SHELF" : "FOLLOWING"}
+            {tab === "posts" ? "POSTS" : tab === "shelf" ? "COFFEE SHELF" : tab === "stamps" ? "STAMP BOOK" : "FOLLOWING"}
           </Text>
           {activeTab === tab && <View style={s.tabUnderline} />}
         </Pressable>
@@ -696,15 +706,25 @@ export default function ProfilePage() {
   } else if (activeTab === "shelf") {
     tabContent = (
       <View style={s.tabContent}>
-        <View style={s.shelfSubTabs}>
-          {SHELF_KEYS.map((key) => (
-            <Pressable key={key} onPress={() => setActiveShelf(key as ShelfSub)} style={s.shelfSubTab}>
-              <Text style={[s.shelfSubTabText, activeShelf === key && s.shelfSubTabTextActive]}>{SHELF_SUB_LABELS[key as ShelfSub]}</Text>
-              {activeShelf === key && <View style={s.shelfSubTabUnderline} />}
-            </Pressable>
-          ))}
-        </View>
-        <CoffeeGrid coffees={shelfEntries} shelfMode activeShelf={activeShelf} onMove={handleMoveShelf} onRemove={handleRemoveShelf} />
+        {shelfSections.map((section) => (
+          <View key={section.key} style={s.shelfSection}>
+            <Text style={s.shelfSectionTitle}>{section.label}</Text>
+            <View style={s.shelfSectionMeta}>
+              <Coffee size={15} color={t.color.accent} />
+              <Text style={s.shelfSectionCount}>
+                {section.entries.length} {section.entries.length === 1 ? "Coffee" : "Coffees"}
+              </Text>
+            </View>
+            <View style={s.shelfSectionDivider} />
+            <ShelfCarousel coffees={section.entries} shelfMode isOwner activeShelf={section.key as ShelfKey} onMove={handleMoveShelf} onRemove={handleRemoveShelf} popularity={popularity} />
+          </View>
+        ))}
+      </View>
+    );
+  } else if (activeTab === "stamps") {
+    tabContent = (
+      <View style={s.tabContent}>
+        <StampBookList username={user.username} isOwnProfile />
       </View>
     );
   } else if (activeTab === "following") {
@@ -1086,11 +1106,11 @@ const s = StyleSheet.create({
   composeWrap: { paddingHorizontal: 20, marginBottom: 12 },
 
   // Shelf sub-tabs
-  shelfSubTabs: { flexDirection: "row", gap: 32, paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.3)", marginBottom: 16 },
-  shelfSubTab: { position: "relative", paddingBottom: 8 } as any,
-  shelfSubTabText: { fontFamily: t.font["body.medium"], fontSize: 13, color: "#A09580" },
-  shelfSubTabTextActive: { color: "#351101" },
-  shelfSubTabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 3, backgroundColor: "#351101" } as any,
+  shelfSection: { marginBottom: 40 },
+  shelfSectionTitle: { fontFamily: t.font.display, fontSize: 35, color: t.color["text.primary"], lineHeight: 42, paddingHorizontal: 20, marginTop: 16 },
+  shelfSectionMeta: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, marginTop: 8, marginBottom: 12 },
+  shelfSectionCount: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.primary"] },
+  shelfSectionDivider: { height: 1, backgroundColor: t.color.divider, marginHorizontal: 20, marginBottom: 16 },
 
   // Following list
   followRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.3)" },

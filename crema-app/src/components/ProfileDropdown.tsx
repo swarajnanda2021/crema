@@ -8,11 +8,12 @@ import { useState, useEffect } from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { Settings, PenLine, LogOut, UserPlus } from "lucide-react-native";
+import { Settings, PenLine, LogOut, UserPlus, QrCode } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
 import { resolveUploadUrl } from "../api/client";
 import { useAuth, SavedAccount } from "../hooks/useAuth";
 import { CroppedAvatar } from "./primitives";
+import QRModal from "./QRModal";
 
 interface Props {
   visible: boolean;
@@ -23,6 +24,7 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
   const { user, logout, switchAccount, getSavedAccounts, removeSavedAccount } = useAuth();
   const router = useRouter();
   const [switching, setSwitching] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   // Delay backdrop so the opening click doesn't immediately close the dropdown
   const [ready, setReady] = useState(false);
 
@@ -136,6 +138,13 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
         <View style={s.divider} />
 
         {/* ── Menu items ─────────────────────────────────────── */}
+        {user.account_type === "user" && (
+          <MenuItem
+            icon={<QrCode size={18} color="#684F44" strokeWidth={1.5} />}
+            label="Show QR"
+            onPress={() => setShowQR(true)}
+          />
+        )}
         <MenuItem
           icon={<Settings size={18} color="#684F44" strokeWidth={1.5} />}
           label="Manage account"
@@ -193,6 +202,10 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
           onPress={handleAddAccount}
         />
       </View>
+
+      {showQR && (
+        <QRModal visible={showQR} onClose={() => setShowQR(false)} />
+      )}
     </>
   );
 }
