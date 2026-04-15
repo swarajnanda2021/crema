@@ -98,6 +98,20 @@ function removeAccount(username: string) {
   writeSavedAccounts(accounts);
 }
 
+/** Where to land a user after a hard-reload switch. Roasters and cafés
+ * go to their entity profile so the owner affordances (edit banner,
+ * menu controls, scan button) light up immediately; regular users go
+ * to the feed. */
+function entityHomeFor(user: User): string {
+  if (user.account_type === "roaster" && user.roaster_slug) {
+    return `/roaster/${user.roaster_slug}`;
+  }
+  if (user.account_type === "cafe" && user.cafe_slug) {
+    return `/cafe/${user.cafe_slug}`;
+  }
+  return "/";
+}
+
 // ── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -135,6 +149,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await setToken(res.token);
     setUser(res.user);
     upsertAccount(res.user, res.token);
+    // Hard-reload web so the app mounts fresh under the new identity
+    // (matches switchAccount). Native keeps the old router.replace path.
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.location.assign(entityHomeFor(res.user));
+    }
     return res.user;
   }, []);
 
@@ -147,6 +166,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await setToken(res.token);
     setUser(res.user);
     upsertAccount(res.user, res.token);
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.location.assign(entityHomeFor(res.user));
+    }
     return res.user;
   }, []);
 
@@ -155,6 +177,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await setToken(null);
     setUser(null);
     if (username) removeAccount(username);
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      // Fresh reload drops any in-memory state bound to the old
+      // session token (feed, café/roaster owner UI, etc.).
+      window.location.assign("/");
+    }
   }, [user]);
 
   const updateProfile = useCallback(async (profileData: Partial<User>) => {
@@ -176,6 +203,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const me = meRes?.data ?? meRes;
     setUser(me);
     upsertAccount(me, token);
+    // Hard navigate on web so every hook / component remounts with the
+    // new identity. Cached data (feed, caf\u00e9 / roaster pages, owner
+    // affordances, navbar avatar) all re-read from the new session
+    // token without any bespoke invalidation.
+    // On native, callers are expected to router.replace to the home
+    // tab — the provider state change is enough since there's no
+    // persistent URL state to blow away.
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const target = entityHomeFor(me);
+      window.location.assign(target);
+    }
     return me;
   }, []);
 

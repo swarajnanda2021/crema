@@ -875,7 +875,10 @@ export default function RoasterDetailPage() {
                   }}
                   onCancel={() => setComposerOpen(false)}
                   user={user}
-                  products={[]}
+                  // Pipe the roaster's own coffees into the composer so the
+                  // tasting-note search actually finds the freshly-added
+                  // product. `coffees` is the merged local + catalog list.
+                  products={coffees}
                   initialData={{ body: composerPrefill, images: [], location: "" }}
                 />
               </View>
