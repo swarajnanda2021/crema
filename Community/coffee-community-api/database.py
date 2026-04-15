@@ -376,6 +376,10 @@ _MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS idx_posts_cafe ON roaster_posts(cafe_slug)",
     # Café menu items: optional flag to hide roaster credit (some cafés safeguard their sourcing)
     "ALTER TABLE cafe_menu_items ADD COLUMN hide_roaster INTEGER NOT NULL DEFAULT 0",
+    # Admin flag — gates the /api/stats/traction endpoint. Only the seeded
+    # "crema" account gets is_admin=1. Defense in depth: endpoint checks both
+    # is_admin=1 AND username="crema".
+    "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0",
 ]
 
 

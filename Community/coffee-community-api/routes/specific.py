@@ -11,8 +11,31 @@ from resources.registry import get_resource
 from resources.envelope import ok
 from services.auth import get_current_user, get_optional_user
 from services.qr_tokens import issue_qr_token, verify_qr_token
+from services.admin_stats import compute_traction
 
 router = APIRouter(prefix="/api", tags=["Specific"])
+
+
+# ── Admin traction dashboard (see services/admin_stats.py) ──────────────────
+
+def _require_admin(user):
+    """Gate the traction endpoint. Defense in depth — check the flag AND the
+    canonical admin username. Only one row (the seeded "crema" account) should
+    satisfy both; a compromised flag on another account still fails the slug
+    match."""
+    from fastapi import HTTPException
+    if not user or user.get("is_admin") != 1 or user.get("username") != "crema":
+        raise HTTPException(403, "Admin only")
+
+
+@router.get("/stats/traction")
+def stats_traction(user=Depends(get_current_user)):
+    _require_admin(user)
+    db = get_db()
+    try:
+        return ok(compute_traction(db), resource="traction")
+    finally:
+        db.close()
 
 
 # ── Follow convenience ───────────────────────────────────────────────────────

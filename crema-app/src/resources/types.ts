@@ -41,6 +41,7 @@ export interface User {
   account_type: "user" | "roaster" | "cafe";
   roaster_slug?: string;
   cafe_slug?: string;
+  is_admin?: number;
   created_at: string;
 }
 
@@ -333,4 +334,142 @@ export interface StampResult {
   reward_earned: boolean;
   total_stamps_ever: number;
   rewards_ever: number;
+}
+
+// ── Admin Traction Dashboard (see services/admin_stats.py) ──────────────────
+
+export interface EngagementStats {
+  total_users: number;
+  total_roasters: number;
+  total_cafe_accounts: number;
+  dau: number;
+  wau: number;
+  mau: number;
+  writers: number;
+  writer_pct: number;
+  mean_notes_per_writer: number;
+  median_notes_per_writer: number;
+  posts_per_active_user_per_week: number;
+  total_posts: number;
+  total_comments: number;
+  comments_per_post: number;
+  like_distribution: Record<"0" | "1-5" | "6-20" | "21+" | string, number>;
+  total_reposts: number;
+  repost_rate_pct: number;
+}
+
+export interface MonthlyClickPoint {
+  month: string;
+  clicks: number;
+}
+
+export interface ClicksBySource {
+  source_page: string;
+  clicks: number;
+}
+
+export interface TopClickedProduct {
+  product_id: string;
+  roaster_slug: string;
+  coffee_name: string | null;
+  roaster_name: string | null;
+  clicks: number;
+}
+
+export interface CommerceStats {
+  total_clicks: number;
+  monthly_clicks: MonthlyClickPoint[];
+  clicks_by_source: ClicksBySource[];
+  top_products: TopClickedProduct[];
+  funnel: {
+    clicked: number;
+    shelved: number;
+    rated: number;
+    full_funnel: number;
+  };
+}
+
+export interface TopStampedCafe {
+  cafe_slug: string;
+  name: string;
+  city: string | null;
+  stamps: number;
+}
+
+export interface LoyaltyStats {
+  total_stamps: number;
+  stamps_7d: number;
+  stamps_30d: number;
+  stamps_90d: number;
+  unique_stamped_users: number;
+  avg_stamps_per_user: number;
+  avg_days_between_stamps: number;
+  loyal_cohort_3_plus: number;
+  rewards_redeemed: number;
+  reward_conversion_pct: number;
+  top_cafes: TopStampedCafe[];
+}
+
+export interface TopFollowedEntity {
+  slug: string;
+  name: string;
+  city: string | null;
+  followers: number;
+}
+
+export interface NetworkStats {
+  total_follows: number;
+  unique_followers: number;
+  avg_follows_per_user: number;
+  top_roasters: TopFollowedEntity[];
+  top_cafes: TopFollowedEntity[];
+  reciprocal_pairs: number;
+  shared_shelf_pairs_3_plus: number;
+}
+
+export interface RetentionCohort {
+  week: string;
+  week_start: string | null;
+  signups: number;
+  d1: number;
+  d7: number;
+  d30: number;
+  d1_pct: number;
+  d7_pct: number;
+  d30_pct: number;
+}
+
+export interface RetentionStats {
+  cohorts: RetentionCohort[];
+  writer_retention_30d_pct: number;
+  writers_total: number;
+  avg_first_to_second_stamp_days: number;
+}
+
+export interface SupplyStats {
+  roasters_total: number;
+  roasters_with_profiles: number;
+  roasters_with_products: number;
+  roasters_with_posts: number;
+  roasters_with_followers: number;
+  products_total: number;
+  products_available: number;
+  products_with_shelf_entry: number;
+  products_with_tasting_note: number;
+  cafes_total: number;
+  cafes_stamps_enabled: number;
+  cafes_with_any_stamp: number;
+  avg_menu_items_per_cafe: number;
+  cafes_using_catalog_roasters: number;
+  ecosystem_density_pct: number;
+}
+
+export interface TractionStats {
+  engagement: EngagementStats;
+  commerce: CommerceStats;
+  loyalty: LoyaltyStats;
+  network: NetworkStats;
+  retention: RetentionStats;
+  supply: SupplyStats;
+  generated_at: string;
 }

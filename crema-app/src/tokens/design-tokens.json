@@ -14,6 +14,7 @@
     "accent.cta.hover": "#A94432",
     "accent.soft": "rgba(200, 85, 61, 0.08)",
     "accent.gold": "#E8C07A",
+    "accent.positive": "#2F7A48",
     "border": "#D7D1C4",
     "border.light": "#EDE8E1",
     "divider": "#C7BAA5",

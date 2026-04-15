@@ -41,6 +41,7 @@ def _user_to_dict(row) -> dict:
         "avatar_crop_x": row["avatar_crop_x"] if "avatar_crop_x" in keys else 50,
         "avatar_crop_y": row["avatar_crop_y"] if "avatar_crop_y" in keys else 50,
         "avatar_zoom": row["avatar_zoom"] if "avatar_zoom" in keys else 1,
+        "is_admin": row["is_admin"] if "is_admin" in keys else 0,
         "created_at": row["created_at"],
     }
 
