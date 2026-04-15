@@ -374,6 +374,8 @@ _MIGRATIONS = [
     # Posts can tag a café as location entity
     "ALTER TABLE roaster_posts ADD COLUMN cafe_slug TEXT",
     "CREATE INDEX IF NOT EXISTS idx_posts_cafe ON roaster_posts(cafe_slug)",
+    # Café menu items: optional flag to hide roaster credit (some cafés safeguard their sourcing)
+    "ALTER TABLE cafe_menu_items ADD COLUMN hide_roaster INTEGER NOT NULL DEFAULT 0",
 ]
 
 

@@ -417,6 +417,7 @@ RESOURCES = {
             "roast_level": {"type": "str"},
             "process": {"type": "str"},
             "notes": {"type": "str"},
+            "hide_roaster": {"type": "int", "default": 0},
             "created_at": {"type": "str", "ro": True, "auto": "now"},
         },
         "parent": "cafe_profiles",

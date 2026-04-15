@@ -50,7 +50,7 @@ export default function Navbar() {
             <Text style={[s.navLinkText, isHome && s.navLinkTextActiveHome]}>HOME</Text>
           </Pressable>
           <Pressable onPress={() => router.push("/browse")} style={s.navLink}>
-            <Text style={[s.navLinkText, isShop && s.navLinkTextActiveShop]}>SHOP</Text>
+            <Text style={[s.navLinkText, isShop && s.navLinkTextActiveShop]}>DISCOVER</Text>
           </Pressable>
         </View>
 

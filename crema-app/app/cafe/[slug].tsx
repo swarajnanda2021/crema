@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, MapPin, AtSign, Globe, Coffee, Camera, PenLine, Plus, Trash2 } from "lucide-react-native";
+import { ArrowLeft, Coffee, Camera, PenLine, Plus, Trash2 } from "lucide-react-native";
+import Svg, { Path } from "react-native-svg";
 import { t } from "../../src/tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { useAuth } from "../../src/hooks/useAuth";
@@ -20,6 +21,35 @@ import ScannerModal from "../../src/components/ScannerModal";
 import type { Cafe, CafeMenuItem, CafeBarista } from "../../src/resources/types";
 
 const NAVBAR_H = 72;
+
+// ── Local SVG icons matching roaster profile language ───────────────────────
+
+function MapPinIcon({ color = t.color.accent }: { color?: string }) {
+  return (
+    <Svg width={12} height={16} viewBox="0 0 13.9649 17.3005" fill="none">
+      <Path d="M0.75 6.9138C0.75 11.2337 4.52909 14.806 6.20182 16.1756C6.44121 16.3716 6.56234 16.4708 6.74095 16.5211C6.88002 16.5602 7.0847 16.5602 7.22378 16.5211C7.40271 16.4707 7.523 16.3725 7.76329 16.1757C9.43602 14.8061 13.2149 11.234 13.2149 6.9142C13.2149 5.2794 12.5583 3.71137 11.3895 2.55539C10.2207 1.39942 8.63552 0.75 6.98257 0.75C5.32961 0.75 3.74427 1.39952 2.57545 2.55549C1.40664 3.71147 0.75 5.27901 0.75 6.9138Z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M5.20178 6.09214C5.20178 7.0756 5.99903 7.87285 6.98249 7.87285C7.96595 7.87285 8.76321 7.0756 8.76321 6.09214C8.76321 5.10868 7.96595 4.31142 6.98249 4.31142C5.99903 4.31142 5.20178 5.10868 5.20178 6.09214Z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function ExternalLinkIcon({ color = t.color.accent }: { color?: string }) {
+  return (
+    <Svg width={14} height={14} viewBox="0 0 15.5 15.5" fill="none">
+      <Path d="M5.41685 1.68333H3.73685C2.69142 1.68333 2.16831 1.68333 1.76901 1.88679C1.41778 2.06575 1.13242 2.35111 0.953455 2.70234C0.750001 3.10165 0.750001 3.62475 0.750001 4.67018V11.7635C0.750001 12.8089 0.750001 13.3314 0.953455 13.7307C1.13242 14.0819 1.41778 14.3678 1.76901 14.5467C2.16792 14.75 2.69039 14.75 3.73378 14.75H10.8329C11.8763 14.75 12.398 14.75 12.7969 14.5467C13.1481 14.3678 13.4344 14.0817 13.6134 13.7304C13.8167 13.3315 13.8167 12.8096 13.8167 11.7662V10.0833M14.75 5.41667V0.75M14.75 0.75H10.0833M14.75 0.75L8.21667 7.28333" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function InstagramIcon({ color = t.color.accent }: { color?: string }) {
+  return (
+    <Svg width={14} height={14} viewBox="0 0 16 16" fill="none">
+      <Path d="M11 1H5C2.79086 1 1 2.79086 1 5V11C1 13.2091 2.79086 15 5 15H11C13.2091 15 15 13.2091 15 11V5C15 2.79086 13.2091 1 11 1Z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M11.5 7.6C11.6233 8.4317 11.4811 9.2811 11.0938 10.0277C10.7064 10.7743 10.0938 11.3796 9.343 11.7574C8.5922 12.1352 7.7412 12.2664 6.9114 12.1322C6.0815 11.9979 5.3146 11.6051 4.7204 11.0094C4.1262 10.4137 3.7355 9.6457 3.6038 8.8157C3.4721 7.9856 3.6063 7.135 3.987 6.3854C4.3677 5.6358 4.9748 5.0249 5.7224 4.6398C6.4699 4.2547 7.3197 4.1149 8.151 4.24C8.999 4.3676 9.7837 4.7626 10.39 5.367C10.9963 5.9714 11.3934 6.7551 11.5 7.6Z" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M11.5 4.5H11.508" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAYS_OF_WEEK = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -196,61 +226,73 @@ export default function CafeDetailPage() {
               </View>
             )}
 
-            {/* Meta rows */}
+            {/* Meta rows — match roaster profile pattern: icon + Inter medium, no underline */}
             <View style={s.metaRows}>
               {(cafe.address || isEditing) && (
-                <View style={s.metaRow}>
-                  <MapPin size={14} color={t.color.accent} />
-                  {isEditing ? (
+                isEditing ? (
+                  <View style={s.metaItem}>
+                    <MapPinIcon />
                     <TextInput
-                      style={[s.metaText, s.inlineEdit, { flex: 1 }]}
+                      style={[s.metaText, s.inlineEditMeta]}
                       value={editAddress}
                       onChangeText={setEditAddress}
                       placeholder="Address"
                       placeholderTextColor={t.color["text.muted"]}
                     />
-                  ) : (
-                    <Pressable onPress={() => cafe.address && Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(cafe.address)}`)}>
-                      <Text style={s.metaTextLink}>{cafe.address}</Text>
-                    </Pressable>
-                  )}
-                </View>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() => cafe.address && Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(cafe.address)}`)}
+                    style={s.metaItem}
+                  >
+                    <MapPinIcon />
+                    <Text style={s.metaText} numberOfLines={2}>{cafe.address}</Text>
+                  </Pressable>
+                )
               )}
               {(cafe.instagram_handle || isEditing) && (
-                <View style={s.metaRow}>
-                  <AtSign size={14} color={t.color.accent} />
-                  {isEditing ? (
+                isEditing ? (
+                  <View style={s.metaItem}>
+                    <InstagramIcon />
                     <TextInput
-                      style={[s.metaText, s.inlineEdit, { flex: 1 }]}
+                      style={[s.metaText, s.inlineEditMeta]}
                       value={editInstagram}
                       onChangeText={setEditInstagram}
-                      placeholder="Instagram handle (no @)"
+                      placeholder="Instagram handle"
                       placeholderTextColor={t.color["text.muted"]}
                     />
-                  ) : (
-                    <Pressable onPress={() => Linking.openURL(`https://instagram.com/${cafe.instagram_handle}`)}>
-                      <Text style={s.metaTextLink}>@{cafe.instagram_handle}</Text>
-                    </Pressable>
-                  )}
-                </View>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() => Linking.openURL(`https://instagram.com/${cafe.instagram_handle}`)}
+                    style={s.metaItem}
+                  >
+                    <InstagramIcon />
+                    <Text style={s.metaText}>@{cafe.instagram_handle}</Text>
+                  </Pressable>
+                )
               )}
               {(cafe.website || isEditing) && (
-                <View style={s.metaRow}>
-                  <Globe size={14} color={t.color.accent} />
-                  {isEditing ? (
+                isEditing ? (
+                  <View style={s.metaItem}>
+                    <ExternalLinkIcon />
                     <TextInput
-                      style={[s.metaText, s.inlineEdit, { flex: 1 }]}
+                      style={[s.metaText, s.inlineEditMeta]}
                       value={editWebsite}
                       onChangeText={setEditWebsite}
                       placeholder="Website URL"
                       placeholderTextColor={t.color["text.muted"]}
                     />
-                  ) : (
-                    <Pressable onPress={() => cafe.website && Linking.openURL(cafe.website)}>
-                      <Text style={s.metaTextLink}>{cafe.website?.replace(/^https?:\/\//, "")}</Text>
-                    </Pressable>
-                  )}
-                </View>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() => cafe.website && Linking.openURL(cafe.website)}
+                    style={s.metaItem}
+                  >
+                    <ExternalLinkIcon />
+                    <Text style={s.metaText}>Website</Text>
+                  </Pressable>
+                )
               )}
             </View>
 
@@ -338,7 +380,7 @@ function BioTab({ cafe, baristas }: { cafe: Cafe; baristas: CafeBarista[] }) {
         </View>
       )}
 
-      {/* Baristas */}
+      {/* Baristas — name + avatar only; tappable to user profile if linked */}
       {baristas.length > 0 && (
         <View style={s.baristasBlock}>
           <Text style={s.sectionTitle}>Baristas</Text>
@@ -352,8 +394,7 @@ function BioTab({ cafe, baristas }: { cafe: Cafe; baristas: CafeBarista[] }) {
                     <Text style={s.baristaInitial}>{b.name.charAt(0).toUpperCase()}</Text>
                   </View>
                 )}
-                <Text style={s.baristaName}>{b.name}</Text>
-                {b.specialty && <Text style={s.baristaSpecialty}>{b.specialty}</Text>}
+                <Text style={s.baristaName} numberOfLines={1}>{b.name}</Text>
               </View>
             ))}
           </ScrollView>
@@ -418,7 +459,7 @@ function MenuTab({ cafe_slug, menu, isOwner, onChange }: {
   return (
     <View style={s.tabContent}>
       {grouped.map(([drinkName, items]) => (
-        <DrinkCard
+        <DrinkRow
           key={drinkName}
           drinkName={drinkName}
           items={items}
@@ -435,7 +476,9 @@ function MenuTab({ cafe_slug, menu, isOwner, onChange }: {
   );
 }
 
-function DrinkCard({ drinkName, items, isOwner, onDelete, onTapRoaster, onTapProduct }: {
+// Row layout: drink name on left, horizontal scroll of bean cards on right.
+// Multi-roaster drinks become natural carousels — swipe the cards to see alternates.
+function DrinkRow({ drinkName, items, isOwner, onDelete, onTapRoaster, onTapProduct }: {
   drinkName: string;
   items: CafeMenuItem[];
   isOwner: boolean;
@@ -443,63 +486,78 @@ function DrinkCard({ drinkName, items, isOwner, onDelete, onTapRoaster, onTapPro
   onTapRoaster: (slug: string) => void;
   onTapProduct: (productId: string) => void;
 }) {
-  const [activeIdx, setActiveIdx] = useState(0);
-  const item = items[activeIdx];
-  const hasMultiple = items.length > 1;
-  const roasterName = item.manual_roaster_name || (item.roaster_slug ? item.roaster_slug.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase()) : null);
-  const beanName = item.manual_bean_name || (item.product_id ? null : null);
+  return (
+    <View style={s.drinkRow}>
+      <View style={s.drinkLabel}>
+        <Text style={s.drinkRowName}>{drinkName}</Text>
+        {items.length > 1 && (
+          <Text style={s.drinkRowCount}>{items.length} options</Text>
+        )}
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 12, paddingRight: 8 }}
+        style={s.drinkScroll}
+      >
+        {items.map((item) => (
+          <BeanCard
+            key={item.id}
+            item={item}
+            isOwner={isOwner}
+            onDelete={() => onDelete(item.id)}
+            onTapRoaster={onTapRoaster}
+            onTapProduct={onTapProduct}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function BeanCard({ item, isOwner, onDelete, onTapRoaster, onTapProduct }: {
+  item: CafeMenuItem;
+  isOwner: boolean;
+  onDelete: () => void;
+  onTapRoaster: (slug: string) => void;
+  onTapProduct: (productId: string) => void;
+}) {
+  // Roaster credit: only show if linked to our catalog AND not hidden by café.
+  const showRoaster = !!item.roaster_slug && item.hide_roaster !== 1;
+  const isHidden = !!item.roaster_slug && item.hide_roaster === 1;
+  const beanName = item.manual_bean_name || item.product_id;
 
   return (
-    <View style={s.drinkCard}>
-      <View style={s.drinkCardHeader}>
-        <Text style={s.drinkName}>{drinkName}</Text>
-        {hasMultiple && (
-          <View style={s.drinkCarouselDots}>
-            {items.map((_, i) => (
-              <Pressable key={i} onPress={() => setActiveIdx(i)}>
-                <View style={[s.drinkDot, i === activeIdx && s.drinkDotActive]} />
-              </Pressable>
-            ))}
-          </View>
-        )}
-        {isOwner && (
-          <Pressable onPress={() => onDelete(item.id)} style={s.drinkDelete}>
-            <Trash2 size={14} color={t.color["text.muted"]} />
-          </Pressable>
-        )}
-      </View>
-
-      <View style={s.drinkBeanLine}>
-        {roasterName && (
-          <Pressable
-            onPress={() => {
-              if (item.roaster_slug) onTapRoaster(item.roaster_slug);
-              else if (item.manual_roaster_url) Linking.openURL(item.manual_roaster_url);
-            }}
-          >
-            <Text style={s.drinkRoasterText}>By {roasterName}</Text>
-          </Pressable>
-        )}
-        {(item.roast_level || item.process) && (
-          <Text style={s.drinkProcess}>
-            {[item.roast_level, item.process].filter(Boolean).join(" · ")}
+    <View style={s.beanCard}>
+      {isOwner && (
+        <Pressable onPress={onDelete} style={s.beanCardDelete}>
+          <Trash2 size={12} color={t.color["text.muted"]} />
+        </Pressable>
+      )}
+      {showRoaster && item.roaster_slug && (
+        <Pressable onPress={() => onTapRoaster(item.roaster_slug!)}>
+          <Text style={s.beanCardRoaster} numberOfLines={1}>
+            By {item.roaster_slug.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
           </Text>
-        )}
-      </View>
+        </Pressable>
+      )}
+      {isHidden && (
+        <Text style={s.beanCardHidden}>Roaster undisclosed</Text>
+      )}
 
-      {(item.product_id || beanName) && (
+      {beanName && (
         <Pressable
           onPress={() => item.product_id && onTapProduct(item.product_id)}
           disabled={!item.product_id}
         >
-          <Text style={s.drinkBeanText}>{beanName || item.product_id}</Text>
+          <Text style={s.beanCardName} numberOfLines={2}>{beanName}</Text>
         </Pressable>
       )}
 
-      {item.notes && <Text style={s.drinkNotes}>{item.notes}</Text>}
-
-      {hasMultiple && (
-        <Text style={s.drinkBeanCount}>{activeIdx + 1} of {items.length} beans</Text>
+      {(item.roast_level || item.process) && (
+        <Text style={s.beanCardMeta} numberOfLines={1}>
+          {[item.roast_level, item.process].filter(Boolean).join(" · ")}
+        </Text>
       )}
     </View>
   );
@@ -508,11 +566,37 @@ function DrinkCard({ drinkName, items, isOwner, onDelete, onTapRoaster, onTapPro
 function AddMenuItemForm({ cafe_slug, onAdded }: { cafe_slug: string; onAdded: () => void }) {
   const [open, setOpen] = useState(false);
   const [drinkName, setDrinkName] = useState("");
-  const [manualRoasterName, setManualRoasterName] = useState("");
-  const [manualRoasterUrl, setManualRoasterUrl] = useState("");
+  const [roasterSlug, setRoasterSlug] = useState<string | null>(null);
+  const [roasterPickerOpen, setRoasterPickerOpen] = useState(false);
+  const [roasterQuery, setRoasterQuery] = useState("");
+  const [roasters, setRoasters] = useState<Array<{ roaster_slug: string; name: string | null }>>([]);
   const [manualBeanName, setManualBeanName] = useState("");
   const [roastLevel, setRoastLevel] = useState("");
   const [process, setProcess] = useState("");
+  const [hideRoaster, setHideRoaster] = useState(false);
+
+  // Load roaster catalog when the picker opens
+  useEffect(() => {
+    if (roasters.length > 0 || !roasterPickerOpen) return;
+    apiFetchRaw<any>("/roaster_profiles?limit=200")
+      .then((r) => {
+        const data = r?.data ?? r;
+        setRoasters(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {});
+  }, [roasterPickerOpen, roasters.length]);
+
+  const filteredRoasters = useMemo(() => {
+    if (!roasterQuery) return roasters.slice(0, 50);
+    const q = roasterQuery.toLowerCase();
+    return roasters
+      .filter((r) => (r.name || r.roaster_slug || "").toLowerCase().includes(q))
+      .slice(0, 50);
+  }, [roasters, roasterQuery]);
+
+  const selectedRoasterName = roasterSlug
+    ? (roasters.find((r) => r.roaster_slug === roasterSlug)?.name || roasterSlug.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()))
+    : null;
 
   const handleAdd = async () => {
     if (!drinkName.trim()) return;
@@ -522,19 +606,19 @@ function AddMenuItemForm({ cafe_slug, onAdded }: { cafe_slug: string; onAdded: (
         body: JSON.stringify({
           cafe_slug,
           drink_name: drinkName.trim(),
-          manual_roaster_name: manualRoasterName.trim() || null,
-          manual_roaster_url: manualRoasterUrl.trim() || null,
+          roaster_slug: roasterSlug,
           manual_bean_name: manualBeanName.trim() || null,
           roast_level: roastLevel.trim() || null,
           process: process.trim() || null,
+          hide_roaster: hideRoaster ? 1 : 0,
         }),
       });
       setDrinkName("");
-      setManualRoasterName("");
-      setManualRoasterUrl("");
+      setRoasterSlug(null);
       setManualBeanName("");
       setRoastLevel("");
       setProcess("");
+      setHideRoaster(false);
       setOpen(false);
       onAdded();
     } catch (e) { console.warn("Menu add failed:", e); }
@@ -552,13 +636,30 @@ function AddMenuItemForm({ cafe_slug, onAdded }: { cafe_slug: string; onAdded: (
   return (
     <View style={s.addMenuForm}>
       <TextInput style={s.addMenuInput} value={drinkName} onChangeText={setDrinkName} placeholder="Drink name (e.g. Pour Over)" placeholderTextColor={t.color["text.muted"]} />
-      <TextInput style={s.addMenuInput} value={manualRoasterName} onChangeText={setManualRoasterName} placeholder="Roaster name" placeholderTextColor={t.color["text.muted"]} />
-      <TextInput style={s.addMenuInput} value={manualRoasterUrl} onChangeText={setManualRoasterUrl} placeholder="Roaster URL (optional)" placeholderTextColor={t.color["text.muted"]} />
+
+      {/* Roaster picker — only catalog roasters; leave blank if not in our catalog */}
+      <Pressable onPress={() => setRoasterPickerOpen(true)} style={s.addMenuInput}>
+        <Text style={selectedRoasterName ? s.pickerSelectedText : s.pickerPlaceholder}>
+          {selectedRoasterName || "Pick a roaster (optional, from catalog)"}
+        </Text>
+      </Pressable>
+      {selectedRoasterName && (
+        <Pressable onPress={() => setRoasterSlug(null)}>
+          <Text style={s.clearText}>× clear roaster</Text>
+        </Pressable>
+      )}
+
       <TextInput style={s.addMenuInput} value={manualBeanName} onChangeText={setManualBeanName} placeholder="Bean name (optional)" placeholderTextColor={t.color["text.muted"]} />
       <View style={{ flexDirection: "row", gap: 8 }}>
         <TextInput style={[s.addMenuInput, { flex: 1 }]} value={roastLevel} onChangeText={setRoastLevel} placeholder="Roast" placeholderTextColor={t.color["text.muted"]} />
         <TextInput style={[s.addMenuInput, { flex: 1 }]} value={process} onChangeText={setProcess} placeholder="Process" placeholderTextColor={t.color["text.muted"]} />
       </View>
+      <Pressable onPress={() => setHideRoaster(!hideRoaster)} style={s.checkRow}>
+        <View style={[s.checkbox, hideRoaster && s.checkboxChecked]}>
+          {hideRoaster && <Text style={s.checkmark}>{"\u2713"}</Text>}
+        </View>
+        <Text style={s.checkLabel}>Hide roaster credit (safeguard sourcing)</Text>
+      </Pressable>
       <View style={{ flexDirection: "row", gap: 8 }}>
         <Pressable onPress={() => setOpen(false)} style={[s.discardBtn, { flex: 1 }]}>
           <Text style={s.discardText}>Cancel</Text>
@@ -567,6 +668,39 @@ function AddMenuItemForm({ cafe_slug, onAdded }: { cafe_slug: string; onAdded: (
           <Text style={s.saveText}>Add drink</Text>
         </Pressable>
       </View>
+
+      {roasterPickerOpen && (
+        <View style={s.roasterPickerOverlay}>
+          <View style={s.roasterPickerCard}>
+            <Text style={s.roasterPickerTitle}>Pick a roaster</Text>
+            <TextInput
+              style={s.addMenuInput}
+              value={roasterQuery}
+              onChangeText={setRoasterQuery}
+              placeholder="Search roasters…"
+              placeholderTextColor={t.color["text.muted"]}
+            />
+            <ScrollView style={{ maxHeight: 280 }}>
+              {filteredRoasters.map((r) => (
+                <Pressable
+                  key={r.roaster_slug}
+                  onPress={() => {
+                    setRoasterSlug(r.roaster_slug);
+                    setRoasterPickerOpen(false);
+                    setRoasterQuery("");
+                  }}
+                  style={s.roasterPickerRow}
+                >
+                  <Text style={s.roasterPickerName}>{r.name || r.roaster_slug}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable onPress={() => setRoasterPickerOpen(false)} style={s.discardBtn}>
+              <Text style={s.discardText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -607,10 +741,10 @@ const s = StyleSheet.create({
   layoutWide: { flexDirection: "row", maxWidth: 1280, alignSelf: "center", width: "100%" },
 
   leftPanel: { paddingHorizontal: 24, paddingVertical: 24 },
-  leftPanelWide: { width: 380, paddingRight: 32 },
+  leftPanelWide: { width: 380, paddingRight: 32, flexShrink: 0 } as any,
 
   rightPanel: { paddingHorizontal: 24, paddingVertical: 24 },
-  rightPanelWide: { flex: 1, paddingLeft: 32 },
+  rightPanelWide: { flex: 1, paddingLeft: 32, minWidth: 0 } as any,
 
   heroWrap: {
     height: 240,
@@ -629,16 +763,16 @@ const s = StyleSheet.create({
   backText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"] },
 
   cafeName: {
-    fontFamily: t.font.display, fontSize: 36, color: t.color["text.primary"],
-    lineHeight: 42, marginBottom: 12,
+    fontFamily: t.font.display, fontSize: 48, color: t.color["text.primary"],
+    lineHeight: 56, marginBottom: 12,
   },
   aboutBlurb: {
-    fontFamily: t.font["body.regular"], fontSize: 14, color: t.color["text.secondary"],
-    lineHeight: 20, marginBottom: 16,
+    fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.secondary"],
+    lineHeight: 18, marginBottom: 16,
   },
   aboutText: {
-    fontFamily: t.font["body.regular"], fontSize: 14, color: t.color["text.secondary"],
-    lineHeight: 20,
+    fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.secondary"],
+    lineHeight: 18,
   },
   inlineEdit: {
     backgroundColor: t.color["card.info"],
@@ -648,17 +782,25 @@ const s = StyleSheet.create({
 
   seasonalBadge: {
     alignSelf: "flex-start",
-    backgroundColor: t.color["accent.soft"],
-    paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: t.color["tag.bg"],
+    paddingHorizontal: 12, paddingVertical: 5,
     borderRadius: 12,
     marginBottom: 16,
   },
-  seasonalText: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["accent.cta"] },
+  seasonalText: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["tag.text"], letterSpacing: 0.3 },
 
   metaRows: { gap: 8, marginBottom: 20 },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  metaText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"] },
-  metaTextLink: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"], textDecorationLine: "underline" as any },
+  metaItem: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 2 } as any,
+  metaText: {
+    fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.secondary"],
+    flex: 1, flexShrink: 1, lineHeight: 18,
+  } as any,
+  inlineEditMeta: {
+    fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.secondary"],
+    backgroundColor: t.color["card.info"],
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 3,
+    flex: 1,
+  } as any,
 
   ownerActions: { flexDirection: "row", gap: 8, marginTop: 8 },
   editBtn: {
@@ -684,7 +826,7 @@ const s = StyleSheet.create({
   tabContent: { gap: 24 },
 
   sectionTitle: {
-    fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.muted"],
+    fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"],
     letterSpacing: 0.5, marginBottom: 12, textTransform: "uppercase",
   },
 
@@ -692,7 +834,7 @@ const s = StyleSheet.create({
   statsBlock: {},
   statsRow: { flexDirection: "row", gap: 16 },
   statCell: { flex: 1, padding: 16, backgroundColor: t.color["card.info"], borderRadius: 8 },
-  statValue: { fontFamily: t.font.display, fontSize: 28, color: t.color["text.primary"], lineHeight: 32 },
+  statValue: { fontFamily: t.font.display, fontSize: 28, color: t.color["accent.cta"], lineHeight: 32 },
   statLabel: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.secondary"], marginTop: 4 },
 
   // Baristas
@@ -711,25 +853,51 @@ const s = StyleSheet.create({
   hoursTime: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.secondary"] },
 
   // Menu / drink card
-  drinkCard: {
-    backgroundColor: t.color["card.front"],
-    borderRadius: 8,
-    padding: 16,
-    borderWidth: 1, borderColor: t.color["border.light"],
+  // Menu row layout: drink name (left) + horizontal scroll of bean cards (right)
+  drinkRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: t.color["border.light"],
+  } as any,
+  drinkLabel: { width: 140, flexShrink: 0, paddingTop: 6 } as any,
+  drinkRowName: {
+    fontFamily: t.font.display, fontSize: 24, color: t.color["text.primary"],
+    lineHeight: 28,
   },
-  drinkCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
-  drinkName: { fontFamily: t.font.display, fontSize: 22, color: t.color["text.primary"] },
-  drinkCarouselDots: { flexDirection: "row", gap: 6 },
-  drinkDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.color.border },
-  drinkDotActive: { backgroundColor: t.color.accent },
-  drinkDelete: { padding: 4 },
+  drinkRowCount: {
+    fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"],
+    marginTop: 4, letterSpacing: 0.3,
+  },
+  drinkScroll: { flex: 1, minWidth: 0 } as any,
 
-  drinkBeanLine: { flexDirection: "row", flexWrap: "wrap" as any, gap: 8, alignItems: "center", marginBottom: 4 },
-  drinkRoasterText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"], textDecorationLine: "underline" as any },
-  drinkProcess: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.secondary"] },
-  drinkBeanText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["accent.cta"], marginTop: 2 },
-  drinkNotes: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.muted"], marginTop: 6, fontStyle: "italic" as any },
-  drinkBeanCount: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"], marginTop: 8 },
+  // Bean card — same visual language as CoffeeCard's info section
+  beanCard: {
+    width: 200,
+    backgroundColor: t.color["card.front"],
+    borderRadius: 5,
+    borderWidth: 1, borderColor: t.color["border.light"],
+    padding: 14,
+    gap: 4,
+    position: "relative",
+  } as any,
+  beanCardDelete: { position: "absolute", top: 6, right: 6, padding: 4, zIndex: 2 } as any,
+  beanCardRoaster: {
+    fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"],
+  },
+  beanCardHidden: {
+    fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.muted"],
+    fontStyle: "italic" as any,
+  },
+  beanCardName: {
+    fontFamily: t.font.display, fontSize: 16, color: t.color["accent.cta"],
+    lineHeight: 20, marginTop: 2,
+  },
+  beanCardMeta: {
+    fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.secondary"],
+    marginTop: 4,
+  },
 
   // Add menu form
   addMenuBtn: {
@@ -738,6 +906,29 @@ const s = StyleSheet.create({
   },
   addMenuBtnText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color.accent },
   addMenuForm: { gap: 8, padding: 16, backgroundColor: t.color["card.info"], borderRadius: 8 },
+  pickerSelectedText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.primary"] },
+  pickerPlaceholder: { fontFamily: t.font["body.regular"], fontSize: 14, color: t.color["text.muted"] },
+  clearText: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["accent.cta"], marginTop: -4 },
+  roasterPickerOverlay: {
+    position: "absolute" as any, top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center", justifyContent: "center", zIndex: 100,
+  },
+  roasterPickerCard: {
+    width: "90%", maxWidth: 360,
+    backgroundColor: t.color.bg, borderRadius: 8, padding: 16, gap: 8,
+  },
+  roasterPickerTitle: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"], marginBottom: 4 },
+  roasterPickerRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: t.color["border.light"] } as any,
+  roasterPickerName: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"] },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 } as any,
+  checkbox: {
+    width: 18, height: 18, borderRadius: 3, borderWidth: 1.5, borderColor: t.color.border,
+    alignItems: "center", justifyContent: "center", backgroundColor: t.color["card.front"],
+  },
+  checkboxChecked: { backgroundColor: t.color.accent, borderColor: t.color.accent },
+  checkmark: { color: t.color["text.primary"], fontSize: 12, fontWeight: "700" as any },
+  checkLabel: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.secondary"] },
   addMenuInput: {
     fontFamily: t.font["body.regular"], fontSize: 14, color: t.color["text.primary"],
     backgroundColor: t.color["card.front"],

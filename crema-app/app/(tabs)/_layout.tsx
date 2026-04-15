@@ -51,7 +51,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="browse"
           options={{
-            title: "Browse",
+            title: "Discover",
             tabBarIcon: ({ color, size }) => <ShoppingBag size={size - 2} color={color} strokeWidth={2} />,
           }}
         />

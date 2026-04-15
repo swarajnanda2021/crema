@@ -274,6 +274,7 @@ export interface CafeMenuItem {
   roast_level: string | null;
   process: string | null;
   notes: string | null;
+  hide_roaster: number;
   created_at: string;
 }
 
