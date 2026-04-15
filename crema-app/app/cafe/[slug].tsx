@@ -21,7 +21,7 @@ import ScannerModal from "../../src/components/ScannerModal";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 import PostCard from "../../src/components/domain/PostCard";
 import { openPostModal } from "../../src/components/primitives";
-import type { Cafe, CafeMenuItem, CafeBarista } from "../../src/resources/types";
+import type { Cafe, CafeMenuItem } from "../../src/resources/types";
 
 const NAVBAR_H = 72;
 
@@ -71,7 +71,6 @@ export default function CafeDetailPage() {
 
   const [cafe, setCafe] = useState<Cafe | null>(null);
   const [menu, setMenu] = useState<CafeMenuItem[]>([]);
-  const [baristas, setBaristas] = useState<CafeBarista[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>("bio");
@@ -95,20 +94,17 @@ export default function CafeDetailPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [cafeRes, menuRes, baristaRes, postsRes] = await Promise.all([
+      const [cafeRes, menuRes, postsRes] = await Promise.all([
         apiFetchRaw<any>(`/cafe_profiles/${slug}`),
         apiFetchRaw<any>(`/cafe_profiles/${slug}/cafe_menu_items?limit=50`).catch(() => ({ data: [] })),
-        apiFetchRaw<any>(`/cafe_profiles/${slug}/cafe_baristas?limit=30`).catch(() => ({ data: [] })),
         apiFetchRaw<any>(`/posts?limit=50`).catch(() => ({ data: [] })),
       ]);
       const cafeData = cafeRes?.data ?? cafeRes;
       const menuData = menuRes?.data ?? menuRes;
-      const baristaData = baristaRes?.data ?? baristaRes;
       const postsData = postsRes?.data ?? postsRes;
 
       setCafe(cafeData);
       setMenu(Array.isArray(menuData) ? menuData : []);
-      setBaristas(Array.isArray(baristaData) ? baristaData : []);
       // Filter posts: own (post.cafe_slug == slug) or mentioning
       const ownPosts = (Array.isArray(postsData) ? postsData : []).filter((p: any) => p.cafe_slug === slug);
       setPosts(ownPosts);
@@ -353,7 +349,7 @@ export default function CafeDetailPage() {
               </View>
 
               {activeTab === "bio" && (
-                <BioTab cafe={cafe} baristas={baristas} isOwner={isOwner} onScan={() => setShowScanner(true)} />
+                <BioTab cafe={cafe} isOwner={isOwner} onScan={() => setShowScanner(true)} />
               )}
               {activeTab === "menu" && (
                 <MenuTab cafe_slug={slug} menu={menu} isOwner={isOwner} onChange={fetchAll} />
@@ -430,7 +426,7 @@ export default function CafeDetailPage() {
                 </Pressable>
               ))}
             </View>
-            {activeTab === "bio" && (<BioTab cafe={cafe} baristas={baristas} isOwner={isOwner} onScan={() => setShowScanner(true)} />)}
+            {activeTab === "bio" && (<BioTab cafe={cafe} isOwner={isOwner} onScan={() => setShowScanner(true)} />)}
             {activeTab === "menu" && (<MenuTab cafe_slug={slug} menu={menu} isOwner={isOwner} onChange={fetchAll} />)}
             {activeTab === "posts" && (<PostsTab posts={posts} onRefresh={fetchAll} />)}
           </View>
@@ -466,8 +462,8 @@ export default function CafeDetailPage() {
 
 // ── Bio Tab ────────────────────────────────────────────────────────────────
 
-function BioTab({ cafe, baristas, isOwner, onScan }: {
-  cafe: Cafe; baristas: CafeBarista[]; isOwner: boolean; onScan: () => void;
+function BioTab({ cafe, isOwner, onScan }: {
+  cafe: Cafe; isOwner: boolean; onScan: () => void;
 }) {
   const hours = cafe.hours_json;
   return (
@@ -483,27 +479,6 @@ function BioTab({ cafe, baristas, isOwner, onScan }: {
               <Camera size={18} color={t.color["text.primary"]} />
             </Pressable>
           )}
-        </View>
-      )}
-
-      {/* Baristas — name + avatar only; tappable to user profile if linked */}
-      {baristas.length > 0 && (
-        <View style={s.baristasBlock}>
-          <Text style={s.sectionTitle}>Baristas</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingVertical: 8 }}>
-            {baristas.map((b) => (
-              <View key={b.id} style={s.baristaCard}>
-                {b.photo_url ? (
-                  <Image source={{ uri: resolveUploadUrl(b.photo_url) }} style={s.baristaPhoto} contentFit="cover" />
-                ) : (
-                  <View style={[s.baristaPhoto, s.baristaPhotoFallback]}>
-                    <Text style={s.baristaInitial}>{b.name.charAt(0).toUpperCase()}</Text>
-                  </View>
-                )}
-                <Text style={s.baristaName} numberOfLines={1}>{b.name}</Text>
-              </View>
-            ))}
-          </ScrollView>
         </View>
       )}
 
@@ -1010,13 +985,7 @@ const s = StyleSheet.create({
   },
 
   // Baristas
-  baristasBlock: {},
-  baristaCard: { width: 100, alignItems: "center" },
-  baristaPhoto: { width: 80, height: 80, borderRadius: 40, marginBottom: 8 },
-  baristaPhotoFallback: { backgroundColor: t.color["card.info"], alignItems: "center", justifyContent: "center" },
-  baristaInitial: { fontFamily: t.font.display, fontSize: 28, color: t.color["text.muted"] },
-  baristaName: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.primary"], textAlign: "center" },
-  baristaSpecialty: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.secondary"], textAlign: "center", marginTop: 2 },
+  // (baristas feature removed; styles dropped)
 
   // Hours
   hoursBlock: {},

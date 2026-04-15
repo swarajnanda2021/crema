@@ -430,27 +430,8 @@ RESOURCES = {
         "limit": 50,
     },
 
-    "cafe_baristas": {
-        "table": "cafe_baristas",
-        "pk": "id",
-        "fields": {
-            "id": {"type": "int", "ro": True},
-            "cafe_slug": {"type": "str", "required": True},
-            "name": {"type": "str", "required": True},
-            "photo_url": {"type": "str"},
-            "specialty": {"type": "str"},
-            "display_order": {"type": "int", "default": 0},
-            "created_at": {"type": "str", "ro": True, "auto": "now"},
-        },
-        "parent": "cafe_profiles",
-        "parent_table": "cafe_profiles",
-        "fk": "cafe_slug",
-        "auth": {"list": None, "read": None, "create": "required", "update": "owner", "delete": "owner"},
-        "owner": "cafe_slug",
-        "owner_user_field": "cafe_slug",
-        "order": "display_order ASC, id ASC",
-        "limit": 30,
-    },
+    # cafe_baristas registry removed — baristas feature was cut. Existing
+    # DB keeps the (now unused) table as dead weight; no DROP migration.
 
     "stamps": {
         "table": "stamps",
@@ -459,7 +440,6 @@ RESOURCES = {
             "id": {"type": "int", "ro": True},
             "user_id": {"type": "int", "required": True},
             "cafe_slug": {"type": "str", "required": True},
-            "barista_id": {"type": "int"},
             "scanned_at": {"type": "str", "ro": True, "auto": "now"},
         },
         # Creation happens via specific endpoint (QR verification + rate limit);

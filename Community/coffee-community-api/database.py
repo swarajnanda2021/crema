@@ -332,21 +332,12 @@ _MIGRATIONS = [
         created_at TEXT NOT NULL
     )""",
     "CREATE INDEX IF NOT EXISTS idx_menu_cafe ON cafe_menu_items(cafe_slug, drink_order)",
-    """CREATE TABLE IF NOT EXISTS cafe_baristas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cafe_slug TEXT NOT NULL REFERENCES cafe_profiles(cafe_slug) ON DELETE CASCADE,
-        name TEXT NOT NULL,
-        photo_url TEXT,
-        specialty TEXT,
-        display_order INTEGER DEFAULT 0,
-        created_at TEXT NOT NULL
-    )""",
-    "CREATE INDEX IF NOT EXISTS idx_baristas_cafe ON cafe_baristas(cafe_slug, display_order)",
+    # cafe_baristas table removed — feature cut. Old installs keep it
+    # as dead weight; no DROP migration.
     """CREATE TABLE IF NOT EXISTS stamps (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL REFERENCES users(id),
         cafe_slug TEXT NOT NULL REFERENCES cafe_profiles(cafe_slug) ON DELETE CASCADE,
-        barista_id INTEGER,
         scanned_at TEXT NOT NULL
     )""",
     "CREATE INDEX IF NOT EXISTS idx_stamps_user ON stamps(user_id)",

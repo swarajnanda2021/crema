@@ -358,26 +358,14 @@ def replace_menu(db, cafe):
     print(f"    + {len(cafe.get('menu', []))} menu items")
 
 
-def replace_baristas(db, cafe):
-    """Wipe and re-seed baristas."""
-    db.execute("DELETE FROM cafe_baristas WHERE cafe_slug = ?", (cafe["cafe_slug"],))
-    for i, b in enumerate(cafe.get("baristas", [])):
-        db.execute(
-            "INSERT INTO cafe_baristas (cafe_slug, name, photo_url, specialty, display_order, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (cafe["cafe_slug"], b["name"], b.get("photo_url"), b.get("specialty"), i, now()),
-        )
-    if cafe.get("baristas"):
-        print(f"    + {len(cafe['baristas'])} baristas")
-
-
 def cleanup_obsolete(db):
-    """Remove cafés that were seeded under old slugs but consolidated/renamed."""
+    """Remove cafés that were seeded under old slugs but consolidated/renamed,
+    plus any lingering cafe_baristas rows now that the feature is removed."""
     obsolete_slugs = ["moka-siolim", "mochasa-candolim"]
     for slug in obsolete_slugs:
         existing = db.execute("SELECT cafe_slug FROM cafe_profiles WHERE cafe_slug = ?", (slug,)).fetchone()
         if existing:
             db.execute("DELETE FROM cafe_menu_items WHERE cafe_slug = ?", (slug,))
-            db.execute("DELETE FROM cafe_baristas WHERE cafe_slug = ?", (slug,))
             db.execute("DELETE FROM stamps WHERE cafe_slug = ?", (slug,))
             db.execute("DELETE FROM stamp_rewards WHERE cafe_slug = ?", (slug,))
             db.execute("DELETE FROM cafe_profiles WHERE cafe_slug = ?", (slug,))
@@ -385,6 +373,12 @@ def cleanup_obsolete(db):
             owner_username = f"{slug.replace('-', '_')}_cafe"
             db.execute("DELETE FROM users WHERE username = ?", (owner_username,))
             print(f"  - Removed obsolete: {slug}")
+    # Best-effort wipe of the (now unused) baristas table; ignore if the
+    # table no longer exists on fresh installs.
+    try:
+        db.execute("DELETE FROM cafe_baristas")
+    except Exception:
+        pass
     db.commit()
 
 
@@ -400,7 +394,6 @@ def main():
             upsert_cafe(db, cafe)
             upsert_owner_account(db, cafe)
             replace_menu(db, cafe)
-            replace_baristas(db, cafe)
         db.commit()
 
         # Print credentials summary

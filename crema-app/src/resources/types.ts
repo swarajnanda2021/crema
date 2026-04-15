@@ -279,21 +279,12 @@ export interface CafeMenuItem {
   created_at: string;
 }
 
-export interface CafeBarista {
-  id: number;
-  cafe_slug: string;
-  name: string;
-  photo_url: string | null;
-  specialty: string | null;
-  display_order: number;
-  created_at: string;
-}
+// CafeBarista type removed — feature cut.
 
 export interface Stamp {
   id: number;
   user_id: number;
   cafe_slug: string;
-  barista_id: number | null;
   scanned_at: string;
 }
 
