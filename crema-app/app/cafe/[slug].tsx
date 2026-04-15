@@ -870,17 +870,14 @@ export default function CafeDetailPage() {
       />
 
       {/* Reward picker — choose what "X stamps for a ___" is from the
-          café's menu drinks (cafés can also type a custom reward, or
-          opt out of the loyalty program entirely). */}
+          café's menu drinks (cafés can also type a custom reward). To
+          turn the loyalty program off, hit the trash button on the bio
+          stats sentence. */}
       <RewardPicker
         visible={showRewardPicker}
         value={editStampReward}
         menu={menu}
         onChange={setEditStampReward}
-        onOptOut={() => {
-          setEditStampsEnabled(false);
-          setShowRewardPicker(false);
-        }}
         onClose={() => setShowRewardPicker(false)}
       />
 
@@ -993,6 +990,16 @@ function BioTab({
           {isOwner && !isEditing && (
             <Pressable onPress={onScan} style={s.scanIconBtn} hitSlop={8} accessibilityLabel="Scan QR to stamp">
               <Camera size={18} color={t.color["text.primary"]} />
+            </Pressable>
+          )}
+          {isOwner && isEditing && (
+            <Pressable
+              onPress={() => onStampsEnabledChange(false)}
+              style={s.loyaltyDisableBtn}
+              hitSlop={8}
+              accessibilityLabel="Disable loyalty program"
+            >
+              <Trash2 size={16} color={t.color["accent.cta"]} />
             </Pressable>
           )}
         </View>
@@ -1693,28 +1700,33 @@ function SeasonalPicker({
 }
 
 function RewardPicker({
-  visible, value, menu, onChange, onOptOut, onClose,
+  visible, value, menu, onChange, onClose,
 }: {
   visible: boolean;
   value: string;
   menu: CafeMenuItem[];
   onChange: (v: string) => void;
-  onOptOut: () => void;
   onClose: () => void;
 }) {
   const [text, setText] = useState(value);
   useEffect(() => { setText(value); }, [value, visible]);
-  // Distinct drink names from the current menu
-  const drinks = useMemo(() => {
+  // Distinct drink names from the current menu, pre-formatted as reward
+  // strings ("Free espresso", "Free pour over", …).
+  const presets = useMemo(() => {
     const seen = new Set<string>();
-    const arr: string[] = [];
+    const arr: string[] = ["Free coffee"];
+    seen.add("free coffee");
     for (const m of menu) {
       const d = m.drink_name?.trim();
-      if (d && !seen.has(d.toLowerCase())) { seen.add(d.toLowerCase()); arr.push(d); }
+      if (!d) continue;
+      const pill = `Free ${d.toLowerCase()}`;
+      if (!seen.has(pill.toLowerCase())) {
+        seen.add(pill.toLowerCase());
+        arr.push(pill);
+      }
     }
     return arr;
   }, [menu]);
-  const presets = ["Free coffee", ...drinks.map((d) => `Free ${d.toLowerCase()}`)];
   return (
     <FloatingModal
       visible={visible}
@@ -1722,34 +1734,30 @@ function RewardPicker({
       onClose={onClose}
       onConfirm={() => { onChange(text.trim() || "Free coffee"); onClose(); }}
     >
-      <Text style={sp.label}>Pick from the menu</Text>
-      <View style={sp.presetColumn}>
+      {/* Compact layout: pill-wrap of presets + a single-line custom input. */}
+      <View style={sp.presetWrap}>
         {presets.map((p) => {
           const active = p.toLowerCase() === text.trim().toLowerCase();
           return (
             <Pressable
               key={p}
               onPress={() => setText(p)}
-              style={[sp.presetRow, active && sp.presetRowActive]}
+              style={[sp.presetPill, active && sp.presetPillActive]}
             >
-              <Text style={[sp.presetText, active && sp.presetTextActive]}>{p}</Text>
+              <Text style={[sp.presetPillText, active && sp.presetPillTextActive]}>
+                {p}
+              </Text>
             </Pressable>
           );
         })}
       </View>
-      <Text style={sp.label}>Or write your own</Text>
       <TextInput
         value={text}
         onChangeText={setText}
-        placeholder="Free affogato"
+        placeholder="Or write your own…"
         placeholderTextColor="rgba(104,79,68,0.4)"
         style={sp.customInput}
       />
-      {/* Opt-out entirely: hides the loyalty section from public view and
-          from the stats sentence. Can be re-enabled later from the bio. */}
-      <Pressable onPress={onOptOut} style={sp.optOutBtn}>
-        <Text style={sp.optOutText}>Opt out of loyalty program</Text>
-      </Pressable>
     </FloatingModal>
   );
 }
@@ -1867,16 +1875,25 @@ const sp = StyleSheet.create({
   monthText: { fontFamily: t.font["body.medium"], fontSize: t.size["font.sm"], color: t.color["text.secondary"] },
   monthTextActive: { color: t.color["text.primary"] },
 
-  // Reward picker
-  presetColumn: { gap: 4 },
-  presetRow: {
-    paddingVertical: 10, paddingHorizontal: 14,
-    borderRadius: t.radius.sm,
+  // Reward picker — horizontal pill chips, no headers for a tighter modal
+  presetWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  } as any,
+  presetPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: t.radius.full,
     backgroundColor: t.color["card.info"],
   },
-  presetRowActive: { backgroundColor: t.color.accent },
-  presetText: { fontFamily: t.font["body.medium"], fontSize: t.size["font.md"], color: t.color["text.primary"] },
-  presetTextActive: { color: t.color["text.primary"] },
+  presetPillActive: { backgroundColor: t.color.accent },
+  presetPillText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.secondary"],
+  },
+  presetPillTextActive: { color: t.color["text.primary"] },
   customInput: {
     backgroundColor: t.color["card.info"],
     borderRadius: t.radius.sm,
@@ -1887,22 +1904,6 @@ const sp = StyleSheet.create({
     color: t.color["text.primary"],
     outlineStyle: "none" as any,
   } as any,
-  // Destructive / secondary action in the picker — muted text, no fill
-  // so it reads as a step down in weight from the Done CTA.
-  optOutBtn: {
-    marginTop: t.spacing.lg,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: t.radius.sm,
-    borderWidth: 1,
-    borderColor: t.color["accent.cta"],
-    alignItems: "center",
-  },
-  optOutText: {
-    fontFamily: t.font["body.medium"],
-    fontSize: t.size["font.sm"],
-    color: t.color["accent.cta"],
-  },
 });
 
 // ── Styles ─────────────────────────────────────────────────────────────────
@@ -2126,6 +2127,18 @@ const s = StyleSheet.create({
     fontFamily: t.font["body.medium"],
     fontSize: t.size["font.sm"],
     color: t.color["text.primary"],
+  },
+  // Small trash button that sits next to the editable stats sentence
+  // and turns the loyalty program off. Rust outline to signal it's a
+  // destructive action without overweighting the row.
+  loyaltyDisableBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: t.color["accent.cta"],
   },
   composerOverlayWrap: {
     flex: 1, justifyContent: "center", alignItems: "center",
