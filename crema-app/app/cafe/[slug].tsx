@@ -202,7 +202,8 @@ export default function CafeDetailPage() {
       {isWide ? (
         // Wide layout: full-height row with two independent scroll columns (matches roaster page)
         <View style={[s.pageContainer, { height: winH - NAVBAR_H }]}>
-          <ScrollView style={[s.leftPanel, s.leftPanelWide]} contentContainerStyle={{ paddingBottom: 60 }}>
+          <View style={s.leftPanelWide}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={s.leftPanelInner}>
             <Pressable onPress={() => router.back()} style={s.backBtn}>
               <ArrowLeft size={16} color={t.color["text.on-dark"]} />
               <Text style={s.backText}>Back</Text>
@@ -318,9 +319,11 @@ export default function CafeDetailPage() {
 
             {/* Owner triggers edit mode via the navbar profile dropdown — no inline button needed */}
           </ScrollView>
+          </View>
 
           {/* RIGHT PANEL — independent scroll so columns are flush full-height */}
-          <ScrollView style={s.rightPanelWide} contentContainerStyle={{ paddingBottom: 60 }}>
+          <View style={s.rightPanelWide}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 60 }}>
             <View style={s.heroWrap}>
               {(isEditing ? editCover : cafe.cover_image_url) ? (
                 <Image source={{ uri: resolveUploadUrl(isEditing ? editCover : cafe.cover_image_url || "") }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
@@ -360,6 +363,7 @@ export default function CafeDetailPage() {
               )}
             </View>
           </ScrollView>
+          </View>
         </View>
       ) : (
         // Narrow layout: single scroll, left panel stacked above right panel
@@ -867,18 +871,21 @@ const s = StyleSheet.create({
     paddingHorizontal: 24, paddingVertical: 24,
     backgroundColor: t.color["roaster.panel"],
   },
-  // Match roaster profile widths/padding exactly
+  // Match roaster profile widths/padding exactly. Width + horizontal padding on outer View
+  // (so percentage is relative to viewport like roaster), inner ScrollView fills with vertical padding.
   leftPanelWide: {
     width: "42%",
-    paddingHorizontal: "6.25%" as any,
-    paddingTop: 126, paddingBottom: 32,
     flexShrink: 0,
-    flexDirection: "column",
-    overflow: "auto" as any,
+    backgroundColor: t.color["roaster.panel"],
+    height: "100%",
+    paddingHorizontal: "3.5%" as any,  // ≈ 6.25% of 42% column width — matches roaster's inset
+  } as any,
+  leftPanelInner: {
+    paddingTop: 126, paddingBottom: 60,
   } as any,
 
   rightPanel: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 24, backgroundColor: t.color.bg } as any,
-  rightPanelWide: { flex: 1, minWidth: 0 } as any,
+  rightPanelWide: { flex: 1, minWidth: 0, backgroundColor: t.color.bg, height: "100%" } as any,
   rightInner: { paddingHorizontal: 24, paddingTop: 0 } as any,
 
   // Logo — circle, sits above name
