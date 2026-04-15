@@ -4,10 +4,11 @@
  * See CRUD_UTOPIA.md at repo root.
  */
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   View, Text, ScrollView, Pressable, StyleSheet, TextInput,
   ActivityIndicator, useWindowDimensions, Linking, Image as RNImage,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -88,6 +89,29 @@ export default function CafeDetailPage() {
   const [showLogoUpload, setShowLogoUpload] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
 
+  // Hero (cover) drag-to-reposition — mirrors roaster hero pattern.
+  const [editHeroCropX, setEditHeroCropX] = useState(50);
+  const [editHeroCropY, setEditHeroCropY] = useState(50);
+  const [editHeroZoom, setEditHeroZoom] = useState(1);
+  const [heroImgAspect, setHeroImgAspect] = useState(1.5);
+  const [heroContW, setHeroContW] = useState(0);
+  const [heroContH, setHeroContH] = useState(0);
+  const [isDraggingHero, setIsDraggingHero] = useState(false);
+  const heroWrapRef = useRef<View>(null);
+  const heroDragRef = useRef({ x: 0, y: 0, cropX: 50, cropY: 50 });
+
+  // Logo drag-to-reposition (same pattern as the user avatar, since the
+  // logo renders as a circle in the navbar and on the profile).
+  const [editLogoCropX, setEditLogoCropX] = useState(50);
+  const [editLogoCropY, setEditLogoCropY] = useState(50);
+  const [editLogoZoom, setEditLogoZoom] = useState(1);
+  const [logoImgAspect, setLogoImgAspect] = useState(1);
+  const [logoContW, setLogoContW] = useState(0);
+  const [logoContH, setLogoContH] = useState(0);
+  const [isDraggingLogo, setIsDraggingLogo] = useState(false);
+  const logoWrapRef = useRef<View>(null);
+  const logoDragRef = useRef({ x: 0, y: 0, cropX: 50, cropY: 50 });
+
   // Auto-open edit mode from ?edit=1 query (set by navbar dropdown)
   useEffect(() => { if (edit === "1" && isOwner) setIsEditing(true); }, [edit, isOwner]);
 
@@ -116,6 +140,12 @@ export default function CafeDetailPage() {
         setEditWebsite(cafeData.website || "");
         setEditCover(cafeData.cover_image_url || "");
         setEditLogo(cafeData.logo_url || "");
+        setEditHeroCropX(cafeData.hero_crop_x ?? 50);
+        setEditHeroCropY(cafeData.hero_crop_y ?? 50);
+        setEditHeroZoom(cafeData.hero_zoom ?? 1);
+        setEditLogoCropX(cafeData.logo_crop_x ?? 50);
+        setEditLogoCropY(cafeData.logo_crop_y ?? 50);
+        setEditLogoZoom(cafeData.logo_zoom ?? 1);
       }
     } catch (e) {
       console.warn("Café fetch failed:", e);
@@ -137,6 +167,12 @@ export default function CafeDetailPage() {
           website: editWebsite || null,
           cover_image_url: editCover || null,
           logo_url: editLogo || null,
+          hero_crop_x: editHeroCropX,
+          hero_crop_y: editHeroCropY,
+          hero_zoom: editHeroZoom,
+          logo_crop_x: editLogoCropX,
+          logo_crop_y: editLogoCropY,
+          logo_zoom: editLogoZoom,
         }),
       });
       setIsEditing(false);
@@ -144,7 +180,76 @@ export default function CafeDetailPage() {
     } catch (e) {
       console.warn("Café save failed:", e);
     }
-  }, [slug, editAbout, editAddress, editInstagram, editWebsite, editCover, editLogo, fetchAll]);
+  }, [
+    slug, editAbout, editAddress, editInstagram, editWebsite, editCover, editLogo,
+    editHeroCropX, editHeroCropY, editHeroZoom,
+    editLogoCropX, editLogoCropY, editLogoZoom,
+    fetchAll,
+  ]);
+
+  // ── Hero drag-to-reposition (mirrors the roaster hero pattern) ──────────
+  const handleHeroDragStart = useCallback((e: any) => {
+    if (!isEditing) return;
+    e.preventDefault();
+    heroDragRef.current = { x: e.clientX, y: e.clientY, cropX: editHeroCropX, cropY: editHeroCropY };
+    setIsDraggingHero(true);
+    const handleMove = (ev: MouseEvent) => {
+      const el = heroWrapRef.current as unknown as HTMLElement;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setEditHeroCropX(Math.max(0, Math.min(100,
+        heroDragRef.current.cropX - ((ev.clientX - heroDragRef.current.x) / rect.width) * 100)));
+      setEditHeroCropY(Math.max(0, Math.min(100,
+        heroDragRef.current.cropY - ((ev.clientY - heroDragRef.current.y) / rect.height) * 100)));
+    };
+    const handleUp = () => {
+      setIsDraggingHero(false);
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+  }, [isEditing, editHeroCropX, editHeroCropY]);
+
+  const handleHeroWheel = useCallback((e: any) => {
+    if (!isEditing || !e.ctrlKey) return;
+    e.preventDefault();
+    setEditHeroZoom((z) =>
+      Math.round(Math.max(1, Math.min(5, z - e.deltaY * 0.01)) * 100) / 100,
+    );
+  }, [isEditing]);
+
+  // ── Logo drag-to-reposition — same math, smaller container ──────────────
+  const handleLogoDragStart = useCallback((e: any) => {
+    if (!isEditing) return;
+    e.preventDefault();
+    logoDragRef.current = { x: e.clientX, y: e.clientY, cropX: editLogoCropX, cropY: editLogoCropY };
+    setIsDraggingLogo(true);
+    const handleMove = (ev: MouseEvent) => {
+      const el = logoWrapRef.current as unknown as HTMLElement;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setEditLogoCropX(Math.max(0, Math.min(100,
+        logoDragRef.current.cropX - ((ev.clientX - logoDragRef.current.x) / rect.width) * 100)));
+      setEditLogoCropY(Math.max(0, Math.min(100,
+        logoDragRef.current.cropY - ((ev.clientY - logoDragRef.current.y) / rect.height) * 100)));
+    };
+    const handleUp = () => {
+      setIsDraggingLogo(false);
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+  }, [isEditing, editLogoCropX, editLogoCropY]);
+
+  const handleLogoWheel = useCallback((e: any) => {
+    if (!isEditing || !e.ctrlKey) return;
+    e.preventDefault();
+    setEditLogoZoom((z) =>
+      Math.round(Math.max(1, Math.min(5, z - e.deltaY * 0.01)) * 100) / 100,
+    );
+  }, [isEditing]);
 
   // Seasonal status text
   const seasonalText = useMemo(() => {
@@ -205,13 +310,44 @@ export default function CafeDetailPage() {
               <Text style={s.backText}>Back</Text>
             </Pressable>
 
-            {/* Logo (square) — sits above café name */}
-            <View style={s.logoWrap}>
-              {(isEditing ? editLogo : cafe.logo_url) ? (
-                <Image source={{ uri: resolveUploadUrl(isEditing ? editLogo : cafe.logo_url || "") }} style={StyleSheet.absoluteFillObject as any} contentFit="cover" />
-              ) : (
+            {/* Logo — circular, drag-to-reposition + pinch-to-zoom in edit mode.
+                Same math as the user avatar / roaster hero crop. */}
+            <View
+              ref={logoWrapRef}
+              style={[
+                s.logoWrap,
+                isEditing && (isDraggingLogo ? ({ cursor: "grabbing" } as any) : ({ cursor: "grab" } as any)),
+              ]}
+              onLayout={(e) => { setLogoContW(e.nativeEvent.layout.width); setLogoContH(e.nativeEvent.layout.height); }}
+              {...(isEditing && Platform.OS === "web" ? { onMouseDown: handleLogoDragStart, onWheel: handleLogoWheel } : {})}
+            >
+              {(isEditing ? editLogo : cafe.logo_url) ? (() => {
+                const cW = logoContW || 120, cH = logoContH || 120;
+                const zoom = isEditing ? editLogoZoom : (cafe.logo_zoom ?? 1);
+                const cx = isEditing ? editLogoCropX : (cafe.logo_crop_x ?? 50);
+                const cy = isEditing ? editLogoCropY : (cafe.logo_crop_y ?? 50);
+                const contAspect = cW / cH;
+                const MIN_OVER = 1.2;
+                let iW: number, iH: number;
+                if (logoImgAspect > contAspect) { iH = cH * MIN_OVER * zoom; iW = iH * logoImgAspect; }
+                else { iW = cW * MIN_OVER * zoom; iH = iW / logoImgAspect; }
+                const tx = -(iW - cW) * (cx / 100), ty = -(iH - cH) * (cy / 100);
+                return (
+                  <Image
+                    source={{ uri: resolveUploadUrl(isEditing ? editLogo : cafe.logo_url || "") }}
+                    style={{ position: "absolute", width: iW, height: iH, left: tx, top: ty } as any}
+                    contentFit="fill"
+                    onLoad={(e: any) => { const src = e?.source; if (src?.width && src?.height) setLogoImgAspect(src.width / src.height); }}
+                  />
+                );
+              })() : (
                 <View style={s.logoFallback}>
                   <Text style={s.logoInitial}>{(cafe.name || "?")[0].toUpperCase()}</Text>
+                </View>
+              )}
+              {isEditing && !isDraggingLogo && (editLogo || cafe.logo_url) && (
+                <View style={s.logoDragHint} pointerEvents="none">
+                  <Text style={s.logoDragHintText}>Drag · Pinch to zoom</Text>
                 </View>
               )}
               {isEditing && (
@@ -320,12 +456,42 @@ export default function CafeDetailPage() {
           {/* RIGHT PANEL — independent scroll so columns are flush full-height */}
           <View style={s.rightPanelWide}>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 60 }}>
-            <View style={s.heroWrap}>
-              {(isEditing ? editCover : cafe.cover_image_url) ? (
-                <Image source={{ uri: resolveUploadUrl(isEditing ? editCover : cafe.cover_image_url || "") }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-              ) : (
+            <View
+              ref={heroWrapRef}
+              style={[
+                s.heroWrap,
+                isEditing && (isDraggingHero ? ({ cursor: "grabbing" } as any) : ({ cursor: "grab" } as any)),
+              ]}
+              onLayout={(e) => { setHeroContW(e.nativeEvent.layout.width); setHeroContH(e.nativeEvent.layout.height); }}
+              {...(isEditing && Platform.OS === "web" ? { onMouseDown: handleHeroDragStart, onWheel: handleHeroWheel } : {})}
+            >
+              {(isEditing ? editCover : cafe.cover_image_url) ? (() => {
+                const cW = heroContW || 800, cH = heroContH || 334;
+                const zoom = isEditing ? editHeroZoom : (cafe.hero_zoom ?? 1);
+                const cx = isEditing ? editHeroCropX : (cafe.hero_crop_x ?? 50);
+                const cy = isEditing ? editHeroCropY : (cafe.hero_crop_y ?? 50);
+                const contAspect = cW / cH;
+                const MIN_OVER = 1.15;
+                let iW: number, iH: number;
+                if (heroImgAspect > contAspect) { iH = cH * MIN_OVER * zoom; iW = iH * heroImgAspect; }
+                else { iW = cW * MIN_OVER * zoom; iH = iW / heroImgAspect; }
+                const tx = -(iW - cW) * (cx / 100), ty = -(iH - cH) * (cy / 100);
+                return (
+                  <Image
+                    source={{ uri: resolveUploadUrl(isEditing ? editCover : cafe.cover_image_url || "") }}
+                    style={{ position: "absolute", width: iW, height: iH, left: tx, top: ty } as any}
+                    contentFit="fill"
+                    onLoad={(e: any) => { const src = e?.source; if (src?.width && src?.height) setHeroImgAspect(src.width / src.height); }}
+                  />
+                );
+              })() : (
                 <View style={s.heroFallback}>
                   <Coffee size={64} color={t.color["text.muted"]} />
+                </View>
+              )}
+              {isEditing && !isDraggingHero && (editCover || cafe.cover_image_url) && (
+                <View style={s.heroDragHint} pointerEvents="none">
+                  <Text style={s.heroDragHintText}>Drag to reposition · Pinch to zoom</Text>
                 </View>
               )}
               {isEditing && (
@@ -369,10 +535,35 @@ export default function CafeDetailPage() {
               <ArrowLeft size={16} color={t.color["text.on-dark"]} />
               <Text style={s.backText}>Back</Text>
             </Pressable>
-            <View style={s.logoWrap}>
-              {(isEditing ? editLogo : cafe.logo_url) ? (
-                <Image source={{ uri: resolveUploadUrl(isEditing ? editLogo : cafe.logo_url || "") }} style={StyleSheet.absoluteFillObject as any} contentFit="cover" />
-              ) : (
+            <View
+              ref={logoWrapRef}
+              style={[
+                s.logoWrap,
+                isEditing && (isDraggingLogo ? ({ cursor: "grabbing" } as any) : ({ cursor: "grab" } as any)),
+              ]}
+              onLayout={(e) => { setLogoContW(e.nativeEvent.layout.width); setLogoContH(e.nativeEvent.layout.height); }}
+              {...(isEditing && Platform.OS === "web" ? { onMouseDown: handleLogoDragStart, onWheel: handleLogoWheel } : {})}
+            >
+              {(isEditing ? editLogo : cafe.logo_url) ? (() => {
+                const cW = logoContW || 120, cH = logoContH || 120;
+                const zoom = isEditing ? editLogoZoom : (cafe.logo_zoom ?? 1);
+                const cx = isEditing ? editLogoCropX : (cafe.logo_crop_x ?? 50);
+                const cy = isEditing ? editLogoCropY : (cafe.logo_crop_y ?? 50);
+                const contAspect = cW / cH;
+                const MIN_OVER = 1.2;
+                let iW: number, iH: number;
+                if (logoImgAspect > contAspect) { iH = cH * MIN_OVER * zoom; iW = iH * logoImgAspect; }
+                else { iW = cW * MIN_OVER * zoom; iH = iW / logoImgAspect; }
+                const tx = -(iW - cW) * (cx / 100), ty = -(iH - cH) * (cy / 100);
+                return (
+                  <Image
+                    source={{ uri: resolveUploadUrl(isEditing ? editLogo : cafe.logo_url || "") }}
+                    style={{ position: "absolute", width: iW, height: iH, left: tx, top: ty } as any}
+                    contentFit="fill"
+                    onLoad={(e: any) => { const src = e?.source; if (src?.width && src?.height) setLogoImgAspect(src.width / src.height); }}
+                  />
+                );
+              })() : (
                 <View style={s.logoFallback}><Text style={s.logoInitial}>{(cafe.name || "?")[0].toUpperCase()}</Text></View>
               )}
               {isEditing && (
@@ -899,6 +1090,40 @@ const s = StyleSheet.create({
   },
   heroEditBtnText: {
     fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.on-dark"],
+  },
+  heroDragHint: {
+    position: "absolute",
+    top: "50%",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    transform: [{ translateY: -10 }],
+  } as any,
+  heroDragHintText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: 11,
+    color: t.color["text.on-dark"],
+    backgroundColor: "rgba(0,0,0,0.45)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  logoDragHint: {
+    position: "absolute",
+    top: "50%",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    transform: [{ translateY: -9 }],
+  } as any,
+  logoDragHintText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: 9,
+    color: t.color["text.on-dark"],
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
   },
 
   backBtn: {
