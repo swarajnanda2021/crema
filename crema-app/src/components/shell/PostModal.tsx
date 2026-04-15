@@ -13,7 +13,7 @@ import {
   View, Text, TextInput, Pressable, ScrollView, Modal,
   StyleSheet, Animated, ActivityIndicator, Platform,
 } from "react-native";
-import { X } from "lucide-react-native";
+import { Repeat2, X } from "lucide-react-native";
 
 import { apiFetchRaw } from "../../api/client";
 import ComposePost from "../ComposePost";
@@ -162,19 +162,28 @@ export default function PostModal({
                       )}
                     </View>
 
-                    {/* Repost button — no disabled state, works with or without comment */}
-                    <Pressable
-                      onPress={() => handleRepostSubmit({
-                        post_type: "repost",
-                        repost_of_id: post.id,
-                        title: "Repost",
-                        teaser: repostComment.trim() || "Repost",
-                        repost_comment: repostComment.trim() || null,
-                      })}
-                      style={s.repostBtn}
-                    >
-                      <Text style={s.repostBtnText}>Repost</Text>
-                    </Pressable>
+                    {/* Repost submit — circular, icon-only. Same language
+                        as other site circular buttons (FAB / admin refresh
+                        / scanner stamp): dark primary fill, cream icon,
+                        soft shadow. */}
+                    <View style={s.repostBtnRow}>
+                      <Pressable
+                        onPress={() => handleRepostSubmit({
+                          post_type: "repost",
+                          repost_of_id: post.id,
+                          title: "Repost",
+                          teaser: repostComment.trim() || "Repost",
+                          repost_comment: repostComment.trim() || null,
+                        })}
+                        style={({ pressed }) => [
+                          s.repostBtn,
+                          pressed && s.repostBtnPressed,
+                        ]}
+                        accessibilityLabel="Repost"
+                      >
+                        <Repeat2 size={20} color={t.color["text.on-dark"]} strokeWidth={2} />
+                      </Pressable>
+                    </View>
                   </View>
                 ) : (
                   /* ── Normal view: post card ── */
@@ -289,9 +298,26 @@ const s = StyleSheet.create({
   repostNestedAuthor: { fontFamily: t.font["body.medium"], fontSize: t.size["font.sm"], color: t.color["text.primary"] },
   repostNestedTime: { fontFamily: t.font["body.regular"], fontSize: t.size["font.xs"], color: t.color["text.muted"] },
   repostNestedTeaser: { fontFamily: t.font["body.regular"], fontSize: t.size["font.base"], color: t.color["text.secondary"], lineHeight: 18 },
+  repostBtnRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: t.spacing.md,
+  },
   repostBtn: {
-    alignSelf: "flex-end", backgroundColor: t.color["text.primary"],
-    borderRadius: 6, paddingHorizontal: 16, paddingVertical: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: t.color["text.primary"],
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: t.color.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 2,
   } as any,
-  repostBtnText: { fontFamily: t.font["body.semibold"], fontSize: t.size["font.base"], color: t.color["text.on-dark"] },
+  repostBtnPressed: {
+    backgroundColor: t.color["card.back"],
+    transform: [{ scale: 0.96 }],
+  } as any,
 });

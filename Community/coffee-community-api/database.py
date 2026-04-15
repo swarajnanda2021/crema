@@ -367,6 +367,18 @@ _MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS idx_posts_cafe ON roaster_posts(cafe_slug)",
     # Café menu items: optional flag to hide roaster credit (some cafés safeguard their sourcing)
     "ALTER TABLE cafe_menu_items ADD COLUMN hide_roaster INTEGER NOT NULL DEFAULT 0",
+    # Catalog-change notifications (add/remove coffee, add/remove/update menu
+    # item): fanned out to all followers of the roaster or café.
+    # target_slug: 'roaster:blue-tokai' or 'cafe:prana-goa'
+    # subject: free-text label ("Gangecool Estate — Washed", "Filter Coffee")
+    "ALTER TABLE notifications ADD COLUMN target_slug TEXT",
+    "ALTER TABLE notifications ADD COLUMN subject TEXT",
+    # Café logo drag/zoom reposition (same pattern as users.avatar_crop_* and
+    # roaster_profiles.hero_crop_*). The resulting crop is mirrored to
+    # users.avatar_crop_x/y/zoom on update so the navbar avatar matches.
+    "ALTER TABLE cafe_profiles ADD COLUMN logo_crop_x REAL DEFAULT 50",
+    "ALTER TABLE cafe_profiles ADD COLUMN logo_crop_y REAL DEFAULT 50",
+    "ALTER TABLE cafe_profiles ADD COLUMN logo_zoom REAL DEFAULT 1",
     # Admin flag — gates the /api/stats/traction endpoint. Only the seeded
     # "crema" account gets is_admin=1. Defense in depth: endpoint checks both
     # is_admin=1 AND username="crema".

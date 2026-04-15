@@ -23,7 +23,21 @@ const NOTIF_MESSAGES: Record<string, string> = {
   follow: "started following you",
   repost: "reposted your post",
   comment_like: "liked your comment",
+  reply: "replied to your comment",
+  product_added: "added a new coffee",
+  product_removed: "removed a coffee",
+  menu_added: "added a menu item",
+  menu_removed: "removed a menu item",
+  menu_updated: "updated a menu item",
 };
+
+// target_slug format: "roaster:<slug>" or "cafe:<slug>"
+function parseTarget(target_slug: string | null): { kind: string; slug: string } | null {
+  if (!target_slug) return null;
+  const idx = target_slug.indexOf(":");
+  if (idx < 0) return null;
+  return { kind: target_slug.slice(0, idx), slug: target_slug.slice(idx + 1) };
+}
 
 export default function NotificationsDropdown({ visible, onClose }: Props) {
   const router = useRouter();
@@ -53,12 +67,18 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
     markRead(n.id);
     onClose();
     if (n.type === "follow") {
-      // Follow has no post — navigate to profile
       router.push(`/user/${n.actor_username}`);
       return;
     }
+    // Catalog-change notifications → roaster / café profile
+    const target = parseTarget(n.target_slug);
+    if (target) {
+      if (target.kind === "cafe") router.push(`/cafe/${target.slug}` as any);
+      else router.push(`/roaster/${target.slug}` as any);
+      return;
+    }
     // ALL other types: open sitewide PostModal
-    const mode = (n.type === "comment" || n.type === "comment_like") ? "comment" : "view";
+    const mode = (n.type === "comment" || n.type === "comment_like" || n.type === "reply") ? "comment" : "view";
     openPostModal({
       postId: n.post_id || undefined,
       mode,
@@ -138,6 +158,11 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
                     <Text style={s.itemText} numberOfLines={2}>
                       <Text style={s.actorName}>{n.actor_display_name}</Text>
                       {" "}{NOTIF_MESSAGES[n.type] || n.type}
+                      {n.subject ? (
+                        <Text style={s.subject}>
+                          {" "}— <Text style={s.subjectName}>{n.subject}</Text>
+                        </Text>
+                      ) : null}
                     </Text>
                     <Text style={s.itemTime}>{timeAgo(n.created_at)}</Text>
                   </View>
@@ -192,6 +217,8 @@ const s = StyleSheet.create({
   itemContent: { flex: 1 },
   itemText: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#351101", lineHeight: 18 },
   actorName: { fontFamily: t.font["body.semibold"] },
+  subject: { fontFamily: t.font["body.regular"], color: "#684F44" },
+  subjectName: { fontFamily: t.font["body.medium"], color: "#351101" },
   itemTime: { fontFamily: t.font["body.regular"], fontSize: 11, color: "#A09580", marginTop: 2 },
   itemDivider: { height: 1, backgroundColor: "rgba(237,232,225,0.5)", marginHorizontal: 16 },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D798DA" },

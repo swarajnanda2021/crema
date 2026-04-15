@@ -11,18 +11,29 @@ def _now():
     return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def create_notification(db, user_id, notif_type, actor_id, *, post_id=None, comment_id=None):
+def create_notification(
+    db,
+    user_id,
+    notif_type,
+    actor_id,
+    *,
+    post_id=None,
+    comment_id=None,
+    target_slug=None,
+    subject=None,
+):
     """Create a notification. Skips if actor == recipient."""
     if actor_id == user_id:
         return
     db.execute(
-        "INSERT INTO notifications (user_id, type, actor_id, post_id, comment_id, read, created_at) "
-        "VALUES (?, ?, ?, ?, ?, 0, ?)",
-        (user_id, notif_type, actor_id, post_id, comment_id, _now()),
+        "INSERT INTO notifications (user_id, type, actor_id, post_id, comment_id, "
+        "target_slug, subject, read, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
+        (user_id, notif_type, actor_id, post_id, comment_id, target_slug, subject, _now()),
     )
 
 
-def run_hook(hook_name, db, *, resource_name=None, item=None, current_user=None, target_id=None):
+def run_hook(hook_name, db, *, resource_name=None, item=None, current_user=None, target_id=None, extra=None):
     """Dispatch a named hook. Called by the CRUD engine after create/toggle operations."""
     if hook_name == "notify_repost":
         _handle_notify_repost(db, item, current_user)
@@ -38,6 +49,19 @@ def run_hook(hook_name, db, *, resource_name=None, item=None, current_user=None,
         _handle_shelf_upsert(db, item, current_user)
     elif hook_name == "auto_create_post":
         _handle_auto_create_post(db, item, current_user)
+    elif hook_name == "notify_followers_catalog":
+        # extra: { "slug": str, "kind": "roaster"|"cafe", "change": "product_added"|"product_removed"|"menu_added"|"menu_removed"|"menu_updated", "subject": str }
+        _handle_notify_followers_catalog(db, current_user, extra or {})
+    elif hook_name == "notify_menu_added":
+        _handle_notify_menu_change(db, item, current_user, "menu_added")
+    elif hook_name == "notify_menu_removed":
+        _handle_notify_menu_change(db, item, current_user, "menu_removed")
+    elif hook_name == "notify_menu_updated":
+        _handle_notify_menu_change(db, item, current_user, "menu_updated")
+    elif hook_name == "sync_cafe_logo_to_user":
+        _handle_sync_entity_logo(db, item, current_user, "cafe")
+    elif hook_name == "sync_roaster_logo_to_user":
+        _handle_sync_entity_logo(db, item, current_user, "roaster")
     # validate_dictionary is handled inline in tasting_notes route
 
 
@@ -108,6 +132,94 @@ def _handle_shelf_upsert(db, item, user):
     if existing:
         db.execute("DELETE FROM shelf_entries WHERE id = ?", (existing["id"],))
         db.commit()
+
+
+def _handle_sync_entity_logo(db, item, actor, kind):
+    """When a cafe_profile or roaster_profile logo_url changes, mirror it
+    (and its crop/zoom parameters) onto the owner's user.avatar_* fields
+    so the navbar avatar updates automatically. `kind` is 'cafe' or
+    'roaster'."""
+    if not item:
+        return
+    logo = item.get("logo_url")
+    # Cafés have logo_crop_* (new); roasters currently reuse hero_crop_*
+    # for their logo positioning since they don't have a separate logo crop.
+    # Users with no matching owner account are silently skipped.
+    if kind == "cafe":
+        slug = item.get("cafe_slug")
+        if not slug:
+            return
+        crop_x = item.get("logo_crop_x")
+        crop_y = item.get("logo_crop_y")
+        zoom = item.get("logo_zoom")
+        db.execute(
+            "UPDATE users SET avatar_url = ?, "
+            "avatar_crop_x = COALESCE(?, avatar_crop_x), "
+            "avatar_crop_y = COALESCE(?, avatar_crop_y), "
+            "avatar_zoom = COALESCE(?, avatar_zoom) "
+            "WHERE account_type = 'cafe' AND cafe_slug = ?",
+            (logo, crop_x, crop_y, zoom, slug),
+        )
+    else:
+        slug = item.get("roaster_slug")
+        if not slug:
+            return
+        db.execute(
+            "UPDATE users SET avatar_url = ? WHERE account_type = 'roaster' AND roaster_slug = ?",
+            (logo, slug),
+        )
+    db.commit()
+
+
+def _handle_notify_menu_change(db, item, actor, change):
+    """Café menu_items CRUD hooks land here. Extracts cafe_slug + drink_name
+    from the item and delegates to the generic follower fanout."""
+    if not item:
+        return
+    slug = item.get("cafe_slug")
+    subject = item.get("drink_name") or "a menu item"
+    if not slug:
+        return
+    _handle_notify_followers_catalog(
+        db, actor, {"slug": slug, "kind": "cafe", "change": change, "subject": subject}
+    )
+
+
+def _handle_notify_followers_catalog(db, actor, extra):
+    """Fan out catalog-change notifications to every follower of the given
+    roaster or café. `extra` shape:
+       { "slug": "blue-tokai-coffee-roasters",
+         "kind": "roaster"|"cafe",
+         "change": "product_added"|"product_removed"|"menu_added"|"menu_removed"|"menu_updated",
+         "subject": "Gangecool Estate — Washed" }
+    """
+    slug = extra.get("slug")
+    kind = extra.get("kind")
+    change = extra.get("change")
+    subject = extra.get("subject")
+    if not slug or not kind:
+        return
+
+    # follows.roaster_slug holds the target slug regardless of type
+    # (target_type discriminates roaster vs cafe — old rows are implicitly
+    # 'roaster' via the DEFAULT 'roaster').
+    rows = db.execute(
+        "SELECT follower_user_id FROM follows WHERE roaster_slug = ?", (slug,)
+    ).fetchall()
+    actor_id = actor["id"] if actor else None
+    target_slug = f"{kind}:{slug}"
+    for r in rows:
+        if actor_id and r["follower_user_id"] == actor_id:
+            continue
+        create_notification(
+            db,
+            r["follower_user_id"],
+            change,
+            actor_id or 0,
+            target_slug=target_slug,
+            subject=subject,
+        )
+    db.commit()
 
 
 def _handle_auto_create_post(db, item, user):

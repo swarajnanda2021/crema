@@ -149,6 +149,9 @@ def resource_update(resource: str, id: str, body: dict, user=Depends(get_current
     db = get_db()
     try:
         item = update_resource(db, resource, id_val, body, current_user=user)
+        # Run on_update hooks (mirrors on_create dispatch)
+        for hook in res.get("hooks", {}).get("on_update", []):
+            run_hook(hook, db, resource_name=resource, item=item, current_user=user)
         return ok(item, resource=resource)
     finally:
         db.close()
@@ -163,7 +166,22 @@ def resource_delete(resource: str, id: str, user=Depends(get_current_user)):
 
     db = get_db()
     try:
+        # Capture the item BEFORE deleting so on_delete hooks have context
+        # (drink name, slug, etc.). This mirrors the pattern used by the
+        # roaster product delete endpoint in routes/specific.py.
+        pre_item = None
+        if res.get("hooks", {}).get("on_delete"):
+            from resources.crud import get_resource_by_id
+            try:
+                pre_item = get_resource_by_id(
+                    db, resource, id_val,
+                    current_user_id=user["id"] if user else None,
+                )
+            except Exception:
+                pre_item = None
         result = delete_resource(db, resource, id_val, current_user=user)
+        for hook in res.get("hooks", {}).get("on_delete", []):
+            run_hook(hook, db, resource_name=resource, item=pre_item, current_user=user)
         return ok(result, resource=resource)
     finally:
         db.close()

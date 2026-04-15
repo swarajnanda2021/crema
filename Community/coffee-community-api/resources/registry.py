@@ -270,6 +270,8 @@ RESOURCES = {
             "actor_id": {"type": "int"},
             "post_id": {"type": "int"},
             "comment_id": {"type": "int"},
+            "target_slug": {"type": "str"},
+            "subject": {"type": "str"},
             "read": {"type": "int", "default": 0},
             "created_at": {"type": "str", "ro": True, "auto": "now"},
         },
@@ -372,6 +374,9 @@ RESOURCES = {
             "hero_crop_x": {"type": "float", "default": 50},
             "hero_crop_y": {"type": "float", "default": 50},
             "hero_zoom": {"type": "float", "default": 1},
+            "logo_crop_x": {"type": "float", "default": 50},
+            "logo_crop_y": {"type": "float", "default": 50},
+            "logo_zoom": {"type": "float", "default": 1},
             "address": {"type": "str"},
             "city": {"type": "str"},
             "state": {"type": "str"},
@@ -397,6 +402,9 @@ RESOURCES = {
             {"name": "stamps_given", "table": "stamps", "fk": "cafe_slug"},
             {"name": "rewards_redeemed", "table": "stamp_rewards", "fk": "cafe_slug"},
         ],
+        # When the café owner changes the logo, mirror it onto their
+        # user.avatar_url so the navbar avatar reflects the new image.
+        "hooks": {"on_update": ["sync_cafe_logo_to_user"]},
         "order": "name ASC",
         "limit": 100,
     },
@@ -426,6 +434,12 @@ RESOURCES = {
         "auth": {"list": None, "read": None, "create": "required", "update": "owner", "delete": "owner"},
         "owner": "cafe_slug",
         "owner_user_field": "cafe_slug",
+        # Menu changes fan out to the café's followers as notifications.
+        "hooks": {
+            "on_create": ["notify_menu_added"],
+            "on_update": ["notify_menu_updated"],
+            "on_delete": ["notify_menu_removed"],
+        },
         "order": "drink_order ASC, id ASC",
         "limit": 50,
     },

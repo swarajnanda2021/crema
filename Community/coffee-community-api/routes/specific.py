@@ -245,6 +245,7 @@ def toggle_follow(slug: str, user=Depends(get_current_user)):
 @router.put("/roasters/{slug}/profile")
 def update_roaster_profile(slug: str, body: dict, user=Depends(get_current_user)):
     from fastapi import HTTPException
+    from services.notifications import run_hook
     if user.get("roaster_slug") != slug:
         raise HTTPException(403, "Not your roaster")
     db = get_db()
@@ -276,6 +277,13 @@ def update_roaster_profile(slug: str, body: dict, user=Depends(get_current_user)
             )
         db.commit()
         row = db.execute("SELECT * FROM roaster_profiles WHERE roaster_slug = ?", (slug,)).fetchone()
+        # Mirror the logo onto the owner's user.avatar_url so the navbar
+        # reflects the new image (same convention as cafes).
+        if row and "logo_url" in body:
+            run_hook(
+                "sync_roaster_logo_to_user", db, item=dict(row),
+                current_user=user,
+            )
         return ok(dict(row), resource="roaster_profiles")
     finally:
         db.close()
@@ -421,6 +429,7 @@ def create_note_comment(note_id: int, body: dict, user=Depends(get_current_user)
 @router.post("/roasters/{slug}/products", status_code=201)
 def create_roaster_product(slug: str, body: dict, user=Depends(get_current_user)):
     from fastapi import HTTPException
+    from services.notifications import run_hook
     if user.get("roaster_slug") != slug:
         raise HTTPException(403, "Not your roaster")
     db = get_db()
@@ -439,6 +448,11 @@ def create_roaster_product(slug: str, body: dict, user=Depends(get_current_user)
         )
         db.commit()
         row = db.execute("SELECT * FROM roaster_products WHERE id = ?", (db.execute("SELECT last_insert_rowid()").fetchone()[0],)).fetchone()
+        # Fan out "new coffee" notification to roaster's followers.
+        run_hook("notify_followers_catalog", db, current_user=user, extra={
+            "slug": slug, "kind": "roaster", "change": "product_added",
+            "subject": body.get("coffee_name") or "a new coffee",
+        })
         return ok(dict(row), resource="roaster_products")
     finally:
         db.close()
@@ -447,12 +461,24 @@ def create_roaster_product(slug: str, body: dict, user=Depends(get_current_user)
 @router.delete("/roasters/{slug}/products/{product_id}")
 def delete_roaster_product(slug: str, product_id: int, user=Depends(get_current_user)):
     from fastapi import HTTPException
+    from services.notifications import run_hook
     if user.get("roaster_slug") != slug:
         raise HTTPException(403, "Not your roaster")
     db = get_db()
     try:
+        # Capture the coffee name before deleting so the notification has
+        # useful context for the follower.
+        row = db.execute(
+            "SELECT coffee_name FROM roaster_products WHERE id = ? AND roaster_slug = ?",
+            (product_id, slug),
+        ).fetchone()
+        coffee_name = row["coffee_name"] if row else None
         db.execute("DELETE FROM roaster_products WHERE id = ? AND roaster_slug = ?", (product_id, slug))
         db.commit()
+        run_hook("notify_followers_catalog", db, current_user=user, extra={
+            "slug": slug, "kind": "roaster", "change": "product_removed",
+            "subject": coffee_name or "a coffee",
+        })
         return ok({"deleted": True}, resource="roaster_products")
     finally:
         db.close()

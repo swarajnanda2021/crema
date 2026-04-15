@@ -6,9 +6,23 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetchRaw } from "../api/client";
 
+export type NotificationType =
+  | "like"
+  | "comment"
+  | "follow"
+  | "repost"
+  | "comment_like"
+  | "reply"
+  // Catalog change fanout (added here in Phase: catalog notifications)
+  | "product_added"
+  | "product_removed"
+  | "menu_added"
+  | "menu_removed"
+  | "menu_updated";
+
 export interface Notification {
   id: number;
-  type: "like" | "comment" | "follow" | "repost" | "comment_like";
+  type: NotificationType;
   actor_id: number;
   actor_username: string;
   actor_display_name: string;
@@ -18,6 +32,9 @@ export interface Notification {
   actor_zoom: number | null;
   post_id: number | null;
   comment_id: number | null;
+  // Catalog-change extras: "roaster:blue-tokai-coffee-roasters" or "cafe:prana-goa"
+  target_slug: string | null;
+  subject: string | null;
   read: boolean;
   created_at: string;
 }

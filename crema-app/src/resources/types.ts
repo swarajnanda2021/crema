@@ -242,6 +242,9 @@ export interface Cafe {
   hero_crop_x: number;
   hero_crop_y: number;
   hero_zoom: number;
+  logo_crop_x: number;
+  logo_crop_y: number;
+  logo_zoom: number;
   address: string | null;
   city: string | null;
   state: string | null;
