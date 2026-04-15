@@ -57,6 +57,38 @@ function InstagramIcon({ color = t.color.accent }: { color?: string }) {
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+function UsersMetaIcon() {
+  return <Users size={14} color={t.color.accent} strokeWidth={2} />;
+}
+
+function CafeFollowButton({
+  following, onToggle,
+}: {
+  following: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Pressable onPress={onToggle} style={[fb.btn, following && fb.btnFollowing]}>
+      {!following && <Plus size={10} color={t.color["text.on-dark"]} strokeWidth={2.5} />}
+      {following && <Check size={10} color={t.color["text.primary"]} strokeWidth={2.5} />}
+      <Text style={[fb.text, following && fb.textFollowing]}>
+        {following ? "Following" : "Follow"}
+      </Text>
+    </Pressable>
+  );
+}
+
+const fb = StyleSheet.create({
+  btn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 4, width: 71, height: 27, borderRadius: 2,
+    borderWidth: 1.5, borderColor: t.color["text.on-dark"],
+  },
+  btnFollowing: { width: 88, backgroundColor: t.color.accent, borderColor: t.color.accent },
+  text: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"] },
+  textFollowing: { color: t.color["text.primary"] },
+});
+
 function formatSeasonal(open: number | null, close: number | null): string {
   if (open == null || close == null) return "Open year-round";
   const openName = MONTHS[Math.max(0, Math.min(11, open - 1))];
@@ -181,6 +213,34 @@ export default function CafeDetailPage() {
   }, [slug]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Follow status + count — mirrors the roaster page. Café slugs live on
+  // the same `follows` table (uniqueness is per (user, slug) regardless
+  // of target kind) so the existing /follow-status + /followers endpoints
+  // work with the café slug directly.
+  useEffect(() => {
+    apiFetchRaw<any>(`/follow-status/${slug}`)
+      .then((res) => setFollowing(Boolean((res?.data ?? res)?.following)))
+      .catch(() => {});
+    apiFetchRaw<any>(`/followers/${slug}`)
+      .then((res) => {
+        const d = res?.data ?? res;
+        setFollowerCount(d?.follower_count || 0);
+      })
+      .catch(() => {});
+  }, [slug]);
+
+  const handleFollowToggle = useCallback(async () => {
+    if (!user) { router.push("/auth"); return; }
+    try {
+      const raw = await apiFetchRaw<any>(`/roasters/${slug}/follow`, { method: "POST" });
+      const d = raw?.data ?? raw;
+      setFollowing(Boolean(d.following));
+      setFollowerCount(d.follower_count ?? followerCount);
+    } catch (e) {
+      console.warn("Follow toggle failed:", e);
+    }
+  }, [slug, user, router, followerCount]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -488,7 +548,21 @@ export default function CafeDetailPage() {
                   </Pressable>
                 )
               )}
+              {/* Followers count row (non-editable, just informational) */}
+              <View style={s.metaItem}>
+                <UsersMetaIcon />
+                <Text style={s.metaText}>
+                  {followerCount} {followerCount === 1 ? "follower" : "followers"}
+                </Text>
+              </View>
             </View>
+
+            {/* Follow button — only shown to non-owners, mirrors roaster */}
+            {!isOwner && (
+              <View style={{ marginTop: 16, flexDirection: "row" }}>
+                <CafeFollowButton following={following} onToggle={handleFollowToggle} />
+              </View>
+            )}
 
             {/* Owner triggers edit mode via the navbar profile dropdown — no inline button needed */}
           </ScrollView>
@@ -649,7 +723,18 @@ export default function CafeDetailPage() {
                   <ExternalLinkIcon /><Text style={s.metaText}>Website</Text>
                 </Pressable>
               )}
+              <View style={s.metaItem}>
+                <UsersMetaIcon />
+                <Text style={s.metaText}>
+                  {followerCount} {followerCount === 1 ? "follower" : "followers"}
+                </Text>
+              </View>
             </View>
+            {!isOwner && (
+              <View style={{ marginTop: 12, flexDirection: "row" }}>
+                <CafeFollowButton following={following} onToggle={handleFollowToggle} />
+              </View>
+            )}
           </View>
           <View style={s.heroWrap}>
             {cafe.cover_image_url ? (
