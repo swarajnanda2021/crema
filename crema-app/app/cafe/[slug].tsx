@@ -18,6 +18,9 @@ import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { useAuth } from "../../src/hooks/useAuth";
 import Navbar from "../../src/components/Navbar";
 import ScannerModal from "../../src/components/ScannerModal";
+import ImageUploadModal from "../../src/components/ImageUploadModal";
+import PostCard from "../../src/components/domain/PostCard";
+import { openPostModal } from "../../src/components/primitives";
 import type { Cafe, CafeMenuItem, CafeBarista } from "../../src/resources/types";
 
 const NAVBAR_H = 72;
@@ -61,10 +64,10 @@ const DAY_LABELS: Record<string, string> = {
 type TabKey = "bio" | "menu" | "posts";
 
 export default function CafeDetailPage() {
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { slug, edit } = useLocalSearchParams<{ slug: string; edit?: string }>();
   const router = useRouter();
   const { user } = useAuth();
-  const { width: winW } = useWindowDimensions();
+  const { width: winW, height: winH } = useWindowDimensions();
 
   const [cafe, setCafe] = useState<Cafe | null>(null);
   const [menu, setMenu] = useState<CafeMenuItem[]>([]);
@@ -80,7 +83,14 @@ export default function CafeDetailPage() {
   const [editAddress, setEditAddress] = useState("");
   const [editInstagram, setEditInstagram] = useState("");
   const [editWebsite, setEditWebsite] = useState("");
+  const [editCover, setEditCover] = useState<string>("");
+  const [editLogo, setEditLogo] = useState<string>("");
+  const [showCoverUpload, setShowCoverUpload] = useState(false);
+  const [showLogoUpload, setShowLogoUpload] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+
+  // Auto-open edit mode from ?edit=1 query (set by navbar dropdown)
+  useEffect(() => { if (edit === "1" && isOwner) setIsEditing(true); }, [edit, isOwner]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -108,6 +118,8 @@ export default function CafeDetailPage() {
         setEditAddress(cafeData.address || "");
         setEditInstagram(cafeData.instagram_handle || "");
         setEditWebsite(cafeData.website || "");
+        setEditCover(cafeData.cover_image_url || "");
+        setEditLogo(cafeData.logo_url || "");
       }
     } catch (e) {
       console.warn("Café fetch failed:", e);
@@ -127,6 +139,8 @@ export default function CafeDetailPage() {
           address: editAddress,
           instagram_handle: editInstagram || null,
           website: editWebsite || null,
+          cover_image_url: editCover || null,
+          logo_url: editLogo || null,
         }),
       });
       setIsEditing(false);
@@ -134,7 +148,7 @@ export default function CafeDetailPage() {
     } catch (e) {
       console.warn("Café save failed:", e);
     }
-  }, [slug, editAbout, editAddress, editInstagram, editWebsite, fetchAll]);
+  }, [slug, editAbout, editAddress, editInstagram, editWebsite, editCover, editLogo, fetchAll]);
 
   // Seasonal status text
   const seasonalText = useMemo(() => {
@@ -185,24 +199,30 @@ export default function CafeDetailPage() {
         </View>
       )}
 
-      <ScrollView style={s.scroll} contentContainerStyle={[s.scrollContent, isWide && s.scrollContentWide]}>
-        <View style={[s.layout, isWide && s.layoutWide]}>
-          {/* LEFT PANEL */}
-          <View style={[s.leftPanel, isWide && s.leftPanelWide]}>
-            <View style={s.heroWrap}>
-              {heroImage ? (
-                <Image source={{ uri: heroImage }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-              ) : (
-                <View style={s.heroFallback}>
-                  <Coffee size={64} color={t.color["text.muted"]} />
-                </View>
-              )}
-            </View>
-
+      {isWide ? (
+        // Wide layout: full-height row with two independent scroll columns (matches roaster page)
+        <View style={[s.pageContainer, { height: winH - NAVBAR_H }]}>
+          <ScrollView style={[s.leftPanel, s.leftPanelWide]} contentContainerStyle={{ paddingBottom: 60 }}>
             <Pressable onPress={() => router.back()} style={s.backBtn}>
-              <ArrowLeft size={16} color={t.color["text.primary"]} />
+              <ArrowLeft size={16} color={t.color["text.on-dark"]} />
               <Text style={s.backText}>Back</Text>
             </Pressable>
+
+            {/* Logo (square) — sits above café name */}
+            <View style={s.logoWrap}>
+              {(isEditing ? editLogo : cafe.logo_url) ? (
+                <Image source={{ uri: resolveUploadUrl(isEditing ? editLogo : cafe.logo_url || "") }} style={StyleSheet.absoluteFillObject as any} contentFit="cover" />
+              ) : (
+                <View style={s.logoFallback}>
+                  <Text style={s.logoInitial}>{(cafe.name || "?")[0].toUpperCase()}</Text>
+                </View>
+              )}
+              {isEditing && (
+                <Pressable onPress={() => setShowLogoUpload(true)} style={s.logoEditBtn} hitSlop={8}>
+                  <Camera size={14} color={t.color["text.on-dark"]} />
+                </Pressable>
+              )}
+            </View>
 
             <Text style={s.cafeName}>{cafe.name}</Text>
 
@@ -213,7 +233,7 @@ export default function CafeDetailPage() {
                 onChangeText={setEditAbout}
                 multiline
                 placeholder="Tell people about your café…"
-                placeholderTextColor={t.color["text.muted"]}
+                placeholderTextColor="rgba(199,186,165,0.4)"
               />
             ) : cafe.about_blurb ? (
               <Text style={s.aboutBlurb}>{cafe.about_blurb}</Text>
@@ -237,7 +257,7 @@ export default function CafeDetailPage() {
                       value={editAddress}
                       onChangeText={setEditAddress}
                       placeholder="Address"
-                      placeholderTextColor={t.color["text.muted"]}
+                      placeholderTextColor="rgba(199,186,165,0.4)"
                     />
                   </View>
                 ) : (
@@ -259,7 +279,7 @@ export default function CafeDetailPage() {
                       value={editInstagram}
                       onChangeText={setEditInstagram}
                       placeholder="Instagram handle"
-                      placeholderTextColor={t.color["text.muted"]}
+                      placeholderTextColor="rgba(199,186,165,0.4)"
                     />
                   </View>
                 ) : (
@@ -281,7 +301,7 @@ export default function CafeDetailPage() {
                       value={editWebsite}
                       onChangeText={setEditWebsite}
                       placeholder="Website URL"
-                      placeholderTextColor={t.color["text.muted"]}
+                      placeholderTextColor="rgba(199,186,165,0.4)"
                     />
                   </View>
                 ) : (
@@ -296,26 +316,106 @@ export default function CafeDetailPage() {
               )}
             </View>
 
-            {/* Owner actions */}
-            {isOwner && !isEditing && (
-              <View style={s.ownerActions}>
-                <Pressable onPress={() => setIsEditing(true)} style={s.editBtn}>
-                  <PenLine size={12} color={t.color["text.primary"]} />
-                  <Text style={s.editBtnText}>Edit café</Text>
+            {/* Owner triggers edit mode via the navbar profile dropdown — no inline button needed */}
+          </ScrollView>
+
+          {/* RIGHT PANEL — independent scroll so columns are flush full-height */}
+          <ScrollView style={s.rightPanelWide} contentContainerStyle={{ paddingBottom: 60 }}>
+            <View style={s.heroWrap}>
+              {(isEditing ? editCover : cafe.cover_image_url) ? (
+                <Image source={{ uri: resolveUploadUrl(isEditing ? editCover : cafe.cover_image_url || "") }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+              ) : (
+                <View style={s.heroFallback}>
+                  <Coffee size={64} color={t.color["text.muted"]} />
+                </View>
+              )}
+              {isEditing && (
+                <Pressable onPress={() => setShowCoverUpload(true)} style={s.heroEditBtn}>
+                  <Camera size={14} color={t.color["text.on-dark"]} />
+                  <Text style={s.heroEditBtnText}>Change cover</Text>
                 </Pressable>
-                {cafe.stamps_enabled === 1 && (
-                  <Pressable onPress={() => setShowScanner(true)} style={s.scanBtn}>
-                    <Camera size={14} color={t.color["text.on-dark"]} />
-                    <Text style={s.scanBtnText}>Scan QR</Text>
+              )}
+            </View>
+
+            <View style={s.rightInner}>
+              <View style={s.tabs}>
+                {(["bio", "menu", "posts"] as TabKey[]).map((tab) => (
+                  <Pressable key={tab} onPress={() => setActiveTab(tab)} style={s.tabBtn}>
+                    <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
+                      {tab === "bio" ? "BIO" : tab === "menu" ? "COFFEE MENU" : "POSTS"}
+                    </Text>
+                    {activeTab === tab && <View style={s.tabUnderline} />}
                   </Pressable>
-                )}
+                ))}
               </View>
+
+              {activeTab === "bio" && (
+                <BioTab cafe={cafe} baristas={baristas} isOwner={isOwner} onScan={() => setShowScanner(true)} />
+              )}
+              {activeTab === "menu" && (
+                <MenuTab cafe_slug={slug} menu={menu} isOwner={isOwner} onChange={fetchAll} />
+              )}
+              {activeTab === "posts" && (
+                <PostsTab posts={posts} onRefresh={fetchAll} />
+              )}
+            </View>
+          </ScrollView>
+        </View>
+      ) : (
+        // Narrow layout: single scroll, left panel stacked above right panel
+        <ScrollView style={{ flex: 1, backgroundColor: t.color.bg }} contentContainerStyle={{ paddingBottom: 60 }}>
+          <View style={s.leftPanel}>
+            <Pressable onPress={() => router.back()} style={s.backBtn}>
+              <ArrowLeft size={16} color={t.color["text.on-dark"]} />
+              <Text style={s.backText}>Back</Text>
+            </Pressable>
+            <View style={s.logoWrap}>
+              {(isEditing ? editLogo : cafe.logo_url) ? (
+                <Image source={{ uri: resolveUploadUrl(isEditing ? editLogo : cafe.logo_url || "") }} style={StyleSheet.absoluteFillObject as any} contentFit="cover" />
+              ) : (
+                <View style={s.logoFallback}><Text style={s.logoInitial}>{(cafe.name || "?")[0].toUpperCase()}</Text></View>
+              )}
+              {isEditing && (
+                <Pressable onPress={() => setShowLogoUpload(true)} style={s.logoEditBtn} hitSlop={8}>
+                  <Camera size={14} color={t.color["text.on-dark"]} />
+                </Pressable>
+              )}
+            </View>
+            <Text style={s.cafeName}>{cafe.name}</Text>
+            {isEditing ? (
+              <TextInput style={[s.aboutText, s.inlineEdit, { minHeight: 60 }]} value={editAbout} onChangeText={setEditAbout} multiline placeholder="Tell people about your café…" placeholderTextColor="rgba(199,186,165,0.4)" />
+            ) : cafe.about_blurb ? (
+              <Text style={s.aboutBlurb}>{cafe.about_blurb}</Text>
+            ) : null}
+            {seasonalText && (
+              <View style={s.seasonalBadge}><Text style={s.seasonalText}>{seasonalText}</Text></View>
+            )}
+            <View style={s.metaRows}>
+              {cafe.address && (
+                <Pressable onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(cafe.address!)}`)} style={s.metaItem}>
+                  <MapPinIcon /><Text style={s.metaText} numberOfLines={2}>{cafe.address}</Text>
+                </Pressable>
+              )}
+              {cafe.instagram_handle && (
+                <Pressable onPress={() => Linking.openURL(`https://instagram.com/${cafe.instagram_handle}`)} style={s.metaItem}>
+                  <InstagramIcon /><Text style={s.metaText}>@{cafe.instagram_handle}</Text>
+                </Pressable>
+              )}
+              {cafe.website && (
+                <Pressable onPress={() => Linking.openURL(cafe.website!)} style={s.metaItem}>
+                  <ExternalLinkIcon /><Text style={s.metaText}>Website</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+          <View style={s.heroWrap}>
+            {cafe.cover_image_url ? (
+              <Image source={{ uri: resolveUploadUrl(cafe.cover_image_url) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+            ) : (
+              <View style={s.heroFallback}><Coffee size={64} color={t.color["text.muted"]} /></View>
             )}
           </View>
-
-          {/* RIGHT PANEL */}
-          <View style={[s.rightPanel, isWide && s.rightPanelWide]}>
-            {/* Tabs */}
+          <View style={s.rightInner}>
             <View style={s.tabs}>
               {(["bio", "menu", "posts"] as TabKey[]).map((tab) => (
                 <Pressable key={tab} onPress={() => setActiveTab(tab)} style={s.tabBtn}>
@@ -326,22 +426,12 @@ export default function CafeDetailPage() {
                 </Pressable>
               ))}
             </View>
-
-            {/* Tab content */}
-            {activeTab === "bio" && (
-              <BioTab cafe={cafe} baristas={baristas} />
-            )}
-
-            {activeTab === "menu" && (
-              <MenuTab cafe_slug={slug} menu={menu} isOwner={isOwner} onChange={fetchAll} />
-            )}
-
-            {activeTab === "posts" && (
-              <PostsTab posts={posts} />
-            )}
+            {activeTab === "bio" && (<BioTab cafe={cafe} baristas={baristas} isOwner={isOwner} onScan={() => setShowScanner(true)} />)}
+            {activeTab === "menu" && (<MenuTab cafe_slug={slug} menu={menu} isOwner={isOwner} onChange={fetchAll} />)}
+            {activeTab === "posts" && (<PostsTab posts={posts} onRefresh={fetchAll} />)}
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      )}
 
       {showScanner && (
         <ScannerModal
@@ -349,34 +439,46 @@ export default function CafeDetailPage() {
           onClose={() => setShowScanner(false)}
         />
       )}
+
+      <ImageUploadModal
+        visible={showCoverUpload}
+        title="Upload Cover Image"
+        purpose="hero"
+        currentUrl={editCover}
+        onConfirm={(url) => setEditCover(url)}
+        onClose={() => setShowCoverUpload(false)}
+      />
+      <ImageUploadModal
+        visible={showLogoUpload}
+        title="Upload Logo"
+        purpose="logo"
+        currentUrl={editLogo}
+        onConfirm={(url) => setEditLogo(url)}
+        onClose={() => setShowLogoUpload(false)}
+      />
     </>
   );
 }
 
 // ── Bio Tab ────────────────────────────────────────────────────────────────
 
-function BioTab({ cafe, baristas }: { cafe: Cafe; baristas: CafeBarista[] }) {
+function BioTab({ cafe, baristas, isOwner, onScan }: {
+  cafe: Cafe; baristas: CafeBarista[]; isOwner: boolean; onScan: () => void;
+}) {
   const hours = cafe.hours_json;
   return (
     <View style={s.tabContent}>
-      {/* Stats (only if stamps enabled) */}
+      {/* Stamps stats sentence + (owner only) compact scan QR icon */}
       {cafe.stamps_enabled === 1 && (
-        <View style={s.statsBlock}>
-          <Text style={s.sectionTitle}>Stats</Text>
-          <View style={s.statsRow}>
-            <View style={s.statCell}>
-              <Text style={s.statValue}>{cafe.stamps_given ?? 0}</Text>
-              <Text style={s.statLabel}>stamps given</Text>
-            </View>
-            <View style={s.statCell}>
-              <Text style={s.statValue}>{cafe.rewards_redeemed ?? 0}</Text>
-              <Text style={s.statLabel}>{cafe.stamp_reward?.toLowerCase() || "rewards"} redeemed</Text>
-            </View>
-            <View style={s.statCell}>
-              <Text style={s.statValue}>{cafe.stamp_target}</Text>
-              <Text style={s.statLabel}>stamps for {cafe.stamp_reward?.toLowerCase() || "reward"}</Text>
-            </View>
-          </View>
+        <View style={s.statsRowInline}>
+          <Text style={s.statsSentence}>
+            <Text style={s.statsNumber}>{cafe.stamps_given ?? 0}</Text> stamps given out · <Text style={s.statsNumber}>{cafe.rewards_redeemed ?? 0}</Text> {(cafe.stamp_reward || "rewards").toLowerCase()}{(cafe.rewards_redeemed ?? 0) === 1 ? "" : "s"} claimed · <Text style={s.statsNumber}>{cafe.stamp_target}</Text> stamps for a {(cafe.stamp_reward || "reward").toLowerCase()}.
+          </Text>
+          {isOwner && (
+            <Pressable onPress={onScan} style={s.scanIconBtn} hitSlop={8}>
+              <Camera size={18} color={t.color["text.primary"]} />
+            </Pressable>
+          )}
         </View>
       )}
 
@@ -515,6 +617,9 @@ function DrinkRow({ drinkName, items, isOwner, onDelete, onTapRoaster, onTapProd
   );
 }
 
+// Bean card — uses the same CoffeeLabel design language as the rest of the site.
+// Canela display for bean name, "By Roaster" row, divider, Inter 10.2px for meta.
+// Compact variant of CoffeeLabel adapted for a café menu context.
 function BeanCard({ item, isOwner, onDelete, onTapRoaster, onTapProduct }: {
   item: CafeMenuItem;
   isOwner: boolean;
@@ -522,43 +627,55 @@ function BeanCard({ item, isOwner, onDelete, onTapRoaster, onTapProduct }: {
   onTapRoaster: (slug: string) => void;
   onTapProduct: (productId: string) => void;
 }) {
-  // Roaster credit: only show if linked to our catalog AND not hidden by café.
   const showRoaster = !!item.roaster_slug && item.hide_roaster !== 1;
   const isHidden = !!item.roaster_slug && item.hide_roaster === 1;
-  const beanName = item.manual_bean_name || item.product_id;
+  const beanName = item.manual_bean_name || item.product_id || "—";
+  const roasterName = item.roaster_slug
+    ? item.roaster_slug.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+    : null;
+
+  const detailLine = [
+    item.process ? `${item.process} Process` : null,
+    item.roast_level ? `${item.roast_level} Roast` : null,
+  ].filter(Boolean).join(" \u2022 ");
 
   return (
     <View style={s.beanCard}>
       {isOwner && (
         <Pressable onPress={onDelete} style={s.beanCardDelete}>
-          <Trash2 size={12} color={t.color["text.muted"]} />
-        </Pressable>
-      )}
-      {showRoaster && item.roaster_slug && (
-        <Pressable onPress={() => onTapRoaster(item.roaster_slug!)}>
-          <Text style={s.beanCardRoaster} numberOfLines={1}>
-            By {item.roaster_slug.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-          </Text>
-        </Pressable>
-      )}
-      {isHidden && (
-        <Text style={s.beanCardHidden}>Roaster undisclosed</Text>
-      )}
-
-      {beanName && (
-        <Pressable
-          onPress={() => item.product_id && onTapProduct(item.product_id)}
-          disabled={!item.product_id}
-        >
-          <Text style={s.beanCardName} numberOfLines={2}>{beanName}</Text>
+          <Trash2 size={12} color="#684F44" />
         </Pressable>
       )}
 
-      {(item.roast_level || item.process) && (
-        <Text style={s.beanCardMeta} numberOfLines={1}>
-          {[item.roast_level, item.process].filter(Boolean).join(" · ")}
-        </Text>
-      )}
+      {/* Bean name — Canela 22.7, #351101 — same as CoffeeLabel coffeeName */}
+      <Pressable
+        onPress={() => item.product_id && onTapProduct(item.product_id)}
+        disabled={!item.product_id}
+      >
+        <Text style={s.beanCardCoffeeName} numberOfLines={2}>{beanName}</Text>
+      </Pressable>
+
+      {/* Roaster row — "By " plain + tappable name (or "Roaster undisclosed") */}
+      {showRoaster && roasterName ? (
+        <View style={s.beanCardRoasterRow}>
+          <Text style={s.beanCardRoasterLabel}>By </Text>
+          <Pressable onPress={() => onTapRoaster(item.roaster_slug!)} style={s.beanCardRoasterPressable}>
+            <Text style={s.beanCardRoasterLabel} numberOfLines={1}>{roasterName}</Text>
+          </Pressable>
+        </View>
+      ) : isHidden ? (
+        <View style={s.beanCardRoasterRow}>
+          <Text style={s.beanCardRoasterLabel}>Roaster undisclosed</Text>
+        </View>
+      ) : null}
+
+      {/* Divider line — same #C7BAA5 as CoffeeLabel */}
+      {detailLine ? <View style={s.beanCardDivider} /> : null}
+
+      {/* Process • Roast — Inter 10.2px, #684F44 — exactly CoffeeLabel.detailText */}
+      {detailLine ? (
+        <Text style={s.beanCardDetail} numberOfLines={1}>{detailLine}</Text>
+      ) : null}
     </View>
   );
 }
@@ -707,7 +824,7 @@ function AddMenuItemForm({ cafe_slug, onAdded }: { cafe_slug: string; onAdded: (
 
 // ── Posts Tab ──────────────────────────────────────────────────────────────
 
-function PostsTab({ posts }: { posts: any[] }) {
+function PostsTab({ posts, onRefresh }: { posts: any[]; onRefresh: () => void }) {
   if (posts.length === 0) {
     return (
       <View style={s.tabContent}>
@@ -720,10 +837,12 @@ function PostsTab({ posts }: { posts: any[] }) {
   return (
     <View style={s.tabContent}>
       {posts.map((p) => (
-        <View key={p.id} style={s.postCard}>
-          <Text style={s.postAuthor}>{p.author?.display_name || "Unknown"}</Text>
-          <Text style={s.postBody}>{p.teaser}</Text>
-        </View>
+        <PostCard
+          key={p.id}
+          post={p}
+          onComment={(post) => openPostModal({ postId: post.id, mode: "comment" })}
+          onRepost={(post) => openPostModal({ postId: post.id, mode: "repost" })}
+        />
       ))}
     </View>
   );
@@ -737,84 +856,117 @@ const s = StyleSheet.create({
   scrollContent: { paddingTop: NAVBAR_H, paddingBottom: 60 },
   scrollContentWide: { paddingHorizontal: 0 },
 
+  // Wide layout: full-height row with two flush columns (matches roaster page)
+  pageContainer: { flexDirection: "row", overflow: "hidden" } as any,
+
   layout: { flexDirection: "column" },
-  layoutWide: { flexDirection: "row", maxWidth: 1280, alignSelf: "center", width: "100%" },
+  layoutWide: { flexDirection: "row", width: "100%" } as any,
 
-  leftPanel: { paddingHorizontal: 24, paddingVertical: 24 },
-  leftPanelWide: { width: 380, paddingRight: 32, flexShrink: 0 } as any,
+  // Left panel — dark brown, matches roaster profile (42% width on wide, full on narrow)
+  leftPanel: {
+    paddingHorizontal: 24, paddingVertical: 24,
+    backgroundColor: t.color["roaster.panel"],
+  },
+  // Match roaster profile widths/padding exactly
+  leftPanelWide: {
+    width: "42%",
+    paddingHorizontal: "6.25%" as any,
+    paddingTop: 126, paddingBottom: 32,
+    flexShrink: 0,
+    flexDirection: "column",
+    overflow: "auto" as any,
+  } as any,
 
-  rightPanel: { paddingHorizontal: 24, paddingVertical: 24 },
-  rightPanelWide: { flex: 1, paddingLeft: 32, minWidth: 0 } as any,
+  rightPanel: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 24, backgroundColor: t.color.bg } as any,
+  rightPanelWide: { flex: 1, minWidth: 0 } as any,
+  rightInner: { paddingHorizontal: 24, paddingTop: 0 } as any,
 
-  heroWrap: {
-    height: 240,
+  // Logo — circle, sits above name
+  logoWrap: {
+    width: 96, height: 96,
+    borderRadius: 48,
+    overflow: "hidden",
     backgroundColor: t.color["card.front"],
-    borderRadius: 12,
+    marginBottom: 20,
+    position: "relative",
+  } as any,
+  logoFallback: { flex: 1, alignItems: "center", justifyContent: "center" } as any,
+  logoInitial: { fontFamily: t.font.display, fontSize: 44, color: t.color["text.muted"] },
+  logoEditBtn: {
+    position: "absolute", bottom: 4, right: 4,
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: "rgba(53,17,1,0.85)",
+    alignItems: "center", justifyContent: "center",
+  },
+
+  // Hero (right panel top) — full-width landscape
+  heroWrap: {
+    width: "100%",
+    height: 280,
+    backgroundColor: t.color["card.info"],
     overflow: "hidden",
     marginBottom: 16,
     position: "relative",
+  } as any,
+  heroFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
+  heroEditBtn: {
+    position: "absolute", bottom: 12, right: 12,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
+    backgroundColor: "rgba(53,17,1,0.85)", borderRadius: 4,
   },
-  heroFallback: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: t.color["card.info"] },
+  heroEditBtnText: {
+    fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.on-dark"],
+  },
 
   backBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12,
+    flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 60,
     alignSelf: "flex-start", paddingVertical: 4,
   },
-  backText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"] },
+  backText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color.divider },
 
   cafeName: {
-    fontFamily: t.font.display, fontSize: 48, color: t.color["text.primary"],
-    lineHeight: 56, marginBottom: 12,
+    fontFamily: t.font.display, fontSize: 48, color: t.color["text.on-dark"],
+    lineHeight: 54, marginTop: 4, marginBottom: 12,
   },
   aboutBlurb: {
-    fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.secondary"],
+    fontFamily: t.font["body.regular"], fontSize: 12, color: t.color.divider,
     lineHeight: 18, marginBottom: 16,
   },
   aboutText: {
-    fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.secondary"],
+    fontFamily: t.font["body.regular"], fontSize: 12, color: t.color.divider,
     lineHeight: 18,
   },
   inlineEdit: {
-    backgroundColor: t.color["card.info"],
+    backgroundColor: "rgba(255,255,255,0.06)",
+    color: t.color["text.on-dark"],
     paddingHorizontal: 8, paddingVertical: 6,
     borderRadius: 4,
-  },
+  } as any,
 
   seasonalBadge: {
     alignSelf: "flex-start",
-    backgroundColor: t.color["tag.bg"],
+    backgroundColor: "rgba(255,255,255,0.08)",
     paddingHorizontal: 12, paddingVertical: 5,
     borderRadius: 12,
     marginBottom: 16,
   },
-  seasonalText: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["tag.text"], letterSpacing: 0.3 },
+  seasonalText: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.on-dark"], letterSpacing: 0.3 },
 
   metaRows: { gap: 8, marginBottom: 20 },
   metaItem: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 2 } as any,
   metaText: {
-    fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.secondary"],
+    fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.on-dark"],
     flex: 1, flexShrink: 1, lineHeight: 18,
   } as any,
   inlineEditMeta: {
-    fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.secondary"],
-    backgroundColor: t.color["card.info"],
+    fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.on-dark"],
+    backgroundColor: "rgba(255,255,255,0.06)",
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 3,
     flex: 1,
   } as any,
 
-  ownerActions: { flexDirection: "row", gap: 8, marginTop: 8 },
-  editBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: t.color.border, borderRadius: 4,
-  },
-  editBtnText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.primary"] },
-  scanBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 14, paddingVertical: 6,
-    backgroundColor: t.color.accent, borderRadius: 4,
-  },
-  scanBtnText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"] },
+  // (Edit profile + Scan QR are now wired through navbar dropdown / bio scan icon)
 
   // Tabs
   tabs: { flexDirection: "row", gap: 32, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)", marginBottom: 20 },
@@ -830,12 +982,25 @@ const s = StyleSheet.create({
     letterSpacing: 0.5, marginBottom: 12, textTransform: "uppercase",
   },
 
-  // Stats
-  statsBlock: {},
-  statsRow: { flexDirection: "row", gap: 16 },
-  statCell: { flex: 1, padding: 16, backgroundColor: t.color["card.info"], borderRadius: 8 },
-  statValue: { fontFamily: t.font.display, fontSize: 28, color: t.color["accent.cta"], lineHeight: 32 },
-  statLabel: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.secondary"], marginTop: 4 },
+  // Stamps stats — inline sentence + optional compact scan icon (owner only)
+  statsRowInline: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  statsSentence: {
+    fontFamily: t.font["body.regular"],
+    fontSize: 13,
+    color: "#684F44",
+    lineHeight: 20,
+    flex: 1,
+  } as any,
+  statsNumber: {
+    fontFamily: t.font["body.semibold"],
+    color: "#351101",
+  },
+  scanIconBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    borderWidth: 1, borderColor: "#D7D1C4",
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
 
   // Baristas
   baristasBlock: {},
@@ -872,31 +1037,49 @@ const s = StyleSheet.create({
   },
   drinkScroll: { flex: 1, minWidth: 0 } as any,
 
-  // Bean card — same visual language as CoffeeCard's info section
+  // Bean card — borrows CoffeeLabel design language: cream bg #EFE9DB, Canela name,
+  // "By Roaster" row, divider, Inter 10.2px detail.
   beanCard: {
     width: 200,
-    backgroundColor: t.color["card.front"],
+    backgroundColor: "#EFE9DB",
     borderRadius: 5,
-    borderWidth: 1, borderColor: t.color["border.light"],
     padding: 14,
-    gap: 4,
     position: "relative",
   } as any,
-  beanCardDelete: { position: "absolute", top: 6, right: 6, padding: 4, zIndex: 2 } as any,
-  beanCardRoaster: {
-    fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"],
+  beanCardDelete: {
+    position: "absolute", top: 6, right: 6, padding: 4, zIndex: 2,
+  } as any,
+  // Canela Text Regular, 22.7px, #351101 — exact match to CoffeeLabel.coffeeName
+  beanCardCoffeeName: {
+    fontFamily: t.font.display,
+    fontSize: 22.7,
+    color: "#351101",
+    lineHeight: 27,
   },
-  beanCardHidden: {
-    fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.muted"],
-    fontStyle: "italic" as any,
-  },
-  beanCardName: {
-    fontFamily: t.font.display, fontSize: 16, color: t.color["accent.cta"],
-    lineHeight: 20, marginTop: 2,
-  },
-  beanCardMeta: {
-    fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.secondary"],
+  beanCardRoasterRow: {
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 4,
+    overflow: "hidden",
+  },
+  beanCardRoasterLabel: {
+    fontFamily: t.font["body.regular"],
+    fontSize: 10.9,
+    color: "#684F44",
+  },
+  beanCardRoasterPressable: { flexShrink: 1, overflow: "hidden" } as any,
+  // Divider — same #C7BAA5 as CoffeeLabel
+  beanCardDivider: {
+    height: 1,
+    backgroundColor: "#C7BAA5",
+    marginTop: 7,
+    marginBottom: 7,
+  },
+  // Inter Regular 10.2px #684F44 — matches CoffeeLabel.detailText
+  beanCardDetail: {
+    fontFamily: t.font["body.regular"],
+    fontSize: 10.2,
+    color: "#684F44",
   },
 
   // Add menu form

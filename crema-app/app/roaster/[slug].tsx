@@ -166,7 +166,8 @@ export default function RoasterDetailPage() {
   const { user } = useAuth();
   const { products, roasters, appendProducts, removeProduct } = useCoffeeData();
   const { getProfile, refreshProfiles, loading: profileLoading } = useRoasterProfiles();
-  const { height: winH } = useWindowDimensions();
+  const { height: winH, width: winW } = useWindowDimensions();
+  const isWide = winW >= 800;
 
   // Roaster lookup
   const productRoaster = roasters.find((r: any) => r.slug === slug);
@@ -495,10 +496,22 @@ export default function RoasterDetailPage() {
         </View>
       )}
 
-      <View style={[s.pageContainer, { height: isEditing ? winH - NAVBAR_H - 44 : winH - NAVBAR_H }]}>
+      <ResponsiveWrapper isWide={isWide}>
+      <View style={[
+        s.pageContainer,
+        isWide
+          ? { height: isEditing ? winH - NAVBAR_H - 44 : winH - NAVBAR_H, flexDirection: "row", overflow: "hidden" as any }
+          : { flexDirection: "column" },
+      ]}>
 
         {/* ── LEFT PANEL ── */}
-        <View style={[s.leftPanel, { height: isEditing ? winH - NAVBAR_H - 44 : winH - NAVBAR_H }, isEditing && { paddingBottom: 120 }]}>
+        <View style={[
+          s.leftPanel,
+          isWide
+            ? { height: isEditing ? winH - NAVBAR_H - 44 : winH - NAVBAR_H, width: "42%" }
+            : { width: "100%", paddingTop: 60 },  // Narrow: no fixed height; flows in page scroll
+          isEditing && isWide && { paddingBottom: 120 },
+        ]}>
           <Pressable onPress={() => router.back()} style={s.backBtn}>
             <BackArrowIcon />
             <Text style={s.backText}>Back</Text>
@@ -597,10 +610,12 @@ export default function RoasterDetailPage() {
         </View>
 
         {/* ── RIGHT PANEL ── */}
-        <View style={s.rightPanel}>
+        <View style={[s.rightPanel, !isWide && { flex: undefined } as any]}>
           <ScrollView
-            style={s.rightScroll} contentContainerStyle={s.rightContent}
+            style={[s.rightScroll, !isWide && { flex: undefined } as any]}
+            contentContainerStyle={s.rightContent}
             showsVerticalScrollIndicator={false} scrollEventThrottle={400}
+            scrollEnabled={isWide}
             onScroll={(e) => {
               const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
               if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 300) {
@@ -803,7 +818,19 @@ export default function RoasterDetailPage() {
             onConfirm={(url) => setEditHero(url)} onClose={() => setShowHeroUpload(false)} />
         </View>
       </View>
+      </ResponsiveWrapper>
     </>
+  );
+}
+
+// Wraps content in ScrollView on narrow screens (single page scroll) and a
+// plain View on wide screens (column-internal scrolls handle their own overflow).
+function ResponsiveWrapper({ isWide, children }: { isWide: boolean; children: React.ReactNode }) {
+  if (isWide) return <>{children}</>;
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: t.color.bg }} contentContainerStyle={{ paddingBottom: 60 }}>
+      {children}
+    </ScrollView>
   );
 }
 
@@ -819,7 +846,7 @@ const s = StyleSheet.create({
   pageContainer: { flexDirection: "row", overflow: "hidden" } as any,
 
   leftPanel: {
-    width: "42%" as any, backgroundColor: t.color["roaster.panel"],
+    backgroundColor: t.color["roaster.panel"],
     paddingHorizontal: "6.25%" as any, paddingTop: 126, paddingBottom: 32,
     flexDirection: "column", overflowY: "auto" as any, flexShrink: 0,
   } as any,

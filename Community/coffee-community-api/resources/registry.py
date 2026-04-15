@@ -65,7 +65,7 @@ RESOURCES = {
             "cover_image_url": {"type": "str"},
             "post_type": {"type": "str", "default": "note"},
             "location": {"type": "str"},
-            "cafe_slug": {"type": "str"},  # optional café tag (CRUD Utopia: see CRUD_UTOPIA.md)
+            "cafe_slug": {"type": "str", "auto": "user_cafe_slug"},  # auto-set if poster is a café account; otherwise user supplies via tag
             "images_json": {"type": "json"},
             "repost_of_id": {"type": "int"},
             "repost_comment": {"type": "str"},

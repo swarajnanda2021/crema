@@ -52,6 +52,8 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
     onClose();
     if (user.account_type === "roaster" && user.roaster_slug) {
       router.push(`/roaster/${user.roaster_slug}`);
+    } else if (user.account_type === "cafe" && user.cafe_slug) {
+      router.push(`/cafe/${user.cafe_slug}` as any);
     } else {
       router.push("/profile");
     }
@@ -61,6 +63,8 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
     onClose();
     if (user.account_type === "roaster" && user.roaster_slug) {
       router.push(`/roaster/${user.roaster_slug}?edit=1`);
+    } else if (user.account_type === "cafe" && user.cafe_slug) {
+      router.push(`/cafe/${user.cafe_slug}?edit=1` as any);
     } else {
       // Navigate to profile page, then signal edit mode via custom event
       // (Expo Router tabs don't re-render params on same-route push)

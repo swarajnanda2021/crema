@@ -167,10 +167,12 @@ export default function ProfilePage() {
   const { width: screenW } = useWindowDimensions();
   const isNarrow = screenW < 768;
 
-  // Roasters go to their roaster profile page instead
+  // Sellers (roasters / cafés) go to their entity profile page instead
   useEffect(() => {
     if (user?.account_type === "roaster" && user?.roaster_slug) {
       router.replace(`/roaster/${user.roaster_slug}`);
+    } else if (user?.account_type === "cafe" && user?.cafe_slug) {
+      router.replace(`/cafe/${user.cafe_slug}`);
     }
   }, [user]);
 
