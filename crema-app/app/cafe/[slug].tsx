@@ -8,7 +8,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   View, Text, ScrollView, Pressable, StyleSheet, TextInput,
   ActivityIndicator, useWindowDimensions, Linking, Image as RNImage,
-  Platform,
+  Platform, Animated, Easing,
 } from "react-native";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -644,7 +644,7 @@ export default function CafeDetailPage() {
                 />
               )}
               {activeTab === "menu" && (
-                <MenuTab cafe_slug={slug} menu={menu} isOwner={isOwner} onChange={fetchAll} />
+                <MenuTab cafe_slug={slug} menu={menu} isOwner={isOwner} isEditing={isEditing} onChange={fetchAll} />
               )}
               {activeTab === "posts" && (
                 <PostsTab posts={posts} onRefresh={fetchAll} />
@@ -768,7 +768,7 @@ export default function CafeDetailPage() {
                 onScan={() => setShowScanner(true)}
               />
             )}
-            {activeTab === "menu" && (<MenuTab cafe_slug={slug} menu={menu} isOwner={isOwner} onChange={fetchAll} />)}
+            {activeTab === "menu" && (<MenuTab cafe_slug={slug} menu={menu} isOwner={isOwner} isEditing={isEditing} onChange={fetchAll} />)}
             {activeTab === "posts" && (<PostsTab posts={posts} onRefresh={fetchAll} />)}
           </View>
         </ScrollView>
@@ -916,8 +916,12 @@ function BioTab({
 
 // ── Menu Tab ───────────────────────────────────────────────────────────────
 
-function MenuTab({ cafe_slug, menu, isOwner, onChange }: {
-  cafe_slug: string; menu: CafeMenuItem[]; isOwner: boolean; onChange: () => void;
+function MenuTab({ cafe_slug, menu, isOwner, isEditing, onChange }: {
+  cafe_slug: string;
+  menu: CafeMenuItem[];
+  isOwner: boolean;
+  isEditing: boolean;
+  onChange: () => void;
 }) {
   const router = useRouter();
 
@@ -937,6 +941,26 @@ function MenuTab({ cafe_slug, menu, isOwner, onChange }: {
       await apiFetchRaw(`/cafe_menu_items/${id}`, { method: "DELETE" });
       onChange();
     } catch (e) { console.warn("Menu delete failed:", e); }
+  };
+
+  const handleUpdate = async (id: number, body: Partial<CafeMenuItem>) => {
+    try {
+      await apiFetchRaw(`/cafe_menu_items/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      onChange();
+    } catch (e) { console.warn("Menu update failed:", e); }
+  };
+
+  const handleAddBean = async (drink_name: string, body: Partial<CafeMenuItem>) => {
+    try {
+      await apiFetchRaw("/cafe_menu_items", {
+        method: "POST",
+        body: JSON.stringify({ cafe_slug, drink_name, ...body }),
+      });
+      onChange();
+    } catch (e) { console.warn("Menu add bean failed:", e); }
   };
 
   if (menu.length === 0) {
@@ -961,11 +985,15 @@ function MenuTab({ cafe_slug, menu, isOwner, onChange }: {
           drinkName={drinkName}
           items={items}
           isOwner={isOwner}
+          isEditing={isEditing}
           onDelete={handleDelete}
+          onUpdate={handleUpdate}
+          onAddBean={(body) => handleAddBean(drinkName, body)}
           onTapRoaster={(roaster_slug) => router.push(`/roaster/${roaster_slug}` as any)}
           onTapProduct={(product_id) => router.push(`/coffee/${product_id}` as any)}
         />
       ))}
+      {/* "Add a drink" is available to owners any time, not gated on isEditing */}
       {isOwner && (
         <AddMenuItemForm cafe_slug={cafe_slug} onAdded={onChange} />
       )}
@@ -975,14 +1003,28 @@ function MenuTab({ cafe_slug, menu, isOwner, onChange }: {
 
 // Row layout: drink name on left, horizontal scroll of bean cards on right.
 // Multi-roaster drinks become natural carousels — swipe the cards to see alternates.
-function DrinkRow({ drinkName, items, isOwner, onDelete, onTapRoaster, onTapProduct }: {
+function DrinkRow({
+  drinkName, items, isOwner, isEditing,
+  onDelete, onUpdate, onAddBean, onTapRoaster, onTapProduct,
+}: {
   drinkName: string;
   items: CafeMenuItem[];
   isOwner: boolean;
+  isEditing: boolean;
   onDelete: (id: number) => void;
+  onUpdate: (id: number, body: Partial<CafeMenuItem>) => void;
+  onAddBean: (body: Partial<CafeMenuItem>) => void;
   onTapRoaster: (slug: string) => void;
   onTapProduct: (productId: string) => void;
 }) {
+  // Track a synthetic "just-added" id for slide-in animation. When the
+  // AddBeanCard opens its form and fires onAddBean, we bump a trigger
+  // so the next render plays the slide animation on the newest card.
+  const [slideSeed, setSlideSeed] = useState(0);
+  const handleAdd = (body: Partial<CafeMenuItem>) => {
+    setSlideSeed((n) => n + 1);
+    onAddBean(body);
+  };
   return (
     <View style={s.drinkRow}>
       <View style={s.drinkLabel}>
@@ -997,16 +1039,26 @@ function DrinkRow({ drinkName, items, isOwner, onDelete, onTapRoaster, onTapProd
         contentContainerStyle={{ gap: 12, paddingRight: 8 }}
         style={s.drinkScroll}
       >
-        {items.map((item) => (
+        {items.map((item, idx) => (
           <BeanCard
             key={item.id}
             item={item}
             isOwner={isOwner}
+            isEditing={isEditing}
+            isNewest={idx === items.length - 1}
+            slideSeed={slideSeed}
             onDelete={() => onDelete(item.id)}
+            onUpdate={(body) => onUpdate(item.id, body)}
             onTapRoaster={onTapRoaster}
             onTapProduct={onTapProduct}
           />
         ))}
+        {/* Owner add-bean placeholder — always present, regardless of
+            isEditing. Tapping slides an inline compose form into the same
+            card slot. */}
+        {isOwner && (
+          <AddBeanCard onAdd={handleAdd} />
+        )}
       </ScrollView>
     </View>
   );
@@ -1015,13 +1067,50 @@ function DrinkRow({ drinkName, items, isOwner, onDelete, onTapRoaster, onTapProd
 // Bean card — uses the same CoffeeLabel design language as the rest of the site.
 // Canela display for bean name, "By Roaster" row, divider, Inter 10.2px for meta.
 // Compact variant of CoffeeLabel adapted for a café menu context.
-function BeanCard({ item, isOwner, onDelete, onTapRoaster, onTapProduct }: {
+function BeanCard({
+  item, isOwner, isEditing, isNewest, slideSeed,
+  onDelete, onUpdate, onTapRoaster, onTapProduct,
+}: {
   item: CafeMenuItem;
   isOwner: boolean;
+  isEditing: boolean;
+  isNewest: boolean;
+  slideSeed: number;
   onDelete: () => void;
+  onUpdate: (body: Partial<CafeMenuItem>) => void;
   onTapRoaster: (slug: string) => void;
   onTapProduct: (productId: string) => void;
 }) {
+  // Slide-in animation — only played on the newest card after slideSeed
+  // changes (i.e. a new bean was just added to this drink).
+  const slide = useRef(new Animated.Value(0)).current;
+  const prevSeed = useRef(slideSeed);
+  useEffect(() => {
+    if (slideSeed !== prevSeed.current && isNewest) {
+      slide.setValue(120);
+      Animated.timing(slide, {
+        toValue: 0,
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    }
+    prevSeed.current = slideSeed;
+  }, [slideSeed, isNewest, slide]);
+
+  // In-place edit state — only populated when isEditing && card tapped.
+  const [editMode, setEditMode] = useState(false);
+  const [eBeanName, setEBeanName] = useState(item.manual_bean_name || "");
+  const [eRoastLevel, setERoastLevel] = useState(item.roast_level || "");
+  const [eProcess, setEProcess] = useState(item.process || "");
+  useEffect(() => {
+    if (!editMode) {
+      setEBeanName(item.manual_bean_name || "");
+      setERoastLevel(item.roast_level || "");
+      setEProcess(item.process || "");
+    }
+  }, [item, editMode]);
+
   const showRoaster = !!item.roaster_slug && item.hide_roaster !== 1;
   const isHidden = !!item.roaster_slug && item.hide_roaster === 1;
   const beanName = item.manual_bean_name || item.product_id || "—";
@@ -1034,12 +1123,67 @@ function BeanCard({ item, isOwner, onDelete, onTapRoaster, onTapProduct }: {
     item.roast_level ? `${item.roast_level} Roast` : null,
   ].filter(Boolean).join(" \u2022 ");
 
+  const saveEdit = () => {
+    onUpdate({
+      manual_bean_name: eBeanName.trim() || null as any,
+      roast_level: eRoastLevel.trim() || null as any,
+      process: eProcess.trim() || null as any,
+    });
+    setEditMode(false);
+  };
+
+  if (editMode) {
+    return (
+      <Animated.View style={[s.beanCard, { transform: [{ translateX: slide }] }] as any}>
+        <TextInput
+          style={s.beanEditName}
+          value={eBeanName}
+          onChangeText={setEBeanName}
+          placeholder="Bean name"
+          placeholderTextColor={t.color["text.muted"]}
+        />
+        <View style={s.beanCardDivider} />
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          <TextInput
+            style={[s.beanEditMeta, { flex: 1 }]}
+            value={eRoastLevel}
+            onChangeText={setERoastLevel}
+            placeholder="Roast"
+            placeholderTextColor={t.color["text.muted"]}
+          />
+          <TextInput
+            style={[s.beanEditMeta, { flex: 1 }]}
+            value={eProcess}
+            onChangeText={setEProcess}
+            placeholder="Process"
+            placeholderTextColor={t.color["text.muted"]}
+          />
+        </View>
+        <View style={{ flexDirection: "row", gap: 6, marginTop: 10 }}>
+          <Pressable onPress={() => setEditMode(false)} style={[s.beanEditCancel, { flex: 1 }]}>
+            <Text style={s.beanEditCancelText}>Cancel</Text>
+          </Pressable>
+          <Pressable onPress={saveEdit} style={[s.beanEditSave, { flex: 1 }]}>
+            <Text style={s.beanEditSaveText}>Save</Text>
+          </Pressable>
+        </View>
+      </Animated.View>
+    );
+  }
+
   return (
-    <View style={s.beanCard}>
+    <Animated.View style={[s.beanCard, { transform: [{ translateX: slide }] }] as any}>
       {isOwner && (
-        <Pressable onPress={onDelete} style={s.beanCardDelete}>
-          <Trash2 size={12} color="#684F44" />
-        </Pressable>
+        <View style={s.beanCardActions}>
+          {isEditing && (
+            <Pressable onPress={() => setEditMode(true)} style={s.beanCardEdit}>
+              <PenLine size={12} color="#684F44" />
+            </Pressable>
+          )}
+          <Pressable onPress={onDelete} style={s.beanCardDelete}>
+            <Trash2 size={12} color="#684F44" />
+          </Pressable>
+        </View>
       )}
 
       {/* Bean name — Canela 22.7, #351101 — same as CoffeeLabel coffeeName */}
@@ -1071,7 +1215,90 @@ function BeanCard({ item, isOwner, onDelete, onTapRoaster, onTapProduct }: {
       {detailLine ? (
         <Text style={s.beanCardDetail} numberOfLines={1}>{detailLine}</Text>
       ) : null}
-    </View>
+    </Animated.View>
+  );
+}
+
+// AddBeanCard — empty-card placeholder with a centered +. Tapping slides
+// an inline compose form into the same slot. Matches the roaster
+// EditableCoffeeCard pattern but sized for the café menu context.
+function AddBeanCard({ onAdd }: { onAdd: (body: Partial<CafeMenuItem>) => void }) {
+  const [mode, setMode] = useState<"placeholder" | "editing">("placeholder");
+  const [beanName, setBeanName] = useState("");
+  const [roastLevel, setRoastLevel] = useState("");
+  const [processVal, setProcessVal] = useState("");
+  const slide = useRef(new Animated.Value(0)).current;
+
+  const openEdit = () => {
+    setMode("editing");
+    slide.setValue(80);
+    Animated.timing(slide, {
+      toValue: 0, duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
+  const submit = () => {
+    if (!beanName.trim() && !roastLevel.trim() && !processVal.trim()) {
+      setMode("placeholder");
+      return;
+    }
+    onAdd({
+      manual_bean_name: beanName.trim() || null as any,
+      roast_level: roastLevel.trim() || null as any,
+      process: processVal.trim() || null as any,
+    });
+    setBeanName("");
+    setRoastLevel("");
+    setProcessVal("");
+    setMode("placeholder");
+  };
+
+  if (mode === "placeholder") {
+    return (
+      <Pressable onPress={openEdit} style={[s.beanCard, s.addBeanPlaceholder]}>
+        <Plus size={22} color={t.color.accent} strokeWidth={2} />
+        <Text style={s.addBeanPlaceholderText}>Add bean</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Animated.View style={[s.beanCard, { transform: [{ translateX: slide }] }] as any}>
+      <TextInput
+        style={s.beanEditName}
+        value={beanName}
+        onChangeText={setBeanName}
+        placeholder="Bean name"
+        placeholderTextColor={t.color["text.muted"]}
+        autoFocus
+      />
+      <View style={s.beanCardDivider} />
+      <View style={{ flexDirection: "row", gap: 6 }}>
+        <TextInput
+          style={[s.beanEditMeta, { flex: 1 }]}
+          value={roastLevel}
+          onChangeText={setRoastLevel}
+          placeholder="Roast"
+          placeholderTextColor={t.color["text.muted"]}
+        />
+        <TextInput
+          style={[s.beanEditMeta, { flex: 1 }]}
+          value={processVal}
+          onChangeText={setProcessVal}
+          placeholder="Process"
+          placeholderTextColor={t.color["text.muted"]}
+        />
+      </View>
+      <View style={{ flexDirection: "row", gap: 6, marginTop: 10 }}>
+        <Pressable onPress={() => setMode("placeholder")} style={[s.beanEditCancel, { flex: 1 }]}>
+          <Text style={s.beanEditCancelText}>Cancel</Text>
+        </Pressable>
+        <Pressable onPress={submit} style={[s.beanEditSave, { flex: 1 }]}>
+          <Text style={s.beanEditSaveText}>Add</Text>
+        </Pressable>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -1811,9 +2038,71 @@ const s = StyleSheet.create({
     padding: 14,
     position: "relative",
   } as any,
-  beanCardDelete: {
-    position: "absolute", top: 6, right: 6, padding: 4, zIndex: 2,
+  beanCardActions: {
+    position: "absolute", top: 6, right: 6, flexDirection: "row", gap: 4, zIndex: 2,
   } as any,
+  beanCardDelete: {
+    padding: 4,
+  } as any,
+  beanCardEdit: {
+    padding: 4,
+  } as any,
+  // In-place edit inputs — borrow the same cream bg as the card, just
+  // enlarge slightly for affordance.
+  beanEditName: {
+    fontFamily: t.font.display,
+    fontSize: 20,
+    color: t.color["text.primary"],
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    outlineStyle: "none" as any,
+    backgroundColor: t.color["card.front"],
+    borderRadius: 4,
+  } as any,
+  beanEditMeta: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.primary"],
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    backgroundColor: t.color["card.front"],
+    borderRadius: 4,
+    outlineStyle: "none" as any,
+  } as any,
+  beanEditCancel: {
+    paddingVertical: 6,
+    borderRadius: 4,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: t.color.border,
+  },
+  beanEditCancelText: {
+    fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.secondary"],
+  },
+  beanEditSave: {
+    paddingVertical: 6,
+    borderRadius: 4,
+    alignItems: "center",
+    backgroundColor: t.color.accent,
+  },
+  beanEditSaveText: {
+    fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.primary"],
+  },
+  // Add-bean placeholder: centered plus, dashed-style border via
+  // accent.soft bg so it reads as affordance without a heavy outline.
+  addBeanPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: t.color["accent.soft"],
+  } as any,
+  addBeanPlaceholderText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: t.size["font.sm"],
+    color: t.color.accent,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
   // Canela Text Regular, 22.7px, #351101 — exact match to CoffeeLabel.coffeeName
   beanCardCoffeeName: {
     fontFamily: t.font.display,
