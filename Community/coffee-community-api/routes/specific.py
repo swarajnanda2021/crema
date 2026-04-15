@@ -10,8 +10,8 @@ from resources.crud import list_resource, build_select, row_to_dict, resolve_emb
 from resources.registry import get_resource
 from resources.envelope import ok
 from services.auth import get_current_user, get_optional_user
-from services.qr_tokens import issue_qr_token, verify_qr_token
 from services.admin_stats import compute_traction
+from services.qr_tokens import issue_qr_token, verify_qr_token
 
 router = APIRouter(prefix="/api", tags=["Specific"])
 
@@ -598,6 +598,7 @@ def feed_timeline(limit: int = 30, offset: int = 0, authorization: str = Header(
 
 # ── Café composite endpoints (see CRUD_UTOPIA.md) ────────────────────────────
 
+
 @router.post("/me/qr-token")
 def my_qr_token(user=Depends(get_current_user)):
     """Issue a short-lived QR token for the current user's identity card.
@@ -613,10 +614,81 @@ def my_qr_token(user=Depends(get_current_user)):
         db.close()
 
 
+@router.post("/qr-token/resolve")
+def qr_token_resolve(body: dict, user=Depends(get_current_user)):
+    """Decode a scanned QR token into a user preview WITHOUT creating a
+    stamp. The café owner's client calls this right after the camera
+    decodes a QR; the owner then taps the circular stamp button to commit
+    the actual stamp via /cafes/{slug}/stamp.
+    """
+    from fastapi import HTTPException
+    if user.get("account_type") != "cafe":
+        raise HTTPException(403, "Only café owners can resolve QR tokens")
+    token = (body or {}).get("qr_token")
+    if not token:
+        raise HTTPException(422, "qr_token is required")
+    db = get_db()
+    try:
+        resolved = verify_qr_token(db, token)
+        if not resolved:
+            raise HTTPException(400, "Invalid or expired QR token")
+        if resolved.get("account_type") != "user":
+            raise HTTPException(400, "Only user accounts can be stamped")
+        return ok({
+            "user_id": resolved["id"],
+            "username": resolved.get("username"),
+            "display_name": resolved.get("display_name"),
+            "avatar_url": resolved.get("avatar_url"),
+            "avatar_crop_x": resolved.get("avatar_crop_x"),
+            "avatar_crop_y": resolved.get("avatar_crop_y"),
+            "avatar_zoom": resolved.get("avatar_zoom"),
+            "location": resolved.get("location"),
+        }, resource="qr_token_resolved")
+    finally:
+        db.close()
+
+
+@router.get("/users/search")
+def users_search(q: str = "", limit: int = 20):
+    """Café-owner-facing user picker. Matches username or display_name
+    case-insensitively, returns only regular user accounts (not roasters /
+    cafés). The caller is authenticated at the enclosing action (stamp);
+    search itself is intentionally open because usernames are already
+    public (/users/{username} pages render unauthenticated).
+    """
+    q = (q or "").strip()
+    if len(q) < 1:
+        return ok([], resource="users")
+    db = get_db()
+    try:
+        like = f"%{q.lower()}%"
+        rows = db.execute(
+            """
+            SELECT id, username, display_name, avatar_url,
+                avatar_crop_x, avatar_crop_y, avatar_zoom, location
+            FROM users
+            WHERE account_type = 'user'
+              AND (LOWER(username) LIKE ? OR LOWER(display_name) LIKE ?)
+            ORDER BY
+                CASE WHEN LOWER(username) = ? THEN 0
+                     WHEN LOWER(username) LIKE ? THEN 1
+                     WHEN LOWER(display_name) LIKE ? THEN 2
+                     ELSE 3 END,
+                display_name
+            LIMIT ?
+            """,
+            (like, like, q.lower(), f"{q.lower()}%", f"{q.lower()}%", max(1, min(50, int(limit)))),
+        ).fetchall()
+        return ok([dict(r) for r in rows], resource="users", total=len(rows))
+    finally:
+        db.close()
+
+
 @router.post("/cafes/{slug}/stamp")
 def cafe_stamp(slug: str, body: dict, user=Depends(get_current_user)):
-    """Café owner scans a user's QR token; award one stamp.
-    Rate limit: max 1 stamp per user per café per 24h."""
+    """Café owner directly stamps a user by id. No QR token — the owner
+    searches the user by name, confirms on the avatar card, and taps the
+    stamp button. Rate limit: max 1 stamp per user per café per 24h."""
     from fastapi import HTTPException
     import datetime as _dt
 
@@ -624,16 +696,24 @@ def cafe_stamp(slug: str, body: dict, user=Depends(get_current_user)):
     if user.get("account_type") != "cafe" or user.get("cafe_slug") != slug:
         raise HTTPException(403, "Only the café owner can award stamps at this café")
 
-    qr_token = body.get("qr_token")
-    if not qr_token:
-        raise HTTPException(422, "qr_token is required")
+    target_user_id = body.get("user_id")
+    if not target_user_id:
+        raise HTTPException(422, "user_id is required")
+    try:
+        target_user_id = int(target_user_id)
+    except (TypeError, ValueError):
+        raise HTTPException(422, "user_id must be an integer")
 
     db = get_db()
     try:
-        stamped_user = verify_qr_token(db, qr_token)
+        stamped_user = db.execute(
+            "SELECT id, username, display_name, avatar_url, account_type "
+            "FROM users WHERE id = ?",
+            (target_user_id,),
+        ).fetchone()
         if not stamped_user:
-            raise HTTPException(400, "Invalid or expired QR token")
-        if stamped_user.get("account_type") != "user":
+            raise HTTPException(404, "User not found")
+        if stamped_user["account_type"] != "user":
             raise HTTPException(400, "Only user accounts can receive stamps")
 
         # Rate limit check — 24h window
@@ -675,9 +755,9 @@ def cafe_stamp(slug: str, body: dict, user=Depends(get_current_user)):
 
         return ok({
             "user_id": stamped_user["id"],
-            "display_name": stamped_user.get("display_name"),
-            "username": stamped_user.get("username"),
-            "avatar_url": stamped_user.get("avatar_url"),
+            "display_name": stamped_user["display_name"],
+            "username": stamped_user["username"],
+            "avatar_url": stamped_user["avatar_url"],
             "stamps_progress": progress,
             "stamp_target": target,
             "reward_earned": reward_earned,

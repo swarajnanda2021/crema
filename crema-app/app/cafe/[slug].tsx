@@ -479,7 +479,7 @@ function BioTab({ cafe, baristas, isOwner, onScan }: {
             <Text style={s.statsNumber}>{cafe.stamps_given ?? 0}</Text> stamps given out · <Text style={s.statsNumber}>{cafe.rewards_redeemed ?? 0}</Text> {(cafe.stamp_reward || "rewards").toLowerCase()}{(cafe.rewards_redeemed ?? 0) === 1 ? "" : "s"} claimed · <Text style={s.statsNumber}>{cafe.stamp_target}</Text> stamps for a {(cafe.stamp_reward || "reward").toLowerCase()}.
           </Text>
           {isOwner && (
-            <Pressable onPress={onScan} style={s.scanIconBtn} hitSlop={8}>
+            <Pressable onPress={onScan} style={s.scanIconBtn} hitSlop={8} accessibilityLabel="Scan QR to stamp">
               <Camera size={18} color={t.color["text.primary"]} />
             </Pressable>
           )}

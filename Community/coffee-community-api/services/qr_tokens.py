@@ -7,9 +7,9 @@ QR identity tokens — short-lived UUIDs a user's app displays as a QR code
 so café baristas (or any seller) can scan to verify identity. Same storage
 pattern as sessions: UUID in a DB table with an expires_at timestamp.
 
-Tokens are one-shot-ish: the DB row lives for 5 minutes, any number of
-verifications within that window succeed. The client re-fetches when
-nearing expiry (handled in the frontend hook).
+Tokens are idempotent within the TTL: the DB row lives for 5 minutes, any
+number of verifications within that window succeed. The client re-fetches
+when nearing expiry (handled in the frontend hook).
 """
 
 import datetime
@@ -37,7 +37,9 @@ def issue_qr_token(db, user_id: int) -> dict:
 
 
 def verify_qr_token(db, token: str):
-    """Resolve a QR token to a user row. Returns the user dict or None if invalid/expired."""
+    """Resolve a QR token to a user row. Returns the user dict or None if
+    invalid/expired. Does NOT create a stamp — callers decide whether to
+    just preview the user or actually commit a stamp."""
     now_str = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     row = db.execute(
         "SELECT user_id FROM qr_tokens WHERE token = ? AND expires_at > ?",

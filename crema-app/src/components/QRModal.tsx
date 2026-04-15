@@ -62,29 +62,29 @@ export default function QRModal({ visible, onClose }: Props) {
 }
 
 const s = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
+  overlay: { flex: 1, backgroundColor: t.color.overlay, alignItems: "center", justifyContent: "center" },
   card: {
-    width: "92%", maxWidth: 360, backgroundColor: t.color.bg, borderRadius: 12,
+    width: "92%", maxWidth: 360, backgroundColor: t.color.bg, borderRadius: t.radius.lg,
     overflow: "hidden",
   },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 20, paddingVertical: 14,
+    paddingHorizontal: t.spacing.xl, paddingVertical: t.spacing.md,
     borderBottomWidth: 1, borderBottomColor: t.color["border.light"],
   },
-  title: { fontFamily: t.font["body.semibold"], fontSize: 16, color: t.color["text.primary"] },
-  body: { padding: 24, alignItems: "center", gap: 12 },
+  title: { fontFamily: t.font["body.semibold"], fontSize: t.size["font.lg"], color: t.color["text.primary"] },
+  body: { padding: t.spacing["2xl"], alignItems: "center", gap: t.spacing.md },
   qrWrap: {
     width: 240, height: 240,
     backgroundColor: t.color["card.front"],
     alignItems: "center", justifyContent: "center",
-    borderRadius: 8,
-    padding: 10,
+    borderRadius: t.radius.md,
+    padding: t.spacing.sm,
   },
-  displayName: { fontFamily: t.font.display, fontSize: 24, color: t.color["text.primary"], marginTop: 8 },
-  username: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.muted"] },
+  displayName: { fontFamily: t.font.display, fontSize: t.size["font.2xl"], color: t.color["text.primary"], marginTop: t.spacing.sm },
+  username: { fontFamily: t.font["body.medium"], fontSize: t.size["font.base"], color: t.color["text.muted"] },
   helpText: {
-    fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.secondary"],
-    textAlign: "center", marginTop: 12, paddingHorizontal: 16, lineHeight: 16,
+    fontFamily: t.font["body.regular"], fontSize: t.size["font.sm"], color: t.color["text.secondary"],
+    textAlign: "center", marginTop: t.spacing.md, paddingHorizontal: t.spacing.lg, lineHeight: t.lineHeight.tight,
   },
 });

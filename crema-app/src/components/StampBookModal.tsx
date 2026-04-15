@@ -70,7 +70,6 @@ export default function StampBookModal({ visible, entry, isOwnProfile, onClose }
               </Text>
             )}
 
-            {/* QR (own profile only) */}
             {isOwnProfile && (
               <View style={s.qrSection}>
                 <View style={s.qrWrap}>
