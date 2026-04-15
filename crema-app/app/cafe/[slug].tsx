@@ -122,6 +122,7 @@ export default function CafeDetailPage() {
   // Seasonal + loyalty editables
   const [editSeasonalOpen, setEditSeasonalOpen] = useState<number | null>(null);
   const [editSeasonalClose, setEditSeasonalClose] = useState<number | null>(null);
+  const [editStampsEnabled, setEditStampsEnabled] = useState(true);
   const [editStampTarget, setEditStampTarget] = useState(10);
   const [editStampReward, setEditStampReward] = useState("Free coffee");
   const [showSeasonalPicker, setShowSeasonalPicker] = useState(false);
@@ -168,6 +169,7 @@ export default function CafeDetailPage() {
         setEditLogoZoom(cafeData.logo_zoom ?? 1);
         setEditSeasonalOpen(cafeData.seasonal_open_month ?? null);
         setEditSeasonalClose(cafeData.seasonal_close_month ?? null);
+        setEditStampsEnabled(cafeData.stamps_enabled === 1);
         setEditStampTarget(cafeData.stamp_target ?? 10);
         setEditStampReward(cafeData.stamp_reward || "Free coffee");
       }
@@ -199,6 +201,7 @@ export default function CafeDetailPage() {
           logo_zoom: editLogoZoom,
           seasonal_open_month: editSeasonalOpen,
           seasonal_close_month: editSeasonalClose,
+          stamps_enabled: editStampsEnabled ? 1 : 0,
           stamp_target: editStampTarget,
           stamp_reward: editStampReward || "Free coffee",
         }),
@@ -212,7 +215,8 @@ export default function CafeDetailPage() {
     slug, editAbout, editAddress, editInstagram, editWebsite, editCover, editLogo,
     editHeroCropX, editHeroCropY, editHeroZoom,
     editLogoCropX, editLogoCropY, editLogoZoom,
-    editSeasonalOpen, editSeasonalClose, editStampTarget, editStampReward,
+    editSeasonalOpen, editSeasonalClose,
+    editStampsEnabled, editStampTarget, editStampReward,
     fetchAll,
   ]);
 
@@ -556,6 +560,8 @@ export default function CafeDetailPage() {
                   cafe={cafe}
                   isOwner={isOwner}
                   isEditing={isEditing}
+                  editStampsEnabled={editStampsEnabled}
+                  onStampsEnabledChange={setEditStampsEnabled}
                   editStampTarget={editStampTarget}
                   onStampTargetChange={setEditStampTarget}
                   editStampReward={editStampReward}
@@ -668,6 +674,8 @@ export default function CafeDetailPage() {
                 cafe={cafe}
                 isOwner={isOwner}
                 isEditing={isEditing}
+                editStampsEnabled={editStampsEnabled}
+                onStampsEnabledChange={setEditStampsEnabled}
                 editStampTarget={editStampTarget}
                 onStampTargetChange={setEditStampTarget}
                 editStampReward={editStampReward}
@@ -715,12 +723,17 @@ export default function CafeDetailPage() {
       />
 
       {/* Reward picker — choose what "X stamps for a ___" is from the
-          café's menu drinks (cafés can also type a custom reward). */}
+          café's menu drinks (cafés can also type a custom reward, or
+          opt out of the loyalty program entirely). */}
       <RewardPicker
         visible={showRewardPicker}
         value={editStampReward}
         menu={menu}
         onChange={setEditStampReward}
+        onOptOut={() => {
+          setEditStampsEnabled(false);
+          setShowRewardPicker(false);
+        }}
         onClose={() => setShowRewardPicker(false)}
       />
     </>
@@ -731,6 +744,7 @@ export default function CafeDetailPage() {
 
 function BioTab({
   cafe, isOwner, isEditing,
+  editStampsEnabled, onStampsEnabledChange,
   editStampTarget, onStampTargetChange,
   editStampReward, onOpenRewardPicker,
   onScan,
@@ -738,6 +752,8 @@ function BioTab({
   cafe: Cafe;
   isOwner: boolean;
   isEditing: boolean;
+  editStampsEnabled: boolean;
+  onStampsEnabledChange: (v: boolean) => void;
   editStampTarget: number;
   onStampTargetChange: (n: number) => void;
   editStampReward: string;
@@ -745,12 +761,15 @@ function BioTab({
   onScan: () => void;
 }) {
   const hours = cafe.hours_json;
-  const displayTarget = isEditing ? editStampTarget : cafe.stamp_target;
   const displayReward = isEditing ? editStampReward : (cafe.stamp_reward || "free coffee");
+  // Loyalty visibility:
+  //   • Public: only shown when stamps_enabled === 1.
+  //   • Editing owner: always shown — either the full stats sentence
+  //     (enabled) or an "Enable loyalty" affordance (disabled).
+  const loyaltyOn = isEditing ? editStampsEnabled : cafe.stamps_enabled === 1;
   return (
     <View style={s.tabContent}>
-      {/* Stamps stats sentence + (owner only) compact scan QR icon */}
-      {cafe.stamps_enabled === 1 && (
+      {loyaltyOn && (
         <View style={s.statsRowInline}>
           <Text style={s.statsSentence}>
             <Text style={s.statsNumber}>{cafe.stamps_given ?? 0}</Text> stamps given out ·{" "}
@@ -766,7 +785,7 @@ function BioTab({
                 {editStampTarget}
               </Text>
             ) : (
-              <Text style={s.statsNumber}>{displayTarget}</Text>
+              <Text style={s.statsNumber}>{cafe.stamp_target}</Text>
             )}{" "}stamps for a{" "}
             {isEditing ? (
               <Text style={s.editableInline} onPress={onOpenRewardPicker}>
@@ -782,6 +801,16 @@ function BioTab({
             </Pressable>
           )}
         </View>
+      )}
+      {isEditing && !loyaltyOn && (
+        <Pressable
+          onPress={() => onStampsEnabledChange(true)}
+          style={s.loyaltyEnableBtn}
+          accessibilityLabel="Enable loyalty program"
+        >
+          <Plus size={14} color={t.color["text.primary"]} strokeWidth={2} />
+          <Text style={s.loyaltyEnableText}>Enable loyalty program</Text>
+        </Pressable>
       )}
 
       {/* Hours */}
@@ -1140,22 +1169,54 @@ function SeasonalPicker({
   onChange: (open: number | null, close: number | null) => void;
   onClose: () => void;
 }) {
+  // Year-round is its own explicit toggle — previously it was derived from
+  // "o == null || c == null", which made picking a month on one side silently
+  // fail to turn year-round off. Now the state machine is: yearRound flips
+  // on/off directly; picking a month auto-flips it off and auto-fills a
+  // sensible default for the other side so the user can confirm immediately.
+  const [yearRound, setYearRound] = useState<boolean>(
+    openMonth == null || closeMonth == null,
+  );
   const [o, setO] = useState<number | null>(openMonth);
   const [c, setC] = useState<number | null>(closeMonth);
-  useEffect(() => { setO(openMonth); setC(closeMonth); }, [openMonth, closeMonth, visible]);
-  const yearRound = o == null || c == null;
+  useEffect(() => {
+    setO(openMonth);
+    setC(closeMonth);
+    setYearRound(openMonth == null || closeMonth == null);
+  }, [openMonth, closeMonth, visible]);
+
+  const pickOpen = (m: number) => {
+    setYearRound(false);
+    setO(m);
+    if (c == null) setC(m); // default close = same month so Done is valid
+  };
+  const pickClose = (m: number) => {
+    setYearRound(false);
+    setC(m);
+    if (o == null) setO(m);
+  };
+  const pickYearRound = () => {
+    setYearRound(true);
+    // Intentionally keep o / c so toggling back is painless
+  };
+
   return (
     <FloatingModal
       visible={visible}
       title="Seasonal schedule"
       onClose={onClose}
-      onConfirm={() => { onChange(yearRound ? null : o, yearRound ? null : c); onClose(); }}
+      onConfirm={() => {
+        onChange(yearRound ? null : o, yearRound ? null : c);
+        onClose();
+      }}
     >
       <Pressable
-        onPress={() => { setO(null); setC(null); }}
+        onPress={pickYearRound}
         style={[sp.yearRoundBtn, yearRound && sp.yearRoundBtnActive]}
       >
-        <Text style={[sp.yearRoundText, yearRound && sp.yearRoundTextActive]}>Open year-round</Text>
+        <Text style={[sp.yearRoundText, yearRound && sp.yearRoundTextActive]}>
+          Open year-round
+        </Text>
       </Pressable>
       <Text style={sp.label}>Opens in</Text>
       <View style={sp.monthGrid}>
@@ -1164,7 +1225,7 @@ function SeasonalPicker({
           return (
             <Pressable
               key={m}
-              onPress={() => setO(i + 1)}
+              onPress={() => pickOpen(i + 1)}
               style={[sp.monthChip, active && sp.monthChipActive]}
             >
               <Text style={[sp.monthText, active && sp.monthTextActive]}>{m}</Text>
@@ -1179,7 +1240,7 @@ function SeasonalPicker({
           return (
             <Pressable
               key={m}
-              onPress={() => setC(i + 1)}
+              onPress={() => pickClose(i + 1)}
               style={[sp.monthChip, active && sp.monthChipActive]}
             >
               <Text style={[sp.monthText, active && sp.monthTextActive]}>{m}</Text>
@@ -1192,12 +1253,13 @@ function SeasonalPicker({
 }
 
 function RewardPicker({
-  visible, value, menu, onChange, onClose,
+  visible, value, menu, onChange, onOptOut, onClose,
 }: {
   visible: boolean;
   value: string;
   menu: CafeMenuItem[];
   onChange: (v: string) => void;
+  onOptOut: () => void;
   onClose: () => void;
 }) {
   const [text, setText] = useState(value);
@@ -1243,6 +1305,11 @@ function RewardPicker({
         placeholderTextColor="rgba(104,79,68,0.4)"
         style={sp.customInput}
       />
+      {/* Opt-out entirely: hides the loyalty section from public view and
+          from the stats sentence. Can be re-enabled later from the bio. */}
+      <Pressable onPress={onOptOut} style={sp.optOutBtn}>
+        <Text style={sp.optOutText}>Opt out of loyalty program</Text>
+      </Pressable>
     </FloatingModal>
   );
 }
@@ -1380,6 +1447,22 @@ const sp = StyleSheet.create({
     color: t.color["text.primary"],
     outlineStyle: "none" as any,
   } as any,
+  // Destructive / secondary action in the picker — muted text, no fill
+  // so it reads as a step down in weight from the Done CTA.
+  optOutBtn: {
+    marginTop: t.spacing.lg,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: t.radius.sm,
+    borderWidth: 1,
+    borderColor: t.color["accent.cta"],
+    alignItems: "center",
+  },
+  optOutText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: t.size["font.sm"],
+    color: t.color["accent.cta"],
+  },
 });
 
 // ── Styles ─────────────────────────────────────────────────────────────────
@@ -1587,6 +1670,23 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   } as any,
+  loyaltyEnableBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: t.radius.sm,
+    borderWidth: 1,
+    borderColor: t.color.border,
+    backgroundColor: t.color["card.front"],
+  },
+  loyaltyEnableText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.primary"],
+  },
 
   // Baristas
   // (baristas feature removed; styles dropped)
