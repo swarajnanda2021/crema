@@ -187,6 +187,44 @@ export function ShareNodesIcon({ size = 12, color = "#D798DA" }: IconProps) {
 }
 
 /**
+ * Café tag icon — heart shape, accent purple. Matches icon_cafe.svg and
+ * the HeroHeartIcon used on user profiles. Distinguishes "Tag a café"
+ * rows from the plain location pin.
+ */
+export function PostCafeIcon({ size = 12, color = "#D798DA" }: IconProps) {
+  const h = size * (16 / 16.9667);
+  return (
+    <Svg width={size} height={h} viewBox="0 0 16.9667 16.0002" fill="none">
+      <Path
+        d="M8.48333 3.6159C6.76481 -0.649079 0.75 -0.19482 0.75 5.25632C0.75 10.7075 8.48333 15.2502 8.48333 15.2502C8.48333 15.2502 16.2167 10.7075 16.2167 5.25632C16.2167 -0.19482 10.2019 -0.649079 8.48333 3.6159Z"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/**
+ * Coffee drink icon — steaming cup. Used for the "Tag a drink" compose row.
+ */
+export function PostDrinkIcon({ size = 12, color = "#D798DA" }: IconProps) {
+  const h = size * (16.55 / 16.55);
+  return (
+    <Svg width={size} height={h} viewBox="0 0 16.55 16.55" fill="none">
+      <Path
+        d="M0.75 15.8H6.556M6.556 15.8H6.651M6.556 15.8C3.345 15.775 0.75 13.01 0.75 9.604V5.994C0.75 5.543 1.095 5.177 1.522 5.177H11.685C12.111 5.177 12.457 5.543 12.457 5.994V6.062M6.651 15.8H12.457M6.651 15.8C9.862 15.775 12.457 13.01 12.457 9.604M12.457 6.062H13.711C14.866 6.062 15.802 7.053 15.802 8.276C15.802 9.498 14.866 10.489 13.711 10.489H12.457V9.604M12.457 6.062V9.604M9.948 0.75L9.112 2.521M7.44 0.75L6.603 2.521M4.931 0.75L4.095 2.521"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+/**
  * Post location pin — Figma 151:1791. Map pin with inner circle for post location rows.
  */
 export function PostLocationPinIcon({ size = 12, color = "#D798DA" }: IconProps) {

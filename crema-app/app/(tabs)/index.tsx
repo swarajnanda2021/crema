@@ -92,22 +92,10 @@ export default function FeedPage() {
         }}
         scrollEventThrottle={400}
       >
-        {/* Compose overlay */}
-        {showCompose && (
-          <>
-            <ComposePost
-              onSubmit={handleCreatePost}
-              onCancel={() => setShowCompose(false)}
-              loading={false}
-              products={productMap ? Array.from(productMap.values()) : []}
-              user={user}
-            />
-            {items.length > 0 && <View style={s.divider} />}
-          </>
-        )}
-
-        {/* Feed items */}
-        {items.length === 0 && !showCompose ? (
+        {/* Feed items — compose is now a floating modal (see below) so the
+            feed stays in place when the FAB is tapped instead of getting
+            pushed down by an inline composer. */}
+        {items.length === 0 ? (
           <Text style={s.empty}>Nothing in the feed yet. Taste some coffees!</Text>
         ) : (
           items.slice(0, visibleCount).map((post, idx) => (
@@ -131,12 +119,40 @@ export default function FeedPage() {
         )}
       </ScrollView>
 
-      {/* FAB */}
-      {user && !showCompose && (
+      {/* FAB — always visible when the user is logged in (pre-move: the
+          FAB hid itself when the inline composer was expanded). Now the
+          composer is a floating modal so the FAB stays put; the modal's
+          own close button handles dismiss. */}
+      {user && (
         <Pressable onPress={() => setShowCompose(true)} style={s.fab}>
           <Plus size={22} color={t.color["text.on-dark"]} strokeWidth={2.5} />
         </Pressable>
       )}
+
+      {/* Compose modal — same floating overlay pattern as PostModal so the
+          composer feels consistent with the rest of the site. */}
+      <Modal
+        visible={showCompose}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCompose(false)}
+      >
+        <View style={s.editOverlayWrap}>
+          <Pressable style={s.editOverlayBg} onPress={() => setShowCompose(false)} />
+          <View style={s.editModal}>
+            <ComposePost
+              onSubmit={async (data) => {
+                await handleCreatePost(data);
+                setShowCompose(false);
+              }}
+              onCancel={() => setShowCompose(false)}
+              loading={false}
+              products={productMap ? Array.from(productMap.values()) : []}
+              user={user}
+            />
+          </View>
+        </View>
+      </Modal>
 
       {/* Edit post modal */}
       <Modal visible={!!editingPost} transparent animationType="fade" onRequestClose={() => setEditingPost(null)}>

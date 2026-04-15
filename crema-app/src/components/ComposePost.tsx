@@ -20,7 +20,7 @@ import { Camera, Plus, X } from "lucide-react-native";
 
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
 import { t } from "../tokens/useTokens";
-import { PostLocationPinIcon } from "./icons/FigmaIcons";
+import { PostCafeIcon, PostDrinkIcon, PostLocationPinIcon } from "./icons/FigmaIcons";
 import ImageUploadModal from "./ImageUploadModal";
 import TastingNoteCard from "./TastingNoteCard";
 import PostGallery, { GALLERY_ASPECT, PG_RADIUS } from "./PostGallery";
@@ -33,7 +33,7 @@ interface ComposePostProps {
   repostTarget?: any;
   products?: any[];
   user?: { username: string; display_name?: string; avatar_url?: string } | null;
-  initialData?: { body?: string; images?: string[]; location?: string };
+  initialData?: { body?: string; images?: string[]; location?: string; drink?: string | null };
 }
 
 const URL_REGEX = /https?:\/\/[^\s]+/;
@@ -69,6 +69,17 @@ export default function ComposePost({
   const [cafePickerOpen, setCafePickerOpen] = useState(false);
   const { cafes } = useCafes();
   const selectedCafe = cafeSlug ? cafes.find((c) => c.cafe_slug === cafeSlug) : null;
+
+  // Tag a drink — free-text chip (users pick common drinks from a modal
+  // or type their own). Stored into the post teaser as context; kept
+  // separate from location and café tags.
+  const [drink, setDrink] = useState<string | null>(initialData?.drink || null);
+  const [drinkPickerOpen, setDrinkPickerOpen] = useState(false);
+  const COMMON_DRINKS = [
+    "Espresso", "Cortado", "Latte", "Cappuccino", "Flat White",
+    "Americano", "Pour Over", "V60", "AeroPress", "Cold Brew",
+    "Mocha", "Macchiato", "Filter Coffee", "Affogato",
+  ];
 
   // Auto-detected mode
   const [detectedUrl, setDetectedUrl] = useState("");
@@ -169,6 +180,7 @@ export default function ComposePost({
         post_type: "note",
         location: location.trim() || null,
         cafe_slug: cafeSlug,
+        drink: drink || null,
         images: imgs,
         cover_image_url: imgs[0] || null,
       });
@@ -291,9 +303,11 @@ export default function ComposePost({
             />
           </View>
 
-          {/* Café tag (optional, links the post to a café entity) */}
+          {/* Café tag (optional, links the post to a café entity). Heart
+              icon in accent purple — distinguishes the café tag row
+              from the location pin and from the drink row below. */}
           <View style={s.locationRow}>
-            <PostLocationPinIcon size={12} color={t.color["accent.cta"]} />
+            <PostCafeIcon size={13} color={t.color.accent} />
             {selectedCafe ? (
               <Pressable onPress={() => setCafeSlug(null)} style={s.cafeChip}>
                 <Text style={s.cafeChipText}>{selectedCafe.name}</Text>
@@ -305,6 +319,47 @@ export default function ComposePost({
               </Pressable>
             )}
           </View>
+
+          {/* Drink tag (optional) — steaming-cup icon in accent purple. */}
+          <View style={s.locationRow}>
+            <PostDrinkIcon size={12} color={t.color.accent} />
+            {drink ? (
+              <Pressable onPress={() => setDrink(null)} style={s.cafeChip}>
+                <Text style={s.cafeChipText}>{drink}</Text>
+                <X size={12} color={t.color["text.muted"]} />
+              </Pressable>
+            ) : (
+              <Pressable onPress={() => setDrinkPickerOpen(true)}>
+                <Text style={s.cafePlaceholder}>Tag a drink (optional)</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {/* Drink picker modal — quick list of common drinks + custom input */}
+          {drinkPickerOpen && (
+            <Modal visible transparent animationType="fade" onRequestClose={() => setDrinkPickerOpen(false)}>
+              <View style={s.pickerOverlay}>
+                <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setDrinkPickerOpen(false)} />
+                <View style={s.pickerCard}>
+                  <View style={s.pickerHeader}>
+                    <Text style={s.pickerTitle}>Tag a drink</Text>
+                    <Pressable onPress={() => setDrinkPickerOpen(false)}><X size={18} color={t.color["text.primary"]} /></Pressable>
+                  </View>
+                  <ScrollView style={{ maxHeight: 340 }}>
+                    {COMMON_DRINKS.map((d) => (
+                      <Pressable
+                        key={d}
+                        onPress={() => { setDrink(d); setDrinkPickerOpen(false); }}
+                        style={s.pickerRow}
+                      >
+                        <Text style={s.pickerRowName}>{d}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              </View>
+            </Modal>
+          )}
 
           {/* Café picker modal */}
           {cafePickerOpen && (
