@@ -826,6 +826,41 @@ def _supply(db) -> dict:
         else 0.0
     )
 
+    # Wholesale availability (Phase 1 §2.2) — how much of the catalog
+    # roasters have flagged as wholesale-available. Spans both the
+    # scraped `products` table and owner-created `roaster_products`.
+    scraped_wholesale = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM products "
+            "WHERE wholesale_available = 1 AND available = 1"
+        ).fetchone()[0]
+    )
+    roaster_wholesale = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM roaster_products WHERE wholesale_available = 1"
+        ).fetchone()[0]
+    )
+    roaster_products_total = _n(
+        db.execute("SELECT COUNT(*) FROM roaster_products").fetchone()[0]
+    )
+    wholesale_available_total = scraped_wholesale + roaster_wholesale
+    wholesale_signal_pct = (
+        round(
+            wholesale_available_total
+            / max(products_available + roaster_products_total, 1)
+            * 100.0,
+            1,
+        )
+    )
+    roasters_offering_wholesale = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM ("
+            " SELECT DISTINCT roaster_slug FROM products WHERE wholesale_available = 1 "
+            " UNION SELECT DISTINCT roaster_slug FROM roaster_products WHERE wholesale_available = 1"
+            ")"
+        ).fetchone()[0]
+    )
+
     # Wholesale inquiries (Phase 1 §2.1) — the flagship Phase 1 B2B
     # metric. Counts how many cafés have reached out to roasters and how
     # those inquiries are being handled. Response rate = responded or
@@ -968,6 +1003,9 @@ def _supply(db) -> dict:
         "inquiry_cafes_participating": cafes_inquiring,
         "inquiry_roasters_receiving": roasters_receiving,
         "inquiry_response_rate_pct": inquiry_response_rate_pct,
+        "wholesale_available_total": wholesale_available_total,
+        "wholesale_signal_pct": wholesale_signal_pct,
+        "roasters_offering_wholesale": roasters_offering_wholesale,
     }
 
 

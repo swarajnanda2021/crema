@@ -433,6 +433,12 @@ const E = {
     "Distinct cafés that have opened at least one wholesale inquiry.",
   inquiryRoasters:
     "Distinct roasters that have received at least one wholesale inquiry.",
+  wholesaleAvailable:
+    "Products flagged as wholesale-available across both the scraped catalog and owner-created beans.",
+  wholesaleSignalPct:
+    "% of active products flagged wholesale-available. A supply-side readiness signal — low numbers mean most roasters aren't yet opting in.",
+  wholesaleRoasters:
+    "Distinct roasters with at least one wholesale-available product.",
 };
 
 function renderEngagement(stats: any, basis: any) {
@@ -750,6 +756,9 @@ function renderSupply(stats: any, basis: any) {
           <Card basis={basis} label="Inquiry Response Rate" value={`${sup.inquiry_response_rate_pct ?? 0}%`} hint="responded or archived" info={E.inquiryResponseRate} />
           <Card basis={basis} label="Cafés Inquiring" value={sup.inquiry_cafes_participating ?? 0} info={E.inquiryCafes} />
           <Card basis={basis} label="Roasters Receiving" value={sup.inquiry_roasters_receiving ?? 0} info={E.inquiryRoasters} />
+          <Card basis={basis} label="Wholesale Available" value={sup.wholesale_available_total ?? 0} info={E.wholesaleAvailable} />
+          <Card basis={basis} label="Wholesale Signal" value={`${sup.wholesale_signal_pct ?? 0}%`} hint="% of active products" info={E.wholesaleSignalPct} />
+          <Card basis={basis} label="Roasters With Wholesale" value={sup.roasters_offering_wholesale ?? 0} info={E.wholesaleRoasters} />
         </>,
       )}
     </View>

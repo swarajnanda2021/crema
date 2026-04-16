@@ -439,12 +439,17 @@ def create_roaster_product(slug: str, body: dict, user=Depends(get_current_user)
         db.execute(
             "INSERT INTO roaster_products (roaster_slug, user_id, coffee_name, roast_level, tasting_notes, "
             "origin, process, varietal, altitude_masl, bean_type, flavor_notes, weight_grams, price_inr, "
-            "image_url, product_url, description_raw, available, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
+            "image_url, product_url, description_raw, available, "
+            "wholesale_available, wholesale_minimum_kg, wholesale_note, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?)",
             (slug, user["id"], body.get("coffee_name"), body.get("roast_level"), body.get("tasting_notes"),
              body.get("origin"), body.get("process"), body.get("varietal"), body.get("altitude_masl"),
              body.get("bean_type"), body.get("flavor_notes"), body.get("weight_grams"), body.get("price_inr"),
-             body.get("image_url"), body.get("product_url"), body.get("description_raw"), now),
+             body.get("image_url"), body.get("product_url"), body.get("description_raw"),
+             1 if body.get("wholesale_available") else 0,
+             body.get("wholesale_minimum_kg"),
+             body.get("wholesale_note"),
+             now),
         )
         db.commit()
         row = db.execute("SELECT * FROM roaster_products WHERE id = ?", (db.execute("SELECT last_insert_rowid()").fetchone()[0],)).fetchone()

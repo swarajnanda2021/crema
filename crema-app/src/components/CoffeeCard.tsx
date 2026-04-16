@@ -15,6 +15,7 @@ import CoffeeLabel, { CoffeeLabelPrice } from "./CoffeeLabel";
 import { trackClick } from "../api/client";
 import { useShare } from "../hooks/useShare";
 import { useShelves } from "../hooks/useShelves";
+import { useAuth } from "../hooks/useAuth";
 import PopularityModal from "./PopularityModal";
 
 interface CoffeeCardProps {
@@ -42,6 +43,11 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
   const [shelvedAs, setShelvedAs] = useState<ShelfKey | null>(currentShelf || null);
   const { share } = useShare();
   const { addToShelf } = useShelves();
+  const { user } = useAuth();
+  // Phase 1 §2.2 — only café viewers see the wholesale signal. The field
+  // itself is public in the API; the visibility gate lives here.
+  const showWholesaleBadge =
+    user?.account_type === "cafe" && coffee.wholesale_available === 1;
 
   const imageH = Math.round(cardH * IMAGE_RATIO);
   const infoH = cardH - imageH;
@@ -67,6 +73,15 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
           <Image source={{ uri: coffee.image_url }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
         ) : (
           <View style={s.imagePlaceholder}><Coffee size={40} color="rgba(53,17,1,0.12)" /></View>
+        )}
+        {/* Wholesale badge — §2.2, café viewers only */}
+        {showWholesaleBadge && (
+          <View style={s.wholesaleBadge}>
+            <Text style={s.wholesaleBadgeText}>Wholesale</Text>
+            {coffee.wholesale_minimum_kg != null && coffee.wholesale_minimum_kg > 0 && (
+              <Text style={s.wholesaleBadgeMin}>· {coffee.wholesale_minimum_kg}kg min</Text>
+            )}
+          </View>
         )}
       </View>
 
@@ -220,6 +235,29 @@ const s = StyleSheet.create({
   },
 
   // Social badge — top right in shelf mode
+  wholesaleBadge: {
+    position: "absolute",
+    bottom: 8,
+    left: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(53,17,1,0.82)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  } as any,
+  wholesaleBadgeText: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: 10,
+    color: "#FAF8F0",
+    letterSpacing: 0.3,
+  } as any,
+  wholesaleBadgeMin: {
+    fontFamily: t.font["body.regular"],
+    fontSize: 10,
+    color: "rgba(250,248,240,0.85)",
+  } as any,
   socialBadge: {
     position: "absolute",
     top: 10,

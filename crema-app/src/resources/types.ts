@@ -512,6 +512,10 @@ export interface SupplyStats {
   inquiry_cafes_participating: number;
   inquiry_roasters_receiving: number;
   inquiry_response_rate_pct: number;
+  // Phase 1 §2.2 wholesale availability signal
+  wholesale_available_total: number;
+  wholesale_signal_pct: number;
+  roasters_offering_wholesale: number;
 }
 
 export interface TractionStats {

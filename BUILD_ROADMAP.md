@@ -45,6 +45,7 @@ Android from a single codebase.
 | **Post composer** | Floating modal, image upload, link auto-detect with preview, tasting-note card attachment, tag-a-café (pink heart icon), tag-a-drink picker, location | `ComposePost.tsx` |
 | **Buy button** | Outbound click to roaster's product URL, tracked in `click_events` (product, roaster, source page, timestamp) | `CoffeeCard.tsx`, `click_events` resource |
 | **"Interested" wholesale handshake** | Café accounts see an Interested button on the product detail page. Tapping opens a modal with an optional note, creates a `wholesale_inquiries` row, and fires a `wholesale_inquiry` notification to every roaster-account user on that slug — lands in their Business tab (§2.4) with a deep-link to the sending café's profile (where §2.6 procurement fields render). Roaster can respond / archive via `POST /api/wholesale-inquiries/{id}/respond`. | `InterestedButton.tsx`, `wholesale_inquiries` resource, `_handle_notify_wholesale_inquiry` hook, `/api/my-wholesale-inquiries` |
+| **Wholesale availability signal** | Roasters flag products as wholesale-available (3 fields: flag, minimum kg, note). Products live in both `products` and `roaster_products` tables so the columns + indexes are mirrored. A "Wholesale" badge renders bottom-left on `CoffeeCard` — visible only to café accounts. Browse adds a "Wholesale available only" filter (café viewers). `POST /api/roasters/{slug}/products` accepts the 3 fields. Inline owner-edit UI on existing products is deferred — dedicated product editor lands in a follow-up. | `products.wholesale_*`, `roaster_products.wholesale_*`, `CoffeeCard` badge, browse filter |
 | **Notifications** | Dropdown with likes, comments, follows, reposts, reply, catalog-change notifications (product added/removed, menu changed). Subject line + deep-link to source entity. | `NotificationsDropdown.tsx`, `useNotifications.ts` |
 | **Activity / Business tabs** | Roaster + café accounts see the notifications dropdown split into two tabs. Activity = social (like/comment/follow/repost/reply); Business = catalog fanout + future wholesale inquiries (§2.1) + stamp awards. Regular users still see one flat list. Unread count appears next to each tab label. | `NotificationsDropdown.tsx` `BUSINESS_TYPES` set in `useNotifications.ts` |
 | **Browse / Discover** | Roasters list with city filter, cafés list with city filter, product catalog | `app/(tabs)/browse.tsx` |
@@ -88,6 +89,7 @@ Android from a single codebase.
 | **Supply · procurement readiness** | 3 cards in Supply tab: Procurement Ready (count), Open to New Roasters (count), Procurement Readiness % (of cafés with any procurement field filled). Leading indicator for §2.1 inquiry quality. |
 | **Supply · notification split (30d)** | 3 cards tracking how much of the last month's notification volume is B2B vs social: Business Notifs (30d), Activity Notifs (30d), Business Share %. Rises as catalog activity and wholesale inquiries grow. |
 | **Supply · wholesale inquiries** | 6 cards tracking the flagship Phase 1 B2B metric: Inquiries Total, Inquiries (30d), Inquiries Open, Response Rate %, Cafés Inquiring, Roasters Receiving. Response rate = (responded + archived) / total. |
+| **Supply · wholesale signal** | 3 cards tracking the roaster-side supply readiness: Wholesale Available (count), Wholesale Signal % (of active products), Roasters With Wholesale (distinct count). Low % means roasters aren't yet opting in. |
 | **Plot carousel** | Swipe-only (no buttons), dot pager, per-section state isolation via React key. |
 | **Circular refresh button** | 44×44 dark primary fill, cream icon, matches site FAB language. |
 | **Backend** | `services/admin_stats.py` (~500 lines): 6 section functions, each wrapped to never crash the others. Daily series with zero-fill + leading-zero trim. Gated on `is_admin=1 AND username="crema"`. |
@@ -127,15 +129,15 @@ roaster response endpoint (`POST /api/wholesale-inquiries/{id}/respond`),
 Supply cards. Generic list+read are blocked on the resource to keep one
 café from peeking at another's leads.
 
-### 2.2 Wholesale availability signal
+### 2.2 Wholesale availability signal *(shipped — see §1.2 Wholesale availability signal)*
 
-Roasters mark products as wholesale-available with optional minimum
-order and a note. A "Wholesale" badge appears on the product card,
-**visible only to café accounts**. Cafés can filter the catalog for
-wholesale-available products.
-
-Requires: 3 new fields on products/roaster_profiles, conditional render
-gated on viewer's account_type.
+Fields, badge, browse filter, and admin metrics all landed. Inline
+owner-edit UI for toggling the flag on *existing* products is
+deferred — it needs a dedicated product editor rather than cramming
+toggles into the tight Figma layout of `EditableCoffeeCard` (which
+is the new-product creation form). Until that editor lands, the
+three fields are already accepted by `POST /api/roasters/{slug}/products`
+for new creations.
 
 ### 2.3 Sourcing story posts
 

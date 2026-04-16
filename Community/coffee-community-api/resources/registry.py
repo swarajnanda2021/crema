@@ -310,6 +310,12 @@ RESOURCES = {
             "description_raw": {"type": "str"},
             "available": {"type": "int", "default": 1},
             "source": {"type": "str", "default": "scraped"},
+            # Phase 1 §2.2 wholesale availability signal. Set by the
+            # roaster owner in the product editor; rendered as a badge
+            # on CoffeeCard (café viewers only).
+            "wholesale_available": {"type": "int", "default": 0},
+            "wholesale_minimum_kg": {"type": "int"},
+            "wholesale_note": {"type": "str"},
             "created_at": {"type": "str", "ro": True, "auto": "now"},
         },
         "auth": {"list": None, "read": None, "create": "required", "delete": "required"},

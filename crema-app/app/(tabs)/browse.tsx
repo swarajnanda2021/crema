@@ -11,6 +11,7 @@ import { Image } from "expo-image";
 import { Search, X, ArrowRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
+import { useAuth } from "../../src/hooks/useAuth";
 import { useCafes } from "../../src/hooks/useCafes";
 import { t } from "../../src/tokens/useTokens";
 import CoffeeList from "../../src/components/CoffeeList";
@@ -29,6 +30,10 @@ export default function BrowsePage() {
   const [selectedRoasts, setSelectedRoasts] = useState<string[]>([]);
   const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
   const [searchBarHidden, setSearchBarHidden] = useState(false);
+  // Phase 1 §2.2 — café viewers can filter to wholesale-available beans.
+  const { user } = useAuth();
+  const canSeeWholesale = user?.account_type === "cafe";
+  const [wholesaleOnly, setWholesaleOnly] = useState(false);
 
   useEffect(() => {
     apiFetchRaw("/products/popularity").then((r) => {
@@ -52,6 +57,7 @@ export default function BrowsePage() {
     if (selectedRoasters.length > 0) list = list.filter((p: any) => selectedRoasters.includes(p.roaster_slug));
     if (selectedRoasts.length > 0) list = list.filter((p: any) => selectedRoasts.includes(p.roast_level));
     if (selectedProcesses.length > 0) list = list.filter((p: any) => selectedProcesses.includes(p.process));
+    if (canSeeWholesale && wholesaleOnly) list = list.filter((p: any) => p.wholesale_available === 1);
 
     // Sort
     if (sortBy === "featured" && Object.keys(popularity).length > 0) {
@@ -62,16 +68,16 @@ export default function BrowsePage() {
       list = [...list].sort((a, b) => (b.price_inr || 0) - (a.price_inr || 0));
     }
     return list;
-  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, sortBy, popularity]);
+  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, sortBy, popularity, canSeeWholesale, wholesaleOnly]);
 
   const filteredRoasterCount = useMemo(() => new Set(filtered.map((p: any) => p.roaster_slug)).size, [filtered]);
-  const hasActiveFilters = selectedRoasters.length > 0 || selectedRoasts.length > 0 || selectedProcesses.length > 0 || !!query;
+  const hasActiveFilters = selectedRoasters.length > 0 || selectedRoasts.length > 0 || selectedProcesses.length > 0 || !!query || (canSeeWholesale && wholesaleOnly);
 
   const toggleArray = (arr: string[], setter: (v: string[]) => void, val: string) => {
     setter(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
   };
 
-  const clearAll = () => { setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]); setQuery(""); };
+  const clearAll = () => { setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]); setQuery(""); setWholesaleOnly(false); };
 
   const handleScrollDirection = useCallback((dir: "up" | "down") => {
     setSearchBarHidden(dir === "down");
@@ -110,6 +116,29 @@ export default function BrowsePage() {
                 <Pressable onPress={clearAll} style={{ marginBottom: 12 }}>
                   <Text style={s.clearText}>Clear all</Text>
                 </Pressable>
+              )}
+
+              {/* Café-only wholesale filter — §2.2 */}
+              {canSeeWholesale && (
+                <>
+                  <View style={s.filterSection}>
+                    <Pressable
+                      onPress={() => setWholesaleOnly((v) => !v)}
+                      style={s.wholesaleRow}
+                      accessibilityRole="switch"
+                      accessibilityState={{ checked: wholesaleOnly }}
+                    >
+                      <View style={[s.wholesaleBox, wholesaleOnly && s.wholesaleBoxOn]}>
+                        {wholesaleOnly && <View style={s.wholesaleBoxDot} />}
+                      </View>
+                      <Text style={s.wholesaleLabel}>Wholesale available only</Text>
+                    </Pressable>
+                    <Text style={s.wholesaleHint}>
+                      Shows products roasters have flagged as available for wholesale orders.
+                    </Text>
+                  </View>
+                  <View style={s.filterDivider} />
+                </>
               )}
 
               <View style={s.filterSection}>
@@ -560,6 +589,22 @@ const s = StyleSheet.create({
   },
   radioSelected: { borderColor: t.color["text.primary"] },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: t.color["text.primary"] },
+
+  // Wholesale-only filter (§2.2, café viewers)
+  wholesaleRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 2 } as any,
+  wholesaleBox: {
+    width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: t.color.border,
+    backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center",
+  } as any,
+  wholesaleBoxOn: { borderColor: t.color["text.primary"], backgroundColor: t.color["text.primary"] } as any,
+  wholesaleBoxDot: { width: 10, height: 2, borderRadius: 1, backgroundColor: "#FAF8F0" } as any,
+  wholesaleLabel: {
+    fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.primary"],
+  } as any,
+  wholesaleHint: {
+    fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"],
+    marginTop: 6, marginLeft: 30, lineHeight: 15,
+  } as any,
 
   // Search bar
   stickySearchWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },

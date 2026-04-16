@@ -408,6 +408,21 @@ _MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS idx_winquiries_roaster ON wholesale_inquiries(roaster_slug, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_winquiries_cafe ON wholesale_inquiries(cafe_slug, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_winquiries_status ON wholesale_inquiries(status)",
+    # ── Phase 1 §2.2 Wholesale availability signal ──────────────────────
+    # Roaster-set per-product flag + optional minimum order + note. A
+    # "Wholesale" badge renders on the product card — visible only to
+    # café accounts (filter enforced client-side; the field is public).
+    "ALTER TABLE products ADD COLUMN wholesale_available INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE products ADD COLUMN wholesale_minimum_kg INTEGER",
+    "ALTER TABLE products ADD COLUMN wholesale_note TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_products_wholesale ON products(wholesale_available)",
+    # Roaster-created beans live in a separate table — mirror the same
+    # columns so the badge and filter behave consistently across both
+    # catalog sources.
+    "ALTER TABLE roaster_products ADD COLUMN wholesale_available INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE roaster_products ADD COLUMN wholesale_minimum_kg INTEGER",
+    "ALTER TABLE roaster_products ADD COLUMN wholesale_note TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_rproducts_wholesale ON roaster_products(wholesale_available)",
 ]
 
 
