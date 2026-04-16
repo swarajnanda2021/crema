@@ -7,18 +7,44 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetchRaw } from "../api/client";
 
 export type NotificationType =
+  // ── Activity (social) ──────────────────────────────────────────────
   | "like"
   | "comment"
   | "follow"
   | "repost"
   | "comment_like"
   | "reply"
-  // Catalog change fanout (added here in Phase: catalog notifications)
+  // ── Business (catalog change fanout — follower alerts) ────────────
   | "product_added"
   | "product_removed"
   | "menu_added"
   | "menu_removed"
-  | "menu_updated";
+  | "menu_updated"
+  // ── Business (reserved for Phase 1 §2.1 / loyalty) ────────────────
+  | "wholesale_inquiry"
+  | "stamp_awarded";
+
+// Notifications split into two streams for roaster + café accounts
+// (Phase 1 §2.4). Regular user accounts see a single flat list.
+const BUSINESS_TYPES: ReadonlySet<string> = new Set<string>([
+  "product_added",
+  "product_removed",
+  "menu_added",
+  "menu_removed",
+  "menu_updated",
+  "wholesale_inquiry",
+  "stamp_awarded",
+]);
+
+export function isBusinessNotification(type: string): boolean {
+  return BUSINESS_TYPES.has(type);
+}
+
+export type NotificationCategory = "activity" | "business";
+
+export function notificationCategory(type: string): NotificationCategory {
+  return BUSINESS_TYPES.has(type) ? "business" : "activity";
+}
 
 export interface Notification {
   id: number;

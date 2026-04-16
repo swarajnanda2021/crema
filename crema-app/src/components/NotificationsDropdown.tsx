@@ -1,16 +1,24 @@
 /**
  * NotificationsDropdown — dropdown panel for notifications.
  * Same positioning and styling pattern as ProfileDropdown.
- * Shows likes, comments, follows, reposts, comment likes.
+ *
+ * Roaster + café accounts get a two-tab split (Activity | Business) —
+ * Phase 1 §2.4. Regular users see a single flat list.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, Platform, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { t, cardShadow } from "../tokens/useTokens";
 import { CroppedAvatar, openPostModal } from "./primitives";
 import { timeAgo } from "./primitives";
-import { useNotifications, Notification } from "../hooks/useNotifications";
+import {
+  useNotifications,
+  Notification,
+  NotificationCategory,
+  notificationCategory,
+} from "../hooks/useNotifications";
+import { useAuth } from "../hooks/useAuth";
 
 interface Props {
   visible: boolean;
@@ -29,6 +37,8 @@ const NOTIF_MESSAGES: Record<string, string> = {
   menu_added: "added a menu item",
   menu_removed: "removed a menu item",
   menu_updated: "updated a menu item",
+  wholesale_inquiry: "is interested in wholesale",
+  stamp_awarded: "awarded you a reward",
 };
 
 // target_slug format: "roaster:<slug>" or "cafe:<slug>"
@@ -41,8 +51,15 @@ function parseTarget(target_slug: string | null): { kind: string; slug: string }
 
 export default function NotificationsDropdown({ visible, onClose }: Props) {
   const router = useRouter();
+  const { user } = useAuth();
   const { notifications, loading, fetchNotifications, markAllRead, markRead, unreadCount } = useNotifications(true);
   const [ready, setReady] = useState(false);
+
+  // Tabbed view is only meaningful for roaster + café accounts — they're
+  // the ones who receive catalog-change / wholesale / stamp notifications
+  // alongside social ones. Regular users see everything in one flat list.
+  const hasTabs = user?.account_type === "roaster" || user?.account_type === "cafe";
+  const [tab, setTab] = useState<NotificationCategory>("activity");
 
   // Fetch full list when opened
   useEffect(() => {
@@ -54,6 +71,19 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
       setReady(false);
     }
   }, [visible]);
+
+  const { visibleList, activityUnread, businessUnread } = useMemo(() => {
+    let aUnread = 0, bUnread = 0;
+    for (const n of notifications) {
+      if (n.read) continue;
+      if (notificationCategory(n.type) === "business") bUnread++;
+      else aUnread++;
+    }
+    const filtered = hasTabs
+      ? notifications.filter((n) => notificationCategory(n.type) === tab)
+      : notifications;
+    return { visibleList: filtered, activityUnread: aUnread, businessUnread: bUnread };
+  }, [notifications, hasTabs, tab]);
 
   if (!visible) return null;
 
@@ -119,14 +149,42 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
 
         <View style={s.divider} />
 
+        {/* Activity / Business tabs — roaster + café accounts only */}
+        {hasTabs && (
+          <View style={s.tabs}>
+            <Pressable
+              onPress={() => setTab("activity")}
+              style={[s.tabBtn, tab === "activity" && s.tabBtnActive]}
+            >
+              <Text style={[s.tabText, tab === "activity" && s.tabTextActive]}>
+                Activity{activityUnread > 0 ? ` · ${activityUnread}` : ""}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setTab("business")}
+              style={[s.tabBtn, tab === "business" && s.tabBtnActive]}
+            >
+              <Text style={[s.tabText, tab === "business" && s.tabTextActive]}>
+                Business{businessUnread > 0 ? ` · ${businessUnread}` : ""}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* List */}
         <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
           {loading ? (
             <ActivityIndicator size="small" color="#D798DA" style={{ paddingVertical: 24 }} />
-          ) : notifications.length === 0 ? (
-            <Text style={s.empty}>No notifications yet</Text>
+          ) : visibleList.length === 0 ? (
+            <Text style={s.empty}>
+              {hasTabs
+                ? tab === "business"
+                  ? "No business notifications yet"
+                  : "No activity yet"
+                : "No notifications yet"}
+            </Text>
           ) : (
-            notifications.map((n, idx) => (
+            visibleList.map((n, idx) => (
               <View key={n.id}>
                 {idx > 0 && <View style={s.itemDivider} />}
                 <Pressable
@@ -222,6 +280,26 @@ const s = StyleSheet.create({
   itemTime: { fontFamily: t.font["body.regular"], fontSize: 11, color: "#A09580", marginTop: 2 },
   itemDivider: { height: 1, backgroundColor: "rgba(237,232,225,0.5)", marginHorizontal: 16 },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D798DA" },
+  tabs: {
+    flexDirection: "row",
+    gap: 0,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+  } as any,
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+    alignItems: "center",
+  } as any,
+  tabBtnActive: { borderBottomColor: "#351101" } as any,
+  tabText: {
+    fontFamily: t.font["body.medium"], fontSize: 12, color: "#A09580",
+    letterSpacing: 0.3,
+  } as any,
+  tabTextActive: { color: "#351101", fontFamily: t.font["body.semibold"] } as any,
   avatarFallback: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: "#351101", alignItems: "center", justifyContent: "center",

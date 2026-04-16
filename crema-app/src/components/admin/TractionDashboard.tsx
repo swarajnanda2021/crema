@@ -415,6 +415,12 @@ const E = {
     "Cafés that explicitly marked themselves open to new roasters — the top prospecting signal.",
   procurementReadiness:
     "% of cafés with any procurement profile field filled. A higher share means richer signals flow to roasters when a café opens an 'Interested' inquiry.",
+  businessNotifs:
+    "Catalog-change, wholesale, and stamp notifications fired in the last 30 days. Surfaced to roaster + café accounts under the Business tab.",
+  activityNotifs:
+    "Social notifications (likes, comments, follows, replies, reposts) fired in the last 30 days.",
+  businessShare:
+    "Business share of all notifications fired in the last 30 days. Higher share = more B2B flow relative to social engagement.",
 };
 
 function renderEngagement(stats: any, basis: any) {
@@ -723,6 +729,9 @@ function renderSupply(stats: any, basis: any) {
           <Card basis={basis} label="Procurement Ready" value={sup.cafes_procurement_ready ?? 0} info={E.procurementReady} />
           <Card basis={basis} label="Open to New Roasters" value={sup.cafes_open_to_new_roasters ?? 0} info={E.procurementOpen} />
           <Card basis={basis} label="Procurement Readiness" value={`${sup.procurement_readiness_pct ?? 0}%`} hint="% of cafés with procurement profile filled" info={E.procurementReadiness} />
+          <Card basis={basis} label="Business Notifs (30d)" value={sup.business_notifs_30d ?? 0} info={E.businessNotifs} />
+          <Card basis={basis} label="Activity Notifs (30d)" value={sup.activity_notifs_30d ?? 0} info={E.activityNotifs} />
+          <Card basis={basis} label="Business Share" value={`${sup.business_share_pct ?? 0}%`} hint="B2B vs social" info={E.businessShare} />
         </>,
       )}
     </View>

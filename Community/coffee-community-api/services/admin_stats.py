@@ -826,6 +826,44 @@ def _supply(db) -> dict:
         else 0.0
     )
 
+    # Business-stream notification volume (Phase 1 §2.4) — counts all
+    # catalog-change / wholesale / stamp notifications fired in the last
+    # 30 days. The higher this number relative to activity notifications,
+    # the more the ecosystem is behaving like a B2B tool rather than a
+    # pure social feed. Note: excluded from users' Activity tab; surfaced
+    # to roaster + café accounts under their Business tab.
+    business_types = (
+        "product_added", "product_removed",
+        "menu_added", "menu_removed", "menu_updated",
+        "wholesale_inquiry", "stamp_awarded",
+    )
+    since_30 = _days_ago(30)
+    q_marks = ",".join("?" * len(business_types))
+    business_notifs_30d = _n(
+        db.execute(
+            f"SELECT COUNT(*) FROM notifications "
+            f"WHERE type IN ({q_marks}) AND created_at > ?",
+            (*business_types, since_30),
+        ).fetchone()[0]
+    )
+    activity_notifs_30d = _n(
+        db.execute(
+            f"SELECT COUNT(*) FROM notifications "
+            f"WHERE type NOT IN ({q_marks}) AND created_at > ?",
+            (*business_types, since_30),
+        ).fetchone()[0]
+    )
+    business_share_pct = (
+        round(
+            business_notifs_30d
+            / (business_notifs_30d + activity_notifs_30d)
+            * 100.0,
+            1,
+        )
+        if (business_notifs_30d + activity_notifs_30d)
+        else 0.0
+    )
+
     # Procurement profile readiness (Phase 1 §2.6) — tracks how many café
     # owners have filled in at least one of the three procurement fields.
     # This is the leading indicator for §2.1 "Interested" inquiry conversion:
@@ -870,6 +908,9 @@ def _supply(db) -> dict:
         "cafes_procurement_ready": cafes_procurement_ready,
         "cafes_open_to_new_roasters": cafes_open_to_new,
         "procurement_readiness_pct": procurement_readiness_pct,
+        "business_notifs_30d": business_notifs_30d,
+        "activity_notifs_30d": activity_notifs_30d,
+        "business_share_pct": business_share_pct,
     }
 
 

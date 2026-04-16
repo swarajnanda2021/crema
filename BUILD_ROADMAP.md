@@ -45,6 +45,7 @@ Android from a single codebase.
 | **Post composer** | Floating modal, image upload, link auto-detect with preview, tasting-note card attachment, tag-a-café (pink heart icon), tag-a-drink picker, location | `ComposePost.tsx` |
 | **Buy button** | Outbound click to roaster's product URL, tracked in `click_events` (product, roaster, source page, timestamp) | `CoffeeCard.tsx`, `click_events` resource |
 | **Notifications** | Dropdown with likes, comments, follows, reposts, reply, catalog-change notifications (product added/removed, menu changed). Subject line + deep-link to source entity. | `NotificationsDropdown.tsx`, `useNotifications.ts` |
+| **Activity / Business tabs** | Roaster + café accounts see the notifications dropdown split into two tabs. Activity = social (like/comment/follow/repost/reply); Business = catalog fanout + future wholesale inquiries (§2.1) + stamp awards. Regular users still see one flat list. Unread count appears next to each tab label. | `NotificationsDropdown.tsx` `BUSINESS_TYPES` set in `useNotifications.ts` |
 | **Browse / Discover** | Roasters list with city filter, cafés list with city filter, product catalog | `app/(tabs)/browse.tsx` |
 | **QR identity** | Short-lived QR tokens (5-min TTL), displayed in profile dropdown "Show QR" and inside stamp book modals | `useQRToken.ts`, `QRModal.tsx`, `services/qr_tokens.py` |
 
@@ -84,6 +85,7 @@ Android from a single codebase.
 | **Ranked tables** | MetricTable for top-clicked products, clicks by source, top cafés by stamps, top roasters/cafés by followers. Scrollable inside carousel cards. |
 | **Retention cohort grid** | Weekly signup cohorts with D1/D7/D30 retention %, heat-tinted cells. Writer retention + stamp-cohort retention. |
 | **Supply · procurement readiness** | 3 cards in Supply tab: Procurement Ready (count), Open to New Roasters (count), Procurement Readiness % (of cafés with any procurement field filled). Leading indicator for §2.1 inquiry quality. |
+| **Supply · notification split (30d)** | 3 cards tracking how much of the last month's notification volume is B2B vs social: Business Notifs (30d), Activity Notifs (30d), Business Share %. Rises as catalog activity and wholesale inquiries grow. |
 | **Plot carousel** | Swipe-only (no buttons), dot pager, per-section state isolation via React key. |
 | **Circular refresh button** | 44×44 dark primary fill, cream icon, matches site FAB language. |
 | **Backend** | `services/admin_stats.py` (~500 lines): 6 section functions, each wrapped to never crash the others. Daily series with zero-fill + leading-zero trim. Gated on `is_admin=1 AND username="crema"`. |
@@ -145,15 +147,13 @@ page.
 Requires: new `post_type: "sourcing_story"`, increased teaser limit,
 rich card renderer.
 
-### 2.4 Business notification tab
+### 2.4 Business notification tab *(shipped — see §1.2 Activity / Business tabs)*
 
-Split the notification dropdown into Activity (existing social
-notifications) and Business (wholesale inquiries, stamp-awarded
-confirmations, catalog-change alerts, future payment/delivery
-notifications). Visible only to roaster + café accounts.
-
-Requires: notification type enum extension, tab UI in
-NotificationsDropdown, business-type rendering + deep-linking.
+The tab split, categorization helper (`BUSINESS_TYPES` in
+`useNotifications.ts`), per-tab unread counts, and admin Supply-tab
+metrics all landed. `wholesale_inquiry` and `stamp_awarded` types are
+pre-reserved so §2.1 and future loyalty work can fire them without
+another enum change.
 
 ### 2.5 Brew method cards
 

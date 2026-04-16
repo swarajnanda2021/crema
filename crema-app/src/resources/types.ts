@@ -475,6 +475,10 @@ export interface SupplyStats {
   cafes_procurement_ready: number;
   cafes_open_to_new_roasters: number;
   procurement_readiness_pct: number;
+  // Phase 1 §2.4 business vs activity notification split (30d)
+  business_notifs_30d: number;
+  activity_notifs_30d: number;
+  business_share_pct: number;
 }
 
 export interface TractionStats {
