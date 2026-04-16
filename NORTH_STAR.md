@@ -74,15 +74,22 @@ exists specifically to give these cafés optionality — the ability to
 see who else is out there, signal interest, and diversify before a
 supply crisis forces their hand.
 
-**Nada Coffee Roasters (Anjuna, Goa)** gets almost no traffic to their
-website. Blue Tokai owns consumer mindshare. Nada roasts in 600g
-batches — capacity-constrained, margin-sensitive, unable to supply
-cafés at bulk rates except in emergencies. When they introduce a new
+**Micro-roaster invisibility (recurring theme).** Nada Coffee Roasters
+(Anjuna, Goa) gets almost no traffic to their website. G-Shot Coffee
+reports the same. This isn't an isolated case — it's structural.
+Micro-roasters don't spend on ads because they don't trust that paid
+reach will convert in a market where Blue Tokai owns consumer
+mindshare. The result: excellent product, zero distribution. They roast
+in 600g batches, source at ~₹1,000/kg green, and can't supply cafés at
+competitive bulk rates except in emergencies. When they introduce a new
 coffee, they don't want to lead with tasting notes (too subjective).
 They want to tell the sourcing story — the farm, the relationship, the
 processing — and recommend a brew method. Micro-roasters compete on
 story and quality, not volume. They need a megaphone, and that
-megaphone needs to speak their language, not the consumer's.
+megaphone needs to speak their language, not the consumer's. Crema is
+that megaphone — a discovery channel they don't have to pay for
+upfront, where the audience is already there because the consumer and
+café sides of the platform give people a reason to browse.
 
 **Blue Tokai** has 10-year fixed-cost farm contracts, a massive product
 catalog, and retail stores. They set the consumer expectation. Crema
