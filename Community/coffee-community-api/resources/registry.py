@@ -70,6 +70,9 @@ RESOURCES = {
             "repost_of_id": {"type": "int"},
             "repost_comment": {"type": "str"},
             "tasting_note_id": {"type": "int"},
+            # Phase 1 §2.3 — long-form body for sourcing stories. Null
+            # for every other post_type.
+            "body_full": {"type": "str"},
             "is_featured": {"type": "int", "default": 0},
             "featured_order": {"type": "int"},
             "is_pinned": {"type": "int", "default": 0},

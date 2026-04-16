@@ -41,8 +41,9 @@ Android from a single codebase.
 | **Tasting journal** | Sliders (acidity, body, sweetness, aftertaste 1-5), flavor tags, full brew recipe (method, dose, yield, water, time, temp, grind, ratio), blend components | `tasting_notes` resource |
 | **Coffee shelf** | Open Bags / On the List, horizontal card carousel, move between shelves, remove | `shelf_entries` resource, `useShelves.ts` |
 | **Stamp book** | Per-café stamp progress (dots UI), QR display for barista scan, reward tracking | `StampBookList.tsx`, `StampBookModal.tsx` |
-| **Social feed** | Posts (articles, notes, reposts, tasting-note auto-posts), likes, threaded comments with replies, notifications | `roaster_posts` + `post_likes` + `post_comments` resources |
-| **Post composer** | Floating modal, image upload, link auto-detect with preview, tasting-note card attachment, tag-a-café (pink heart icon), tag-a-drink picker, location | `ComposePost.tsx` |
+| **Social feed** | Posts (articles, notes, reposts, tasting-note auto-posts, sourcing stories), likes, threaded comments with replies, notifications | `roaster_posts` + `post_likes` + `post_comments` resources |
+| **Sourcing story post type** | `post_type = "sourcing_story"` with a dedicated `body_full` column on `roaster_posts`. Teaser stays the excerpt shown in the feed; `body_full` is the expanded narrative (farm/producer/process). PostCard renders a "Read full story →" affordance that toggles the long body inline. Roasters opt in from the composer. | `roaster_posts.body_full`, PostCard `isSourcingStory` branch, `ComposePost` story toggle |
+| **Post composer** | Floating modal, image upload, link auto-detect with preview, tasting-note card attachment, tag-a-café (pink heart icon), tag-a-drink picker, location. Roaster accounts get a "Sourcing story" toggle (§2.3) that promotes the post to long-form with a dedicated body_full textarea (min 200, max 5000 chars). | `ComposePost.tsx` |
 | **Buy button** | Outbound click to roaster's product URL, tracked in `click_events` (product, roaster, source page, timestamp) | `CoffeeCard.tsx`, `click_events` resource |
 | **"Interested" wholesale handshake** | Café accounts see an Interested button on the product detail page. Tapping opens a modal with an optional note, creates a `wholesale_inquiries` row, and fires a `wholesale_inquiry` notification to every roaster-account user on that slug — lands in their Business tab (§2.4) with a deep-link to the sending café's profile (where §2.6 procurement fields render). Roaster can respond / archive via `POST /api/wholesale-inquiries/{id}/respond`. | `InterestedButton.tsx`, `wholesale_inquiries` resource, `_handle_notify_wholesale_inquiry` hook, `/api/my-wholesale-inquiries` |
 | **Wholesale availability signal** | Roasters flag products as wholesale-available (3 fields: flag, minimum kg, note). Products live in both `products` and `roaster_products` tables so the columns + indexes are mirrored. A "Wholesale" badge renders bottom-left on `CoffeeCard` — visible only to café accounts. Browse adds a "Wholesale available only" filter (café viewers). `POST /api/roasters/{slug}/products` accepts the 3 fields. Inline owner-edit UI on existing products is deferred — dedicated product editor lands in a follow-up. | `products.wholesale_*`, `roaster_products.wholesale_*`, `CoffeeCard` badge, browse filter |
@@ -90,6 +91,7 @@ Android from a single codebase.
 | **Supply · notification split (30d)** | 3 cards tracking how much of the last month's notification volume is B2B vs social: Business Notifs (30d), Activity Notifs (30d), Business Share %. Rises as catalog activity and wholesale inquiries grow. |
 | **Supply · wholesale inquiries** | 6 cards tracking the flagship Phase 1 B2B metric: Inquiries Total, Inquiries (30d), Inquiries Open, Response Rate %, Cafés Inquiring, Roasters Receiving. Response rate = (responded + archived) / total. |
 | **Supply · wholesale signal** | 3 cards tracking the roaster-side supply readiness: Wholesale Available (count), Wholesale Signal % (of active products), Roasters With Wholesale (distinct count). Low % means roasters aren't yet opting in. |
+| **Supply · sourcing stories** | 3 cards tracking narrative investment: Sourcing Stories (total), Stories (30d), Story Share % (of roaster posts). |
 | **Plot carousel** | Swipe-only (no buttons), dot pager, per-section state isolation via React key. |
 | **Circular refresh button** | 44×44 dark primary fill, cream icon, matches site FAB language. |
 | **Backend** | `services/admin_stats.py` (~500 lines): 6 section functions, each wrapped to never crash the others. Daily series with zero-fill + leading-zero trim. Gated on `is_admin=1 AND username="crema"`. |
@@ -139,16 +141,12 @@ is the new-product creation form). Until that editor lands, the
 three fields are already accepted by `POST /api/roasters/{slug}/products`
 for new creations.
 
-### 2.3 Sourcing story posts
+### 2.3 Sourcing story posts *(shipped — see §1.2 Sourcing story post type)*
 
-A new long-form post type for roasters. 2000+ character body, multiple
-photos, auto-detected URLs, tagged product and origin. Renders as a
-richer card in the feed with a "Read full story" expansion. Lives on
-the roaster profile, in followers' feeds, and linked from the product
-page.
-
-Requires: new `post_type: "sourcing_story"`, increased teaser limit,
-rich card renderer.
+Column, type, composer toggle, and expandable card render all landed.
+Tagged-product + tagged-origin UI (the "tie a story to a specific
+bean and producer") was not part of this checkpoint — that's additive
+and lands cleanly once the next editor pass touches the composer.
 
 ### 2.4 Business notification tab *(shipped — see §1.2 Activity / Business tabs)*
 

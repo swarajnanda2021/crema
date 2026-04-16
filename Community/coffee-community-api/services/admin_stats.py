@@ -826,6 +826,32 @@ def _supply(db) -> dict:
         else 0.0
     )
 
+    # Sourcing stories (Phase 1 §2.3) — long-form roaster narrative
+    # posts. Counts total + share of roaster posts, plus the 30d window.
+    sourcing_stories_total = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM roaster_posts WHERE post_type = 'sourcing_story'"
+        ).fetchone()[0]
+    )
+    sourcing_stories_30d = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM roaster_posts "
+            "WHERE post_type = 'sourcing_story' AND created_at > ?",
+            (_days_ago(30),),
+        ).fetchone()[0]
+    )
+    roaster_sourced_posts = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM roaster_posts "
+            "WHERE roaster_slug NOT LIKE 'user_%' AND roaster_slug NOT LIKE 'cafe_%'"
+        ).fetchone()[0]
+    )
+    sourcing_story_share_pct = (
+        round(sourcing_stories_total / roaster_sourced_posts * 100.0, 1)
+        if roaster_sourced_posts
+        else 0.0
+    )
+
     # Wholesale availability (Phase 1 §2.2) — how much of the catalog
     # roasters have flagged as wholesale-available. Spans both the
     # scraped `products` table and owner-created `roaster_products`.
@@ -1006,6 +1032,9 @@ def _supply(db) -> dict:
         "wholesale_available_total": wholesale_available_total,
         "wholesale_signal_pct": wholesale_signal_pct,
         "roasters_offering_wholesale": roasters_offering_wholesale,
+        "sourcing_stories_total": sourcing_stories_total,
+        "sourcing_stories_30d": sourcing_stories_30d,
+        "sourcing_story_share_pct": sourcing_story_share_pct,
     }
 
 

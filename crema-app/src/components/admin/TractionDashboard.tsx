@@ -439,6 +439,12 @@ const E = {
     "% of active products flagged wholesale-available. A supply-side readiness signal — low numbers mean most roasters aren't yet opting in.",
   wholesaleRoasters:
     "Distinct roasters with at least one wholesale-available product.",
+  sourcingStories:
+    "Long-form roaster posts flagged as sourcing stories (post_type = sourcing_story). 200+ chars of narrative beyond the feed excerpt.",
+  sourcingStories30d:
+    "Sourcing stories published in the last 30 days. Leading indicator of roaster-side narrative investment.",
+  sourcingStoryShare:
+    "% of roaster posts that are sourcing stories. Rising share = roasters leaning into provenance-forward storytelling.",
 };
 
 function renderEngagement(stats: any, basis: any) {
@@ -759,6 +765,9 @@ function renderSupply(stats: any, basis: any) {
           <Card basis={basis} label="Wholesale Available" value={sup.wholesale_available_total ?? 0} info={E.wholesaleAvailable} />
           <Card basis={basis} label="Wholesale Signal" value={`${sup.wholesale_signal_pct ?? 0}%`} hint="% of active products" info={E.wholesaleSignalPct} />
           <Card basis={basis} label="Roasters With Wholesale" value={sup.roasters_offering_wholesale ?? 0} info={E.wholesaleRoasters} />
+          <Card basis={basis} label="Sourcing Stories" value={sup.sourcing_stories_total ?? 0} info={E.sourcingStories} />
+          <Card basis={basis} label="Stories (30d)" value={sup.sourcing_stories_30d ?? 0} info={E.sourcingStories30d} />
+          <Card basis={basis} label="Story Share" value={`${sup.sourcing_story_share_pct ?? 0}%`} hint="% of roaster posts" info={E.sourcingStoryShare} />
         </>,
       )}
     </View>

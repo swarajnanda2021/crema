@@ -55,7 +55,7 @@ export interface Post {
   teaser: string;
   external_url: string | null;
   cover_image_url: string | null;
-  post_type: "article" | "note" | "repost" | "tasting_note";
+  post_type: "article" | "note" | "repost" | "tasting_note" | "sourcing_story";
   location: string | null;
   cafe_slug: string | null;
   images: string[];
@@ -63,6 +63,9 @@ export interface Post {
   repost_comment: string | null;
   original_post: Post | null;
   tasting_note_id: number | null;
+  // Phase 1 §2.3 — long-form body for sourcing stories. Null for every
+  // other post_type. The `teaser` field is still the feed-surface excerpt.
+  body_full: string | null;
   is_featured: boolean | number;
   is_pinned: boolean | number;
   featured_order: number | null;
@@ -516,6 +519,10 @@ export interface SupplyStats {
   wholesale_available_total: number;
   wholesale_signal_pct: number;
   roasters_offering_wholesale: number;
+  // Phase 1 §2.3 sourcing stories
+  sourcing_stories_total: number;
+  sourcing_stories_30d: number;
+  sourcing_story_share_pct: number;
 }
 
 export interface TractionStats {

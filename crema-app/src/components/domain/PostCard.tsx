@@ -7,6 +7,7 @@
  * On iOS/Swift: equivalent SwiftUI view composing the same primitives.
  */
 
+import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
@@ -39,11 +40,14 @@ export default function PostCard({
   const isPinned = !!post.is_pinned;
   const isArticle = post.post_type === "article";
   const isRepost = post.post_type === "repost";
+  const isSourcingStory = post.post_type === "sourcing_story";
+  const [storyExpanded, setStoryExpanded] = useState(false);
 
   const subtitleText = isPinned ? "Pinned"
     : post.post_type === "tasting_note" ? "Posted a tasting note"
     : post.post_type === "note" ? "Shared a moment"
     : isRepost ? "Reposted"
+    : isSourcingStory ? "Shared a sourcing story"
     : "Shared an article";
 
   const author = post.author || {};
@@ -100,6 +104,25 @@ export default function PostCard({
       <Pressable onPress={isRepost ? undefined : handleOpen} style={s.bodyWrap}>
         <Text style={s.body}>{post.teaser}</Text>
       </Pressable>
+
+      {/* Sourcing story — expandable long-form body (§2.3). The teaser
+         above is the excerpt; body_full is the full narrative. */}
+      {isSourcingStory && post.body_full && (
+        <View style={s.storyWrap}>
+          {storyExpanded ? (
+            <>
+              <Text style={s.storyBody}>{post.body_full}</Text>
+              <Pressable onPress={() => setStoryExpanded(false)} hitSlop={8}>
+                <Text style={s.storyToggle}>Show less</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Pressable onPress={() => setStoryExpanded(true)} hitSlop={8}>
+              <Text style={s.storyToggle}>Read full story →</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
 
       {/* Location */}
       {post.location && (
@@ -231,4 +254,15 @@ const s = StyleSheet.create({
 
   // Gallery
   galleryWrap: { paddingHorizontal: 20 },
+
+  // Sourcing story (§2.3)
+  storyWrap: { paddingHorizontal: 20, marginBottom: 14 } as any,
+  storyBody: {
+    fontFamily: t.font["body.regular"], fontSize: 15,
+    color: t.color["text.primary"], lineHeight: 22, marginBottom: 8,
+  } as any,
+  storyToggle: {
+    fontFamily: t.font["body.semibold"], fontSize: 12,
+    color: t.color.accent, letterSpacing: 0.3,
+  } as any,
 });

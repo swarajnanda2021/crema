@@ -423,6 +423,12 @@ _MIGRATIONS = [
     "ALTER TABLE roaster_products ADD COLUMN wholesale_minimum_kg INTEGER",
     "ALTER TABLE roaster_products ADD COLUMN wholesale_note TEXT",
     "CREATE INDEX IF NOT EXISTS idx_rproducts_wholesale ON roaster_products(wholesale_available)",
+    # ── Phase 1 §2.3 Sourcing story posts ──────────────────────────────
+    # Long-form body for post_type = 'sourcing_story'. The existing
+    # `teaser` column stays the short excerpt shown in the feed;
+    # body_full holds the expanded content (up to ~5000 chars, no hard
+    # SQL limit — enforced client-side). Null for any other post type.
+    "ALTER TABLE roaster_posts ADD COLUMN body_full TEXT",
 ]
 
 

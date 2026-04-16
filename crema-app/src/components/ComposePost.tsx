@@ -65,6 +65,16 @@ export default function ComposePost({
   // Core state
   const [teaser, setTeaser] = useState(initialData?.body || "");
   const [location, setLocation] = useState(initialData?.location || "");
+  // Phase 1 §2.3 — sourcing story mode (roaster accounts only). The
+  // teaser becomes an excerpt; bodyFull is the expanded narrative. When
+  // `storyMode` is true, we submit post_type: "sourcing_story" +
+  // body_full instead of the regular note/article flow.
+  const canStoryMode = user?.account_type === "roaster";
+  const [storyMode, setStoryMode] = useState(
+    initialData?.post_type === "sourcing_story",
+  );
+  const [bodyFull, setBodyFull] = useState(initialData?.body_full || "");
+  const STORY_MAX = 5000;
   const [cafeSlug, setCafeSlug] = useState<string | null>(null);
   const [cafePickerOpen, setCafePickerOpen] = useState(false);
   const { cafes } = useCafes();
@@ -149,6 +159,11 @@ export default function ComposePost({
     if (loading) return false;
     if (isRepost) return true;
     if (!teaser.trim() || teaser.trim().length > 300) return false;
+    if (storyMode) {
+      const len = bodyFull.trim().length;
+      if (len < 200) return false; // sourcing stories are long-form
+      if (len > STORY_MAX) return false;
+    }
     return true;
   })();
 
@@ -161,6 +176,18 @@ export default function ComposePost({
         post_type: "repost",
         repost_of_id: repostTarget.id,
         repost_comment: teaser.trim() || null,
+      });
+      return;
+    }
+    if (storyMode) {
+      const imgs = imageUrls.filter(Boolean);
+      await onSubmit({
+        title: teaser.trim().slice(0, 80) || "Sourcing story",
+        teaser: teaser.trim(),
+        body_full: bodyFull.trim(),
+        post_type: "sourcing_story",
+        images: imgs,
+        cover_image_url: imgs[0] || null,
       });
       return;
     }
@@ -222,12 +249,48 @@ export default function ComposePost({
         style={s.teaserInput}
         value={teaser}
         onChangeText={setTeaser}
-        placeholder={isRepost ? "Add your thoughts..." : "What's on your mind? Paste a link to share an article."}
+        placeholder={
+          isRepost
+            ? "Add your thoughts..."
+            : storyMode
+              ? "Write an excerpt for the feed (one or two sentences)..."
+              : "What's on your mind? Paste a link to share an article."
+        }
         placeholderTextColor="#A09580"
         multiline
         maxLength={300}
       />
       <Text style={s.charCount}>{teaser.length}/300</Text>
+
+      {/* Roaster-only: promote post to sourcing story (§2.3) */}
+      {canStoryMode && !isRepost && (
+        <Pressable
+          onPress={() => setStoryMode((v) => !v)}
+          style={[s.storyToggleBtn, storyMode && s.storyToggleBtnOn]}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: storyMode }}
+        >
+          <Text style={[s.storyToggleText, storyMode && s.storyToggleTextOn]}>
+            {storyMode ? "Sourcing story · on" : "Make this a sourcing story"}
+          </Text>
+        </Pressable>
+      )}
+
+      {/* Sourcing story long-form body */}
+      {storyMode && (
+        <>
+          <TextInput
+            style={s.storyBodyInput}
+            value={bodyFull}
+            onChangeText={setBodyFull}
+            placeholder="Tell the full story — the farm, the producer, how you chose the lot, the process, what makes this origin matter..."
+            placeholderTextColor="#A09580"
+            multiline
+            maxLength={STORY_MAX}
+          />
+          <Text style={s.charCount}>{bodyFull.length}/{STORY_MAX} (min 200 to publish)</Text>
+        </>
+      )}
 
       {/* ── ARTICLE MODE: link preview with title overlay ── */}
       {isArticleMode && (
@@ -520,6 +583,27 @@ const s = StyleSheet.create({
   // Teaser
   teaserInput: { fontFamily: t.font["body.regular"], fontSize: 16.8, color: "#351101", lineHeight: 23.5, minHeight: 48, textAlignVertical: "top" } as any,
   charCount: { fontFamily: t.font["body.regular"], fontSize: 10, color: "#A09580", textAlign: "right", marginTop: 2, marginBottom: 8 } as any,
+  // Sourcing story mode (§2.3)
+  storyToggleBtn: {
+    alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 14, borderWidth: 1, borderColor: "#D1C7B3",
+    marginBottom: 8,
+  } as any,
+  storyToggleBtnOn: {
+    backgroundColor: "#351101", borderColor: "#351101",
+  } as any,
+  storyToggleText: {
+    fontFamily: t.font["body.medium"], fontSize: 11,
+    color: "#684F44", letterSpacing: 0.3,
+  } as any,
+  storyToggleTextOn: { color: "#FAF8F0", fontFamily: t.font["body.semibold"] } as any,
+  storyBodyInput: {
+    fontFamily: t.font["body.regular"], fontSize: 15, color: "#351101",
+    lineHeight: 22, minHeight: 180, textAlignVertical: "top",
+    backgroundColor: "rgba(53,17,1,0.04)",
+    borderWidth: 1, borderColor: "rgba(53,17,1,0.1)",
+    borderRadius: 8, padding: 12, marginTop: 6,
+  } as any,
   // Link preview (article mode)
   linkSection: { marginBottom: 8 },
   previewCard: { borderRadius: 8, overflow: "hidden", backgroundColor: "#EFE9DB" } as any,
