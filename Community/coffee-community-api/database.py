@@ -383,6 +383,13 @@ _MIGRATIONS = [
     # "crema" account gets is_admin=1. Defense in depth: endpoint checks both
     # is_admin=1 AND username="crema".
     "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0",
+    # ── Phase 1 §2.6 Café procurement profile ─────────────────────────────
+    # Optional café-owner-editable fields that qualify a wholesale lead.
+    # Exposed publicly on the café profile (owner edit) so roasters
+    # receiving a §2.1 "Interested" inquiry can assess volume + fit.
+    "ALTER TABLE cafe_profiles ADD COLUMN monthly_volume_kg INTEGER",
+    "ALTER TABLE cafe_profiles ADD COLUMN open_to_new_roasters INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE cafe_profiles ADD COLUMN procurement_note TEXT",
 ]
 
 

@@ -826,6 +826,31 @@ def _supply(db) -> dict:
         else 0.0
     )
 
+    # Procurement profile readiness (Phase 1 §2.6) — tracks how many café
+    # owners have filled in at least one of the three procurement fields.
+    # This is the leading indicator for §2.1 "Interested" inquiry conversion:
+    # a café with no volume/note/openness signal is a poor lead for roasters.
+    cafes_procurement_ready = _n(
+        db.execute(
+            """
+            SELECT COUNT(*) FROM cafe_profiles
+            WHERE monthly_volume_kg IS NOT NULL
+               OR open_to_new_roasters = 1
+               OR (procurement_note IS NOT NULL AND procurement_note != '')
+            """
+        ).fetchone()[0]
+    )
+    cafes_open_to_new = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM cafe_profiles WHERE open_to_new_roasters = 1"
+        ).fetchone()[0]
+    )
+    procurement_readiness_pct = (
+        round(cafes_procurement_ready / cafes_total * 100.0, 1)
+        if cafes_total
+        else 0.0
+    )
+
     return {
         "roasters_total": roasters_known,
         "roasters_with_profiles": roasters_total,
@@ -842,6 +867,9 @@ def _supply(db) -> dict:
         "avg_menu_items_per_cafe": avg_menu_items,
         "cafes_using_catalog_roasters": cafes_using_catalog,
         "ecosystem_density_pct": ecosystem_density_pct,
+        "cafes_procurement_ready": cafes_procurement_ready,
+        "cafes_open_to_new_roasters": cafes_open_to_new,
+        "procurement_readiness_pct": procurement_readiness_pct,
     }
 
 

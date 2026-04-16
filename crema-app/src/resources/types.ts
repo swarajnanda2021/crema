@@ -259,6 +259,11 @@ export interface Cafe {
   stamps_enabled: number;
   stamp_target: number;
   stamp_reward: string;
+  // Phase 1 §2.6 — procurement profile (owner-only, shared with roasters
+  // when the café opens a wholesale inquiry §2.1).
+  monthly_volume_kg: number | null;
+  open_to_new_roasters: number;
+  procurement_note: string | null;
   stamps_given?: number;
   rewards_redeemed?: number;
   created_at: string;
@@ -466,6 +471,10 @@ export interface SupplyStats {
   avg_menu_items_per_cafe: number;
   cafes_using_catalog_roasters: number;
   ecosystem_density_pct: number;
+  // Phase 1 §2.6 procurement profile readiness
+  cafes_procurement_ready: number;
+  cafes_open_to_new_roasters: number;
+  procurement_readiness_pct: number;
 }
 
 export interface TractionStats {

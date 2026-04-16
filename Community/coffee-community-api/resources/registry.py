@@ -391,6 +391,11 @@ RESOURCES = {
             "stamps_enabled": {"type": "int", "default": 0},
             "stamp_target": {"type": "int", "default": 10},
             "stamp_reward": {"type": "str", "default": "Free coffee"},
+            # Procurement profile (Phase 1 §2.6) — enriches the wholesale
+            # inquiry notification so roasters can qualify a café lead.
+            "monthly_volume_kg": {"type": "int"},
+            "open_to_new_roasters": {"type": "int", "default": 0},
+            "procurement_note": {"type": "str"},
             "created_at": {"type": "str", "ro": True, "auto": "now"},
             "updated_at": {"type": "str", "ro": True, "auto": "now"},
         },

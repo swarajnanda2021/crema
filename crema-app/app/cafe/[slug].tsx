@@ -162,6 +162,12 @@ export default function CafeDetailPage() {
   const [showSeasonalPicker, setShowSeasonalPicker] = useState(false);
   const [showRewardPicker, setShowRewardPicker] = useState(false);
 
+  // Procurement profile (Phase 1 §2.6) — qualifies a café lead for
+  // roasters receiving the §2.1 "Interested" wholesale inquiry.
+  const [editMonthlyVolume, setEditMonthlyVolume] = useState<string>("");
+  const [editOpenToNew, setEditOpenToNew] = useState(false);
+  const [editProcurementNote, setEditProcurementNote] = useState("");
+
   // Follow state (café can be followed just like a roaster; target_type
   // discriminates on the follows table).
   const [following, setFollowing] = useState(false);
@@ -214,6 +220,11 @@ export default function CafeDetailPage() {
         setEditStampsEnabled(cafeData.stamps_enabled === 1);
         setEditStampTarget(cafeData.stamp_target ?? 10);
         setEditStampReward(cafeData.stamp_reward || "Free coffee");
+        setEditMonthlyVolume(
+          cafeData.monthly_volume_kg != null ? String(cafeData.monthly_volume_kg) : "",
+        );
+        setEditOpenToNew(cafeData.open_to_new_roasters === 1);
+        setEditProcurementNote(cafeData.procurement_note || "");
       }
     } catch (e) {
       console.warn("Café fetch failed:", e);
@@ -274,6 +285,11 @@ export default function CafeDetailPage() {
           stamps_enabled: editStampsEnabled ? 1 : 0,
           stamp_target: editStampTarget,
           stamp_reward: editStampReward || "Free coffee",
+          monthly_volume_kg: editMonthlyVolume.trim() === ""
+            ? null
+            : Math.max(0, parseInt(editMonthlyVolume, 10) || 0),
+          open_to_new_roasters: editOpenToNew ? 1 : 0,
+          procurement_note: editProcurementNote.trim() || null,
         }),
       });
       setIsEditing(false);
@@ -287,6 +303,7 @@ export default function CafeDetailPage() {
     editLogoCropX, editLogoCropY, editLogoZoom,
     editSeasonalOpen, editSeasonalClose,
     editStampsEnabled, editStampTarget, editStampReward,
+    editMonthlyVolume, editOpenToNew, editProcurementNote,
     fetchAll,
   ]);
 
@@ -566,6 +583,72 @@ export default function CafeDetailPage() {
                 </Text>
               </View>
             </View>
+
+            {/* Wholesale procurement — owner-only. Qualifies a café lead
+               for roasters who receive an "Interested" inquiry (§2.1). */}
+            {isOwner && (
+              <View style={s.procurementBlock}>
+                <Text style={s.procurementTitle}>Wholesale procurement</Text>
+                <Text style={s.procurementHint}>
+                  Private. Only shared with roasters you reach out to.
+                </Text>
+
+                <View style={s.procurementRow}>
+                  <Text style={s.procurementLabel}>Monthly volume (kg)</Text>
+                  {isEditing ? (
+                    <TextInput
+                      style={[s.metaText, s.inlineEditMeta, s.procurementInput]}
+                      value={editMonthlyVolume}
+                      onChangeText={(v) => setEditMonthlyVolume(v.replace(/[^0-9]/g, ""))}
+                      placeholder="e.g. 20"
+                      placeholderTextColor="rgba(199,186,165,0.4)"
+                      keyboardType="numeric"
+                    />
+                  ) : (
+                    <Text style={s.procurementValue}>
+                      {cafe.monthly_volume_kg != null ? `${cafe.monthly_volume_kg} kg` : "Not set"}
+                    </Text>
+                  )}
+                </View>
+
+                <View style={s.procurementRow}>
+                  <Text style={s.procurementLabel}>Open to new roasters</Text>
+                  {isEditing ? (
+                    <Pressable
+                      onPress={() => setEditOpenToNew((v) => !v)}
+                      style={[s.procurementToggle, editOpenToNew && s.procurementToggleOn]}
+                      hitSlop={8}
+                    >
+                      <Text style={s.procurementToggleText}>
+                        {editOpenToNew ? "Yes" : "No"}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={s.procurementValue}>
+                      {cafe.open_to_new_roasters === 1 ? "Yes" : "No"}
+                    </Text>
+                  )}
+                </View>
+
+                <View style={[s.procurementRow, s.procurementRowNote]}>
+                  <Text style={s.procurementLabel}>Note</Text>
+                  {isEditing ? (
+                    <TextInput
+                      style={[s.metaText, s.inlineEditMeta, s.procurementNoteInput]}
+                      value={editProcurementNote}
+                      onChangeText={setEditProcurementNote}
+                      placeholder="What do you look for in a roaster? (bean style, sourcing ethics, price band)"
+                      placeholderTextColor="rgba(199,186,165,0.4)"
+                      multiline
+                    />
+                  ) : (
+                    <Text style={[s.procurementValue, { flex: 1 }]} numberOfLines={4}>
+                      {cafe.procurement_note || "Not set"}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
 
             {/* Follow button — only shown to non-owners, mirrors roaster */}
             {!isOwner && (
@@ -2061,6 +2144,48 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.06)",
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 3,
     flex: 1,
+  } as any,
+
+  // Wholesale procurement block (Phase 1 §2.6) — owner-only panel sitting
+  // between the public meta rows and the follow CTA.
+  procurementBlock: {
+    marginBottom: 20, paddingTop: 14, paddingBottom: 4,
+    borderTopWidth: 1, borderTopColor: "rgba(215,209,196,0.18)",
+  } as any,
+  procurementTitle: {
+    fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-dark"],
+    letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 4,
+  } as any,
+  procurementHint: {
+    fontFamily: t.font["body.regular"], fontSize: 11, color: "rgba(215,209,196,0.6)",
+    fontStyle: "italic", marginBottom: 12,
+  } as any,
+  procurementRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingVertical: 4,
+  } as any,
+  procurementRowNote: { alignItems: "flex-start" } as any,
+  procurementLabel: {
+    fontFamily: t.font["body.medium"], fontSize: 12, color: "rgba(215,209,196,0.75)",
+    width: 140,
+  } as any,
+  procurementValue: {
+    fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.on-dark"],
+  } as any,
+  procurementInput: { width: 90, flex: 0 } as any,
+  procurementNoteInput: { minHeight: 56, paddingVertical: 6 } as any,
+  procurementToggle: {
+    paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1, borderColor: "rgba(215,209,196,0.25)",
+  } as any,
+  procurementToggleOn: {
+    backgroundColor: "rgba(215,209,196,0.2)",
+    borderColor: "rgba(215,209,196,0.55)",
+  } as any,
+  procurementToggleText: {
+    fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"],
+    letterSpacing: 0.3,
   } as any,
 
   // (Edit profile + Scan QR are now wired through navbar dropdown / bio scan icon)

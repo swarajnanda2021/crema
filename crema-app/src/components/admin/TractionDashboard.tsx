@@ -409,6 +409,12 @@ const E = {
     "Cafés whose menu mentions at least one roaster in our catalog — an ecosystem-density signal.",
   ecosystemDensity:
     "% of cafés pouring at least one catalog roaster. 100% = the whole network is plugged together.",
+  procurementReady:
+    "Cafés that filled at least one procurement field (monthly volume, open-to-new-roasters, or note). Leading indicator for §2.1 wholesale inquiry quality.",
+  procurementOpen:
+    "Cafés that explicitly marked themselves open to new roasters — the top prospecting signal.",
+  procurementReadiness:
+    "% of cafés with any procurement profile field filled. A higher share means richer signals flow to roasters when a café opens an 'Interested' inquiry.",
 };
 
 function renderEngagement(stats: any, basis: any) {
@@ -714,6 +720,9 @@ function renderSupply(stats: any, basis: any) {
           <Card basis={basis} label="Avg Menu Items" value={sup.avg_menu_items_per_cafe} info={E.avgMenu} />
           <Card basis={basis} label="Sourcing From Catalog" value={sup.cafes_using_catalog_roasters} info={E.cafesCatalog} />
           <Card basis={basis} label="Ecosystem Density" value={`${sup.ecosystem_density_pct}%`} hint="% of cafés pouring a catalog roaster" info={E.ecosystemDensity} />
+          <Card basis={basis} label="Procurement Ready" value={sup.cafes_procurement_ready ?? 0} info={E.procurementReady} />
+          <Card basis={basis} label="Open to New Roasters" value={sup.cafes_open_to_new_roasters ?? 0} info={E.procurementOpen} />
+          <Card basis={basis} label="Procurement Readiness" value={`${sup.procurement_readiness_pct ?? 0}%`} hint="% of cafés with procurement profile filled" info={E.procurementReadiness} />
         </>,
       )}
     </View>

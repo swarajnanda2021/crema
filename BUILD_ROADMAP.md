@@ -72,6 +72,7 @@ Android from a single codebase.
 | **Post-prompt modal** | Same as roaster — asks owner to post after any menu mutation (add/update/remove) | PostPromptModal wired through MenuTab |
 | **Menu-change notifications** | When a café owner adds/edits/removes a menu item, all followers get a notification | `notify_menu_added/updated/removed` hooks |
 | **Logo → navbar sync** | Café logo_url + crop coords mirrored to user.avatar_* on profile save | `sync_cafe_logo_to_user` hook |
+| **Procurement profile** | Owner-only block on café profile: monthly volume (kg), open-to-new-roasters toggle, free-text note. Qualifies the lead for roasters once §2.1 "Interested" inquiries ship. | `cafe_profiles.{monthly_volume_kg, open_to_new_roasters, procurement_note}`, café page procurement block |
 
 ### 1.5 Admin dashboard
 
@@ -82,6 +83,7 @@ Android from a single codebase.
 | **Time-series charts** | ggplot-style line charts (react-native-svg) for daily active users, daily signups, daily posts, daily clicks, daily stamps. Friendly date labels ("Apr 1st"), ~6 ticks, hover tooltip that flips below when near top. Pre-data empty days trimmed. |
 | **Ranked tables** | MetricTable for top-clicked products, clicks by source, top cafés by stamps, top roasters/cafés by followers. Scrollable inside carousel cards. |
 | **Retention cohort grid** | Weekly signup cohorts with D1/D7/D30 retention %, heat-tinted cells. Writer retention + stamp-cohort retention. |
+| **Supply · procurement readiness** | 3 cards in Supply tab: Procurement Ready (count), Open to New Roasters (count), Procurement Readiness % (of cafés with any procurement field filled). Leading indicator for §2.1 inquiry quality. |
 | **Plot carousel** | Swipe-only (no buttons), dot pager, per-section state isolation via React key. |
 | **Circular refresh button** | 44×44 dark primary fill, cream icon, matches site FAB language. |
 | **Backend** | `services/admin_stats.py` (~500 lines): 6 section functions, each wrapped to never crash the others. Daily series with zero-fill + leading-zero trim. Gated on `is_admin=1 AND username="crema"`. |
@@ -163,15 +165,11 @@ etc.). Distinguished visually from user-submitted tasting-note cards.
 Requires: new `brew_methods` registry resource nested under products,
 infographic card component, method-specific field schema.
 
-### 2.6 Café procurement profile
+### 2.6 Café procurement profile *(shipped — see §1.4)*
 
-Optional owner-editable fields on café profiles — monthly volume (kg),
-open to new roasters (boolean), procurement note (free text). Visible
-only to roasters receiving a wholesale inquiry. Enriches the
-"Interested" notification so the roaster can qualify the lead.
-
-Requires: 3 new fields on café_profiles, conditional visibility in
-the inquiry notification.
+The 3 fields + owner-editable block + admin readiness metric have
+landed. Conditional visibility to roasters is intentionally deferred
+to §2.1 where the wholesale inquiry notification carries the snapshot.
 
 ### 2.7 Launch blockers (from LAUNCH_TODO.md)
 
