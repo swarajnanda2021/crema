@@ -25,24 +25,37 @@
 
 Crema is the operating system for Indian specialty coffee. Not a
 marketplace (we don't move beans — yet), not a review site (we don't
-rank), not a social network (we don't optimise for time-on-feed). We
-are a **daily utility** — the app you open when you grind your morning
-dose, when you walk into a café, when you want to reorder a bag, when
-you (as a roaster) want to tell the story of a new lot, when you (as
-a café) want to find a second supplier.
+rank). We are a **daily utility with a social spine** — the app you
+open when you grind your morning dose, when you walk into a café, when
+you want to see what your friends are drinking, when you want to
+reorder a bag, when you (as a roaster) want to tell the story of a new
+lot, when you (as a café) want to find a second supplier.
+
+The social feed is not decoration — it is the primary retention
+surface for consumers. People come back to see what others are posting:
+a friend's tasting note on a new Ethiopian, a roaster's sourcing story
+from a Chikmagalur farm, a repost of someone's latte art at a café
+they've never visited. The feed turns private coffee habits into a
+shared experience. It's where discovery happens organically — a user
+sees a bean in someone else's post, taps through to the product page,
+adds it to their shelf, and eventually buys. The tasting journal, the
+shelf, the stamp book are personal tools; the feed is what makes them
+social. Without it, Crema is a drink tracker. With it, Crema is a
+community.
 
 Three participants, three jobs:
 
 | Participant | Daily job | Why they stay |
 |-------------|-----------|---------------|
-| **Consumer** | Track what I drink, learn, buy more | Stamp book, tasting journal, shelf, Buy button |
-| **Roaster** | Tell my story, find buyers | Storefront, sourcing stories, wholesale leads |
+| **Consumer** | See what others are drinking, share what I'm tasting, discover new beans, collect stamps, buy | Social feed, tasting journal, shelf, stamp book, Buy button |
+| **Roaster** | Tell my story, reach an audience, find buyers | Storefront, sourcing stories, wholesale leads |
 | **Café** | Run loyalty, source beans, serve customers | Stamp program, supplier discovery, POS |
 
-The single metric that matters: **weekly actions per user.** A tasting
-note, a stamp, a Buy click, a wholesale inquiry — any of these count.
-If a user does one action per week, they're retained. Everything we
-build should make one of those actions easier or more rewarding.
+The single metric that matters: **weekly actions per user.** A post, a
+like, a tasting note, a stamp, a Buy click, a wholesale inquiry — any
+of these count. If a user does one action per week, they're retained.
+Everything we build should make one of those actions easier or more
+rewarding.
 
 ---
 
@@ -129,9 +142,12 @@ cafés use it for loyalty and sourcing. No money changes hands through
 Crema yet — but every participant has a reason to open the app every
 week.
 
-**Consumer side:** tasting journal, coffee shelf, stamp book, social
-feed, Buy button (outbound to roaster's site — every click tracked as
-an intent signal).
+**Consumer side:** social feed (the daily pull — see what friends and
+followed roasters are posting, discover beans through other people's
+experiences), tasting journal, coffee shelf, stamp book, Buy button
+(outbound to roaster's site — every click tracked as an intent signal).
+The feed is the top of the funnel; the journal, shelf, and stamps are
+where the habit deepens.
 
 **Roaster side:** product catalog with sourcing stories (long-form
 posts about farms and processing, not just tasting-note shorthand).
@@ -284,10 +300,11 @@ compounds.
   Yelp reviews. There is no star rating, no roaster ranking. This is
   intentional — it keeps roasters collaborative on the platform rather
   than competitive against each other.
-- **Not a social-media-first app.** The feed distributes sourcing
-  stories and tasting notes; it does not optimise for scroll time.
-  Chronological only. No algorithmic feed, no stories, no reels.
-  Coffee is the content, not the container.
+- **Not optimising for scroll time.** The social feed is central to
+  retention — it's how consumers discover beans and stay connected to
+  the community — but it is not engineered for addiction. Chronological
+  only. No algorithmic ranking, no stories, no reels, no engagement
+  tricks. The feed serves coffee, not attention metrics.
 - **Not competing with Blue Tokai.** Their presence helps the platform
   (brand recognition attracts consumers). Our value is the long tail
   they don't serve.
