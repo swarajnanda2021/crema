@@ -54,48 +54,53 @@ and a rapidly expanding consumer base — but no platform connects them.
 
 ### What we heard in the field
 
-**Padaria Café (Mandrem, Goa)** buys 80 kg biweekly from Subko at
-~₹2,500/kg wholesale (vs ₹4,000/kg retail). Their pain: when a
-shipment is delayed, the menu stalls. They have no backup supplier
-because they don't know who else exists at wholesale scale. Cafés need
-supplier discovery, and they need it to be low-friction — not a
-procurement platform, just a way to say "I'm interested" and have the
-right roaster hear it.
+*Names anonymised. Findings based on conversations with café owners and
+roaster sourcers in Goa, 2026.*
 
-**Brightside Café (Mandrem, Goa)** is a sharper version of the same
-pain. Small seasonal café, single-supplier relationship with a large
-roaster. When the big roaster's priorities shift — delayed shipments,
-minimum-order increases, allocation changes — a café this size has no
-leverage and no fallback. The anxiety isn't hypothetical; it's the
-lived experience of being a small buyer dependent on a large seller in
-a market with no transparent alternatives. This is supply anxiety, and
-it's widespread among small cafés. Crema's wholesale discovery layer
-exists specifically to give these cafés optionality — the ability to
-see who else is out there, signal interest, and diversify before a
-supply crisis forces their hand.
+**A mid-size café** buys ~80 kg biweekly from a single Bangalore-based
+roaster at ~₹2,500/kg wholesale (vs ~₹4,000/kg retail). Their pain:
+when a shipment is delayed, the menu stalls. They have no backup
+supplier because they don't know who else exists at wholesale scale.
+Cafés need supplier discovery, and they need it to be low-friction —
+not a procurement platform, just a way to say "I'm interested" and
+have the right roaster hear it.
 
-**Micro-roaster invisibility (recurring theme).** Nada Coffee Roasters
-(Anjuna, Goa) gets almost no traffic to their website. G-Shot Coffee
-reports the same. This isn't an isolated case — it's structural.
-Micro-roasters don't spend on ads because they don't trust that paid
-reach will convert in a market where Blue Tokai owns consumer
-mindshare. The result: excellent product, zero distribution. They roast
-in 600g batches, source at ~₹1,000/kg green, and can't supply cafés at
-competitive bulk rates except in emergencies. When they introduce a new
-coffee, they don't want to lead with tasting notes (too subjective).
-They want to tell the sourcing story — the farm, the relationship, the
-processing — and recommend a brew method. Micro-roasters compete on
-story and quality, not volume. They need a megaphone, and that
-megaphone needs to speak their language, not the consumer's. Crema is
-that megaphone — a discovery channel they don't have to pay for
-upfront, where the audience is already there because the consumer and
-café sides of the platform give people a reason to browse.
+**A small seasonal café** in the same town is a sharper version of the
+same pain. Single-supplier relationship with a large roaster. When the
+big roaster's priorities shift — delayed shipments, minimum-order
+increases, allocation changes — a café this size has no leverage and no
+fallback. The anxiety isn't hypothetical; it's the lived experience of
+being a small buyer dependent on a large seller in a market with no
+transparent alternatives. This is supply anxiety, and it's widespread
+among small cafés. Crema's wholesale discovery layer exists
+specifically to give these cafés optionality — the ability to see who
+else is out there, signal interest, and diversify before a supply
+crisis forces their hand.
 
-**Blue Tokai** has 10-year fixed-cost farm contracts, a massive product
-catalog, and retail stores. They set the consumer expectation. Crema
-doesn't compete with Blue Tokai — Crema is the platform where the 120
-roasters who *aren't* Blue Tokai get discovered by the consumers and
-cafés who want something different. The long tail is the moat.
+**Micro-roaster invisibility (recurring theme).** Multiple micro-
+roasters we spoke with report near-zero website traffic. This isn't
+isolated — it's structural. Micro-roasters don't spend on ads because
+they don't trust that paid reach will convert in a market where the
+dominant national brand owns consumer mindshare. The result: excellent
+product, zero distribution. They roast in 600g batches, source green
+beans at ~₹1,000/kg, and can't supply cafés at competitive bulk rates
+except in emergencies. When they introduce a new coffee, they don't
+want to lead with tasting notes (too subjective). They want to tell the
+sourcing story — the farm, the relationship, the processing — and
+recommend a brew method. Micro-roasters compete on story and quality,
+not volume. They need a megaphone, and that megaphone needs to speak
+their language, not the consumer's. Crema is that megaphone — a
+discovery channel they don't have to pay for upfront, where the
+audience is already there because the consumer and café sides of the
+platform give people a reason to browse.
+
+**The dominant national brand** has 10-year fixed-cost farm contracts,
+a massive product catalog, and retail stores. They set the consumer
+expectation for what "Indian specialty coffee" looks like. Crema
+doesn't compete with them — Crema is the platform where the 120
+roasters who *aren't* the national brand get discovered by the
+consumers and cafés who want something different. The long tail is the
+moat.
 
 ### The structural gap
 
