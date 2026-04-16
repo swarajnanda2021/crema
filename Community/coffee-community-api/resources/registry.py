@@ -477,6 +477,49 @@ RESOURCES = {
         "limit": 500,
     },
 
+    # ── Brew methods (Phase 1 §2.5) ─────────────────────────────────────
+    # Roaster-authored recipe cards for a specific product. Nested under
+    # `products` — list via /api/products/{product_id}/brew_methods.
+    # Create/update/delete require auth; the owner filter is enforced by
+    # the "owner": "roaster_slug" + the user having a matching
+    # roaster_slug on their account.
+    "brew_methods": {
+        "table": "brew_methods",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "product_id": {"type": "str", "required": True},
+            "roaster_slug": {"type": "str", "required": True, "auto": "user_slug"},
+            "user_id": {"type": "int", "ro": True, "auto": "current_user"},
+            "method": {"type": "str", "required": True},
+            "dose_grams": {"type": "float"},
+            "yield_grams": {"type": "float"},
+            "water_ml": {"type": "float"},
+            "ratio": {"type": "str"},
+            "brew_time_secs": {"type": "int"},
+            "bloom_secs": {"type": "int"},
+            "water_temp_celsius": {"type": "int"},
+            "grind_size": {"type": "str"},
+            "grind_setting": {"type": "str"},
+            "notes": {"type": "str"},
+            "fields_json": {"type": "json"},
+            "created_at": {"type": "str", "ro": True, "auto": "now"},
+            "updated_at": {"type": "str"},
+        },
+        "parent": "products",
+        "parent_table": "products",
+        "fk": "product_id",
+        "auth": {"list": None, "read": None, "create": "required", "update": "owner", "delete": "owner"},
+        "owner": "roaster_slug",
+        "owner_user_field": "roaster_slug",
+        "subfields": [
+            {"name": "author_display_name", "sql": "(SELECT u.display_name FROM users u WHERE u.id = t.user_id)"},
+            {"name": "author_username", "sql": "(SELECT u.username FROM users u WHERE u.id = t.user_id)"},
+        ],
+        "order": "created_at ASC",
+        "limit": 50,
+    },
+
     # ── Wholesale inquiries (Phase 1 §2.1) ──────────────────────────────
     # Lightweight café-to-roaster "Interested" handshake. Auth is
     # "required" on all verbs; the specific route enforces the inquiry

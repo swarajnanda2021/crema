@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
@@ -5,13 +6,15 @@ import * as Linking from "expo-linking";
 import { MapPin, Mountain, Leaf, Settings } from "lucide-react-native";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useShare } from "../../src/hooks/useShare";
-import { trackClick } from "../../src/api/client";
+import { apiFetchRaw, trackClick } from "../../src/api/client";
 import { t, cardShadow } from "../../src/tokens/useTokens";
 import { pricePer250g } from "../../src/utils/formatPrice";
 import { ShareIcon, CartIcon } from "../../src/components/icons/FigmaIcons";
 import Chip from "../../src/components/Chip";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import InterestedButton from "../../src/components/InterestedButton";
+import BrewMethodCard from "../../src/components/BrewMethodCard";
+import type { BrewMethod } from "../../src/resources/types";
 
 /** Canela lining numerals */
 const canelaNumeral = Platform.OS === "web"
@@ -25,6 +28,18 @@ export default function CoffeeDetailPage() {
   const router = useRouter();
 
   const coffee = productMap?.get(id);
+  // Phase 1 §2.5 — roaster-submitted brew recipe cards for this product.
+  const [brewMethods, setBrewMethods] = useState<BrewMethod[]>([]);
+  useEffect(() => {
+    if (!id) return;
+    apiFetchRaw<any>(`/products/${id}/brew_methods?limit=20`)
+      .then((res) => {
+        const data = res?.data ?? res;
+        setBrewMethods(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setBrewMethods([]));
+  }, [id]);
+
   if (!coffee) {
     return (
       <View style={st.notFound}>
@@ -100,6 +115,20 @@ export default function CoffeeDetailPage() {
             {coffee.varietal && <DetailRow label="Varietal" value={coffee.varietal} icon={<Leaf size={14} color={t.color["text.muted"]} />} />}
             {coffee.process && <DetailRow label="Process" value={coffee.process} icon={<Settings size={14} color={t.color["text.muted"]} />} />}
           </View>
+
+          {/* Brew recipes — roaster-submitted (§2.5) */}
+          {brewMethods.length > 0 && (
+            <View style={st.relatedSection}>
+              <Text style={st.relatedTitle}>Recommended recipes from the roaster</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {brewMethods.map((b) => (
+                  <View key={b.id} style={{ width: 240, marginRight: 20 }}>
+                    <BrewMethodCard brew={b} width={240} height={300} />
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
           {/* Related coffees */}
           {related.length > 0 && (

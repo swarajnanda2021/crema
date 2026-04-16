@@ -445,6 +445,12 @@ const E = {
     "Sourcing stories published in the last 30 days. Leading indicator of roaster-side narrative investment.",
   sourcingStoryShare:
     "% of roaster posts that are sourcing stories. Rising share = roasters leaning into provenance-forward storytelling.",
+  brewMethods:
+    "Roaster-submitted brew recipe cards across the catalog. One product can have multiple (one per method).",
+  recipeCoverage:
+    "% of active products with at least one roaster-submitted recipe card.",
+  topBrewMethod:
+    "Most common method across all recipe cards (espresso, pour_over, aeropress, etc.).",
 };
 
 function renderEngagement(stats: any, basis: any) {
@@ -768,6 +774,9 @@ function renderSupply(stats: any, basis: any) {
           <Card basis={basis} label="Sourcing Stories" value={sup.sourcing_stories_total ?? 0} info={E.sourcingStories} />
           <Card basis={basis} label="Stories (30d)" value={sup.sourcing_stories_30d ?? 0} info={E.sourcingStories30d} />
           <Card basis={basis} label="Story Share" value={`${sup.sourcing_story_share_pct ?? 0}%`} hint="% of roaster posts" info={E.sourcingStoryShare} />
+          <Card basis={basis} label="Brew Recipes" value={sup.brew_methods_total ?? 0} info={E.brewMethods} />
+          <Card basis={basis} label="Recipe Coverage" value={`${sup.recipe_coverage_pct ?? 0}%`} hint="% of products with a recipe" info={E.recipeCoverage} />
+          <Card basis={basis} label="Top Method" value={sup.top_brew_method || "—"} info={E.topBrewMethod} />
         </>,
       )}
     </View>

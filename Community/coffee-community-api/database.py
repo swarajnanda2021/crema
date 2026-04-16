@@ -429,6 +429,36 @@ _MIGRATIONS = [
     # body_full holds the expanded content (up to ~5000 chars, no hard
     # SQL limit — enforced client-side). Null for any other post type.
     "ALTER TABLE roaster_posts ADD COLUMN body_full TEXT",
+    # ── Phase 1 §2.5 Brew method cards ─────────────────────────────────
+    # Roaster-submitted recipe cards that sit in a product's carousel
+    # alongside user-submitted tasting notes. One row per method per
+    # product. `method` is a short enum ('espresso', 'pour_over',
+    # 'aeropress', 'french_press', 'cold_brew', 'moka', 'other'). Shared
+    # recipe fields are explicit columns; anything method-specific that
+    # doesn't fit lands in `fields_json` so the schema doesn't need a
+    # migration every time a new method-specific field shows up.
+    """CREATE TABLE IF NOT EXISTS brew_methods (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id TEXT NOT NULL,
+        roaster_slug TEXT NOT NULL,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        method TEXT NOT NULL,
+        dose_grams REAL,
+        yield_grams REAL,
+        water_ml REAL,
+        ratio TEXT,
+        brew_time_secs INTEGER,
+        bloom_secs INTEGER,
+        water_temp_celsius INTEGER,
+        grind_size TEXT,
+        grind_setting TEXT,
+        notes TEXT,
+        fields_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_brew_methods_product ON brew_methods(product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_brew_methods_roaster ON brew_methods(roaster_slug)",
 ]
 
 

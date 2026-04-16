@@ -826,6 +826,27 @@ def _supply(db) -> dict:
         else 0.0
     )
 
+    # Brew method cards (Phase 1 §2.5) — roaster-submitted recipe cards
+    # per product. Total count, distinct products covered, and the top
+    # method by volume. A healthy catalog has at least one recipe per
+    # flagship bean.
+    brew_methods_total = _n(
+        db.execute("SELECT COUNT(*) FROM brew_methods").fetchone()[0]
+    )
+    products_with_recipes = _n(
+        db.execute(
+            "SELECT COUNT(DISTINCT product_id) FROM brew_methods"
+        ).fetchone()[0]
+    )
+    recipe_coverage_pct = (
+        round(products_with_recipes / max(products_available, 1) * 100.0, 1)
+    )
+    top_method_row = db.execute(
+        "SELECT method, COUNT(*) AS n FROM brew_methods "
+        "GROUP BY method ORDER BY n DESC LIMIT 1"
+    ).fetchone()
+    top_brew_method = top_method_row["method"] if top_method_row else None
+
     # Sourcing stories (Phase 1 §2.3) — long-form roaster narrative
     # posts. Counts total + share of roaster posts, plus the 30d window.
     sourcing_stories_total = _n(
@@ -1035,6 +1056,10 @@ def _supply(db) -> dict:
         "sourcing_stories_total": sourcing_stories_total,
         "sourcing_stories_30d": sourcing_stories_30d,
         "sourcing_story_share_pct": sourcing_story_share_pct,
+        "brew_methods_total": brew_methods_total,
+        "products_with_recipes": products_with_recipes,
+        "recipe_coverage_pct": recipe_coverage_pct,
+        "top_brew_method": top_brew_method,
     }
 
 

@@ -338,6 +338,40 @@ export interface StampResult {
   rewards_ever: number;
 }
 
+// ── Brew methods (Phase 1 §2.5) ─────────────────────────────────────────────
+
+export type BrewMethodKind =
+  | "espresso"
+  | "pour_over"
+  | "aeropress"
+  | "french_press"
+  | "cold_brew"
+  | "moka"
+  | "other";
+
+export interface BrewMethod {
+  id: number;
+  product_id: string;
+  roaster_slug: string;
+  user_id: number;
+  method: BrewMethodKind;
+  dose_grams: number | null;
+  yield_grams: number | null;
+  water_ml: number | null;
+  ratio: string | null;
+  brew_time_secs: number | null;
+  bloom_secs: number | null;
+  water_temp_celsius: number | null;
+  grind_size: string | null;
+  grind_setting: string | null;
+  notes: string | null;
+  fields_json: Record<string, any> | null;
+  created_at: string;
+  updated_at: string | null;
+  author_display_name: string | null;
+  author_username: string | null;
+}
+
 // ── Wholesale inquiries (Phase 1 §2.1) ──────────────────────────────────────
 
 export type WholesaleInquiryStatus = "open" | "responded" | "archived";
@@ -523,6 +557,11 @@ export interface SupplyStats {
   sourcing_stories_total: number;
   sourcing_stories_30d: number;
   sourcing_story_share_pct: number;
+  // Phase 1 §2.5 brew method cards
+  brew_methods_total: number;
+  products_with_recipes: number;
+  recipe_coverage_pct: number;
+  top_brew_method: string | null;
 }
 
 export interface TractionStats {

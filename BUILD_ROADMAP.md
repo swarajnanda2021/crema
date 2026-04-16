@@ -45,6 +45,7 @@ Android from a single codebase.
 | **Sourcing story post type** | `post_type = "sourcing_story"` with a dedicated `body_full` column on `roaster_posts`. Teaser stays the excerpt shown in the feed; `body_full` is the expanded narrative (farm/producer/process). PostCard renders a "Read full story →" affordance that toggles the long body inline. Roasters opt in from the composer. | `roaster_posts.body_full`, PostCard `isSourcingStory` branch, `ComposePost` story toggle |
 | **Post composer** | Floating modal, image upload, link auto-detect with preview, tasting-note card attachment, tag-a-café (pink heart icon), tag-a-drink picker, location. Roaster accounts get a "Sourcing story" toggle (§2.3) that promotes the post to long-form with a dedicated body_full textarea (min 200, max 5000 chars). | `ComposePost.tsx` |
 | **Buy button** | Outbound click to roaster's product URL, tracked in `click_events` (product, roaster, source page, timestamp) | `CoffeeCard.tsx`, `click_events` resource |
+| **Brew method cards** | Roaster-submitted recipe cards rendered as a horizontal carousel on the product detail page ("Recommended recipes from the roaster"). Method-specific field layout (espresso: dose/yield/ratio/time/temp/grind; pour-over: dose/water/bloom/brew-time/grind; etc.). `fields_json` escape hatch for method-specific extras that don't fit the shared columns. | `brew_methods` resource, `BrewMethodCard.tsx`, `/coffee/[id]` carousel |
 | **"Interested" wholesale handshake** | Café accounts see an Interested button on the product detail page. Tapping opens a modal with an optional note, creates a `wholesale_inquiries` row, and fires a `wholesale_inquiry` notification to every roaster-account user on that slug — lands in their Business tab (§2.4) with a deep-link to the sending café's profile (where §2.6 procurement fields render). Roaster can respond / archive via `POST /api/wholesale-inquiries/{id}/respond`. | `InterestedButton.tsx`, `wholesale_inquiries` resource, `_handle_notify_wholesale_inquiry` hook, `/api/my-wholesale-inquiries` |
 | **Wholesale availability signal** | Roasters flag products as wholesale-available (3 fields: flag, minimum kg, note). Products live in both `products` and `roaster_products` tables so the columns + indexes are mirrored. A "Wholesale" badge renders bottom-left on `CoffeeCard` — visible only to café accounts. Browse adds a "Wholesale available only" filter (café viewers). `POST /api/roasters/{slug}/products` accepts the 3 fields. Inline owner-edit UI on existing products is deferred — dedicated product editor lands in a follow-up. | `products.wholesale_*`, `roaster_products.wholesale_*`, `CoffeeCard` badge, browse filter |
 | **Notifications** | Dropdown with likes, comments, follows, reposts, reply, catalog-change notifications (product added/removed, menu changed). Subject line + deep-link to source entity. | `NotificationsDropdown.tsx`, `useNotifications.ts` |
@@ -92,6 +93,7 @@ Android from a single codebase.
 | **Supply · wholesale inquiries** | 6 cards tracking the flagship Phase 1 B2B metric: Inquiries Total, Inquiries (30d), Inquiries Open, Response Rate %, Cafés Inquiring, Roasters Receiving. Response rate = (responded + archived) / total. |
 | **Supply · wholesale signal** | 3 cards tracking the roaster-side supply readiness: Wholesale Available (count), Wholesale Signal % (of active products), Roasters With Wholesale (distinct count). Low % means roasters aren't yet opting in. |
 | **Supply · sourcing stories** | 3 cards tracking narrative investment: Sourcing Stories (total), Stories (30d), Story Share % (of roaster posts). |
+| **Supply · brew recipes** | 3 cards tracking roaster recipe investment: Brew Recipes (count), Recipe Coverage % (of active products with ≥1 recipe), Top Method (most common across all recipe cards). |
 | **Plot carousel** | Swipe-only (no buttons), dot pager, per-section state isolation via React key. |
 | **Circular refresh button** | 44×44 dark primary fill, cream icon, matches site FAB language. |
 | **Backend** | `services/admin_stats.py` (~500 lines): 6 section functions, each wrapped to never crash the others. Daily series with zero-fill + leading-zero trim. Gated on `is_admin=1 AND username="crema"`. |
@@ -156,15 +158,13 @@ metrics all landed. `wholesale_inquiry` and `stamp_awarded` types are
 pre-reserved so §2.1 and future loyalty work can fire them without
 another enum change.
 
-### 2.5 Brew method cards
+### 2.5 Brew method cards *(shipped — see §1.2 Brew method cards)*
 
-Roaster-submitted infographic cards in the product carousel, one per
-recommended brew method. Fields vary by method (espresso: dose/yield/
-ratio/time/temp/grind; pour-over: dose/water/bloom/brew-time/grind;
-etc.). Distinguished visually from user-submitted tasting-note cards.
-
-Requires: new `brew_methods` registry resource nested under products,
-infographic card component, method-specific field schema.
+Table, registry, card component, product-page carousel, and admin
+metrics all landed. A dedicated roaster-owner editor for adding
+recipes via UI is deferred alongside the §2.2 product-editor
+follow-up; the registry already exposes the CRUD endpoints
+(`POST /api/products/{id}/brew_methods`).
 
 ### 2.6 Café procurement profile *(shipped — see §1.4)*
 
