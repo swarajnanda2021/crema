@@ -6,29 +6,30 @@
 > discover beans, track tasting notes, collect café stamps, and buy from
 > roasters. Roasters get a storefront, tell sourcing stories, and receive
 > inbound wholesale leads from cafés. Cafés run loyalty programs, source
-> beans, and (eventually) accept payments through point-of-sale. The
-> platform connects a fragmented market — 120+ micro-roasters, hundreds
-> of cafés, thousands of discerning consumers — without owning inventory
-> or running logistics. Phase 1 is education and habit (B2C). Phase 2 is
-> intent and discovery (B2B). Phase 3 is transactions and payments (POS +
-> wholesale commerce). The moat is the graph: every tasting note, every
-> stamp, every wholesale inquiry, every café menu linking a roaster's
-> beans makes the network denser and harder to replicate. Revenue comes
-> from promoted listings, per-lead fees on wholesale inquiries, and
-> transaction fees on café POS — but only after the network is warm.
-> Build the habit first, extract value second.
+> beans, and accept payments through point-of-sale. The platform connects
+> a fragmented market — 120+ micro-roasters, hundreds of cafés, thousands
+> of consumers — without owning inventory or running logistics. Phase 1
+> builds the network: habit + intent + B2B discovery, all pre-revenue.
+> Phase 2 turns the network into a transaction layer: consumer purchases,
+> café POS, wholesale commerce. Phase 3 closes the loop by owning
+> delivery. The moat is the graph: every tasting note, stamp, wholesale
+> inquiry, and café menu linking a roaster's beans makes the network
+> denser and harder to replicate. Revenue comes from transaction fees on
+> POS, wholesale orders, promoted listings, and delivery margins — but
+> only after the network is warm. Build the habit first, extract value
+> second.
 
 ---
 
 ## 1. What Crema is
 
 Crema is the operating system for Indian specialty coffee. Not a
-marketplace (we don't move beans), not a review site (we don't rank),
-not a social network (we don't optimise for time-on-feed). We are a
-**daily utility** — the app you open when you grind your morning dose,
-when you walk into a café, when you want to reorder a bag, when you
-(as a roaster) want to tell the story of a new lot, when you (as a
-café) want to find a second supplier.
+marketplace (we don't move beans — yet), not a review site (we don't
+rank), not a social network (we don't optimise for time-on-feed). We
+are a **daily utility** — the app you open when you grind your morning
+dose, when you walk into a café, when you want to reorder a bag, when
+you (as a roaster) want to tell the story of a new lot, when you (as
+a café) want to find a second supplier.
 
 Three user types, three jobs:
 
@@ -36,7 +37,7 @@ Three user types, three jobs:
 |------|-----------|----------------|
 | **Consumer** | Track what I drink, learn, buy more | Stamp book, tasting journal, shelf, Buy button |
 | **Roaster** | Tell my story, find buyers | Storefront, sourcing posts, wholesale leads |
-| **Café** | Run loyalty, source beans, serve customers | Stamp program, supplier discovery, (future) POS |
+| **Café** | Run loyalty, source beans, serve customers | Stamp program, supplier discovery, POS |
 
 The single metric that matters: **weekly actions per user.** A tasting
 note, a stamp, a Buy click, a wholesale inquiry — any of these count.
@@ -87,47 +88,52 @@ build should make one of those actions easier or more rewarding.
 
 ## 3. Phase plan
 
-### Phase 1 — Habit (where we are now)
+### Phase 1 — The Network (where we are now)
 
-**Goal:** Make Crema the app consumers open daily for coffee.
+**Goal:** Build the daily habit AND the B2B discovery layer in one
+pass. By the end of Phase 1, consumers use Crema to manage their
+coffee life, roasters use it to tell their story and receive
+wholesale interest, and cafés use it for loyalty and sourcing. No
+money changes hands through Crema yet — but every participant has a
+reason to open the app every week.
 
-Core loops already built:
+#### Already built
+
+Core consumer loops:
 - Tasting journal (notes with sliders, flavor tags, brew recipe)
 - Coffee shelf (open bags / on the list)
 - Stamp book (café loyalty with QR scan)
 - Social feed (posts, reposts, comments, likes)
-- Roaster profiles with product catalogs
-- Café profiles with menus, hours, seasonal status
-- Admin traction dashboard (all metrics, investor-ready)
+- Buy button (outbound click to roaster's shop, tracked)
 
-What's missing for pilot (see `LAUNCH_TODO.md`):
-- Password reset, account deletion, report posts
+Seller infrastructure:
+- Roaster profiles with product catalogs, in-place editing
+- Café profiles with menus, hours, seasonal status, loyalty config
+- Owner edit affordances (hero/logo crop, inline editing)
+- Catalog-change notifications fanned out to followers
+
+Platform:
+- Admin traction dashboard (6 metric sections, time-series charts,
+  info modals, investor-ready)
+- Multi-account (one user + one roaster + one café simultaneously)
+- CRUD Utopia architecture (registry-driven, design-token portable)
+
+#### Still to build — consumer side
+
+**Retention hooks:**
+- Password reset, account deletion, report posts (launch-blockers)
+- Contact us / feedback widget
+- Onboarding nudges (empty-state prompts to first tasting note,
+  first shelf add, first follow)
+
+**Missing for pilot** (see `LAUNCH_TODO.md`):
 - Postgres + object storage migration
+- Env-based config, error boundaries
 - App Store submission (icons, legal, TestFlight)
 
-Retention hooks that drive weekly actions:
-- **Buy button** — outbound click to roaster's shop. Already tracked
-  in click_events. Every click is an intent signal.
-- **Stamp collection** — café owners stamp users via camera scan.
-  Every stamp is a visit signal.
-- **Tasting notes** — the highest-effort action, the deepest
-  engagement signal, and the one that generates the most valuable
-  data for roasters.
+#### Still to build — B2B side
 
-**Phase 1 is about density:** more users tasting, more roasters
-listed, more cafés running stamps. The network gets useful at ~500
-active users in one city.
-
----
-
-### Phase 2 — Intent (next)
-
-**Goal:** Connect the B2B side. Cafés discover roasters. Roasters
-discover demand. No transactions — just the handshake.
-
-Features to build:
-
-#### 2.1 "Interested" button (café → roaster)
+**1.1 "Interested" button (café → roaster)**
 
 A café owner viewing a roaster's product page sees: **"Interested —
 notify this roaster."** Creates a lightweight intent record:
@@ -139,10 +145,10 @@ wholesale_inquiries (
 )
 ```
 
-The roaster gets a **business notification** (separate tab in the
-notifications dropdown — see 2.4). The notification carries context:
-café name, location, current menu, monthly volume (if set). The
-roaster reaches out off-platform (email, Instagram, phone) to close.
+The roaster gets a **business notification** (see 1.4). The
+notification carries context: café name, location, current menu,
+monthly volume (if set). The roaster reaches out off-platform
+(email, Instagram, phone) to close.
 
 This is the single highest-value B2B feature. A micro-roaster who
 gets 3 qualified café inquiries per month through Crema has a reason
@@ -153,7 +159,7 @@ The admin traction dashboard gains a new metric section:
 **wholesale inquiries** — total, by roaster, by café, conversion
 (inquiry → menu change on the café's profile = implicit close).
 
-#### 2.2 Wholesale availability signal
+**1.2 Wholesale availability signal**
 
 Roaster profiles and individual products gain:
 - `wholesale_available` BOOLEAN
@@ -162,18 +168,17 @@ Roaster profiles and individual products gain:
 
 When set, a subtle **"Wholesale"** badge appears on the product card.
 **Visible only to café-type accounts** — consumers never see it.
-Cafés can filter the catalog to show only wholesale-available products.
+Cafés can filter the catalog to show only wholesale-available
+products.
 
 This is the supply-side counterpart to the "Interested" button. It
 answers the café's question: "Can I even buy this in bulk?" without
 the roaster having to publish a price list.
 
-#### 2.3 Sourcing story posts (roaster storytelling)
+**1.3 Sourcing story posts (roaster storytelling)**
 
-The roaster's storytelling problem isn't a data-model problem — it's
-a post-type problem. When a roaster introduces a new coffee, they
-should be able to write a **sourcing story post**: a long-form
-article-style post with:
+When a roaster introduces a new coffee, they should be able to write
+a **sourcing story post**: a long-form article-style post with:
 
 - Text body (increased character limit — 2000+ chars)
 - Multiple photos (farm, processing, cupping)
@@ -192,7 +197,7 @@ contribution; the sourcing story is the roaster's contribution.**
 Both live on the same product page, but they come from different
 people with different motivations.
 
-#### 2.4 Business notifications (split notification model)
+**1.4 Business notifications (split notification model)**
 
 The notification dropdown gains two tabs:
 
@@ -200,14 +205,18 @@ The notification dropdown gains two tabs:
   received (consumer-facing)
 - **Business** (new, visible only to roaster + café accounts):
   wholesale inquiries, catalog-change follower notifications,
-  stamp-awarded confirmations, (future) payment notifications
+  stamp-awarded confirmations, (future) payment + delivery
+  notifications
 
 This split is important because business signals and social signals
 have different urgency profiles. A café owner doesn't want "someone
 liked your post" mixed in with "a new roaster wants to supply you."
-The business tab is where the money lives.
+The business tab is where the money lives. Stamp confirmations live
+here too — from the café owner's perspective, stamping is business
+operations, not social. (The user gets a regular Activity
+notification that a stamp was added to their book.)
 
-#### 2.5 Brew method card (product carousel)
+**1.5 Brew method card (product carousel)**
 
 The product page's carousel currently shows tasting-note cards
 submitted by users. Add a **brew method card** — submitted by the
@@ -226,10 +235,10 @@ roaster, one per brew method they recommend:
 
 Renders as an infographic-style card in the carousel alongside
 tasting-note cards. The roaster's brew card is distinguished visually
-(maybe a different card-back color or a "By the roaster" label) so
-users know it's the official recommendation, not a user submission.
+(different card-back color or a "By the roaster" label) so users
+know it's the official recommendation, not a user submission.
 
-#### 2.6 Café procurement profile (lightweight)
+**1.6 Café procurement profile (lightweight)**
 
 Optional fields on café_profiles, visible only to roasters who
 receive an inquiry:
@@ -244,57 +253,167 @@ qualify the lead without a back-and-forth. A roaster seeing "Padaria,
 160 kg/month, currently pours Subko, open to new roasters" knows
 exactly whether this is worth a phone call.
 
+**Phase 1 success metrics:**
+- 500 registered users in one city (Goa)
+- 50 weekly active users
+- 10 cafés with stamps enabled
+- 20 roasters with profiles
+- 50 wholesale inquiries per month
+- 5 confirmed supplier switches (café changes a menu item to a
+  roaster they found through Crema)
+- 30% of active roasters have at least one sourcing story post
+- Business notification tab opened by ≥ 60% of seller accounts
+- D7 retention ≥ 20%
+
 ---
 
-### Phase 3 — Transactions (later)
+### Phase 2 — Transactions
 
-**Goal:** Crema handles money. Two revenue surfaces:
+**Goal:** Crema handles money. The network from Phase 1 proved that
+consumers want to buy, cafés want to source, and roasters want to
+sell. Now we close the loop.
 
-#### 3.1 Café POS (point of sale)
+#### 2.1 B2C — Consumer purchases
 
-The stamp system already puts Crema on the café counter. Extend it:
+The Buy button currently sends the consumer to the roaster's
+external website. In Phase 2, the purchase happens inside Crema:
 
-- Customer scans to pay (UPI / card / wallet) instead of just
-  collecting a stamp. Stamp is awarded automatically on payment.
-- The café gets a lightweight POS dashboard: daily sales, popular
-  drinks, average ticket, peak hours.
-- Crema takes a small transaction fee (1-2%).
+- **In-app checkout:** Consumer taps Buy → sees price, weight,
+  delivery estimate → pays via UPI / card / wallet (Razorpay or
+  Juspay integration) → order created.
+- **Roaster fulfills:** The roaster gets an order notification in
+  the Business tab. They pack and ship. Crema provides a tracking
+  link (via shipping partner API — Shiprocket, Delhivery, etc.).
+- **Consumer receives:** On delivery confirmation, Crema prompts
+  "Add to your shelf?" and "Write a tasting note?" — closing the
+  discovery → purchase → experience loop.
+- **Revenue:** Crema takes a transaction fee (3-5% of order value).
+  The roaster sets the price; Crema never owns inventory.
 
-This is the ultimate retention hook: the app is literally how you pay
-for your coffee. You can't churn off something that's in your daily
-payment flow.
+This replaces the roaster's own e-commerce site as the primary sales
+channel for consumers who discover beans through Crema. The value
+proposition for the roaster: you get customers you'd never reach on
+your own website. The value proposition for the consumer: you buy
+from 120 roasters through one checkout, one account, one order
+history.
 
-**Prerequisite:** PCI compliance, UPI integration (Razorpay / Juspay),
-and the café trust that comes from Phase 1-2 adoption.
+#### 2.2 B2B — Wholesale commerce
 
-#### 3.2 Wholesale commerce
+The "Interested" button from Phase 1 becomes a structured order
+flow:
 
-The "Interested" button from Phase 2 becomes a structured order flow:
-
-- Café places an order (product, quantity, delivery date)
-- Roaster confirms availability + price
-- Payment settles through Crema (escrow until delivery confirmed)
-- Crema takes a transaction fee (2-5%)
+- **Café places an order:** product, quantity (kg), preferred
+  delivery date, delivery address. The interface is a simple form
+  pre-filled from the café's procurement profile.
+- **Roaster confirms:** availability, price per kg, estimated
+  delivery. This is a quote, not a listing — wholesale prices are
+  negotiated per-relationship, not published.
+- **Payment settles through Crema:** escrow until delivery is
+  confirmed by the café. If there's a dispute (short shipment,
+  quality issue), Crema mediates.
+- **Revenue:** Crema takes a transaction fee (2-5% of order value).
+  Lower than B2C because order sizes are larger and margins are
+  thinner.
 
 This replaces the Instagram DM + bank transfer + hope-for-the-best
 flow that micro-roasters and cafés currently use. The value prop is
 reliability: payment is guaranteed, delivery is tracked, disputes
-have a resolution path.
+have a resolution path. Padaria's shipment-delay anxiety gets a
+tracking number instead of a prayer.
 
-**Prerequisite:** working "Interested" pipeline from Phase 2 with
-enough volume to justify the logistics investment. Probably 50+
-inquiries per month in one city before this makes sense.
+#### 2.3 Café POS (point of sale)
 
-#### 3.3 Promoted listings (low-touch revenue)
+The stamp system already puts Crema on the café counter. Extend it:
 
-Roasters pay to appear higher in catalog search, in the "Discover"
+- **Customer scans to pay** (UPI / card / wallet) instead of just
+  collecting a stamp. Stamp is awarded automatically on payment.
+- **Menu-linked checkout:** The café's Crema menu becomes the POS
+  menu. Customer selects a drink, pays, stamp lands.
+- **Café POS dashboard:** daily sales, popular drinks, average
+  ticket, peak hours, staff transactions.
+- **Revenue:** Crema takes a small transaction fee (1-2%). Lower
+  than standard POS providers because the loyalty program is bundled
+  — the café doesn't need a separate Thrive/Square + a separate
+  loyalty app.
+
+This is the ultimate retention hook: the app is literally how you
+pay for your coffee. You can't churn off something that's in your
+daily payment flow.
+
+#### 2.4 Promoted listings (low-touch revenue)
+
+Roasters pay to appear higher in catalog search, in the Discover
 tab, or in café procurement flows. This is the Google Ads model
 applied to a vertical: the intent is already there (café searching
 for a new Ethiopian), the promotion just surfaces relevant suppliers
 faster.
 
-**Prerequisite:** search + discovery features from Phase 1-2 with
-enough traffic to make impressions meaningful.
+**Phase 2 success metrics:**
+- 10 cafés using Crema POS daily
+- ₹5L monthly GMV through wholesale orders
+- ₹2L monthly GMV through consumer purchases
+- Transaction fee revenue covers infrastructure costs
+  (~₹15k/month = self-sustaining)
+- 20 roasters with at least one in-app sale per month
+
+---
+
+### Phase 3 — Delivery
+
+**Goal:** Crema owns the last mile. The transaction layer from
+Phase 2 proved volume; now we vertically integrate delivery to
+capture more margin and solve the reliability problem that Padaria
+told us about.
+
+#### 3.1 Wholesale delivery network
+
+- **Crema delivery agents** (or partner fleet — Dunzo, Porter,
+  Shadowfax) handle roaster → café shipments within a city.
+- **Guaranteed SLAs:** next-day delivery within city, 2-3 day
+  inter-city. The café knows when their 80 kg is arriving — no more
+  delayed-shipment anxiety.
+- **Route optimization:** multiple café deliveries from the same
+  roaster consolidated. A roaster shipping to 5 cafés in Goa
+  doesn't make 5 separate trips.
+- **Revenue:** delivery fee (₹X per kg per km) + margin on
+  consolidated routes. The roaster's logistics cost drops because
+  Crema batches shipments; the café's reliability goes up because
+  Crema guarantees the SLA.
+
+#### 3.2 Consumer delivery
+
+- **Same-city same-day / next-day** for roasters with local
+  inventory. Premium option for consumers who want it fresh.
+- **Standard shipping** via existing courier partners for
+  inter-city. Crema negotiates bulk rates across all roasters
+  (volume leverage that no single micro-roaster has alone).
+- **Revenue:** shipping fee passed to consumer + margin from bulk
+  courier rate negotiation.
+
+#### 3.3 Cold chain / freshness guarantee (stretch)
+
+Specialty coffee's enemy is time. Green beans last months; roasted
+beans peak at 7-21 days. If Crema controls delivery, Crema can
+guarantee freshness:
+
+- **Roast-to-door tracking:** consumer sees "roasted 2 days ago,
+  shipped today, arrives tomorrow."
+- **Freshness badge:** products delivered within 7 days of roast
+  get a quality mark.
+- **Subscription delivery:** consumer subscribes to a bean; Crema
+  coordinates the roast schedule with the roaster so the bag ships
+  the day after roasting.
+
+This is the deepest moat of all: if Crema is the only channel that
+guarantees a 3-day roast-to-door window, neither the roaster's own
+website nor Amazon can compete on freshness.
+
+**Phase 3 success metrics:**
+- 50+ wholesale deliveries per month in one city
+- 200+ consumer deliveries per month
+- Average delivery SLA met ≥ 95% of the time
+- Delivery margin positive (revenue from fees > cost of fleet)
+- ₹20L monthly GMV (combined wholesale + consumer + POS)
 
 ---
 
@@ -305,29 +424,37 @@ Crema's defensibility is the **graph:**
 ```
 Consumer ──tasting_note──▶ Product ◀──sourcing_story── Roaster
     │                         │                            │
-    │ stamp                   │ menu_item                  │ wholesale
+    │ stamp / payment         │ menu_item                  │ wholesale order
     ▼                         ▼                            ▼
    Café ──────interest──────▶ Roaster
+    │                                                      │
+    │ POS transaction                                      │ delivery
+    ▼                                                      ▼
+   Consumer                                          Café (received)
 ```
 
 Every action makes the graph denser:
 - A tasting note connects a consumer to a product.
-- A stamp connects a consumer to a café.
+- A stamp (or a POS payment) connects a consumer to a café.
 - A menu item connects a café to a roaster (through a product).
 - A wholesale inquiry connects a café to a roaster directly.
+- A wholesale order + delivery closes that connection with money.
 - A sourcing story connects a roaster to a farm and a product.
+- A consumer purchase closes the discovery → ownership loop.
 
 No single participant can replicate this graph alone. Blue Tokai
-knows their own sales but not what Nada's customers think. Nada knows
-their beans but not which cafés would pour them. Padaria knows their
-menu but not what other cafés in Goa are sourcing. Crema is the only
-entity that sees all three perspectives at once.
+knows their own sales but not what Nada's customers think. Nada
+knows their beans but not which cafés would pour them. Padaria knows
+their menu but not what other cafés in Goa are sourcing. Crema is
+the only entity that sees all three perspectives at once — and in
+Phase 3, the only entity that physically moves the beans.
 
 The graph gets more valuable with density, and density compounds:
-more roasters listed → more products for consumers to discover → more
-tasting notes → more signal for cafés deciding what to stock → more
-wholesale inquiries → more roasters motivated to keep profiles
-current. The flywheel.
+more roasters listed → more products for consumers to discover →
+more tasting notes → more signal for cafés deciding what to stock →
+more wholesale inquiries → more orders → more delivery data → better
+route optimization → lower costs → more roasters motivated to use
+the platform. The flywheel.
 
 ---
 
@@ -335,9 +462,10 @@ current. The flywheel.
 
 Clarity about what Crema is NOT:
 
-- **Not a logistics company.** We don't ship beans. We connect buyer
-  and seller; they handle fulfillment. (Phase 3 may add delivery
-  tracking, but not delivery itself.)
+- **Not an inventory holder.** We never own beans. We connect buyer
+  and seller; they hold stock. Even in Phase 3, the delivery agent
+  picks up from the roaster and delivers to the buyer. Crema is a
+  logistics coordinator, not a warehouser.
 - **Not a review site.** We don't aggregate star ratings or rank
   roasters. Tasting notes are personal journal entries, not Yelp
   reviews. The absence of a ranking system is intentional — it keeps
@@ -366,8 +494,11 @@ make every phase buildable without rewrites:
 | Sourcing story posts | New post_type in existing posts resource |
 | Business notifications | Notification type + split rendering |
 | Wholesale badge | Field on product / roaster_profile + conditional render |
-| Café POS | New routes/specific.py composite endpoints |
-| Transaction fees | New service module, same envelope pattern |
+| B2C checkout | New routes/specific.py composite endpoints |
+| Café POS | Extension of stamp flow + payment service |
+| Wholesale orders | New registry resource + escrow service |
+| Delivery tracking | New service module, same envelope pattern |
+| Transaction fees | Payment service module, same envelope pattern |
 
 The design-tokens system carries to the iOS app (Expo builds native
 from the same codebase). A future native Swift rewrite, if ever
@@ -376,47 +507,29 @@ envelope — the backend doesn't change at all.
 
 ---
 
-## 7. Success metrics by phase
-
-### Phase 1 (Habit)
-- 500 registered users in one city (Goa)
-- 50 weekly active users
-- 10 cafés with stamps enabled
-- 20 roasters with profiles
-- D7 retention ≥ 20%
-
-### Phase 2 (Intent)
-- 50 wholesale inquiries per month
-- 5 confirmed supplier switches (café changes a menu item to a
-  roaster they found through Crema)
-- 30% of active roasters have at least one sourcing story post
-- Business notification tab opened by ≥ 60% of seller accounts
-
-### Phase 3 (Transactions)
-- 10 cafés using Crema POS daily
-- ₹5L monthly GMV through wholesale orders
-- Transaction fee revenue covers infrastructure costs
-  (~₹15k/month = self-sustaining)
-
----
-
-## 8. Revenue model (eventual, not now)
+## 7. Revenue model
 
 | Stream | Phase | Mechanism | Target take rate |
 |---|---|---|---|
-| Promoted listings | 2+ | Roasters pay for visibility in search + discovery | ₹2-5k/mo per roaster |
-| Wholesale lead fee | 2+ | Per qualified inquiry or flat monthly | ₹500/lead or ₹3k/mo |
-| Café POS fee | 3 | % of transaction | 1-2% |
-| Wholesale transaction fee | 3 | % of order value | 2-5% |
-| Premium analytics | 2+ | Deeper insights for sellers (beyond free tier) | ₹1-3k/mo |
+| Promoted listings | 1+ | Roasters pay for visibility in search + discovery | ₹2-5k/mo per roaster |
+| Consumer transaction fee | 2 | % of in-app purchase | 3-5% |
+| Wholesale transaction fee | 2 | % of order value | 2-5% |
+| Café POS fee | 2 | % of counter transaction | 1-2% |
+| Premium analytics | 1+ | Deeper insights for sellers (beyond free tier) | ₹1-3k/mo |
+| Delivery fee | 3 | Per-kg per-km + consolidated route margin | Variable |
+| Subscription margin | 3 | Delta between bulk courier rate and consumer shipping fee | 10-15% of shipping |
 
-**Rule: no revenue extraction before Phase 2 metrics are hit.** The
-network has to be warm before anyone pays. Premature monetisation
-kills the flywheel.
+**Rule: no revenue extraction before Phase 1 network metrics are
+hit.** The network has to be warm before anyone pays. Premature
+monetisation kills the flywheel.
+
+Self-sustaining threshold: ~₹15k/month in transaction fees covers
+infrastructure. Projected at 10 POS cafés + 50 wholesale orders +
+200 consumer purchases per month in one city.
 
 ---
 
 *This document is canonical alongside `CRUD_UTOPIA.md` and
 `LAUNCH_TODO.md`. When a feature request comes up, check it against
 the phase plan. If it doesn't serve the current phase's retention
-hooks or the next phase's intent signals, it waits.*
+hooks or the next phase's transaction layer, it waits.*
