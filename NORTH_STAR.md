@@ -62,6 +62,18 @@ supplier discovery, and they need it to be low-friction — not a
 procurement platform, just a way to say "I'm interested" and have the
 right roaster hear it.
 
+**Brightside Café (Mandrem, Goa)** is a sharper version of the same
+pain. Small seasonal café, single-supplier relationship with a large
+roaster. When the big roaster's priorities shift — delayed shipments,
+minimum-order increases, allocation changes — a café this size has no
+leverage and no fallback. The anxiety isn't hypothetical; it's the
+lived experience of being a small buyer dependent on a large seller in
+a market with no transparent alternatives. This is supply anxiety, and
+it's widespread among small cafés. Crema's wholesale discovery layer
+exists specifically to give these cafés optionality — the ability to
+see who else is out there, signal interest, and diversify before a
+supply crisis forces their hand.
+
 **Nada Coffee Roasters (Anjuna, Goa)** gets almost no traffic to their
 website. Blue Tokai owns consumer mindshare. Nada roasts in 600g
 batches — capacity-constrained, margin-sensitive, unable to supply
