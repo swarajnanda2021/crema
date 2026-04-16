@@ -36,6 +36,9 @@ def resource_list(resource: str, limit: int = None, offset: int = 0,
 
     # Check auth
     auth_req = res.get("auth", {}).get("list")
+    if auth_req == "blocked":
+        from fastapi import HTTPException
+        raise HTTPException(403, f"{resource} cannot be listed via generic endpoint — use specific route")
     if auth_req == "self" and not current_user:
         from fastapi import HTTPException
         raise HTTPException(401, "Authentication required")
@@ -98,6 +101,9 @@ def resource_get(resource: str, id: str, authorization: str = Header(None)):
     if res.get("type") == "toggle":
         from fastapi import HTTPException
         raise HTTPException(404, "Not a gettable resource")
+    if res.get("auth", {}).get("read") == "blocked":
+        from fastapi import HTTPException
+        raise HTTPException(403, f"{resource} cannot be read via generic endpoint — use specific route")
 
     current_user = get_optional_user(authorization)
     uid = current_user["id"] if current_user else None

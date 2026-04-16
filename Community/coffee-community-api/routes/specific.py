@@ -914,3 +914,91 @@ def user_stamp_book(username: str, authorization: str = Header(None)):
         return ok(entries, resource="stamp_book", total=len(entries))
     finally:
         db.close()
+
+
+# ── Wholesale inquiries (Phase 1 §2.1) ──────────────────────────────────────
+#
+# The generic list endpoint can't safely list wholesale_inquiries: a café
+# should see only their sent inquiries, a roaster should see only inquiries
+# targeted at their own roaster_slug. Exposing /api/wholesale_inquiries with
+# query filters would let anyone pass roaster_slug=X and read someone else's
+# leads. These two endpoints do the scoping server-side.
+
+@router.get("/my-wholesale-inquiries")
+def my_wholesale_inquiries(user=Depends(get_current_user)):
+    """Inquiries relevant to the current account.
+    - Café account → inquiries this café has sent (as sender).
+    - Roaster account → inquiries targeting this roaster (as recipient).
+    - Regular user → empty list (no inquiries belong to them).
+    The response stream is identical to the generic list payload so the
+    frontend can reuse the same row renderer for both perspectives; the
+    perspective field tells the UI which tab context it's in.
+    """
+    from fastapi import HTTPException
+    if not user:
+        raise HTTPException(401, "Authentication required")
+
+    account_type = user.get("account_type")
+    db = get_db()
+    try:
+        res = get_resource("wholesale_inquiries")
+        select = build_select(res, current_user_id=user["id"])
+
+        if account_type == "cafe" and user.get("cafe_slug"):
+            where_col, where_val = "cafe_slug", user["cafe_slug"]
+            perspective = "sent"
+        elif account_type == "roaster" and user.get("roaster_slug"):
+            where_col, where_val = "roaster_slug", user["roaster_slug"]
+            perspective = "received"
+        else:
+            return ok([], resource="wholesale_inquiries", total=0,
+                      limit=100, offset=0, perspective="none")
+
+        order = res.get("order", "created_at DESC")
+        sql = f"{select}\n    WHERE t.{where_col} = ?\n    ORDER BY {order}\n    LIMIT 100"
+        rows = db.execute(sql, (where_val,)).fetchall()
+        items = [row_to_dict(r, res) for r in rows]
+        return ok(items, resource="wholesale_inquiries",
+                  total=len(items), limit=100, offset=0,
+                  perspective=perspective)
+    finally:
+        db.close()
+
+
+@router.post("/wholesale-inquiries/{inquiry_id}/respond")
+def respond_to_inquiry(inquiry_id: int, body: dict,
+                       user=Depends(get_current_user)):
+    """Roaster-side status change. body.status ∈ {'responded','archived'}.
+    Only the inquiry's roaster can transition state; the café side uses the
+    generic PUT to edit note/product_id before the roaster acts.
+    """
+    from fastapi import HTTPException
+    if not user or user.get("account_type") != "roaster":
+        raise HTTPException(403, "Roasters only")
+
+    new_status = (body or {}).get("status")
+    if new_status not in ("responded", "archived", "open"):
+        raise HTTPException(400, "status must be open, responded, or archived")
+
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id, roaster_slug FROM wholesale_inquiries WHERE id = ?",
+            (inquiry_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Inquiry not found")
+        if row["roaster_slug"] != user.get("roaster_slug"):
+            raise HTTPException(403, "Not your inquiry to respond to")
+
+        import datetime as _dt
+        now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        db.execute(
+            "UPDATE wholesale_inquiries SET status = ?, updated_at = ? WHERE id = ?",
+            (new_status, now, inquiry_id),
+        )
+        db.commit()
+        return ok({"id": inquiry_id, "status": new_status, "updated_at": now},
+                  resource="wholesale_inquiries")
+    finally:
+        db.close()

@@ -390,6 +390,24 @@ _MIGRATIONS = [
     "ALTER TABLE cafe_profiles ADD COLUMN monthly_volume_kg INTEGER",
     "ALTER TABLE cafe_profiles ADD COLUMN open_to_new_roasters INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE cafe_profiles ADD COLUMN procurement_note TEXT",
+    # ── Phase 1 §2.1 Wholesale inquiries ───────────────────────────────────
+    # A café-to-roaster "Interested" handshake. `product_id` is optional:
+    # an inquiry may target a specific product or the roaster in general.
+    # Status lifecycle: open → responded → archived. The note is optional
+    # café context ("we brew ~30 kg/mo, looking for a washed Ethiopian").
+    """CREATE TABLE IF NOT EXISTS wholesale_inquiries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cafe_slug TEXT NOT NULL,
+        roaster_slug TEXT NOT NULL,
+        product_id TEXT,
+        note TEXT,
+        status TEXT NOT NULL DEFAULT 'open',
+        created_at TEXT NOT NULL,
+        updated_at TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_winquiries_roaster ON wholesale_inquiries(roaster_slug, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_winquiries_cafe ON wholesale_inquiries(cafe_slug, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_winquiries_status ON wholesale_inquiries(status)",
 ]
 
 

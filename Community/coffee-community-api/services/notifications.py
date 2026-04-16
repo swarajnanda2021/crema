@@ -62,6 +62,8 @@ def run_hook(hook_name, db, *, resource_name=None, item=None, current_user=None,
         _handle_sync_entity_logo(db, item, current_user, "cafe")
     elif hook_name == "sync_roaster_logo_to_user":
         _handle_sync_entity_logo(db, item, current_user, "roaster")
+    elif hook_name == "notify_wholesale_inquiry":
+        _handle_notify_wholesale_inquiry(db, item, current_user)
     # validate_dictionary is handled inline in tasting_notes route
 
 
@@ -217,6 +219,55 @@ def _handle_notify_followers_catalog(db, actor, extra):
             change,
             actor_id or 0,
             target_slug=target_slug,
+            subject=subject,
+        )
+    db.commit()
+
+
+def _handle_notify_wholesale_inquiry(db, item, actor):
+    """Phase 1 §2.1 — notify every roaster-account user belonging to the
+    target roaster_slug that a café has opened an inquiry. Subject carries
+    the café name + (optionally) the product name so the Business-tab
+    item reads meaningfully without opening the dropdown.
+
+    target_slug uses the same 'cafe:<slug>' convention as catalog-change
+    notifications (§2.4) so the existing deep-link path sends the
+    roaster to the café profile, where §2.6 procurement fields render.
+    """
+    if not item:
+        return
+    cafe_slug = item.get("cafe_slug")
+    roaster_slug = item.get("roaster_slug")
+    if not cafe_slug or not roaster_slug:
+        return
+
+    cafe_row = db.execute(
+        "SELECT name FROM cafe_profiles WHERE cafe_slug = ?", (cafe_slug,)
+    ).fetchone()
+    cafe_name = (cafe_row["name"] if cafe_row else None) or cafe_slug
+
+    product_id = item.get("product_id")
+    product_name = None
+    if product_id:
+        prod_row = db.execute(
+            "SELECT coffee_name FROM products WHERE product_id = ?", (product_id,)
+        ).fetchone()
+        product_name = prod_row["coffee_name"] if prod_row else None
+
+    subject = f"{cafe_name} · {product_name}" if product_name else cafe_name
+
+    recipients = db.execute(
+        "SELECT id FROM users WHERE account_type = 'roaster' AND roaster_slug = ?",
+        (roaster_slug,),
+    ).fetchall()
+    actor_id = actor["id"] if actor else 0
+    for r in recipients:
+        create_notification(
+            db,
+            r["id"],
+            "wholesale_inquiry",
+            actor_id,
+            target_slug=f"cafe:{cafe_slug}",
             subject=subject,
         )
     db.commit()

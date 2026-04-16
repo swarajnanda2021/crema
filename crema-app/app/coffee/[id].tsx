@@ -11,6 +11,7 @@ import { pricePer250g } from "../../src/utils/formatPrice";
 import { ShareIcon, CartIcon } from "../../src/components/icons/FigmaIcons";
 import Chip from "../../src/components/Chip";
 import CoffeeCard from "../../src/components/CoffeeCard";
+import InterestedButton from "../../src/components/InterestedButton";
 
 /** Canela lining numerals */
 const canelaNumeral = Platform.OS === "web"
@@ -71,6 +72,13 @@ export default function CoffeeDetailPage() {
               <Pressable onPress={() => share(coffee)} style={st.shareBtn}>
                 <ShareIcon size={18} color={t.color["text.secondary"]} />
               </Pressable>
+              {/* Café accounts: wholesale "Interested" handshake (§2.1) */}
+              <InterestedButton
+                roaster_slug={coffee.roaster_slug}
+                roaster_name={coffee.roaster_name}
+                product_id={coffee.product_id}
+                product_name={coffee.coffee_name}
+              />
               <Pressable
                 onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "coffee_page"); Linking.openURL(coffee.product_url); }}
                 style={st.buyBtn}

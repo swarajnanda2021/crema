@@ -44,6 +44,7 @@ Android from a single codebase.
 | **Social feed** | Posts (articles, notes, reposts, tasting-note auto-posts), likes, threaded comments with replies, notifications | `roaster_posts` + `post_likes` + `post_comments` resources |
 | **Post composer** | Floating modal, image upload, link auto-detect with preview, tasting-note card attachment, tag-a-café (pink heart icon), tag-a-drink picker, location | `ComposePost.tsx` |
 | **Buy button** | Outbound click to roaster's product URL, tracked in `click_events` (product, roaster, source page, timestamp) | `CoffeeCard.tsx`, `click_events` resource |
+| **"Interested" wholesale handshake** | Café accounts see an Interested button on the product detail page. Tapping opens a modal with an optional note, creates a `wholesale_inquiries` row, and fires a `wholesale_inquiry` notification to every roaster-account user on that slug — lands in their Business tab (§2.4) with a deep-link to the sending café's profile (where §2.6 procurement fields render). Roaster can respond / archive via `POST /api/wholesale-inquiries/{id}/respond`. | `InterestedButton.tsx`, `wholesale_inquiries` resource, `_handle_notify_wholesale_inquiry` hook, `/api/my-wholesale-inquiries` |
 | **Notifications** | Dropdown with likes, comments, follows, reposts, reply, catalog-change notifications (product added/removed, menu changed). Subject line + deep-link to source entity. | `NotificationsDropdown.tsx`, `useNotifications.ts` |
 | **Activity / Business tabs** | Roaster + café accounts see the notifications dropdown split into two tabs. Activity = social (like/comment/follow/repost/reply); Business = catalog fanout + future wholesale inquiries (§2.1) + stamp awards. Regular users still see one flat list. Unread count appears next to each tab label. | `NotificationsDropdown.tsx` `BUSINESS_TYPES` set in `useNotifications.ts` |
 | **Browse / Discover** | Roasters list with city filter, cafés list with city filter, product catalog | `app/(tabs)/browse.tsx` |
@@ -86,6 +87,7 @@ Android from a single codebase.
 | **Retention cohort grid** | Weekly signup cohorts with D1/D7/D30 retention %, heat-tinted cells. Writer retention + stamp-cohort retention. |
 | **Supply · procurement readiness** | 3 cards in Supply tab: Procurement Ready (count), Open to New Roasters (count), Procurement Readiness % (of cafés with any procurement field filled). Leading indicator for §2.1 inquiry quality. |
 | **Supply · notification split (30d)** | 3 cards tracking how much of the last month's notification volume is B2B vs social: Business Notifs (30d), Activity Notifs (30d), Business Share %. Rises as catalog activity and wholesale inquiries grow. |
+| **Supply · wholesale inquiries** | 6 cards tracking the flagship Phase 1 B2B metric: Inquiries Total, Inquiries (30d), Inquiries Open, Response Rate %, Cafés Inquiring, Roasters Receiving. Response rate = (responded + archived) / total. |
 | **Plot carousel** | Swipe-only (no buttons), dot pager, per-section state isolation via React key. |
 | **Circular refresh button** | 44×44 dark primary fill, cream icon, matches site FAB language. |
 | **Backend** | `services/admin_stats.py` (~500 lines): 6 section functions, each wrapped to never crash the others. Daily series with zero-fill + leading-zero trim. Gated on `is_admin=1 AND username="crema"`. |
@@ -114,17 +116,16 @@ Ordered by the Phase 1 roadmap in `NORTH_STAR.md`. Each item references
 the relevant section there. For deployment/infra prerequisites see
 `LAUNCH_TODO.md`.
 
-### 2.1 "Interested" button (café → roaster wholesale inquiry)
+### 2.1 "Interested" button *(shipped — see §1.2 "Interested" wholesale handshake)*
 
-The highest-value Phase 1 B2B feature. A café owner viewing a roaster's
-product page sees an "Interested" button that creates a lightweight
-inquiry record and sends a business notification to the roaster with
-café context (name, location, menu, volume). No transaction — just the
-handshake.
-
-Requires: new `wholesale_inquiries` registry resource, new notification
-type, business notification tab (2.4), café procurement profile fields
-(2.6).
+The flagship Phase 1 B2B feature landed end-to-end: `wholesale_inquiries`
+registry resource with subfields for café context, `notify_wholesale_inquiry`
+hook firing to every roaster-account user on the target slug, scoped list
+endpoint (`GET /api/my-wholesale-inquiries`) with per-account perspective,
+roaster response endpoint (`POST /api/wholesale-inquiries/{id}/respond`),
+`InterestedButton` component on the product detail page, and 6 admin
+Supply cards. Generic list+read are blocked on the resource to keep one
+café from peeking at another's leads.
 
 ### 2.2 Wholesale availability signal
 

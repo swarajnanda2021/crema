@@ -335,6 +335,30 @@ export interface StampResult {
   rewards_ever: number;
 }
 
+// ── Wholesale inquiries (Phase 1 §2.1) ──────────────────────────────────────
+
+export type WholesaleInquiryStatus = "open" | "responded" | "archived";
+
+export interface WholesaleInquiry {
+  id: number;
+  cafe_slug: string;
+  roaster_slug: string;
+  product_id: string | null;
+  note: string | null;
+  status: WholesaleInquiryStatus;
+  created_at: string;
+  updated_at: string | null;
+  // Subfields joined via the registry (see registry.py)
+  cafe_name: string | null;
+  cafe_city: string | null;
+  cafe_state: string | null;
+  cafe_logo_url: string | null;
+  cafe_monthly_volume_kg: number | null;
+  cafe_open_to_new_roasters: number | null;
+  cafe_procurement_note: string | null;
+  product_name: string | null;
+}
+
 // ── Admin Traction Dashboard (see services/admin_stats.py) ──────────────────
 
 export interface DailyPoint {
@@ -479,6 +503,15 @@ export interface SupplyStats {
   business_notifs_30d: number;
   activity_notifs_30d: number;
   business_share_pct: number;
+  // Phase 1 §2.1 wholesale inquiries
+  inquiries_total: number;
+  inquiries_30d: number;
+  inquiries_open: number;
+  inquiries_responded: number;
+  inquiries_archived: number;
+  inquiry_cafes_participating: number;
+  inquiry_roasters_receiving: number;
+  inquiry_response_rate_pct: number;
 }
 
 export interface TractionStats {

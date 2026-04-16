@@ -421,6 +421,18 @@ const E = {
     "Social notifications (likes, comments, follows, replies, reposts) fired in the last 30 days.",
   businessShare:
     "Business share of all notifications fired in the last 30 days. Higher share = more B2B flow relative to social engagement.",
+  inquiriesTotal:
+    "All wholesale 'Interested' handshakes a café has opened to any roaster. The flagship Phase 1 B2B metric.",
+  inquiries30d:
+    "Wholesale inquiries opened in the last 30 days. Activity on this line tells you the café→roaster side of the marketplace is alive.",
+  inquiriesOpen:
+    "Inquiries still sitting in 'open' status — no roaster response yet. A growing backlog here is a risk signal.",
+  inquiryResponseRate:
+    "(responded + archived) / total. Measures how diligently roasters are working their inbound leads.",
+  inquiryCafes:
+    "Distinct cafés that have opened at least one wholesale inquiry.",
+  inquiryRoasters:
+    "Distinct roasters that have received at least one wholesale inquiry.",
 };
 
 function renderEngagement(stats: any, basis: any) {
@@ -732,6 +744,12 @@ function renderSupply(stats: any, basis: any) {
           <Card basis={basis} label="Business Notifs (30d)" value={sup.business_notifs_30d ?? 0} info={E.businessNotifs} />
           <Card basis={basis} label="Activity Notifs (30d)" value={sup.activity_notifs_30d ?? 0} info={E.activityNotifs} />
           <Card basis={basis} label="Business Share" value={`${sup.business_share_pct ?? 0}%`} hint="B2B vs social" info={E.businessShare} />
+          <Card basis={basis} label="Inquiries Total" value={sup.inquiries_total ?? 0} info={E.inquiriesTotal} />
+          <Card basis={basis} label="Inquiries (30d)" value={sup.inquiries_30d ?? 0} info={E.inquiries30d} />
+          <Card basis={basis} label="Inquiries Open" value={sup.inquiries_open ?? 0} info={E.inquiriesOpen} />
+          <Card basis={basis} label="Inquiry Response Rate" value={`${sup.inquiry_response_rate_pct ?? 0}%`} hint="responded or archived" info={E.inquiryResponseRate} />
+          <Card basis={basis} label="Cafés Inquiring" value={sup.inquiry_cafes_participating ?? 0} info={E.inquiryCafes} />
+          <Card basis={basis} label="Roasters Receiving" value={sup.inquiry_roasters_receiving ?? 0} info={E.inquiryRoasters} />
         </>,
       )}
     </View>

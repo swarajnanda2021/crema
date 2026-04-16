@@ -826,6 +826,55 @@ def _supply(db) -> dict:
         else 0.0
     )
 
+    # Wholesale inquiries (Phase 1 §2.1) — the flagship Phase 1 B2B
+    # metric. Counts how many cafés have reached out to roasters and how
+    # those inquiries are being handled. Response rate = responded or
+    # archived / total; a healthy ecosystem keeps inquiries moving.
+    inquiries_total = _n(
+        db.execute("SELECT COUNT(*) FROM wholesale_inquiries").fetchone()[0]
+    )
+    since_30 = _days_ago(30)
+    inquiries_30d = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM wholesale_inquiries WHERE created_at > ?",
+            (since_30,),
+        ).fetchone()[0]
+    )
+    inquiries_open = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM wholesale_inquiries WHERE status = 'open'"
+        ).fetchone()[0]
+    )
+    inquiries_responded = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM wholesale_inquiries WHERE status = 'responded'"
+        ).fetchone()[0]
+    )
+    inquiries_archived = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM wholesale_inquiries WHERE status = 'archived'"
+        ).fetchone()[0]
+    )
+    cafes_inquiring = _n(
+        db.execute(
+            "SELECT COUNT(DISTINCT cafe_slug) FROM wholesale_inquiries"
+        ).fetchone()[0]
+    )
+    roasters_receiving = _n(
+        db.execute(
+            "SELECT COUNT(DISTINCT roaster_slug) FROM wholesale_inquiries"
+        ).fetchone()[0]
+    )
+    inquiry_response_rate_pct = (
+        round(
+            (inquiries_responded + inquiries_archived)
+            / inquiries_total * 100.0,
+            1,
+        )
+        if inquiries_total
+        else 0.0
+    )
+
     # Business-stream notification volume (Phase 1 §2.4) — counts all
     # catalog-change / wholesale / stamp notifications fired in the last
     # 30 days. The higher this number relative to activity notifications,
@@ -911,6 +960,14 @@ def _supply(db) -> dict:
         "business_notifs_30d": business_notifs_30d,
         "activity_notifs_30d": activity_notifs_30d,
         "business_share_pct": business_share_pct,
+        "inquiries_total": inquiries_total,
+        "inquiries_30d": inquiries_30d,
+        "inquiries_open": inquiries_open,
+        "inquiries_responded": inquiries_responded,
+        "inquiries_archived": inquiries_archived,
+        "inquiry_cafes_participating": cafes_inquiring,
+        "inquiry_roasters_receiving": roasters_receiving,
+        "inquiry_response_rate_pct": inquiry_response_rate_pct,
     }
 
 

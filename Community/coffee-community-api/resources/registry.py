@@ -468,6 +468,48 @@ RESOURCES = {
         "limit": 500,
     },
 
+    # ── Wholesale inquiries (Phase 1 §2.1) ──────────────────────────────
+    # Lightweight café-to-roaster "Interested" handshake. Auth is
+    # "required" on all verbs; the specific route enforces the inquiry
+    # filter (callers only see their own inquiries or inquiries sent to
+    # their own roaster). Notifications fire via the on_create hook so
+    # the roaster sees it in their Business tab (§2.4). Café context is
+    # pulled in via subfields — the generic join helper only joins on
+    # users.id, so we use subqueries the same way products does.
+    "wholesale_inquiries": {
+        "table": "wholesale_inquiries",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "cafe_slug": {"type": "str", "required": True, "auto": "user_cafe_slug"},
+            "roaster_slug": {"type": "str", "required": True},
+            "product_id": {"type": "str"},
+            "note": {"type": "str"},
+            "status": {"type": "str", "default": "open"},
+            "created_at": {"type": "str", "ro": True, "auto": "now"},
+            "updated_at": {"type": "str"},
+        },
+        # list + read are blocked on the generic endpoint to prevent one café
+        # from peeking at another's leads or a roaster from harvesting
+        # inquiries sent to others. Use GET /api/my-wholesale-inquiries
+        # (see routes/specific.py) which scopes to the current account.
+        "auth": {"list": "blocked", "read": "blocked", "create": "required", "update": "owner", "delete": "owner"},
+        "owner": "cafe_slug",
+        "subfields": [
+            {"name": "cafe_name", "sql": "(SELECT cp.name FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
+            {"name": "cafe_city", "sql": "(SELECT cp.city FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
+            {"name": "cafe_state", "sql": "(SELECT cp.state FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
+            {"name": "cafe_logo_url", "sql": "(SELECT cp.logo_url FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
+            {"name": "cafe_monthly_volume_kg", "sql": "(SELECT cp.monthly_volume_kg FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
+            {"name": "cafe_open_to_new_roasters", "sql": "(SELECT cp.open_to_new_roasters FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
+            {"name": "cafe_procurement_note", "sql": "(SELECT cp.procurement_note FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
+            {"name": "product_name", "sql": "(SELECT p.coffee_name FROM products p WHERE p.product_id = t.product_id)"},
+        ],
+        "order": "created_at DESC",
+        "limit": 100,
+        "hooks": {"on_create": ["notify_wholesale_inquiry"]},
+    },
+
     "stamp_rewards": {
         "table": "stamp_rewards",
         "pk": "id",
