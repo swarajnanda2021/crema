@@ -57,27 +57,28 @@ what's written.
 
 ### LAUNCH_TODO.md
 
-This file has a **strict convention**: items don't move without the
-user's explicit green light. Follow it exactly.
+Work items autonomously — no permission ritual before picking something
+up. Keep status accurate:
 
-- `[ ]` → `[~]`: only after the user says to pursue the item (e.g.
-  "do item 1.2", "go ahead"). Never flip to in-progress on my own
-  initiative.
-- `[~]` → `[x]`: only when the work is actually complete — tests green,
-  code merged or ready to merge. Add a short note (commit hash or
-  brief outcome) on the line below, same style as existing entries.
-- `[~]` → `[!]`: if blocked, append the reason on the line below.
-- New items: add under the appropriate section with the standard
-  format (`ASK: pursue now?`), don't start building.
+- `[ ]` → `[~]` when I start the work.
+- `[~]` → `[x]` when it's genuinely complete. Add a short note
+  (commit hash or brief outcome) on the next line.
+- `[~]` → `[!]` if blocked. Reason on the next line.
+- New items: add under the appropriate Part 1/Part 2 section in the
+  same prose style as existing entries.
 - Never silently delete items. If something is obsolete, flip to `[x]`
-  with a note explaining why, or ask the user first.
+  with a one-line reason.
+
+**Part 2 items require your credentials/money/decision** — I can
+prepare code but can't sign up or pay. Leave a "YOU: <decision>" line
+instead of starting those.
 
 ### When in doubt
 
-If it's unclear whether an item is "done enough" to mark `[x]`, or
-whether a roadmap section should be rewritten vs. appended to, ask
-before editing. These files are read by humans as the project's
-ground truth — accuracy matters more than activity.
+If the honest status of an item is unclear (is it "done enough" for
+`[x]`?), prefer a brief note on the line below the checkbox over
+guessing. These files are read by humans as the project's ground
+truth — accuracy matters.
 
 ## Standing rules
 
