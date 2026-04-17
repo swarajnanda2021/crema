@@ -551,17 +551,27 @@ def create_roaster_product(slug: str, body: dict, user=Depends(get_current_user)
 def delete_roaster_product(slug: str, product_id: int, user=Depends(get_current_user)):
     from fastapi import HTTPException
     from services.notifications import run_hook
+    from services import trash as _trash
     if user.get("roaster_slug") != slug:
         raise HTTPException(403, "Not your roaster")
     db = get_db()
     try:
-        # Capture the coffee name before deleting so the notification has
-        # useful context for the follower.
+        # Full-row snapshot before DELETE — feeds both the
+        # notification copy and the recycle-bin capture so the
+        # roaster can undo a misfire from their ProfileDropdown bin.
         row = db.execute(
-            "SELECT coffee_name FROM roaster_products WHERE id = ? AND roaster_slug = ?",
+            "SELECT * FROM roaster_products WHERE id = ? AND roaster_slug = ?",
             (product_id, slug),
         ).fetchone()
         coffee_name = row["coffee_name"] if row else None
+        if row:
+            _trash.capture(
+                db,
+                entity_type="roaster_products",
+                entity_id=product_id,
+                row=dict(row),
+                deleted_by_user_id=user["id"],
+            )
         db.execute("DELETE FROM roaster_products WHERE id = ? AND roaster_slug = ?", (product_id, slug))
         db.commit()
         run_hook("notify_followers_catalog", db, current_user=user, extra={
@@ -1760,5 +1770,50 @@ def respond_to_inquiry(inquiry_id: int, body: dict,
         db.commit()
         return ok({"id": inquiry_id, "status": new_status, "updated_at": now},
                   resource="wholesale_inquiries")
+    finally:
+        db.close()
+
+
+# ── Recycle bin / trash ─────────────────────────────────────────────────────
+# Every hard delete across the registry funnels through
+# `services/trash.py`. These endpoints surface the bin to the user:
+# list what they've deleted, restore an entry, or purge it forever.
+
+@router.get("/trash")
+def list_trash(user=Depends(get_current_user)):
+    from services import trash as _trash
+    db = get_db()
+    try:
+        return ok(_trash.list_for_user(db, user["id"]), resource="trash")
+    finally:
+        db.close()
+
+
+@router.post("/trash/{trash_id}/restore")
+def restore_trash(trash_id: int, user=Depends(get_current_user)):
+    from services import trash as _trash
+    db = get_db()
+    try:
+        return ok(_trash.restore(db, trash_id, current_user=user), resource="trash")
+    finally:
+        db.close()
+
+
+@router.delete("/trash/{trash_id}")
+def purge_trash(trash_id: int, user=Depends(get_current_user)):
+    from services import trash as _trash
+    db = get_db()
+    try:
+        return ok(_trash.purge(db, trash_id, current_user=user), resource="trash")
+    finally:
+        db.close()
+
+
+@router.delete("/trash")
+def empty_trash(user=Depends(get_current_user)):
+    from services import trash as _trash
+    db = get_db()
+    try:
+        return ok(_trash.purge_all(db, current_user=user), resource="trash")
     finally:
         db.close()

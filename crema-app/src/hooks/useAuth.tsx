@@ -177,20 +177,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     const username = user?.username;
-    // Drop the current session first so any follow-up fetch uses
-    // the next account's token.
-    await setToken(null);
-    setUser(null);
-    if (username) removeAccount(username);
-
-    // If the user still has other saved accounts on the device,
-    // slip into the next one instead of bouncing to /auth. That
-    // matches the mental model of Gmail / Twitter account
-    // switching — "sign out" really means "drop this identity" not
-    // "log me out of everything". The next-account pick order:
-    //   1. user  2. roaster  3. café
-    // which is the order people tend to think of them in.
-    const remaining = readSavedAccounts();
+    // If there's a next saved account on the device, slip into it
+    // instead of bouncing to /auth. Matches the mental model of
+    // Gmail / Twitter account switching — "sign out" really means
+    // "drop this identity" not "log me out of everything".
+    //
+    // Critical ordering fix: do NOT call setUser(null) or
+    // setToken(null) before we've decided whether a next account
+    // exists. The intermediate `user === null` render would make
+    // AuthGate fire `router.replace("/auth")` before our
+    // `window.location.assign(entityHomeFor(next))` kicks in,
+    // producing a visible flicker through the auth screen. We swap
+    // the session token + fetch the next user FIRST, then hard-
+    // navigate, letting the full page reload flush the old state.
+    //
+    // Next-account pick order: user → roaster → café (the order
+    // people think of them in).
+    const remaining = username
+      ? readSavedAccounts().filter((a) => a.username !== username)
+      : readSavedAccounts();
     const typePriority: Record<string, number> = { user: 0, roaster: 1, cafe: 2 };
     const next = remaining
       .slice()
@@ -198,30 +203,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         - (typePriority[b.account_type || "user"] ?? 9))[0];
 
     if (next && Platform.OS === "web" && typeof window !== "undefined") {
-      // Slip into the next saved account. Write the token first so
-      // the follow-up /auth/me carries the right session, then call
-      // it to pull the full user row (we need slug fields the saved
-      // entry doesn't carry). Hard-reload at the entity home so the
-      // new identity mounts cleanly.
       await setToken(next.token);
       try {
         const meRes = await apiFetchRaw<any>("/auth/me");
         const me = meRes?.data ?? meRes;
         upsertAccount(me, next.token);
+        if (username) removeAccount(username);
+        // Hard-navigate. Page reload replaces React state entirely
+        // so we don't need setUser() / setToken() cleanup here.
         window.location.assign(entityHomeFor(me));
         return;
       } catch {
-        // Token expired — fall through to the default logout path
-        // after wiping the stale saved entry.
+        // Stale next-account token — wipe it and fall through to
+        // the default sign-out-to-auth path.
         removeAccount(next.username);
-        await setToken(null);
       }
     }
 
+    // No next account (or the next token was stale) — drop the
+    // current session cleanly and hard-reload. The landing page
+    // triggers AuthGate's unauthenticated redirect to /auth.
+    await setToken(null);
+    setUser(null);
+    if (username) removeAccount(username);
+
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      // No other accounts — fresh reload drops any in-memory state
-      // bound to the old session token and lands at the auth screen
-      // via AuthGate's unauthenticated redirect.
       window.location.assign("/");
     }
   }, [user]);

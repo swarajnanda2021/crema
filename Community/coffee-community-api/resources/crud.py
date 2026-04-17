@@ -342,18 +342,44 @@ def update_resource(db, name, id_val, data, *, current_user=None):
 
 
 def delete_resource(db, name, id_val, *, current_user=None):
-    """Delete a resource by primary key with ownership check."""
+    """Delete a resource by primary key with ownership check.
+
+    Before the physical DELETE we snapshot the full row into the
+    recycle-bin table via `services.trash.capture` — so a user can
+    undo the delete from their bin in ProfileDropdown. The snapshot
+    only runs for entity types the trash service recognises
+    (capture() is a no-op otherwise), which keeps toggle flows and
+    telemetry out of the bin.
+    """
+    from services import trash as _trash  # local import avoids cycle
+
     res = get_resource(name)
     pk = res.get("pk", "id")
+
+    # Always fetch the full row first — we need it both for the
+    # ownership check AND for the trash snapshot. One SELECT instead
+    # of two.
+    full_row = db.execute(f"SELECT * FROM {res['table']} WHERE {pk} = ?", (id_val,)).fetchone()
+    if not full_row:
+        raise HTTPException(404, f"{name} not found")
+    row_dict = dict(full_row)
 
     if res.get("owner") and current_user:
         owner_col = res["owner"]
         owner_user_field = res.get("owner_user_field", "id")
-        row = db.execute(f"SELECT {owner_col} FROM {res['table']} WHERE {pk} = ?", (id_val,)).fetchone()
-        if not row:
-            raise HTTPException(404, f"{name} not found")
-        if row[owner_col] != current_user.get(owner_user_field):
+        if row_dict.get(owner_col) != current_user.get(owner_user_field):
             raise HTTPException(403, "Not authorized")
+
+    # Capture first (best-effort — capture() returns 0 for unknown
+    # entity types and never raises).
+    if current_user:
+        _trash.capture(
+            db,
+            entity_type=name,
+            entity_id=id_val,
+            row=row_dict,
+            deleted_by_user_id=current_user["id"],
+        )
 
     db.execute(f"DELETE FROM {res['table']} WHERE {pk} = ?", (id_val,))
     db.commit()

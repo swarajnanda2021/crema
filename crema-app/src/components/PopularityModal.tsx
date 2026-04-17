@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { View, Text, Pressable, Modal, ScrollView, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { X, MapPin } from "lucide-react-native";
+import { X, MapPin, PenLine } from "lucide-react-native";
 import { t } from "../tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 import PostCard from "./domain/PostCard";
+import ComposePost from "./ComposePost";
 import { openPostModal } from "./primitives";
 import type { Post } from "../resources/types";
 
@@ -14,15 +15,28 @@ interface Props {
   visible: boolean;
   productId: string;
   coffeeName: string;
+  // Optional product context used by the "Write a tasting note"
+  // shortcut — pre-seeds the composer's Tasting Note sliders so the
+  // user doesn't re-search for a coffee they already tapped into.
+  roasterName?: string;
+  roastLevel?: string;
+  process?: string;
+  productUrl?: string;
   onClose: () => void;
 }
 
-export default function PopularityModal({ visible, productId, coffeeName, onClose }: Props) {
+export default function PopularityModal({
+  visible, productId, coffeeName,
+  roasterName, roastLevel, process: productProcess, productUrl,
+  onClose,
+}: Props) {
   const router = useRouter();
   const { user } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [writing, setWriting] = useState(false);
+  const [posting, setPosting] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -51,6 +65,31 @@ export default function PopularityModal({ visible, productId, coffeeName, onClos
 
   const count = users.length;
 
+  const handleCreatePost = async (data: any) => {
+    if (posting) return;
+    setPosting(true);
+    try {
+      await apiFetchRaw("/posts", {
+        method: "POST",
+        body: JSON.stringify({
+          ...data,
+          post_type: data.post_type || "note",
+          location: data.location || null,
+        }),
+      });
+      setWriting(false);
+      // Refetch posts so the user's new tasting note shows up in
+      // the modal body right away (same product context).
+      const pRes = await apiFetchRaw<any>(`/products/${productId}/posts`).catch(() => ({ data: [] }));
+      const pData = pRes?.data ?? pRes;
+      setPosts(Array.isArray(pData) ? pData : []);
+    } catch (e: any) {
+      console.warn("Tasting note post error:", e?.message);
+    } finally {
+      setPosting(false);
+    }
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.overlayWrap}>
@@ -67,6 +106,20 @@ export default function PopularityModal({ visible, productId, coffeeName, onClos
                 </Text>
               )}
             </View>
+            {/* Write-a-tasting-note shortcut — only for signed-in
+               users. Dispatches into a local compose sub-modal with
+               the Add-Card → Tasting Note flow pre-seeded for this
+               coffee, so the user lands on the sliders. */}
+            {user && (
+              <Pressable
+                onPress={() => setWriting(true)}
+                style={s.writeBtn}
+                accessibilityLabel="Write a tasting note for this coffee"
+              >
+                <PenLine size={13} color={t.color["text.on-dark"]} strokeWidth={2} />
+                <Text style={s.writeBtnText}>Tasting note</Text>
+              </Pressable>
+            )}
             <Pressable onPress={onClose} style={s.closeBtn} hitSlop={8}>
               <X size={18} color={t.color["text.secondary"]} />
             </Pressable>
@@ -140,6 +193,34 @@ export default function PopularityModal({ visible, productId, coffeeName, onClos
           </ScrollView>
         </View>
       </View>
+
+      {/* Tasting-note composer sub-modal. Renders the shared
+         ComposePost with `prefillTastingNote` so the Add-Card →
+         Tasting Note sub-flow is already open on this coffee. */}
+      {writing && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setWriting(false)}>
+          <View style={s.composeOverlay}>
+            <Pressable style={s.composeBg} onPress={() => setWriting(false)} />
+            <View style={s.composeCard}>
+              <ComposePost
+                onSubmit={handleCreatePost}
+                onCancel={() => setWriting(false)}
+                loading={posting}
+                user={user}
+                products={[]}
+                prefillTastingNote={{
+                  product_id: productId,
+                  coffee_name: coffeeName,
+                  roaster_name: roasterName,
+                  roast_level: roastLevel,
+                  process: productProcess,
+                  product_url: productUrl,
+                }}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
     </Modal>
   );
 }
@@ -181,6 +262,24 @@ const s = StyleSheet.create({
     marginTop: 2,
   },
   closeBtn: { padding: 4, marginLeft: 12 },
+  // "Tasting note" shortcut pill — dark-filled, sits between the
+  // header copy and the X so it reads as the primary action for
+  // signed-in users on this product.
+  writeBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: t.color["text.primary"],
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14,
+  } as any,
+  writeBtnText: {
+    fontFamily: t.font["body.semibold"], fontSize: 11,
+    color: t.color["text.on-dark"], letterSpacing: 0.2,
+  } as any,
+  composeOverlay: { flex: 1, justifyContent: "center", alignItems: "center" } as any,
+  composeBg: { ...StyleSheet.absoluteFillObject, backgroundColor: t.color.overlay } as any,
+  composeCard: {
+    width: "90%", maxWidth: 680, backgroundColor: t.color.bg,
+    borderRadius: 12, overflow: "hidden", maxHeight: "85%", zIndex: 1,
+  } as any,
   scrollArea: { flex: 1, minHeight: 0 },
   scrollContent: { paddingVertical: 8 },
   divider: { height: 1, backgroundColor: t.color.divider, marginVertical: 4 },

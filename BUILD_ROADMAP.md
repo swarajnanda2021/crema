@@ -537,55 +537,106 @@ Two composer bugs folded into one commit:
   it's matched before the catch-all. Now returns Open Graph
   metadata + a favicon fallback as originally intended.
 
-### 2.23 Composer polish
+### 2.23 Composer polish *(shipped)*
 
-Follow-on items surfaced during the §2.22 verification pass.
-`ComposePost.tsx` needs four linked changes — doing them together
-so the composer feels like one redesign, not four patches:
+`ComposePost.tsx` redesigned in one pass so the composer feels
+like one surface, not four rows of form:
 
-- **Long-form as a top tab, not a toggle.** Current flow: a
-  "Long form · on" toggle below the teaser that expands a *second*
-  textarea (`bodyFull`) for the long body. Target: a **Short / Long**
-  tab row **above the "What's on your mind…" input**. Tapping Long
-  just (a) extends the character limit (300 → 5000) on the same
-  existing textarea and (b) grows the modal vertically. No second
-  input. No `bodyFull` split — the one teaser field carries
-  everything. Backend still stores the long body under `body_full`
-  for posts flagged `sourcing_story`; the composer just stops
-  treating it as a separate UI surface.
-- **URLs don't count toward the character count.** Strip detected
-  URLs before computing `teaser.length` for the counter. Keeps
-  users from losing 30-60 chars to a pasted link.
-- **Optional fields on one row.** Location, tag-a-café, and
-  tag-a-drink currently stack vertically as three separate rows
-  (reads as a form). Target: one horizontal row of three small
-  chips, each opening its own picker / input on tap.
-- **Link-preview trigger re-verified.** The preview fetcher was
-  fixed server-side in §2.22; confirm the composer actually pulls
-  + displays the card once a URL is pasted (no regression from
-  the other changes).
+- **Short / Long tab row above the teaser.** Replaces the old
+  "Long form · on" toggle + separate `bodyFull` textarea. Tapping
+  Long extends the visible char limit (300 → 5000) on the *same*
+  teaser textarea and grows its `minHeight` (48 → 220). On submit
+  the composer derives a ≤280-char word-boundary excerpt for the
+  feed `teaser` and hands the full text over as `body_full`;
+  backend `post_type=sourcing_story` is unchanged so PostCard's
+  "Read the full post →" keeps working. `bodyFull` state is gone.
+- **URLs don't count toward the character count.** `stripUrls()`
+  runs on every keystroke; the counter, the max enforcement, and
+  the Long-mode min-200 check all use the visible length. Pasting
+  a 50-char link no longer costs 50 characters.
+- **Optional fields collapsed onto one chip row.** Location,
+  Tag-a-café, Tag-a-drink now sit as three pill chips on a single
+  horizontal flex row. Each opens its own picker — café + drink
+  reuse the existing modals; location gets a small `pickerCard`
+  text-prompt so all three chips feel symmetrical. Filled chips
+  show the value + an X to clear.
+- **Modal shell fit.** The Long-mode textarea pushed Cancel / Post
+  off the bottom of the 85%-maxHeight edit shell, so the composer
+  card was restructured: body in a `ScrollView` (flex-shrink), the
+  submit row pinned outside the scroll with its own top border +
+  bg. Tall content scrolls inside the card; Cancel / Post are
+  always visible regardless of how much the user writes.
+- **Link-preview verified.** `/api/link-preview` still fires on
+  URL detection after the refactor; preview card renders inline
+  with the editable title overlay intact.
 
-Sitewide: ComposePost is one shared component (feed FAB, roaster
-Posts tab, café Posts tab), so all of the above lands in every
-call site in one commit.
+### 2.24 Café menu — column header + tighter row height *(shipped)*
 
-### 2.24 Café menu — column header + tighter row height
+- **Column header row** ("Drink · Roaster · Roast · Price · Tasting
+  Notes") added above the first drink block, sharing the data-row
+  column widths so everything aligns. Rendered in Inter medium 10px
+  uppercase with 0.6 letter-spacing in muted color — reads as
+  metadata, not another drink row. Bottom border echoes the hours
+  table's per-row rule.
+- **Tighter rows** — `menuDrink` lost its own `paddingVertical`
+  (set to 0) so rows carry all the per-block vertical spacing.
+  `menuRow` stays at 6px top / bottom, matching `hoursRow`
+  exactly; dividers keep their 6px `marginVertical`. Per-row
+  density now matches the opening-hours block.
 
-Two small follow-ons to §2.10:
+### 2.25 Recycle bin / archive *(shipped)*
 
-- **Column header.** The table has no row explaining what each
-  column is. Add a header row above the first drink block —
-  "Drink · Roaster · Roast · Price · Tasting Notes" — in a muted
-  style so it reads as metadata, not another row. Same Inter body
-  font as the cells, slightly smaller / uppercase / letter-spaced
-  (the notifications-tab label style works).
-- **Tighter rows.** Each row has too much vertical padding today
-  — the whole table should mimic the opening-hours block's
-  density. Drop `paddingVertical` on `menuRow` + `menuDrink` to
-  the same values `hoursRow` uses (`6px` top / bottom). Dividers
-  stay where they are; it's just the internal padding that shrinks.
+Sitewide undo for destructive actions. Every hard-delete across the
+backend — generic registry DELETEs + hand-rolled DELETE handlers —
+funnels through `services/trash.py` `capture()` before the row
+leaves its origin table. The row is serialised as JSON into a new
+`trash` table along with `owner_user_id` (resolved from either
+`user_id`, `cafe_slug`, or `roaster_slug` depending on the entity)
+and a human-readable `label` for the bin UI.
 
-### 2.25 Launch blockers (from LAUNCH_TODO.md)
+Four routes wire the UX:
+- `GET /api/trash` — every trash entry for the signed-in user,
+  newest first, grouped on the frontend by `entity_type`.
+- `POST /api/trash/{id}/restore` — pops the entry, re-INSERTs the
+  payload into its origin table (refusing with 409 if another row
+  has taken the same primary key in the meantime).
+- `DELETE /api/trash/{id}` — permanent single-item purge.
+- `DELETE /api/trash` — empty the bin.
+
+Frontend: `RecycleBinModal` opens from a new "Recycle bin" entry in
+`ProfileDropdown`. Floating modal in the sitewide language (blur
+backdrop, Canela title, token card). Sections per entity type —
+Posts, Comments, Tasting notes, Shelf entries, Café menu items,
+Brew recipes, Products — each row carries a Restore pill + a
+permanent-delete bin icon. Empty-bin pill in the header.
+
+Coverage — every hard-delete path the audit found is captured:
+registry `delete_resource()` in `resources/crud.py`, plus
+`DELETE /api/post-comments/{id}` (already via registry) and
+`DELETE /api/roasters/{slug}/products/{id}` (hand-rolled in
+`routes/specific.py`). Toggle flows (likes / follows) and
+telemetry (click events) are intentionally out of scope — they're
+not "deletes" in user language.
+
+### 2.26 Sign-out auto-switch: no more /auth flicker *(shipped)*
+
+The §2.13 auto-switch was landing users at the next account's
+entity home but flashed `/auth` first. Root cause: `logout()`
+called `setUser(null)` BEFORE swapping in the next account's
+session, so AuthGate saw a null user mid-switch and fired
+`router.replace("/auth")` before `window.location.assign` to the
+next account home took over.
+
+Fix: reorder `logout()` to swap the session token, fetch the next
+`/auth/me`, and hard-navigate FIRST — only fall back to clearing
+state + redirecting to `/` when there's no next saved account.
+Also dropped the redundant `router.replace("/")` from
+`ProfileDropdown.handleSignOut` since `logout()` owns navigation.
+Verified: signing out of one account with another saved now lands
+directly on the next entity's home, without any auth screen in
+between.
+
+### 2.27 Launch blockers (from LAUNCH_TODO.md)
 
 Before any of the above ships to real users:
 - Password reset flow

@@ -8,12 +8,13 @@ import { useState, useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { Settings, PenLine, LogOut, UserPlus, QrCode } from "lucide-react-native";
+import { Settings, PenLine, LogOut, UserPlus, QrCode, Trash2 } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
 import { resolveUploadUrl } from "../api/client";
 import { useAuth, SavedAccount } from "../hooks/useAuth";
 import { CroppedAvatar } from "./primitives";
 import QRModal from "./QRModal";
+import RecycleBinModal from "./RecycleBinModal";
 
 interface Props {
   visible: boolean;
@@ -25,6 +26,7 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
   const router = useRouter();
   const [switching, setSwitching] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [showBin, setShowBin] = useState(false);
   const cardRef = useRef<any>(null);
 
   // Outside-click dismissal on web — mirrors Messages + Notifications
@@ -96,8 +98,12 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
 
   const handleSignOut = async () => {
     onClose();
+    // `logout()` handles its own navigation — hard-reloads into the
+    // next saved account's entity home on web, or resets to "/" when
+    // none are left. Calling `router.replace("/")` afterwards used
+    // to cause a flicker by briefly routing through a client-side
+    // "/" before the hard reload took over.
     await logout();
-    router.replace("/");
   };
 
   const handleSwitch = async (account: SavedAccount) => {
@@ -177,6 +183,14 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
           label="Edit profile"
           onPress={handleEdit}
         />
+        {/* Recycle bin — opens the sitewide floating modal with every
+           item the user has deleted, grouped by category. Populated by
+           backend `services/trash.py` on every hard-delete path. */}
+        <MenuItem
+          icon={<Trash2 size={18} color="#684F44" strokeWidth={1.5} />}
+          label="Recycle bin"
+          onPress={() => setShowBin(true)}
+        />
 
         <View style={s.divider} />
 
@@ -227,6 +241,9 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
 
       {showQR && (
         <QRModal visible={showQR} onClose={() => setShowQR(false)} />
+      )}
+      {showBin && (
+        <RecycleBinModal visible={showBin} onClose={() => setShowBin(false)} />
       )}
     </>
   );

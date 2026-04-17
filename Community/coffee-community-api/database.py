@@ -540,6 +540,29 @@ _MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS idx_dmessages_thread ON direct_messages(thread_id, created_at)",
     # Notifications can now deep-link to a direct_thread too.
     "ALTER TABLE notifications ADD COLUMN direct_thread_id INTEGER",
+    # ── Recycle bin / trash ───────────────────────────────────────────────
+    # Central capture table for every destructive delete a user performs.
+    # `entity_type` maps to a registry resource name ("posts", "post_comments",
+    # "tasting_notes", "shelf_entries", "cafe_menu_items", "brew_methods")
+    # or a synthetic label for non-registry deletes ("roaster_products").
+    # `payload_json` is a verbatim snapshot of the row at delete time, used
+    # both for the bin UI preview and for the restore INSERT. `owner_user_id`
+    # is the user whose bin the item lives in — for user-owned rows it's
+    # `row.user_id`; for café / roaster-owned rows it's the account-owner's
+    # user id resolved through `cafe_profiles.owner_user_id` /
+    # `roaster_profiles.owner_user_id`.
+    """CREATE TABLE IF NOT EXISTS trash (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        label TEXT,
+        deleted_at TEXT NOT NULL,
+        deleted_by_user_id INTEGER REFERENCES users(id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_trash_owner ON trash(owner_user_id, deleted_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_trash_entity ON trash(entity_type, entity_id)",
 ]
 
 

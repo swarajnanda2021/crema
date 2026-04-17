@@ -212,6 +212,10 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
         visible={showPopularity}
         productId={coffee.product_id}
         coffeeName={coffee.coffee_name}
+        roasterName={coffee.roaster_name}
+        roastLevel={coffee.roast_level}
+        process={coffee.process}
+        productUrl={coffee.product_url}
         onClose={() => setShowPopularity(false)}
       />
 

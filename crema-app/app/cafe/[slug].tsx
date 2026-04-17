@@ -1321,6 +1321,27 @@ function MenuTab({
          mode so a café can layer another supplier under the same
          drink without opening the full Add-drink form. */}
       <View style={s.menuTable}>
+        {/* §2.24a — column header row. Same column widths as the data
+           rows so everything aligns. Uppercase + letter-spaced + muted
+           so it reads as metadata, not another drink row. */}
+        <View style={s.menuHeaderRow}>
+          <View style={s.menuColDrink}>
+            <Text style={s.menuHeaderCell}>Drink</Text>
+          </View>
+          <View style={s.menuColRoaster}>
+            <Text style={s.menuHeaderCell}>Roaster</Text>
+          </View>
+          <View style={s.menuColRoast}>
+            <Text style={s.menuHeaderCell}>Roast</Text>
+          </View>
+          <View style={s.menuColPrice}>
+            <Text style={s.menuHeaderCell}>Price</Text>
+          </View>
+          <View style={s.menuColNotes}>
+            <Text style={s.menuHeaderCell}>Tasting Notes</Text>
+          </View>
+          <View style={s.menuColActions} />
+        </View>
         {grouped.map(([drinkName, items], drinkIdx) => (
           <View key={drinkName} style={s.menuDrink}>
             {drinkIdx > 0 && <View style={s.menuDrinkDivider} />}
@@ -2603,7 +2624,24 @@ const s = StyleSheet.create({
   // the entire table reads as one scannable grid — mirrors the hours
   // table but with more columns.
   menuTable: { marginTop: 8 } as any,
-  menuDrink: { paddingVertical: 6 } as any,
+  // §2.24a — column-header row. Uppercase + letter-spaced + muted so
+  // it reads as metadata, not a row. Bottom border echoes the hours
+  // table's per-row rule.
+  menuHeaderRow: {
+    flexDirection: "row", alignItems: "center",
+    paddingVertical: 6,
+    borderBottomWidth: 1, borderBottomColor: t.color["border.light"],
+  } as any,
+  menuHeaderCell: {
+    fontFamily: t.font["body.medium"], fontSize: 10,
+    color: t.color["text.muted"],
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  } as any,
+  // §2.24b — tighter rows. menuDrink no longer carries its own
+  // vertical padding; rows (and the divider margin) handle all
+  // spacing so per-row density matches the opening-hours table.
+  menuDrink: { paddingVertical: 0 } as any,
   menuDrinkDivider: {
     height: 1, backgroundColor: t.color["border.light"],
     marginVertical: 6,

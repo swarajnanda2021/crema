@@ -230,11 +230,15 @@ public Storage URL. `resolveUploadUrl()` in `src/api/client.ts`
 becomes the single swap point. Existing photos need a one-off migrate
 script. Starts after 5.1.
 
-### 5.3 Image → webp conversion pipeline
-Pillow already in requirements. Add a conversion step on upload:
-original → webp (quality 85) → stored. Roughly 15 lines in the
-uploads route. Video (webm) waits for when you actually add video.
-Can land alongside 5.2.
+### 5.3 Image → webp conversion pipeline `[x]`
+Shipped as BUILD_ROADMAP §2.12 (commit 72b704f). `routes/uploads.py`
+converts every new raster upload to WebP (quality 82) via Pillow
+before writing; GIFs flatten to first frame, palette / CMYK /
+16-bit sources normalise to RGB(A), unsupported formats fall
+through with a `.bin` extension. Existing pre-WebP uploads were
+left as-is — a backfill pass can run later if the corpus gets
+large enough to care. No backend work left here; only 5.2's
+object-storage move is still pending.
 
 ### 5.4 Secrets sweep
 Make sure there's no hardcoded UUID or seeded password committed to

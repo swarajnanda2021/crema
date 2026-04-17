@@ -34,6 +34,18 @@ interface ComposePostProps {
   products?: any[];
   user?: { username: string; display_name?: string; avatar_url?: string } | null;
   initialData?: { body?: string; images?: string[]; location?: string; drink?: string | null };
+  // When set, the composer mounts with the Add-Card → Tasting Note
+  // sub-flow already open and this coffee pre-selected. Used by the
+  // PopularityModal "Write a tasting note" shortcut so the user lands
+  // on the sliders without searching.
+  prefillTastingNote?: {
+    product_id?: string | number;
+    coffee_name: string;
+    roaster_name?: string;
+    roast_level?: string;
+    process?: string;
+    product_url?: string;
+  };
 }
 
 const URL_REGEX = /https?:\/\/[^\s]+/;
@@ -58,6 +70,7 @@ export default function ComposePost({
   products,
   user,
   initialData,
+  prefillTastingNote,
 }: ComposePostProps) {
   const isRepost = !!repostTarget;
   const isEditing = !!initialData;
@@ -65,21 +78,23 @@ export default function ComposePost({
   // Core state
   const [teaser, setTeaser] = useState(initialData?.body || "");
   const [location, setLocation] = useState(initialData?.location || "");
-  // §2.14 — long-form mode. Promotes the post to a long-form body
-  // (teaser becomes an excerpt, bodyFull carries the expanded
-  // narrative). Originally gated to roaster accounts as "sourcing
-  // story" — now open to every account type because the underlying
-  // thing it does is just *extend the character limit*. Consumers
-  // can write a detailed brew walkthrough; cafés can write a menu
-  // rationale; roasters can still write a sourcing story. Backend
-  // post_type stays `sourcing_story` for now (no migration); the
-  // label layer renames it to "Long form" everywhere user-visible.
-  const canStoryMode = true;
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [locationDraft, setLocationDraft] = useState(initialData?.location || "");
+  // §2.14 / §2.23 — long-form mode is now a Short / Long tab row at
+  // the top of the composer (not a toggle). The same teaser textarea
+  // carries the body; Long just extends the visible char limit
+  // (300 → 5000) and grows the modal. Backend still stores the long
+  // body under `body_full` for posts flagged `sourcing_story` — the
+  // composer truncates the first ~280 chars of the body into the
+  // feed `teaser`, then hands the full text over as `body_full` on
+  // submit.
+  const canStoryMode = !isRepost;
   const [storyMode, setStoryMode] = useState(
-    initialData?.post_type === "sourcing_story",
+    (initialData as any)?.post_type === "sourcing_story",
   );
-  const [bodyFull, setBodyFull] = useState(initialData?.body_full || "");
+  const SHORT_MAX = 300;
   const STORY_MAX = 5000;
+  const STORY_MIN = 200;
   const [cafeSlug, setCafeSlug] = useState<string | null>(null);
   const [cafePickerOpen, setCafePickerOpen] = useState(false);
   const { cafes } = useCafes();
@@ -96,8 +111,13 @@ export default function ComposePost({
     "Mocha", "Macchiato", "Filter Coffee", "Affogato",
   ];
 
-  // Auto-detected mode
-  const [detectedUrl, setDetectedUrl] = useState("");
+  // Auto-detected article link. Once a URL is detected in the
+  // teaser we yank it out of the textarea and hold it as an
+  // "attached" link — the preview card renders below, the URL no
+  // longer takes up visual space in the composed body, and the
+  // user can cancel the attachment via an X on the preview (same
+  // language as image removal).
+  const [attachedUrl, setAttachedUrl] = useState("");
   const [linkPreview, setLinkPreview] = useState<{ title: string; description: string; image_url: string; domain: string } | null>(null);
   const [linkTitle, setLinkTitle] = useState("");
   const [linkLoading, setLinkLoading] = useState(false);
@@ -117,7 +137,7 @@ export default function ComposePost({
 
   const isTN = (s: string) => s.startsWith('{"type":') && s.includes('"tasting_note"');
   const hasImages = imageUrls.length > 0;
-  const hasUrl = !!detectedUrl;
+  const hasUrl = !!attachedUrl;
   const isArticleMode = hasUrl && !hasImages;
   const canAddImage = !isArticleMode && imageUrls.length < 6;
 
@@ -127,21 +147,63 @@ export default function ComposePost({
   const editThumbW = editGridW > 0 ? Math.floor((editGridW - EDIT_GAP * (EDIT_COLS - 1)) / EDIT_COLS) : 100;
   const editThumbH = Math.floor(editThumbW * GALLERY_ASPECT);
 
-  // Auto-detect URL in teaser text
-  useEffect(() => {
-    if (isRepost || hasImages) { setDetectedUrl(""); return; }
-    const match = teaser.match(URL_REGEX);
-    setDetectedUrl(match ? match[0] : "");
-  }, [teaser, hasImages, isRepost]);
+  // §2.23b — URLs don't count toward the visible character budget.
+  // A pasted 50-char link shouldn't eat half a short post or half a
+  // long one. We strip every URL before measuring length, for both
+  // the displayed counter and the enforcement path.
+  const stripUrls = (s: string) => s.replace(/https?:\/\/\S+/g, "");
+  const visibleLen = stripUrls(teaser).length;
+  const visibleMax = storyMode ? STORY_MAX : SHORT_MAX;
 
-  // Fetch link preview when URL detected
+  const onChangeTeaser = (next: string) => {
+    if (stripUrls(next).length > visibleMax) return;
+    setTeaser(next);
+  };
+
+  // Prefill the Add-Card → Tasting Note sub-flow when a caller
+  // handed us a coffee (PopularityModal "Write a tasting note"
+  // shortcut). We land the user on the sliders instead of the
+  // search box. Only runs on mount — changing the prop mid-session
+  // wouldn't make sense here.
   useEffect(() => {
-    if (!detectedUrl) { setLinkPreview(null); return; }
+    if (!prefillTastingNote) return;
+    setAddCardTab("tasting_note");
+    setShowAddCardModal(true);
+    setTnSelectedCoffee({
+      product_id: prefillTastingNote.product_id,
+      coffee_name: prefillTastingNote.coffee_name,
+      roaster_name: prefillTastingNote.roaster_name || "",
+      roast_level: prefillTastingNote.roast_level || "",
+      process: prefillTastingNote.process || "",
+      product_url: prefillTastingNote.product_url || "",
+    });
+    setTnSearch(prefillTastingNote.coffee_name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-detect URL in teaser text. Once a URL shows up AND we
+  // don't already have one attached, yank it out of the teaser
+  // and hold it as `attachedUrl`. The composer body visually loses
+  // the URL — the preview card below is the anchor instead, with
+  // its own X to detach.
+  useEffect(() => {
+    if (isRepost || hasImages) return;
+    if (attachedUrl) return;
+    const match = teaser.match(URL_REGEX);
+    if (!match) return;
+    const url = match[0];
+    setAttachedUrl(url);
+    setTeaser((prev) => prev.replace(url, "").replace(/\s{2,}/g, " ").trim());
+  }, [teaser, hasImages, isRepost, attachedUrl]);
+
+  // Fetch link preview when a URL gets attached.
+  useEffect(() => {
+    if (!attachedUrl) { setLinkPreview(null); return; }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setLinkLoading(true);
       try {
-        const raw = await apiFetchRaw(`/link-preview?url=${encodeURIComponent(detectedUrl)}`);
+        const raw = await apiFetchRaw(`/link-preview?url=${encodeURIComponent(attachedUrl)}`);
         const data = raw?.data ?? raw;
         setLinkPreview(data);
         if (data.title && !linkTitle) setLinkTitle(data.title);
@@ -149,27 +211,31 @@ export default function ComposePost({
       finally { setLinkLoading(false); }
     }, 500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [detectedUrl]);
+  }, [attachedUrl]);
 
-  // Adding an image clears link detection
-  const handleAddImage = (url: string) => {
-    setImageUrls((p) => [...p, url]);
-    setDetectedUrl("");
+  // Detach the attached link entirely — user dismissed the preview
+  // card via the X. Everything link-related clears so article mode
+  // switches off.
+  const clearAttachedLink = () => {
+    setAttachedUrl("");
     setLinkPreview(null);
     setLinkTitle("");
   };
 
-  // Validation
+  // Adding an image also detaches any attached link (article +
+  // images are mutually exclusive).
+  const handleAddImage = (url: string) => {
+    setImageUrls((p) => [...p, url]);
+    clearAttachedLink();
+  };
+
+  // Validation — visible length (URLs stripped) is what counts.
   const canSubmit = (() => {
     if (loading) return false;
     if (isRepost) return true;
-    if (!teaser.trim() || teaser.trim().length > 300) return false;
-    if (storyMode) {
-      const len = bodyFull.trim().length;
-      if (len < 200) return false; // sourcing stories are long-form
-      if (len > STORY_MAX) return false;
-    }
-    return true;
+    if (visibleLen === 0) return false;
+    if (storyMode) return visibleLen >= STORY_MIN && visibleLen <= STORY_MAX;
+    return visibleLen <= SHORT_MAX;
   })();
 
   const handleSubmit = async () => {
@@ -185,11 +251,19 @@ export default function ComposePost({
       return;
     }
     if (storyMode) {
+      // §2.23a — the one field carries both. Derive a feed excerpt
+      // (~280 chars, word-boundary) from the body; store the full
+      // text under body_full so PostCard's "Read the full post →"
+      // still works.
+      const full = teaser.trim();
+      const excerpt = full.length > 280
+        ? full.slice(0, 280).replace(/\s+\S*$/, "") + "\u2026"
+        : full;
       const imgs = imageUrls.filter(Boolean);
       await onSubmit({
-        title: teaser.trim().slice(0, 80) || "Long-form post",
-        teaser: teaser.trim(),
-        body_full: bodyFull.trim(),
+        title: excerpt.slice(0, 80) || "Long-form post",
+        teaser: excerpt,
+        body_full: full,
         post_type: "sourcing_story",
         images: imgs,
         cover_image_url: imgs[0] || null,
@@ -198,9 +272,9 @@ export default function ComposePost({
     }
     if (isArticleMode) {
       await onSubmit({
-        title: linkTitle.trim() || detectedUrl.slice(0, 60),
+        title: linkTitle.trim() || attachedUrl.slice(0, 60),
         teaser: teaser.trim(),
-        external_url: detectedUrl,
+        external_url: attachedUrl,
         cover_image_url: linkPreview?.image_url || null,
         post_type: "article",
       });
@@ -224,6 +298,14 @@ export default function ComposePost({
 
   return (
     <View style={s.card}>
+      {/* §2.23a — body is scrollable; the submit row is pinned at
+         the bottom so Long-mode content (tall textarea + chips +
+         Add Card) can't clip Cancel / Post. */}
+      <ScrollView
+        style={s.scrollBody}
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
       {/* ── Post preview header (dry run) ── */}
       <View style={s.header}>
         <View>
@@ -241,7 +323,13 @@ export default function ComposePost({
             <Text style={s.timestamp}>Just now</Text>
           </View>
           <Text style={s.subtitle}>
-            {isRepost ? "Reposting" : isArticleMode ? "Sharing a link" : "Writing a note"}
+            {isRepost
+              ? "Reposting"
+              : isArticleMode
+                ? "Sharing a link"
+                : storyMode
+                  ? "Writing a long post"
+                  : "Writing a note"}
           </Text>
         </View>
         <Pressable onPress={onCancel} hitSlop={8}>
@@ -249,54 +337,50 @@ export default function ComposePost({
         </Pressable>
       </View>
 
+      {/* §2.23a — Short / Long tab row. Sits above the teaser
+         textarea. Tapping Long extends the visible char limit
+         (300 → 5000) on the same field and grows the modal
+         vertically; no second textarea. Hidden for reposts. */}
+      {canStoryMode && (
+        <View style={s.modeTabs}>
+          <Pressable
+            onPress={() => setStoryMode(false)}
+            style={[s.modeTab, !storyMode && s.modeTabActive]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: !storyMode }}
+          >
+            <Text style={[s.modeTabText, !storyMode && s.modeTabTextActive]}>Short</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setStoryMode(true)}
+            style={[s.modeTab, storyMode && s.modeTabActive]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: storyMode }}
+          >
+            <Text style={[s.modeTabText, storyMode && s.modeTabTextActive]}>Long</Text>
+          </Pressable>
+        </View>
+      )}
+
       {/* ── Editable teaser (same font as final post body) ── */}
       <TextInput
-        style={s.teaserInput}
+        style={[s.teaserInput, storyMode && s.teaserInputLong]}
         value={teaser}
-        onChangeText={setTeaser}
+        onChangeText={onChangeTeaser}
         placeholder={
           isRepost
             ? "Add your thoughts..."
             : storyMode
-              ? "Write an excerpt for the feed (one or two sentences)..."
+              ? "Write the long version — a sourcing story, a brew walkthrough, a detailed review."
               : "What's on your mind? Paste a link to share an article."
         }
         placeholderTextColor="#A09580"
         multiline
-        maxLength={300}
       />
-      <Text style={s.charCount}>{teaser.length}/300</Text>
-
-      {/* Long-form toggle (§2.14). Open to every account type — just
-         extends the character limit and adds a body_full textarea. */}
-      {canStoryMode && !isRepost && (
-        <Pressable
-          onPress={() => setStoryMode((v) => !v)}
-          style={[s.storyToggleBtn, storyMode && s.storyToggleBtnOn]}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: storyMode }}
-        >
-          <Text style={[s.storyToggleText, storyMode && s.storyToggleTextOn]}>
-            {storyMode ? "Long form · on" : "Long form"}
-          </Text>
-        </Pressable>
-      )}
-
-      {/* Long-form body */}
-      {storyMode && (
-        <>
-          <TextInput
-            style={s.storyBodyInput}
-            value={bodyFull}
-            onChangeText={setBodyFull}
-            placeholder="Write the long version \u2014 a sourcing story, a brew walkthrough, a detailed review. Whatever doesn't fit in the teaser."
-            placeholderTextColor="#A09580"
-            multiline
-            maxLength={STORY_MAX}
-          />
-          <Text style={s.charCount}>{bodyFull.length}/{STORY_MAX} (min 200 to publish)</Text>
-        </>
-      )}
+      <Text style={s.charCount}>
+        {visibleLen}/{visibleMax}
+        {storyMode && visibleLen < STORY_MIN ? ` (min ${STORY_MIN} to publish)` : ""}
+      </Text>
 
       {/* ── ARTICLE MODE: link preview with title overlay ── */}
       {isArticleMode && (
@@ -330,6 +414,10 @@ export default function ComposePost({
                   <Text style={[s.previewDomain, { color: "#A09580" }]}>{linkPreview.domain}</Text>
                 </View>
               )}
+              {/* Detach the article — same language as image-thumb X. */}
+              <Pressable onPress={clearAttachedLink} style={s.previewRemove} hitSlop={6} accessibilityLabel="Remove link">
+                <X size={14} color="#FAF8F0" strokeWidth={2.5} />
+              </Pressable>
             </View>
           )}
         </View>
@@ -360,49 +448,94 @@ export default function ComposePost({
             )}
           </View>
 
-          {/* Location */}
-          <View style={s.locationRow}>
-            <PostLocationPinIcon size={12} color="#D798DA" />
-            <TextInput
-              style={s.locationInput}
-              value={location}
-              onChangeText={setLocation}
-              placeholder="Location (optional)"
-              placeholderTextColor="#A09580"
-            />
+          {/* §2.23c — three optional fields collapsed onto one chip
+             row: Location, Tag a café, Tag a drink. Each chip opens
+             its own picker (or a small text prompt for Location).
+             Filled chips show the value + an X to clear. */}
+          <View style={s.chipsRow}>
+            <Pressable
+              style={[s.fieldChip, !!location && s.fieldChipActive]}
+              onPress={() => { setLocationDraft(location); setLocationOpen(true); }}
+            >
+              <PostLocationPinIcon size={12} color={location ? t.color["accent.cta"] : t.color.accent} />
+              <Text style={[s.fieldChipLabel, !!location && s.fieldChipLabelActive]} numberOfLines={1}>
+                {location || "Location"}
+              </Text>
+              {!!location && (
+                <Pressable onPress={() => setLocation("")} hitSlop={6}>
+                  <X size={11} color={t.color["text.muted"]} />
+                </Pressable>
+              )}
+            </Pressable>
+
+            <Pressable
+              style={[s.fieldChip, !!selectedCafe && s.fieldChipActive]}
+              onPress={() => setCafePickerOpen(true)}
+            >
+              <PostCafeIcon size={12} color={selectedCafe ? t.color["accent.cta"] : t.color.accent} />
+              <Text style={[s.fieldChipLabel, !!selectedCafe && s.fieldChipLabelActive]} numberOfLines={1}>
+                {selectedCafe?.name || "Tag a café"}
+              </Text>
+              {!!selectedCafe && (
+                <Pressable onPress={() => setCafeSlug(null)} hitSlop={6}>
+                  <X size={11} color={t.color["text.muted"]} />
+                </Pressable>
+              )}
+            </Pressable>
+
+            <Pressable
+              style={[s.fieldChip, !!drink && s.fieldChipActive]}
+              onPress={() => setDrinkPickerOpen(true)}
+            >
+              <PostDrinkIcon size={12} color={drink ? t.color["accent.cta"] : t.color.accent} />
+              <Text style={[s.fieldChipLabel, !!drink && s.fieldChipLabelActive]} numberOfLines={1}>
+                {drink || "Tag a drink"}
+              </Text>
+              {!!drink && (
+                <Pressable onPress={() => setDrink(null)} hitSlop={6}>
+                  <X size={11} color={t.color["text.muted"]} />
+                </Pressable>
+              )}
+            </Pressable>
           </View>
 
-          {/* Café tag (optional, links the post to a café entity). Heart
-              icon in accent purple — distinguishes the café tag row
-              from the location pin and from the drink row below. */}
-          <View style={s.locationRow}>
-            <PostCafeIcon size={13} color={t.color.accent} />
-            {selectedCafe ? (
-              <Pressable onPress={() => setCafeSlug(null)} style={s.cafeChip}>
-                <Text style={s.cafeChipText}>{selectedCafe.name}</Text>
-                <X size={12} color={t.color["text.muted"]} />
-              </Pressable>
-            ) : (
-              <Pressable onPress={() => setCafePickerOpen(true)}>
-                <Text style={s.cafePlaceholder}>Tag a café (optional)</Text>
-              </Pressable>
-            )}
-          </View>
-
-          {/* Drink tag (optional) — steaming-cup icon in accent purple. */}
-          <View style={s.locationRow}>
-            <PostDrinkIcon size={12} color={t.color.accent} />
-            {drink ? (
-              <Pressable onPress={() => setDrink(null)} style={s.cafeChip}>
-                <Text style={s.cafeChipText}>{drink}</Text>
-                <X size={12} color={t.color["text.muted"]} />
-              </Pressable>
-            ) : (
-              <Pressable onPress={() => setDrinkPickerOpen(true)}>
-                <Text style={s.cafePlaceholder}>Tag a drink (optional)</Text>
-              </Pressable>
-            )}
-          </View>
+          {/* Location text prompt — same modal shell as the drink /
+             café pickers so the three chips feel symmetrical. */}
+          {locationOpen && (
+            <Modal visible transparent animationType="fade" onRequestClose={() => setLocationOpen(false)}>
+              <View style={s.pickerOverlay}>
+                <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setLocationOpen(false)} />
+                <View style={s.pickerCard}>
+                  <View style={s.pickerHeader}>
+                    <Text style={s.pickerTitle}>Add location</Text>
+                    <Pressable onPress={() => setLocationOpen(false)}><X size={18} color={t.color["text.primary"]} /></Pressable>
+                  </View>
+                  <View style={{ padding: 16 }}>
+                    <TextInput
+                      style={s.locationModalInput}
+                      value={locationDraft}
+                      onChangeText={setLocationDraft}
+                      placeholder="Where are you?"
+                      placeholderTextColor={t.color["text.muted"]}
+                      autoFocus
+                      onSubmitEditing={() => { setLocation(locationDraft.trim()); setLocationOpen(false); }}
+                    />
+                    <View style={s.locationModalActions}>
+                      <Pressable onPress={() => setLocationOpen(false)} style={s.cancelBtn}>
+                        <Text style={s.cancelText}>Cancel</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => { setLocation(locationDraft.trim()); setLocationOpen(false); }}
+                        style={s.submitBtn}
+                      >
+                        <Text style={s.submitText}>Save</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+          )}
 
           {/* Drink picker modal — quick list of common drinks + custom input */}
           {drinkPickerOpen && (
@@ -494,9 +627,15 @@ export default function ComposePost({
                   </Pressable>
                 ) : (
                   <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
-                    <TextInput style={s.tnSearch} value={tnSearch} onChangeText={setTnSearch} placeholder="Search for a coffee..." placeholderTextColor="#A09580" />
+                    <TextInput style={s.tnSearch} value={tnSearch} onChangeText={setTnSearch} placeholder="Search by coffee or roaster..." placeholderTextColor="#A09580" />
                     {!tnSelectedCoffee && tnSearch.length > 1 && (products || [])
-                      .filter((p: any) => p.coffee_name?.toLowerCase().includes(tnSearch.toLowerCase()))
+                      .filter((p: any) => {
+                        const q = tnSearch.toLowerCase();
+                        return (
+                          p.coffee_name?.toLowerCase().includes(q) ||
+                          p.roaster_name?.toLowerCase().includes(q)
+                        );
+                      })
                       .slice(0, 6)
                       .map((p: any) => (
                         <Pressable key={p.product_id} onPress={() => { setTnSelectedCoffee(p); setTnSearch(p.coffee_name); }} style={s.tnResultRow}>
@@ -563,7 +702,9 @@ export default function ComposePost({
         </View>
       )}
 
-      {/* ── Submit bar ── */}
+      </ScrollView>
+
+      {/* ── Submit bar (pinned outside the scroll) ── */}
       <View style={s.submitRow}>
         <Pressable onPress={onCancel} style={s.cancelBtn}><Text style={s.cancelText}>Cancel</Text></Pressable>
         <Pressable onPress={handleSubmit} style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]} disabled={!canSubmit}>
@@ -575,7 +716,12 @@ export default function ComposePost({
 }
 
 const s = StyleSheet.create({
-  card: { backgroundColor: "#FAF8F0", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
+  // Outer shell — flex column so the scroll body expands and the
+  // submit row sits pinned at the bottom. Padding lives on the
+  // scroll contents + submit row individually.
+  card: { backgroundColor: "#FAF8F0", flexShrink: 1 } as any,
+  scrollBody: { flexGrow: 0, flexShrink: 1 } as any,
+  scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 } as any,
   // Dry-run post header
   header: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 14 } as any,
   avatar: { width: 30, height: 30, borderRadius: 15, overflow: "hidden" } as any,
@@ -586,33 +732,43 @@ const s = StyleSheet.create({
   authorName: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: "#351101" },
   timestamp: { fontFamily: t.font["body.medium"], fontSize: 10, color: "#A09580" },
   subtitle: { fontFamily: t.font["body.medium"], fontSize: 10, color: "#684F44", marginTop: 2 },
-  // Teaser
-  teaserInput: { fontFamily: t.font["body.regular"], fontSize: 16.8, color: "#351101", lineHeight: 23.5, minHeight: 48, textAlignVertical: "top" } as any,
-  charCount: { fontFamily: t.font["body.regular"], fontSize: 10, color: "#A09580", textAlign: "right", marginTop: 2, marginBottom: 8 } as any,
-  // Sourcing story mode (§2.3)
-  storyToggleBtn: {
-    alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 14, borderWidth: 1, borderColor: "#D1C7B3",
-    marginBottom: 8,
+  // §2.23a — Short / Long mode tabs above the teaser.
+  modeTabs: {
+    flexDirection: "row", gap: 6, marginBottom: 10,
   } as any,
-  storyToggleBtnOn: {
+  modeTab: {
+    paddingHorizontal: 12, paddingVertical: 5,
+    borderRadius: 14, borderWidth: 1, borderColor: "#D1C7B3",
+    backgroundColor: "transparent",
+  } as any,
+  modeTabActive: {
     backgroundColor: "#351101", borderColor: "#351101",
   } as any,
-  storyToggleText: {
+  modeTabText: {
     fontFamily: t.font["body.medium"], fontSize: 11,
     color: "#684F44", letterSpacing: 0.3,
   } as any,
-  storyToggleTextOn: { color: "#FAF8F0", fontFamily: t.font["body.semibold"] } as any,
-  storyBodyInput: {
-    fontFamily: t.font["body.regular"], fontSize: 15, color: "#351101",
-    lineHeight: 22, minHeight: 180, textAlignVertical: "top",
-    backgroundColor: "rgba(53,17,1,0.04)",
-    borderWidth: 1, borderColor: "rgba(53,17,1,0.1)",
-    borderRadius: 8, padding: 12, marginTop: 6,
+  modeTabTextActive: {
+    color: "#FAF8F0", fontFamily: t.font["body.semibold"],
   } as any,
+  // Teaser
+  teaserInput: { fontFamily: t.font["body.regular"], fontSize: 16.8, color: "#351101", lineHeight: 23.5, minHeight: 48, textAlignVertical: "top" } as any,
+  // Long-form grows the textarea (modal expands with it).
+  teaserInputLong: { minHeight: 220 } as any,
+  charCount: { fontFamily: t.font["body.regular"], fontSize: 10, color: "#A09580", textAlign: "right", marginTop: 2, marginBottom: 8 } as any,
   // Link preview (article mode)
   linkSection: { marginBottom: 8 },
-  previewCard: { borderRadius: 8, overflow: "hidden", backgroundColor: "#EFE9DB" } as any,
+  previewCard: { borderRadius: 8, overflow: "hidden", backgroundColor: "#EFE9DB", position: "relative" } as any,
+  // Detach-article X — same visual language as the image-thumb X
+  // (semi-opaque dark disc, cream glyph). Top-right so it doesn't
+  // clash with the title overlay anchored bottom-left.
+  previewRemove: {
+    position: "absolute", top: 8, right: 8,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center", justifyContent: "center",
+    zIndex: 2,
+  } as any,
   previewThumbWrap: { position: "relative", height: 200 } as any,
   previewThumbImg: { width: "100%" as any, height: "100%" as any },
   previewOverlay: { position: "absolute", bottom: 10, left: 10, backgroundColor: "#FFF", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, maxWidth: "80%" } as any,
@@ -621,13 +777,43 @@ const s = StyleSheet.create({
   previewNoImg: { padding: 14 },
   // Note mode
   noteSection: { marginBottom: 8 },
-  locationRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, marginBottom: 4 } as any,
-  locationInput: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#351101", flex: 1 },
 
-  // Café picker
-  cafeChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: t.color["accent.soft"], borderRadius: 12 } as any,
-  cafeChipText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["accent.cta"] },
-  cafePlaceholder: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.muted"] },
+  // §2.23c — one horizontal row of three optional-field chips.
+  chipsRow: {
+    flexDirection: "row", flexWrap: "wrap", gap: 8,
+    marginTop: 12, marginBottom: 4,
+  } as any,
+  fieldChip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 14, borderWidth: 1, borderColor: "#D1C7B3",
+    backgroundColor: "transparent", maxWidth: "100%",
+  } as any,
+  fieldChipActive: {
+    backgroundColor: t.color["accent.soft"],
+    borderColor: t.color["accent.soft"],
+  } as any,
+  fieldChipLabel: {
+    fontFamily: t.font["body.medium"], fontSize: 12,
+    color: t.color["text.muted"], letterSpacing: 0.2,
+  } as any,
+  fieldChipLabelActive: {
+    color: t.color["accent.cta"],
+  } as any,
+
+  // Location prompt modal
+  locationModalInput: {
+    fontFamily: t.font["body.regular"], fontSize: 14,
+    color: t.color["text.primary"],
+    borderRadius: 6, borderWidth: 1, borderColor: "#D7D1C4",
+    paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: "#fff",
+    ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
+  } as any,
+  locationModalActions: {
+    flexDirection: "row", justifyContent: "flex-end",
+    alignItems: "center", gap: 12, marginTop: 14,
+  } as any,
   pickerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" } as any,
   pickerCard: { backgroundColor: t.color.bg, borderRadius: 12, width: "90%", maxWidth: 420 } as any,
   pickerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: t.color["border.light"] } as any,
@@ -680,8 +866,15 @@ const s = StyleSheet.create({
   repostTime: { fontFamily: t.font["body.regular"], fontSize: 10, color: "#A09580" },
   repostTeaser: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#684F44", lineHeight: 18, marginBottom: 6 },
   repostThumb: { width: 60, height: 60, borderRadius: 4, marginTop: 4 },
-  // Submit bar
-  submitRow: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 12, marginTop: 4 } as any,
+  // Submit bar — pinned outside the ScrollView so it never clips
+  // when Long-mode content grows. Own padding + top border visually
+  // separates it from the scrolling body.
+  submitRow: {
+    flexDirection: "row", justifyContent: "flex-end", alignItems: "center",
+    gap: 12, paddingHorizontal: 20, paddingVertical: 12,
+    borderTopWidth: 1, borderTopColor: "rgba(53,17,1,0.08)",
+    backgroundColor: "#FAF8F0",
+  } as any,
   cancelBtn: { paddingHorizontal: 14, paddingVertical: 8 },
   cancelText: { fontFamily: t.font["body.medium"], fontSize: 12, color: "#A09580" },
   submitBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 4, backgroundColor: "#351101" },
