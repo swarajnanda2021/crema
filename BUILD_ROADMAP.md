@@ -296,29 +296,37 @@ the original roadmap question: **existing images stay as-is**, only
 new uploads get WebP. A backfill job can always run later if the
 corpus gets big enough to care.
 
-### 2.13 Two-track login (business vs user) + social auth *(partial — UI shipped, OAuth backend pending)*
+### 2.13 Two-track login + auth redesign + account-switch flow *(partial — UI shipped, OAuth backend pending)*
 
-The auth screen (`app/auth.tsx`) now has **For you / For businesses**
-tabs at the top, a business-specific hint under the title when the
-business track is active ("Roasters and cafés — sign in to manage
-your storefront, menu, wholesale flags, and inbox"), and a renamed
-"Business name" field instead of "Display Name" during signup. The
-tabs accept a `?track=business` URL param so "Add another account"
-can deep-link into the right track.
+Full redesign of `app/auth.tsx`: no navbar cutout, full-viewport
+color that recolors with the active track (cream `bg` for User,
+`roaster.panel` dark brown for Business), large `CremaLogo` SVG at
+the top, "Discover coffee." tagline, pill tab selector, single
+cream form card. Social-auth row (Google / Instagram / Reddit,
+stubbed) renders on the User track only — business sign-ins skip
+it.
 
-Below the form, a three-button social row (Google / Instagram /
-Reddit) is scaffolded with a "coming soon" click handler. The
-visual is in place — shape matches the site; ready to wire to
-`/api/auth/social/{provider}/start` once OAuth provider credentials
-and callback routes land. The underlying username/password path is
-unchanged; both tracks still route through the same
-`login`/`register` endpoints because there's no server-side
-distinction yet.
+`AuthModal` (the floating version opened from the profile
+dropdown's "Add another account") matches the page's design
+one-for-one — same tabs, same big logo, same track-recolouring,
+same social-on-user-only rule. `upsertAccount` still enforces
+one-per-type (user / roaster / café); signing into a 4th slot
+evicts the existing same-type account automatically.
+
+**Sign-out auto-switch:** `logout` now slides into the next saved
+account (priority user → roaster → café) instead of dumping to
+`/auth`. Hard-reloads at `entityHomeFor(nextUser)` so the new
+identity mounts cleanly. If there's no next account, the auth
+screen comes up via AuthGate's usual redirect.
+
+**Post-auth navigation:** `entityHomeFor` sends users to
+`/profile` (their own tab) instead of `/` (the feed) — "who am I
+now?" is answered visually the moment the switch completes.
 
 **Still parked:** the OAuth integrations themselves (each needs a
 provider app + callback route + DB migration for
-provider_user_id). JWT + password-reset + email-verification are
-tracked with the launch blockers.
+provider_user_id), JWT + password-reset + email-verification
+(tracked with launch blockers).
 
 ### 2.14 Long-form posts for everyone (rename from "Sourcing story") *(shipped)*
 
@@ -373,13 +381,24 @@ of the fields turns out to genuinely help the inquiry flow, they'd
 land inline on the inquiry modal rather than back on the public
 profile.
 
-### 2.18 B2B metrics expansion + clickable cards drilling into a daily chart
+### 2.18 B2B metrics expansion + clickable cards drilling into a daily chart *(partial — drill-down shipped, new metrics pending)*
 
-Two linked asks. **(a) New B2B metrics the Supply tab should track**
-to round out the wholesale picture, and **(b) make every metric card
-clickable → floating modal with a daily time-series chart**
-(rendered in the same ggplot-style `react-native-svg` pattern the
-dashboard already uses for DAU, signups, etc.).
+**Drill-down UX shipped.** Every `<Card>` in `TractionDashboard` is
+now a Pressable that opens `MetricSeriesModal`: Canela title +
+one-line definition (from the `E` map), current value + prior-period
+delta, full daily line chart (ggplot-style via the existing
+`LineChart` component). Backend dispatcher at
+`GET /api/stats/series?key={key}&range=30d` (admin-gated). 13
+series wired at ship: `daily_signups`, `dau`, `daily_posts`,
+`total_posts`, `total_comments`, `total_reposts`, `total_clicks`,
+`total_stamps`, `total_follows`, `inquiries_total`, `inquiries_30d`,
+`sourcing_stories_total`, `brew_methods_total`. Cards without a
+backing series hit a graceful "Daily history not yet captured"
+state.
+
+**Still parked: the new B2B metrics.** Each needs its own SQL
+rollup + an `_SERIES_DEFS` entry + a `seriesKey` prop on the
+Card. Backlog below.
 
 **Missing metrics to add.** The current Supply tab covers
 inquiry volume + wholesale-flag coverage + sourcing stories + brew
@@ -416,37 +435,9 @@ recipes. Missing pieces a real B2B dashboard should surface:
   the platform, daily series. Leading indicator before a thread
   converts to a formal order (Phase 2).
 
-**Click-to-drill-down UX.** Every `<Card>` in `TractionDashboard`
-gets an `onPress` that opens a floating modal showing the metric
-over time. Modal anatomy:
-
-- Header: Canela title = metric label, subtitle = one-line
-  definition (already lives in the `E` explanation map).
-- Body: daily line chart using the existing ggplot-style pattern
-  (`react-native-svg`, `~6 ticks`, friendly date labels, hover
-  tooltip that flips below when near the top — same behaviour as
-  the DAU / signups / posts charts today).
-- Footer row: current value big + prior-period delta
-  (`+/- X% vs last 30d`).
-
-**Backend.** Add one endpoint that returns a named daily series:
-`GET /api/admin/metrics/series?key={metric}&range=30d`. Use the
-same admin gate (`is_admin=1 AND username="crema"`). Each metric
-declares its own SQL snippet in `services/admin_stats.py`; the
-endpoint dispatches by key. For metrics that already have a
-series (DAU, signups, posts, clicks, stamps) we wrap the existing
-generator behind this endpoint. For new metrics we add daily
-rollups.
-
-**Frontend.** `TractionDashboard.tsx` wraps every `<Card>` in a
-Pressable, fires `openSeries(metricKey)`, and the modal component
-(`MetricSeriesModal`) fetches the series and renders the chart.
-The same modal handles all metrics — the chart is the single
-component; only the data swaps.
-
 **Out of scope for this item:** per-user / per-roaster cohort
 filtering, exportable CSV, alerts. Those are follow-ons once the
-daily-chart modal is live.
+new metrics land.
 
 ### 2.19 Confirm-before-delete sweep (every delete button)
 
@@ -520,7 +511,33 @@ benefit from a new "Business notification engagement" card — how
 often business-tab recipients click through to the source entity.
 Good signal for wholesale-offer visibility.
 
-### 2.21 Launch blockers (from LAUNCH_TODO.md)
+### 2.21 Page-transition loader *(shipped)*
+
+`NavigationLoader` mounted at root (`app/_layout.tsx`). On every
+`usePathname()` change, paints a cream-filled overlay pinned below
+the navbar (`top: NAVBAR_HEIGHT`, `zIndex: 9500`) with the actual
+`CremaLogo` SVG pulsing (0.45 → 1 → 0.45, 1.1s cycle). Minimum hold
+of 320ms keeps the transition from reading as a flicker. Navbar
+stays visible throughout — the "you're still in the app, just
+moving between rooms" signal that GitHub / Linear use. Pages with
+slow data can extend the hold by dispatching
+`crema:loading-start` / `crema:loading-end` events.
+
+### 2.22 Article post click-through + link-preview 500 fix *(shipped)*
+
+Two composer bugs folded into one commit:
+- **Article post thumbnails weren't clickable** — PostCard wrapped
+  the cover image in a plain `<View>` instead of a `<Pressable>`,
+  so pasting a URL and publishing it produced a dead card. Swapped
+  to Pressable + `handleOpen` (same path the body text uses).
+- **`/api/link-preview` was 500ing** — the endpoint was registered
+  on `@app.get` in main.py *after* `app.include_router(resources_router)`,
+  so the `/{resource}` catch-all swallowed it as
+  `resource="link-preview"`. Moved to `routes/specific.py` where
+  it's matched before the catch-all. Now returns Open Graph
+  metadata + a favicon fallback as originally intended.
+
+### 2.23 Launch blockers (from LAUNCH_TODO.md)
 
 Before any of the above ships to real users:
 - Password reset flow
