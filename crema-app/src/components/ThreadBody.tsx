@@ -1,22 +1,23 @@
 /**
- * InquiryThreadBody — chat thread content for a single wholesale
- * inquiry. Shared between the MessagesDrawer's thread view and any
- * future full-screen layouts. No modal/drawer chrome here — just the
- * conversation surface.
+ * ThreadBody — generic chat thread surface.
  *
- * Polls messages every 5 seconds while mounted. Marks read on mount
- * and on new inbound messages. Roasters get a compact … menu for
- * Mark-replied / Archive / Reopen.
+ * Handles both thread kinds in one component:
+ *   - wholesale_inquiry: café ↔ roaster, with a collapsible Details
+ *     drawer carrying the business context (inquiry note, café
+ *     procurement snapshot, roaster's lot note). Roaster-only status
+ *     menu (Mark-replied / Archive / Reopen).
+ *   - direct_message: any user ↔ any user, no business context, no
+ *     status. Just conversation.
  *
- * Layout: compact header (back/avatar/name/status) → collapsible
- * Details drawer (business context) → scrolling message list →
- * composer. The Details drawer auto-expands on a fresh thread so the
- * recipient has context before their first reply.
+ * Polls every 5s while mounted. Marks read on mount + on each new
+ * inbound message. The generic shape lets the Messages dropdown use
+ * one renderer for whatever the user taps, and keeps a future third
+ * thread kind a small patch away.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  View, Text, Pressable, StyleSheet, Platform,
+  View, Text, Pressable, StyleSheet,
   TextInput, ActivityIndicator, ScrollView,
 } from "react-native";
 import {
@@ -28,18 +29,19 @@ import { apiFetchRaw } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 import { timeAgo, CroppedAvatar } from "./primitives";
 
+export type ThreadKind = "wholesale_inquiry" | "direct_message";
+
 interface Props {
-  inquiryId: number;
-  /** Optional back handler. When provided, a back-arrow renders
-   *  in the header (used by MessagesDrawer in master-detail mode). */
+  kind: ThreadKind;
+  id: number;
+  /** Optional back handler — renders a back-arrow in the header.
+   *  Used by MessagesDropdown in master-detail mode. */
   onBack?: () => void;
-  /** Close the whole chrome surrounding this body. */
   onClose: () => void;
 }
 
-interface InquiryMessage {
+interface ThreadMessage {
   id: number;
-  inquiry_id: number;
   user_id: number;
   body: string;
   created_at: string;
@@ -54,10 +56,27 @@ interface InquiryMessage {
 
 const POLL_MS = 5000;
 
-export default function InquiryThreadBody({ inquiryId, onBack, onClose }: Props) {
+function endpointsFor(kind: ThreadKind, id: number) {
+  if (kind === "wholesale_inquiry") {
+    return {
+      fetch: `/wholesale-inquiries/${id}/thread`,
+      post: `/wholesale-inquiries/${id}/messages`,
+      read: `/wholesale-inquiries/${id}/read`,
+      respond: `/wholesale-inquiries/${id}/respond` as string | null,
+    };
+  }
+  return {
+    fetch: `/direct-threads/${id}/thread`,
+    post: `/direct-threads/${id}/messages`,
+    read: `/direct-threads/${id}/read`,
+    respond: null as string | null,
+  };
+}
+
+export default function ThreadBody({ kind, id, onBack, onClose }: Props) {
   const { user } = useAuth();
-  const [inquiry, setInquiry] = useState<any>(null);
-  const [messages, setMessages] = useState<InquiryMessage[]>([]);
+  const [thread, setThread] = useState<any>(null);
+  const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -68,30 +87,29 @@ export default function InquiryThreadBody({ inquiryId, onBack, onClose }: Props)
   const pollRef = useRef<any>(null);
   const lastMessageCount = useRef(0);
 
+  const isWholesale = kind === "wholesale_inquiry";
   const isRoaster = user?.account_type === "roaster";
+  const endpoints = useMemo(() => endpointsFor(kind, id), [kind, id]);
 
   const fetchThread = useCallback(async (opts: { silent?: boolean } = {}) => {
     if (!opts.silent) setLoading(true);
     setError(null);
     try {
-      const raw = await apiFetchRaw<any>(`/wholesale-inquiries/${inquiryId}/thread`);
+      const raw = await apiFetchRaw<any>(endpoints.fetch);
       const data = raw?.data ?? raw;
-      setInquiry(data?.inquiry || null);
+      // Wholesale response: { inquiry, messages }. Direct: { thread, messages }.
+      setThread(data?.inquiry ?? data?.thread ?? null);
       setMessages(Array.isArray(data?.messages) ? data.messages : []);
     } catch (e: any) {
       if (!opts.silent) setError(e?.message || "Couldn't load this conversation.");
     } finally {
       if (!opts.silent) setLoading(false);
     }
-  }, [inquiryId]);
+  }, [endpoints.fetch]);
 
   const markRead = useCallback(async () => {
-    try {
-      await apiFetchRaw(`/wholesale-inquiries/${inquiryId}/read`, { method: "POST" });
-    } catch {
-      // Silent — eventually consistent.
-    }
-  }, [inquiryId]);
+    try { await apiFetchRaw(endpoints.read, { method: "POST" }); } catch { /* silent */ }
+  }, [endpoints.read]);
 
   useEffect(() => {
     fetchThread();
@@ -100,14 +118,12 @@ export default function InquiryThreadBody({ inquiryId, onBack, onClose }: Props)
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [fetchThread, markRead]);
 
-  // Auto-expand details on a fresh thread so recipients have context.
   useEffect(() => {
-    if (inquiry && messages.length === 0 && !detailsOpen) {
+    if (isWholesale && thread && messages.length === 0 && !detailsOpen) {
       setDetailsOpen(true);
     }
-  }, [inquiry, messages.length]);
+  }, [isWholesale, thread, messages.length]);
 
-  // Mark read + scroll to bottom on new inbound messages.
   useEffect(() => {
     if (messages.length > lastMessageCount.current) {
       markRead();
@@ -122,10 +138,10 @@ export default function InquiryThreadBody({ inquiryId, onBack, onClose }: Props)
     setSending(true);
     setError(null);
     try {
-      const raw = await apiFetchRaw<any>(
-        `/wholesale-inquiries/${inquiryId}/messages`,
-        { method: "POST", body: JSON.stringify({ body: text }) },
-      );
+      const raw = await apiFetchRaw<any>(endpoints.post, {
+        method: "POST",
+        body: JSON.stringify({ body: text }),
+      });
       const msg = raw?.data ?? raw;
       setMessages((prev) => [...prev, msg]);
       setDraft("");
@@ -134,57 +150,73 @@ export default function InquiryThreadBody({ inquiryId, onBack, onClose }: Props)
     } finally {
       setSending(false);
     }
-  }, [draft, inquiryId, sending]);
+  }, [draft, endpoints.post, sending]);
 
   const setStatus = useCallback(async (next: "open" | "responded" | "archived") => {
-    if (!isRoaster) return;
+    if (!isWholesale || !isRoaster || !endpoints.respond) return;
     setMenuOpen(false);
     try {
-      await apiFetchRaw(`/wholesale-inquiries/${inquiryId}/respond`, {
+      await apiFetchRaw(endpoints.respond, {
         method: "POST",
         body: JSON.stringify({ status: next }),
       });
-      setInquiry((prev: any) => (prev ? { ...prev, status: next } : prev));
+      setThread((prev: any) => (prev ? { ...prev, status: next } : prev));
     } catch (e: any) {
       setError(e?.message || "Couldn't update status.");
     }
-  }, [inquiryId, isRoaster]);
+  }, [endpoints.respond, isRoaster, isWholesale]);
 
   const counterparty = useMemo(() => {
-    if (!inquiry) return { name: "…", logo: null as string | null, cropX: null as number | null, cropY: null as number | null, zoom: null as number | null };
-    if (user?.account_type === "roaster") {
+    if (!thread) return { name: "…", logo: null as string | null, cropX: null as number | null, cropY: null as number | null, zoom: null as number | null, productName: null as string | null };
+    if (isWholesale) {
+      if (user?.account_type === "roaster") {
+        return {
+          name: thread.cafe_name || thread.cafe_slug || "the café",
+          logo: thread.cafe_logo_url,
+          cropX: thread.cafe_logo_crop_x,
+          cropY: thread.cafe_logo_crop_y,
+          zoom: thread.cafe_logo_zoom,
+          productName: thread.product_name,
+        };
+      }
       return {
-        name: inquiry.cafe_name || inquiry.cafe_slug || "the café",
-        logo: inquiry.cafe_logo_url,
-        cropX: inquiry.cafe_logo_crop_x, cropY: inquiry.cafe_logo_crop_y, zoom: inquiry.cafe_logo_zoom,
+        name: thread.roaster_name || thread.roaster_slug?.replace(/-/g, " ") || "the roaster",
+        logo: thread.roaster_logo_url,
+        cropX: null, cropY: null, zoom: null,
+        productName: thread.product_name,
       };
     }
+    const o = thread.other || {};
     return {
-      name: inquiry.roaster_name || inquiry.roaster_slug?.replace(/-/g, " ") || "the roaster",
-      logo: inquiry.roaster_logo_url,
-      cropX: null, cropY: null, zoom: null,
+      name: o.display_name || o.username || "User",
+      logo: o.avatar_url,
+      cropX: o.avatar_crop_x,
+      cropY: o.avatar_crop_y,
+      zoom: o.avatar_zoom,
+      productName: null,
     };
-  }, [inquiry, user]);
+  }, [thread, isWholesale, user]);
 
-  const hasContext =
-    !!inquiry?.note ||
-    !!inquiry?.wholesale_note ||
-    (inquiry?.wholesale_minimum_kg != null) ||
-    (inquiry?.cafe_monthly_volume_kg != null) ||
-    (inquiry?.cafe_open_to_new_roasters === 1) ||
-    !!inquiry?.cafe_procurement_note;
+  const hasContext = isWholesale && (
+    !!thread?.note ||
+    !!thread?.wholesale_note ||
+    (thread?.wholesale_minimum_kg != null) ||
+    (thread?.cafe_monthly_volume_kg != null) ||
+    (thread?.cafe_open_to_new_roasters === 1) ||
+    !!thread?.cafe_procurement_note
+  );
 
-  const statusLabel = inquiry?.status === "responded" ? "Replied"
-    : inquiry?.status === "archived" ? "Archived"
+  const statusLabel = !isWholesale ? null
+    : thread?.status === "responded" ? "Replied"
+    : thread?.status === "archived" ? "Archived"
     : "Open";
 
   return (
     <View style={s.root}>
-      {/* Header */}
       <View style={s.header}>
         {onBack && (
           <Pressable onPress={onBack} hitSlop={6} style={s.iconBtn}>
-            <ArrowLeft size={18} color={t.color["text.primary"]} />
+            <ArrowLeft size={16} color={t.color["text.primary"]} />
           </Pressable>
         )}
         {counterparty.logo ? (
@@ -193,7 +225,7 @@ export default function InquiryThreadBody({ inquiryId, onBack, onClose }: Props)
             cropX={counterparty.cropX ?? undefined}
             cropY={counterparty.cropY ?? undefined}
             zoom={counterparty.zoom ?? undefined}
-            size={36}
+            size={32}
           />
         ) : (
           <View style={s.avatarFb}>
@@ -203,31 +235,32 @@ export default function InquiryThreadBody({ inquiryId, onBack, onClose }: Props)
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={s.title} numberOfLines={1}>{counterparty.name}</Text>
           <View style={s.subtitleRow}>
-            {inquiry?.product_name && (
-              <Text style={s.subtitle} numberOfLines={1}>{inquiry.product_name}</Text>
+            {counterparty.productName && (
+              <Text style={s.subtitle} numberOfLines={1}>{counterparty.productName}</Text>
             )}
-            <View style={[
-              s.statusChip,
-              statusLabel === "Open" ? s.statusChipOpen
-                : statusLabel === "Replied" ? s.statusChipReplied
-                : s.statusChipArchived,
-            ]}>
-              <Text style={s.statusChipText}>{statusLabel}</Text>
-            </View>
+            {statusLabel && (
+              <View style={[
+                s.statusChip,
+                statusLabel === "Open" ? s.statusChipOpen
+                  : statusLabel === "Replied" ? s.statusChipReplied
+                  : s.statusChipArchived,
+              ]}>
+                <Text style={s.statusChipText}>{statusLabel}</Text>
+              </View>
+            )}
           </View>
         </View>
-        {isRoaster && (
+        {isWholesale && isRoaster && (
           <Pressable onPress={() => setMenuOpen((v) => !v)} style={s.iconBtn} hitSlop={6}>
-            <MoreHorizontal size={18} color={t.color["text.primary"]} />
+            <MoreHorizontal size={16} color={t.color["text.primary"]} />
           </Pressable>
         )}
         <Pressable onPress={onClose} hitSlop={8} style={s.iconBtn}>
-          <X size={18} color={t.color["text.primary"]} />
+          <X size={16} color={t.color["text.primary"]} />
         </Pressable>
       </View>
 
-      {/* Roaster status menu */}
-      {menuOpen && isRoaster && (
+      {menuOpen && isWholesale && isRoaster && (
         <View style={s.menuCard}>
           <Pressable style={s.menuItem} onPress={() => setStatus("responded")}>
             <Check size={14} color={t.color["text.primary"]} />
@@ -237,7 +270,7 @@ export default function InquiryThreadBody({ inquiryId, onBack, onClose }: Props)
             <Archive size={14} color={t.color["text.primary"]} />
             <Text style={s.menuText}>Archive</Text>
           </Pressable>
-          {inquiry?.status !== "open" && (
+          {thread?.status !== "open" && (
             <Pressable style={s.menuItem} onPress={() => setStatus("open")}>
               <RotateCcw size={14} color={t.color["text.primary"]} />
               <Text style={s.menuText}>Reopen</Text>
@@ -246,56 +279,55 @@ export default function InquiryThreadBody({ inquiryId, onBack, onClose }: Props)
         </View>
       )}
 
-      {/* Details drawer */}
       {hasContext && (
         <>
           <Pressable onPress={() => setDetailsOpen((v) => !v)} style={s.detailsToggle}>
             <Text style={s.detailsToggleText}>{detailsOpen ? "Hide details" : "Details"}</Text>
             {detailsOpen
-              ? <ChevronUp size={14} color={t.color["text.muted"]} />
-              : <ChevronDown size={14} color={t.color["text.muted"]} />}
+              ? <ChevronUp size={12} color={t.color["text.muted"]} />
+              : <ChevronDown size={12} color={t.color["text.muted"]} />}
           </Pressable>
 
-          {detailsOpen && inquiry && (
+          {detailsOpen && thread && (
             <View style={s.detailsWrap}>
               <View style={s.contextRow}>
-                {(inquiry.cafe_monthly_volume_kg != null
-                  || inquiry.cafe_procurement_note
-                  || inquiry.cafe_open_to_new_roasters === 1) && (
+                {(thread.cafe_monthly_volume_kg != null
+                  || thread.cafe_procurement_note
+                  || thread.cafe_open_to_new_roasters === 1) && (
                   <View style={s.contextCol}>
                     <Text style={s.contextLabel}>From the café</Text>
-                    {inquiry.cafe_monthly_volume_kg != null && (
-                      <Text style={s.contextValue}>{inquiry.cafe_monthly_volume_kg} kg/month</Text>
+                    {thread.cafe_monthly_volume_kg != null && (
+                      <Text style={s.contextValue}>{thread.cafe_monthly_volume_kg} kg/month</Text>
                     )}
-                    {inquiry.cafe_open_to_new_roasters === 1 && (
+                    {thread.cafe_open_to_new_roasters === 1 && (
                       <Text style={s.contextChip}>Open to new roasters</Text>
                     )}
-                    {inquiry.cafe_procurement_note && (
+                    {thread.cafe_procurement_note && (
                       <Text style={s.contextNote} numberOfLines={4}>
-                        {inquiry.cafe_procurement_note}
+                        {thread.cafe_procurement_note}
                       </Text>
                     )}
                   </View>
                 )}
-                {(inquiry.wholesale_note || inquiry.wholesale_minimum_kg != null) && (
+                {(thread.wholesale_note || thread.wholesale_minimum_kg != null) && (
                   <View style={s.contextCol}>
                     <View style={s.contextLabelRow}>
-                      <Package size={11} color="#351101" strokeWidth={1.8} />
+                      <Package size={10} color="#351101" strokeWidth={1.8} />
                       <Text style={s.contextLabel}>From the roaster</Text>
                     </View>
-                    {inquiry.wholesale_minimum_kg != null && (
-                      <Text style={s.contextValue}>min {inquiry.wholesale_minimum_kg} kg</Text>
+                    {thread.wholesale_minimum_kg != null && (
+                      <Text style={s.contextValue}>min {thread.wholesale_minimum_kg} kg</Text>
                     )}
-                    {inquiry.wholesale_note && (
-                      <Text style={s.contextNote} numberOfLines={4}>{inquiry.wholesale_note}</Text>
+                    {thread.wholesale_note && (
+                      <Text style={s.contextNote} numberOfLines={4}>{thread.wholesale_note}</Text>
                     )}
                   </View>
                 )}
               </View>
-              {inquiry.note && (
+              {thread.note && (
                 <View style={s.initialNote}>
                   <Text style={s.contextLabel}>Inquiry</Text>
-                  <Text style={s.contextNote}>{inquiry.note}</Text>
+                  <Text style={s.contextNote}>{thread.note}</Text>
                 </View>
               )}
             </View>
@@ -303,15 +335,14 @@ export default function InquiryThreadBody({ inquiryId, onBack, onClose }: Props)
         </>
       )}
 
-      {/* Messages */}
       <ScrollView
         ref={scrollRef}
         style={s.messages}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 14, gap: 10 }}
+        contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 10, gap: 7 }}
         showsVerticalScrollIndicator={false}
       >
         {loading && messages.length === 0 ? (
-          <ActivityIndicator size="small" color="#D798DA" style={{ marginTop: 20 }} />
+          <ActivityIndicator size="small" color="#D798DA" style={{ marginTop: 18 }} />
         ) : messages.length === 0 ? (
           <Text style={s.emptyText}>Say hi 👋 — {counterparty.name} is waiting to hear from you.</Text>
         ) : (
@@ -329,7 +360,7 @@ export default function InquiryThreadBody({ inquiryId, onBack, onClose }: Props)
                       cropX={m.avatar_crop_x ?? undefined}
                       cropY={m.avatar_crop_y ?? undefined}
                       zoom={m.avatar_zoom ?? undefined}
-                      size={26}
+                      size={20}
                     />
                   ) : (
                     <View style={s.avatarFbSmall}>
@@ -354,7 +385,6 @@ export default function InquiryThreadBody({ inquiryId, onBack, onClose }: Props)
 
       {error && <Text style={s.error}>{error}</Text>}
 
-      {/* Composer */}
       <View style={s.composer}>
         <TextInput
           style={s.input}
@@ -373,7 +403,7 @@ export default function InquiryThreadBody({ inquiryId, onBack, onClose }: Props)
           style={[s.sendBtn, (!draft.trim() || sending) && s.sendBtnDisabled]}
           accessibilityLabel="Send message"
         >
-          {sending ? <ActivityIndicator size="small" color="#FAF8F0" /> : <Send size={16} color="#FAF8F0" />}
+          {sending ? <ActivityIndicator size="small" color="#FAF8F0" /> : <Send size={13} color="#FAF8F0" />}
         </Pressable>
       </View>
     </View>
@@ -385,149 +415,149 @@ const s = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 14, paddingTop: 14, paddingBottom: 12,
+    gap: 8,
+    paddingHorizontal: 10, paddingTop: 10, paddingBottom: 10,
     borderBottomWidth: 1, borderBottomColor: "#EDE8E1",
   } as any,
-  title: { fontFamily: t.font["body.semibold"], fontSize: 15, color: t.color["text.primary"] },
-  subtitleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 } as any,
-  subtitle: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.muted"], maxWidth: 200 } as any,
-  statusChip: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 } as any,
+  title: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.primary"] },
+  subtitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2, flexWrap: "wrap" } as any,
+  subtitle: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.muted"], maxWidth: 160 } as any,
+  statusChip: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 } as any,
   statusChipOpen: { backgroundColor: "rgba(215,152,218,0.18)" } as any,
   statusChipReplied: { backgroundColor: "rgba(78,156,104,0.18)" } as any,
   statusChipArchived: { backgroundColor: "rgba(53,17,1,0.08)" } as any,
   statusChipText: {
-    fontFamily: t.font["body.semibold"], fontSize: 9,
+    fontFamily: t.font["body.semibold"], fontSize: 8,
     color: "#351101", letterSpacing: 0.5, textTransform: "uppercase",
   } as any,
   iconBtn: {
-    width: 28, height: 28, borderRadius: 14,
+    width: 24, height: 24, borderRadius: 12,
     backgroundColor: "rgba(53,17,1,0.06)",
     alignItems: "center", justifyContent: "center",
   } as any,
   avatarFb: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 32, height: 32, borderRadius: 16,
     backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
   } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 14, color: "#FAF8F0" },
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: "#FAF8F0" },
   avatarFbSmall: {
-    width: 26, height: 26, borderRadius: 13,
+    width: 20, height: 20, borderRadius: 10,
     backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
   } as any,
-  avatarLetterSmall: { fontFamily: t.font["body.semibold"], fontSize: 11, color: "#FAF8F0" },
+  avatarLetterSmall: { fontFamily: t.font["body.semibold"], fontSize: 9, color: "#FAF8F0" },
   menuCard: {
     position: "absolute",
-    top: 60, right: 56,
+    top: 48, right: 40,
     backgroundColor: "#FFFFFF",
     borderRadius: 10,
     paddingVertical: 4,
-    minWidth: 180,
+    minWidth: 160,
     ...cardShadow,
     shadowOpacity: 0.2,
     zIndex: 20,
   } as any,
   menuItem: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 14, paddingVertical: 10,
+    flexDirection: "row", alignItems: "center", gap: 9,
+    paddingHorizontal: 11, paddingVertical: 8,
   } as any,
-  menuText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"] },
+  menuText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.primary"] },
   detailsToggle: {
     flexDirection: "row", alignItems: "center", gap: 4,
     alignSelf: "flex-start",
-    paddingHorizontal: 16, paddingVertical: 8,
+    paddingHorizontal: 12, paddingVertical: 5,
   } as any,
   detailsToggleText: {
-    fontFamily: t.font["body.semibold"], fontSize: 11,
+    fontFamily: t.font["body.semibold"], fontSize: 9.5,
     color: t.color["text.muted"], letterSpacing: 0.4, textTransform: "uppercase",
   } as any,
   detailsWrap: {
-    paddingHorizontal: 16, paddingBottom: 12,
+    paddingHorizontal: 12, paddingBottom: 8,
     borderBottomWidth: 1, borderBottomColor: "#EDE8E1",
-    gap: 10,
+    gap: 8,
   } as any,
-  contextRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 } as any,
+  contextRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 } as any,
   contextCol: {
-    flex: 1, minWidth: 140,
+    flex: 1, minWidth: 130,
     backgroundColor: "#EFE9DB",
-    borderRadius: 8,
-    padding: 10,
-    gap: 4,
+    borderRadius: 7,
+    padding: 8,
+    gap: 3,
   } as any,
   contextLabelRow: { flexDirection: "row", alignItems: "center", gap: 5 } as any,
   contextLabel: {
-    fontFamily: t.font["body.semibold"], fontSize: 10,
-    color: "#351101", letterSpacing: 0.6, textTransform: "uppercase",
+    fontFamily: t.font["body.semibold"], fontSize: 9,
+    color: "#351101", letterSpacing: 0.5, textTransform: "uppercase",
   } as any,
-  contextValue: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.primary"] },
+  contextValue: { fontFamily: t.font["body.semibold"], fontSize: 11.5, color: t.color["text.primary"] },
   contextChip: {
     alignSelf: "flex-start",
-    fontFamily: t.font["body.medium"], fontSize: 10,
+    fontFamily: t.font["body.medium"], fontSize: 9,
     color: "#351101", letterSpacing: 0.3,
     backgroundColor: "rgba(53,17,1,0.1)",
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+    paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4,
   } as any,
   contextNote: {
-    fontFamily: t.font["body.regular"], fontSize: 12,
-    color: t.color["text.primary"], lineHeight: 17,
+    fontFamily: t.font["body.regular"], fontSize: 11,
+    color: t.color["text.primary"], lineHeight: 15,
   },
   initialNote: {
     backgroundColor: "rgba(53,17,1,0.04)",
-    borderRadius: 8, padding: 10, gap: 4,
+    borderRadius: 7, padding: 8, gap: 3,
   } as any,
   messages: { flex: 1 } as any,
   emptyText: {
-    fontFamily: t.font["body.regular"], fontSize: 13,
-    color: t.color["text.muted"], textAlign: "center", paddingVertical: 40,
-    paddingHorizontal: 20,
+    fontFamily: t.font["body.regular"], fontSize: 12,
+    color: t.color["text.muted"], textAlign: "center", paddingVertical: 26,
+    paddingHorizontal: 14,
   } as any,
-  bubbleRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 } as any,
+  bubbleRow: { flexDirection: "row", alignItems: "flex-end", gap: 5 } as any,
   bubbleRowSelf: { justifyContent: "flex-end" } as any,
   bubbleRowOther: { justifyContent: "flex-start" } as any,
   bubble: {
-    maxWidth: "78%",
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 14,
-    gap: 3,
+    maxWidth: "82%",
+    paddingHorizontal: 9, paddingVertical: 6,
+    borderRadius: 11,
+    gap: 2,
   } as any,
   bubbleSelf: { backgroundColor: t.color["text.primary"], borderBottomRightRadius: 3 } as any,
   bubbleOther: { backgroundColor: "#EFE9DB", borderBottomLeftRadius: 3 } as any,
   bubbleName: {
-    fontFamily: t.font["body.semibold"], fontSize: 10,
+    fontFamily: t.font["body.semibold"], fontSize: 9,
     color: "rgba(53,17,1,0.7)", letterSpacing: 0.3,
   } as any,
   bubbleText: {
-    fontFamily: t.font["body.regular"], fontSize: 13,
-    color: t.color["text.primary"], lineHeight: 18,
+    fontFamily: t.font["body.regular"], fontSize: 12,
+    color: t.color["text.primary"], lineHeight: 17,
   },
   bubbleTextSelf: { color: "#FAF8F0" } as any,
-  bubbleTime: { fontFamily: t.font["body.regular"], fontSize: 9, color: t.color["text.muted"] } as any,
+  bubbleTime: { fontFamily: t.font["body.regular"], fontSize: 8, color: t.color["text.muted"] } as any,
   bubbleTimeSelf: { color: "rgba(250,248,240,0.55)" } as any,
   error: {
-    fontFamily: t.font["body.medium"], fontSize: 11,
-    color: "#B5393C", textAlign: "center", paddingVertical: 4,
+    fontFamily: t.font["body.medium"], fontSize: 10,
+    color: "#B5393C", textAlign: "center", paddingVertical: 3,
   } as any,
   composer: {
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: 8,
-    paddingHorizontal: 14, paddingVertical: 12,
+    gap: 6,
+    paddingHorizontal: 10, paddingVertical: 9,
     borderTopWidth: 1, borderTopColor: "#EDE8E1",
   } as any,
   input: {
     flex: 1,
-    fontFamily: t.font["body.regular"], fontSize: 13,
+    fontFamily: t.font["body.regular"], fontSize: 12,
     color: t.color["text.primary"],
     backgroundColor: "rgba(53,17,1,0.04)",
     borderWidth: 1, borderColor: "rgba(53,17,1,0.1)",
-    borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 9,
-    maxHeight: 100, minHeight: 38,
+    borderRadius: 8,
+    paddingHorizontal: 9, paddingVertical: 6,
+    maxHeight: 80, minHeight: 30,
     textAlignVertical: "top",
   } as any,
   sendBtn: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 30, height: 30, borderRadius: 15,
     backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
   } as any,

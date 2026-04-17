@@ -19,7 +19,8 @@ import { CroppedAvatar } from "./primitives";
 import CremaLogo from "./CremaLogo";
 import ProfileDropdown from "./ProfileDropdown";
 import NotificationsDropdown from "./NotificationsDropdown";
-import MessagesDrawer from "./MessagesDrawer";
+import MessagesDropdown from "./MessagesDropdown";
+import type { ThreadKind } from "./ThreadBody";
 
 export default function Navbar() {
   const router = useRouter();
@@ -29,14 +30,16 @@ export default function Navbar() {
   const [query, setQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  // Which thread the drawer should open to. null = list view.
-  // Tapping the navbar Messages icon clears this; tapping a
-  // wholesale_inquiry notification sets it to that inquiry's id.
-  const [drawerInquiryId, setDrawerInquiryId] = useState<number | null>(null);
+  // Messages dropdown holds list + active thread in a single floating
+  // panel. initialThread lets notification taps jump straight into
+  // the right conversation without first showing the list.
+  const [showMessages, setShowMessages] = useState(false);
+  const [initialThread, setInitialThread] = useState<{ kind: ThreadKind; id: number } | null>(null);
   const { unreadCount } = useNotifications(!!user);
-  const showMessagesIcon = user?.account_type === "cafe" || user?.account_type === "roaster";
-  const { totalUnread: messagesUnread } = useInquiryInbox(!!user && showMessagesIcon);
+  // Every authenticated user has a Messages icon now — DMs are
+  // available to regular user accounts too.
+  const showMessagesIcon = !!user;
+  const { totalUnread: messagesUnread } = useInquiryInbox(!!user);
 
 
   const handleSearch = () => {
@@ -50,9 +53,31 @@ export default function Navbar() {
   const isShop = pathname === "/browse";
   const isHome = pathname === "/";
 
+  const openThreadFromNotification = (kind: ThreadKind, id: number) => {
+    setInitialThread({ kind, id });
+    setShowMessages(true);
+  };
+
+  // Cross-component bridge. Anywhere on the site that wants to open a
+  // conversation (profile Message button, future "Message roaster"
+  // CTAs) can call window.__crema_openThread(kind, id). Keeps us from
+  // threading a context or a hook through every tree level. Registered
+  // on mount, cleared on unmount.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    (window as any).__crema_openThread = (kind: ThreadKind, id: number) => {
+      setInitialThread({ kind, id });
+      setShowMessages(true);
+    };
+    return () => { delete (window as any).__crema_openThread; };
+  }, []);
+
   return (
     <>
-      <View style={s.navbar}>
+      {/* data-role marker lets the dropdown outside-click handlers
+         ignore clicks that land on the navbar itself (so icon toggle
+         logic stays intact). */}
+      <View {...({ dataSet: { role: "navbar" } } as any)} style={s.navbar}>
         {/* Left nav links — HOME at x=90, SHOP at x=213 */}
         <View style={s.leftLinks}>
           <Pressable onPress={() => router.push("/")} style={s.navLink}>
@@ -91,15 +116,16 @@ export default function Navbar() {
                 <Search size={24} color="#E7D5B8" strokeWidth={1.5} />
               </Pressable>
 
-              {/* Messages icon — café + roaster accounts only. Sits
-                 next to the bell so the two alert surfaces feel like
-                 siblings. Hidden for regular users until user↔user DMs
-                 ship. Opens the right-docked MessagesDrawer. */}
+              {/* Messages icon — every authenticated user now. DMs
+                 are available to regular users as well as café +
+                 roaster accounts. Clicking opens the inbox dropdown at
+                 list view; the dropdown itself swaps to thread view on
+                 row tap. */}
               {user && showMessagesIcon && (
                 <Pressable
                   onPress={() => {
-                    setDrawerInquiryId(null);
-                    setDrawerOpen((v) => !v);
+                    setInitialThread(null);
+                    setShowMessages((v) => !v);
                     setShowNotifications(false);
                     setShowDropdown(false);
                   }}
@@ -164,26 +190,22 @@ export default function Navbar() {
         </View>
       </View>
 
-      {/* Notifications dropdown. Tapping a wholesale_inquiry or
-         inquiry_reply notification opens the MessagesDrawer at the
-         relevant thread instead of navigating away. */}
+      {/* Notifications dropdown. Tapping a thread-related notification
+         opens the Messages dropdown directly at the right thread. */}
       <NotificationsDropdown
         visible={showNotifications}
         onClose={() => setShowNotifications(false)}
-        onOpenInquiry={(inquiryId: number) => {
-          setDrawerInquiryId(inquiryId);
-          setDrawerOpen(true);
-        }}
+        onOpenThread={openThreadFromNotification}
       />
 
-      {/* Messages drawer — right-docked chat surface (café + roaster
-         only). Non-blocking: the rest of the site stays scrollable
-         while a conversation is open. Falls back to a full-screen
-         Modal on narrow viewports. */}
-      <MessagesDrawer
-        open={drawerOpen}
-        initialInquiryId={drawerInquiryId}
-        onClose={() => setDrawerOpen(false)}
+      {/* Messages dropdown — compact floating panel that holds both
+         the list and the active thread in master-detail. Non-blocking:
+         no full-viewport backdrop, so the rest of the site stays
+         scrollable + clickable. */}
+      <MessagesDropdown
+        visible={showMessages}
+        onClose={() => setShowMessages(false)}
+        initialThread={initialThread}
       />
 
       {/* Profile dropdown — rendered OUTSIDE the navbar View to avoid RNW overflow clip */}

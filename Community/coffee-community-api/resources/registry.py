@@ -274,6 +274,7 @@ RESOURCES = {
             "post_id": {"type": "int"},
             "comment_id": {"type": "int"},
             "inquiry_id": {"type": "int"},
+            "direct_thread_id": {"type": "int"},
             "target_slug": {"type": "str"},
             "subject": {"type": "str"},
             "read": {"type": "int", "default": 0},

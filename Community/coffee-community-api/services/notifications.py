@@ -20,6 +20,7 @@ def create_notification(
     post_id=None,
     comment_id=None,
     inquiry_id=None,
+    direct_thread_id=None,
     target_slug=None,
     subject=None,
 ):
@@ -28,10 +29,10 @@ def create_notification(
         return
     db.execute(
         "INSERT INTO notifications (user_id, type, actor_id, post_id, comment_id, "
-        "inquiry_id, target_slug, subject, read, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
+        "inquiry_id, direct_thread_id, target_slug, subject, read, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
         (user_id, notif_type, actor_id, post_id, comment_id, inquiry_id,
-         target_slug, subject, _now()),
+         direct_thread_id, target_slug, subject, _now()),
     )
 
 

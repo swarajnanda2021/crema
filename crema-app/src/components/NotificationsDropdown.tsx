@@ -6,7 +6,7 @@
  * Phase 1 §2.4. Regular users see a single flat list.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, Platform, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { t, cardShadow } from "../tokens/useTokens";
@@ -23,10 +23,10 @@ import { useAuth } from "../hooks/useAuth";
 interface Props {
   visible: boolean;
   onClose: () => void;
-  /** Called when the user taps a wholesale_inquiry or inquiry_reply
-   *  notification. The caller (Navbar) opens the MessagesDrawer at
-   *  the relevant thread. */
-  onOpenInquiry?: (inquiryId: number) => void;
+  /** Called when the user taps a thread-related notification
+   *  (wholesale_inquiry, inquiry_reply, direct_message). The caller
+   *  (Navbar) opens the Messages dropdown at the right thread. */
+  onOpenThread?: (kind: "wholesale_inquiry" | "direct_message", id: number) => void;
 }
 
 const NOTIF_MESSAGES: Record<string, string> = {
@@ -42,7 +42,9 @@ const NOTIF_MESSAGES: Record<string, string> = {
   menu_removed: "removed a menu item",
   menu_updated: "updated a menu item",
   wholesale_inquiry: "is interested in wholesale",
+  inquiry_reply: "replied on an inquiry",
   stamp_awarded: "awarded you a reward",
+  direct_message: "sent you a message",
 };
 
 // target_slug format: "roaster:<slug>" or "cafe:<slug>"
@@ -53,17 +55,41 @@ function parseTarget(target_slug: string | null): { kind: string; slug: string }
   return { kind: target_slug.slice(0, idx), slug: target_slug.slice(idx + 1) };
 }
 
-export default function NotificationsDropdown({ visible, onClose, onOpenInquiry }: Props) {
+export default function NotificationsDropdown({ visible, onClose, onOpenThread }: Props) {
   const router = useRouter();
   const { user } = useAuth();
   const { notifications, loading, fetchNotifications, markAllRead, markRead, unreadCount } = useNotifications(true);
   const [ready, setReady] = useState(false);
+  const cardRef = useRef<any>(null);
 
   // Tabbed view is only meaningful for roaster + café accounts — they're
   // the ones who receive catalog-change / wholesale / stamp notifications
   // alongside social ones. Regular users see everything in one flat list.
   const hasTabs = user?.account_type === "roaster" || user?.account_type === "cafe";
   const [tab, setTab] = useState<NotificationCategory>("activity");
+
+  // Outside-click dismissal on web — mirrors MessagesDropdown so the
+  // whole site stays interactive while notifications are open.
+  useEffect(() => {
+    if (!visible || Platform.OS !== "web") return;
+    let armed = false;
+    const armTimer = setTimeout(() => { armed = true; }, 150);
+    const handler = (e: MouseEvent) => {
+      if (!armed) return;
+      const card = cardRef.current as any;
+      const target = e.target as Node;
+      if (card && typeof card.contains === "function" && card.contains(target)) return;
+      const navbar = (typeof document !== "undefined")
+        ? document.querySelector('[data-role="navbar"]') : null;
+      if (navbar && (navbar as any).contains && (navbar as any).contains(target)) return;
+      onClose();
+    };
+    if (typeof document !== "undefined") document.addEventListener("click", handler);
+    return () => {
+      clearTimeout(armTimer);
+      if (typeof document !== "undefined") document.removeEventListener("click", handler);
+    };
+  }, [visible, onClose]);
 
   // Fetch full list when opened
   useEffect(() => {
@@ -97,12 +123,17 @@ export default function NotificationsDropdown({ visible, onClose, onOpenInquiry 
 
   const goToSource = (n: Notification) => {
     markRead(n.id);
-    // Wholesale inquiry + reply notifications open the MessagesDrawer
-    // at the relevant thread instead of navigating. The drawer is
-    // owned by Navbar and reached through the onOpenInquiry prop.
-    if ((n.type === "wholesale_inquiry" || n.type === "inquiry_reply") && n.inquiry_id && onOpenInquiry) {
+    // Thread-related notifications open the Messages dropdown at the
+    // relevant thread. Wholesale inquiry + reply use n.inquiry_id;
+    // direct_message uses n.direct_thread_id.
+    if ((n.type === "wholesale_inquiry" || n.type === "inquiry_reply") && n.inquiry_id && onOpenThread) {
       onClose();
-      onOpenInquiry(n.inquiry_id);
+      onOpenThread("wholesale_inquiry", n.inquiry_id);
+      return;
+    }
+    if (n.type === "direct_message" && n.direct_thread_id && onOpenThread) {
+      onClose();
+      onOpenThread("direct_message", n.direct_thread_id);
       return;
     }
     onClose();
@@ -133,21 +164,13 @@ export default function NotificationsDropdown({ visible, onClose, onOpenInquiry 
   return (
     <>
       {!visible ? null : (<>
-      {/* Backdrop */}
-      {ready && (
-        <Pressable
-          onPress={onClose}
-          style={[
-            s.backdrop,
-            Platform.OS === "web"
-              ? { position: "fixed" as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998 }
-              : { position: "absolute" as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998 },
-          ]}
-        />
-      )}
+      {/* No full-viewport backdrop — the dropdown dismisses via the
+         outside-click listener above (web) or an explicit close on
+         native. Keeping the backdrop was freezing site interaction
+         whenever any navbar popover was open. */}
 
       {/* Card */}
-      <View style={[s.card, cardFixedStyle]}>
+      <View ref={cardRef} style={[s.card, cardFixedStyle]}>
         {/* Header */}
         <View style={s.header}>
           <Text style={s.headerTitle}>Notifications</Text>

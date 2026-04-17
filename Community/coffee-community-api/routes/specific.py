@@ -1100,12 +1100,120 @@ def post_inquiry_message(inquiry_id: int, body: dict,
         db.close()
 
 
-# ── Messages inbox ─────────────────────────────────────────────────────────
+# ── Messages inbox (unified: wholesale inquiries + direct messages) ─────────
 #
-# A projected list of inquiry threads for the current café or roaster,
-# with last-message preview + per-thread unread count. Powers the
-# navbar Messages dropdown. Separate from /my-wholesale-inquiries,
-# which serves the admin / analytics perspective.
+# The navbar Messages dropdown hits /my-threads which returns both
+# kinds in one ordered-by-activity list. /my-inquiry-threads stays
+# for any call-site that explicitly wants only inquiries.
+
+@router.get("/my-threads")
+def my_threads(user=Depends(get_current_user)):
+    """Unified inbox: wholesale inquiries + direct message threads the
+    current user is a party to. Each row carries a `kind` discriminator
+    the client uses to route taps to the right thread-view. Ordered by
+    most-recent activity across both kinds."""
+    from fastapi import HTTPException
+    if not user:
+        raise HTTPException(401, "Authentication required")
+
+    db = get_db()
+    try:
+        uid = user["id"]
+        account_type = user.get("account_type")
+        results: list[dict] = []
+
+        # ── Wholesale inquiries (café + roaster accounts only) ──────────
+        if account_type == "cafe" and user.get("cafe_slug"):
+            where_col, where_val = "cafe_slug", user["cafe_slug"]
+            last_read_col = "cafe_last_read_at"
+        elif account_type == "roaster" and user.get("roaster_slug"):
+            where_col, where_val = "roaster_slug", user["roaster_slug"]
+            last_read_col = "roaster_last_read_at"
+        else:
+            where_col = where_val = last_read_col = None
+
+        if where_col:
+            inquiry_rows = db.execute(
+                f"""
+                SELECT
+                    wi.id AS inquiry_id,
+                    wi.cafe_slug, wi.roaster_slug,
+                    wi.product_id, wi.note AS inquiry_note,
+                    wi.status, wi.created_at AS opened_at,
+                    wi.{last_read_col} AS last_read_at,
+                    (SELECT cp.name FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_name,
+                    (SELECT cp.logo_url FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_url,
+                    (SELECT cp.logo_crop_x FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_crop_x,
+                    (SELECT cp.logo_crop_y FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_crop_y,
+                    (SELECT cp.logo_zoom   FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_zoom,
+                    (SELECT rp.name FROM roaster_profiles rp WHERE rp.roaster_slug = wi.roaster_slug) AS roaster_name,
+                    (SELECT rp.logo_url FROM roaster_profiles rp WHERE rp.roaster_slug = wi.roaster_slug) AS roaster_logo_url,
+                    (SELECT p.coffee_name FROM products p WHERE p.product_id = wi.product_id) AS product_name,
+                    (SELECT m.body FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+                    (SELECT m.created_at FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
+                    (SELECT m.user_id FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_user_id,
+                    (SELECT COUNT(*) FROM inquiry_messages m
+                        WHERE m.inquiry_id = wi.id
+                          AND m.user_id != ?
+                          AND (wi.{last_read_col} IS NULL OR m.created_at > wi.{last_read_col})
+                    ) AS unread_count
+                FROM wholesale_inquiries wi
+                WHERE wi.{where_col} = ?
+                """,
+                (uid, where_val),
+            ).fetchall()
+            for r in inquiry_rows:
+                d = dict(r)
+                d["kind"] = "wholesale_inquiry"
+                d["sort_at"] = d.get("last_message_at") or d.get("opened_at")
+                results.append(d)
+
+        # ── Direct message threads (any account type) ───────────────────
+        dm_rows = db.execute(
+            """
+            SELECT
+                dt.id AS thread_id,
+                dt.user_a_id, dt.user_b_id,
+                dt.created_at AS opened_at,
+                dt.updated_at,
+                CASE WHEN dt.user_a_id = ? THEN dt.user_a_last_read_at ELSE dt.user_b_last_read_at END AS last_read_at,
+                CASE WHEN dt.user_a_id = ? THEN dt.user_b_id ELSE dt.user_a_id END AS other_user_id,
+                (SELECT u.username       FROM users u WHERE u.id = CASE WHEN dt.user_a_id = ? THEN dt.user_b_id ELSE dt.user_a_id END) AS other_username,
+                (SELECT u.display_name   FROM users u WHERE u.id = CASE WHEN dt.user_a_id = ? THEN dt.user_b_id ELSE dt.user_a_id END) AS other_display_name,
+                (SELECT u.avatar_url     FROM users u WHERE u.id = CASE WHEN dt.user_a_id = ? THEN dt.user_b_id ELSE dt.user_a_id END) AS other_avatar_url,
+                (SELECT u.avatar_crop_x  FROM users u WHERE u.id = CASE WHEN dt.user_a_id = ? THEN dt.user_b_id ELSE dt.user_a_id END) AS other_avatar_crop_x,
+                (SELECT u.avatar_crop_y  FROM users u WHERE u.id = CASE WHEN dt.user_a_id = ? THEN dt.user_b_id ELSE dt.user_a_id END) AS other_avatar_crop_y,
+                (SELECT u.avatar_zoom    FROM users u WHERE u.id = CASE WHEN dt.user_a_id = ? THEN dt.user_b_id ELSE dt.user_a_id END) AS other_avatar_zoom,
+                (SELECT m.body       FROM direct_messages m WHERE m.thread_id = dt.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+                (SELECT m.created_at FROM direct_messages m WHERE m.thread_id = dt.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
+                (SELECT m.user_id    FROM direct_messages m WHERE m.thread_id = dt.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_user_id,
+                (SELECT COUNT(*) FROM direct_messages m
+                    WHERE m.thread_id = dt.id
+                      AND m.user_id != ?
+                      AND (
+                          (dt.user_a_id = ? AND (dt.user_a_last_read_at IS NULL OR m.created_at > dt.user_a_last_read_at)) OR
+                          (dt.user_b_id = ? AND (dt.user_b_last_read_at IS NULL OR m.created_at > dt.user_b_last_read_at))
+                      )
+                ) AS unread_count
+            FROM direct_threads dt
+            WHERE dt.user_a_id = ? OR dt.user_b_id = ?
+            """,
+            (uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid),
+        ).fetchall()
+        for r in dm_rows:
+            d = dict(r)
+            d["kind"] = "direct_message"
+            d["sort_at"] = d.get("last_message_at") or d.get("opened_at")
+            results.append(d)
+
+        # Sort newest-activity first across both kinds.
+        results.sort(key=lambda d: d.get("sort_at") or "", reverse=True)
+        total_unread = sum(int(t.get("unread_count") or 0) for t in results)
+        return ok(results, resource="threads",
+                  total=len(results), total_unread=total_unread)
+    finally:
+        db.close()
+
 
 @router.get("/my-inquiry-threads")
 def my_inquiry_threads(user=Depends(get_current_user)):
@@ -1189,6 +1297,200 @@ def mark_inquiry_read(inquiry_id: int, user=Depends(get_current_user)):
         db.commit()
         return ok({"id": inquiry_id, "last_read_at": now},
                   resource="wholesale_inquiries")
+    finally:
+        db.close()
+
+
+# ── Direct message threads ──────────────────────────────────────────────
+#
+# User ↔ user chat. Same ergonomics as inquiry threads but without any
+# business context strip. Canonical pair ordering on the direct_threads
+# row keeps uniqueness regardless of who initiated.
+
+def _require_dm_party(db, thread_id: int, user):
+    from fastapi import HTTPException
+    if not user:
+        raise HTTPException(401, "Authentication required")
+    row = db.execute(
+        "SELECT id, user_a_id, user_b_id FROM direct_threads WHERE id = ?",
+        (thread_id,),
+    ).fetchone()
+    if not row:
+        raise HTTPException(404, "Thread not found")
+    uid = user["id"]
+    if uid != row["user_a_id"] and uid != row["user_b_id"]:
+        raise HTTPException(403, "Not a party to this thread")
+    return row
+
+
+@router.post("/direct-threads/with/{username}", status_code=201)
+def open_direct_thread(username: str, user=Depends(get_current_user)):
+    """Open or re-use a direct thread with another user. Returns the
+    thread id so the caller can immediately show the conversation.
+    Canonical ordering (smaller user_id = user_a) means (A, B) and
+    (B, A) always hit the same row."""
+    import datetime as _dt
+    from fastapi import HTTPException
+    if not user:
+        raise HTTPException(401, "Authentication required")
+    row = db_scoped_other_user(username)
+    if not row:
+        raise HTTPException(404, f"User {username} not found")
+    other_id = row["id"]
+    if other_id == user["id"]:
+        raise HTTPException(400, "You can't message yourself")
+
+    db = get_db()
+    try:
+        user_a, user_b = sorted([user["id"], other_id])
+        existing = db.execute(
+            "SELECT id FROM direct_threads WHERE user_a_id = ? AND user_b_id = ?",
+            (user_a, user_b),
+        ).fetchone()
+        if existing:
+            return ok({"thread_id": existing["id"], "created": False},
+                      resource="direct_threads")
+        now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        cur = db.execute(
+            "INSERT INTO direct_threads (user_a_id, user_b_id, created_at) "
+            "VALUES (?, ?, ?)",
+            (user_a, user_b, now),
+        )
+        db.commit()
+        return ok({"thread_id": cur.lastrowid, "created": True},
+                  resource="direct_threads")
+    finally:
+        db.close()
+
+
+def db_scoped_other_user(username: str):
+    """Small helper so open_direct_thread stays readable. Separate db
+    connection because the caller also needs one."""
+    from database import get_db as _get_db
+    conn = _get_db()
+    try:
+        return conn.execute(
+            "SELECT id FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+    finally:
+        conn.close()
+
+
+@router.get("/direct-threads/{thread_id}/thread")
+def get_direct_thread(thread_id: int, user=Depends(get_current_user)):
+    """Return the thread metadata (counterparty info) + message list."""
+    db = get_db()
+    try:
+        row = _require_dm_party(db, thread_id, user)
+        other_id = row["user_b_id"] if row["user_a_id"] == user["id"] else row["user_a_id"]
+        other = db.execute(
+            "SELECT id, username, display_name, avatar_url, "
+            "avatar_crop_x, avatar_crop_y, avatar_zoom, account_type "
+            "FROM users WHERE id = ?",
+            (other_id,),
+        ).fetchone()
+        messages = db.execute(
+            """SELECT m.id, m.thread_id, m.user_id, m.body, m.created_at,
+                      u.username, u.display_name, u.avatar_url,
+                      u.avatar_crop_x, u.avatar_crop_y, u.avatar_zoom,
+                      u.account_type
+               FROM direct_messages m
+               JOIN users u ON u.id = m.user_id
+               WHERE m.thread_id = ?
+               ORDER BY m.created_at ASC""",
+            (thread_id,),
+        ).fetchall()
+        return ok(
+            {
+                "thread": {
+                    "id": thread_id,
+                    "kind": "direct_message",
+                    "other": dict(other) if other else None,
+                },
+                "messages": [dict(r) for r in messages],
+            },
+            resource="direct_thread",
+        )
+    finally:
+        db.close()
+
+
+@router.post("/direct-threads/{thread_id}/messages", status_code=201)
+def post_direct_message(thread_id: int, body: dict,
+                        user=Depends(get_current_user)):
+    """Send a DM. Notifies the other party so it lands in their
+    Activity tab (DMs are social, not business)."""
+    import datetime as _dt
+    from fastapi import HTTPException
+    from services.notifications import create_notification
+
+    text = (body or {}).get("body", "").strip()
+    if not text:
+        raise HTTPException(400, "body is required")
+    if len(text) > 2000:
+        raise HTTPException(400, "body too long (max 2000 chars)")
+
+    db = get_db()
+    try:
+        row = _require_dm_party(db, thread_id, user)
+        now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        cur = db.execute(
+            "INSERT INTO direct_messages (thread_id, user_id, body, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            (thread_id, user["id"], text, now),
+        )
+        mid = cur.lastrowid
+        db.execute(
+            "UPDATE direct_threads SET updated_at = ? WHERE id = ?",
+            (now, thread_id),
+        )
+
+        # Notify the other party. DMs fire `direct_message` type —
+        # frontend categorization (notificationCategory) keeps these
+        # in the Activity tab since they're personal, not business.
+        other_id = row["user_b_id"] if row["user_a_id"] == user["id"] else row["user_a_id"]
+        snippet = text if len(text) <= 60 else text[:57] + "…"
+        create_notification(
+            db,
+            other_id,
+            "direct_message",
+            user["id"],
+            direct_thread_id=thread_id,
+            subject=snippet,
+        )
+        db.commit()
+
+        msg = db.execute(
+            """SELECT m.id, m.thread_id, m.user_id, m.body, m.created_at,
+                      u.username, u.display_name, u.avatar_url,
+                      u.avatar_crop_x, u.avatar_crop_y, u.avatar_zoom,
+                      u.account_type
+               FROM direct_messages m JOIN users u ON u.id = m.user_id
+               WHERE m.id = ?""",
+            (mid,),
+        ).fetchone()
+        return ok(dict(msg), resource="direct_messages")
+    finally:
+        db.close()
+
+
+@router.post("/direct-threads/{thread_id}/read")
+def mark_direct_thread_read(thread_id: int, user=Depends(get_current_user)):
+    """Stamp the current party's last_read_at on the thread."""
+    import datetime as _dt
+    db = get_db()
+    try:
+        row = _require_dm_party(db, thread_id, user)
+        col = "user_a_last_read_at" if row["user_a_id"] == user["id"] else "user_b_last_read_at"
+        now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        db.execute(
+            f"UPDATE direct_threads SET {col} = ? WHERE id = ?",
+            (now, thread_id),
+        )
+        db.commit()
+        return ok({"id": thread_id, "last_read_at": now},
+                  resource="direct_threads")
     finally:
         db.close()
 

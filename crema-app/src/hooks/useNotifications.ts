@@ -23,7 +23,9 @@ export type NotificationType =
   // ── Business (wholesale thread + loyalty) ─────────────────────────
   | "wholesale_inquiry"
   | "inquiry_reply"
-  | "stamp_awarded";
+  | "stamp_awarded"
+  // ── Activity (user ↔ user DMs) ────────────────────────────────────
+  | "direct_message";
 
 // Notifications split into two streams for roaster + café accounts
 // (Phase 1 §2.4). Regular user accounts see a single flat list.
@@ -61,6 +63,7 @@ export interface Notification {
   post_id: number | null;
   comment_id: number | null;
   inquiry_id: number | null;
+  direct_thread_id: number | null;
   // Catalog-change extras: "roaster:blue-tokai-coffee-roasters" or "cafe:prana-goa"
   target_slug: string | null;
   subject: string | null;

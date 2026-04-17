@@ -508,6 +508,32 @@ _MIGRATIONS = [
     # side marking a thread read doesn't clear the other's badge.
     "ALTER TABLE wholesale_inquiries ADD COLUMN cafe_last_read_at TEXT",
     "ALTER TABLE wholesale_inquiries ADD COLUMN roaster_last_read_at TEXT",
+    # ── User-to-user direct messages ────────────────────────────────────
+    # Canonical pair ordering: user_a_id < user_b_id so (A↔B) and (B↔A)
+    # collapse to the same row. Last-read stamped per participant.
+    """CREATE TABLE IF NOT EXISTS direct_threads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_a_id INTEGER NOT NULL REFERENCES users(id),
+        user_b_id INTEGER NOT NULL REFERENCES users(id),
+        user_a_last_read_at TEXT,
+        user_b_last_read_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT,
+        CHECK (user_a_id < user_b_id),
+        UNIQUE (user_a_id, user_b_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_dthreads_a ON direct_threads(user_a_id, updated_at)",
+    "CREATE INDEX IF NOT EXISTS idx_dthreads_b ON direct_threads(user_b_id, updated_at)",
+    """CREATE TABLE IF NOT EXISTS direct_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        thread_id INTEGER NOT NULL REFERENCES direct_threads(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        body TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_dmessages_thread ON direct_messages(thread_id, created_at)",
+    # Notifications can now deep-link to a direct_thread too.
+    "ALTER TABLE notifications ADD COLUMN direct_thread_id INTEGER",
 ]
 
 

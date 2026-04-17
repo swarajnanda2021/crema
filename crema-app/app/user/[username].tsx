@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
-import { Plus, Check } from "lucide-react-native";
+import { Plus, Check, MessageCircle } from "lucide-react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { useAuth } from "../../src/hooks/useAuth";
@@ -319,15 +319,36 @@ export default function UserProfilePage() {
 
         <View style={s.divider} />
 
-        {/* Follow button */}
+        {/* Follow + Message buttons */}
         {!isOwn && authUser && (
-          <Pressable onPress={handleFollowToggle} style={[s.followBtn, following && s.followBtnFollowing]}>
-            {following ? (
-              <><Check size={10} color={t.color["text.primary"]} strokeWidth={2.5} /><Text style={s.followBtnTextFollowing}>Following</Text></>
-            ) : (
-              <><Plus size={10} color={t.color["text.primary"]} strokeWidth={2.5} /><Text style={s.followBtnText}>Follow</Text></>
-            )}
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable onPress={handleFollowToggle} style={[s.followBtn, following && s.followBtnFollowing]}>
+              {following ? (
+                <><Check size={10} color={t.color["text.primary"]} strokeWidth={2.5} /><Text style={s.followBtnTextFollowing}>Following</Text></>
+              ) : (
+                <><Plus size={10} color={t.color["text.primary"]} strokeWidth={2.5} /><Text style={s.followBtnText}>Follow</Text></>
+              )}
+            </Pressable>
+            <Pressable
+              onPress={async () => {
+                try {
+                  const raw = await apiFetchRaw(`/direct-threads/with/${username}`, { method: "POST" });
+                  const d = raw?.data ?? raw;
+                  if (d?.thread_id) {
+                    // Cross-component signal: let the navbar open the
+                    // Messages dropdown at this thread.
+                    if (typeof window !== "undefined") {
+                      (window as any).__crema_openThread?.("direct_message", d.thread_id);
+                    }
+                  }
+                } catch (e) { console.warn("Open DM failed:", e); }
+              }}
+              style={s.messageBtn}
+            >
+              <MessageCircle size={11} color={t.color["text.primary"]} strokeWidth={2} />
+              <Text style={s.followBtnText}>Message</Text>
+            </Pressable>
+          </View>
         )}
       </View>
     </View>
@@ -493,6 +514,12 @@ const s = StyleSheet.create({
   followBtnFollowing: { width: 88, backgroundColor: t.color.accent, borderColor: t.color.accent },
   followBtnText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.primary"] },
   followBtnTextFollowing: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.primary"] },
+  // Match the follow-button geometry for visual continuity.
+  messageBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 4, paddingHorizontal: 12, height: 27, borderRadius: 2,
+    borderWidth: 1.5, borderColor: t.color["text.primary"],
+  } as any,
 
   // Tab bar
   tabBar: {
