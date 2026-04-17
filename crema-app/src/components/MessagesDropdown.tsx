@@ -190,7 +190,9 @@ export default function MessagesDropdown({ visible, onClose, initialThread }: Pr
               </View>
             ) : threads.length === 0 ? (
               <Text style={s.empty}>
-                No conversations yet. Tap a profile to message someone, or the wholesale chip on a coffee card to open an inquiry.
+                {user?.account_type === "cafe" || user?.account_type === "roaster"
+                  ? "No conversations yet. Tap a profile to message someone, or the wholesale chip on a coffee card to open an inquiry."
+                  : "No conversations yet. Tap the Message button on anyone's profile to start a chat."}
               </Text>
             ) : (
               threads.map((row, idx) => {

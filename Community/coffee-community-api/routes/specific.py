@@ -1198,7 +1198,10 @@ def my_threads(user=Depends(get_current_user)):
             FROM direct_threads dt
             WHERE dt.user_a_id = ? OR dt.user_b_id = ?
             """,
-            (uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid),
+            # 13 placeholders total: 8 CASE/subquery uses + 1 unread filter
+            # + 2 unread scope CASEs + 2 WHERE terms. Count verified by
+            # sqlite3.ProgrammingError when off-by-one.
+            (uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid),
         ).fetchall()
         for r in dm_rows:
             d = dict(r)

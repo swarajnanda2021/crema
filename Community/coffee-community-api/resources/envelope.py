@@ -11,7 +11,11 @@ Single items: data is a dict. Lists: data is an array. Toggles: data is { toggle
 """
 
 
-def ok(data, *, resource="", total=None, limit=None, offset=None):
+def ok(data, *, resource="", total=None, limit=None, offset=None, **extra_meta):
+    """Standard envelope. Pass arbitrary extra keyword args to drop them
+    straight into `meta` — e.g. `total_unread`, `perspective`. Keeps
+    call sites readable without forcing an update here for every new
+    meta field."""
     meta = {"resource": resource}
     if total is not None:
         meta["total"] = total
@@ -19,6 +23,9 @@ def ok(data, *, resource="", total=None, limit=None, offset=None):
         meta["limit"] = limit
     if offset is not None:
         meta["offset"] = offset
+    for k, v in extra_meta.items():
+        if v is not None:
+            meta[k] = v
     return {"data": data, "meta": meta}
 
 

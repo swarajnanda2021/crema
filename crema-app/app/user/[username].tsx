@@ -491,8 +491,10 @@ const s = StyleSheet.create({
   heroNarrow: { flexDirection: "column", alignItems: "center", gap: 20, paddingTop: 24, paddingBottom: 24 },
 
   // Avatar — SQUARE with slight rounding (borderRadius: 5)
-  avatarWrap: { width: "34%", aspectRatio: 1, maxWidth: 280, borderRadius: 5, overflow: "hidden" } as any,
-  avatarWrapNarrow: { width: "50%", maxWidth: 200 },
+  // Matches app/(tabs)/profile.tsx so a user's avatar is the same
+  // size on their own profile and on anyone else's view of it.
+  avatarWrap: { width: 200, height: 200, borderRadius: 5, overflow: "hidden" } as any,
+  avatarWrapNarrow: { width: 160, height: 160 },
   avatarFallback: { width: "100%", height: "100%", backgroundColor: t.color["card.info"], alignItems: "center", justifyContent: "center" } as any,
   avatarLetter: { fontFamily: t.font.display, fontSize: 48, color: t.color["text.primary"] },
 

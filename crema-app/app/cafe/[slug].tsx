@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   View, Text, ScrollView, Pressable, StyleSheet, TextInput,
-  ActivityIndicator, useWindowDimensions, Linking, Image as RNImage,
+  ActivityIndicator, useWindowDimensions, Image as RNImage,
   Platform, Animated, Easing, Modal,
 } from "react-native";
 import { Image } from "expo-image";
@@ -16,6 +16,7 @@ import { ArrowLeft, Check, Coffee, Camera, PenLine, Plus, Trash2, Users } from "
 import Svg, { Path } from "react-native-svg";
 import { t } from "../../src/tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
+import { openExternal } from "../../src/utils/openExternal";
 import { useAuth } from "../../src/hooks/useAuth";
 import Navbar from "../../src/components/Navbar";
 import ScannerModal from "../../src/components/ScannerModal";
@@ -523,7 +524,7 @@ export default function CafeDetailPage() {
                   </View>
                 ) : (
                   <Pressable
-                    onPress={() => cafe.address && Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(cafe.address)}`)}
+                    onPress={() => cafe.address && openExternal(`https://maps.google.com/?q=${encodeURIComponent(cafe.address)}`)}
                     style={s.metaItem}
                   >
                     <MapPinIcon />
@@ -545,7 +546,7 @@ export default function CafeDetailPage() {
                   </View>
                 ) : (
                   <Pressable
-                    onPress={() => Linking.openURL(`https://instagram.com/${cafe.instagram_handle}`)}
+                    onPress={() => openExternal(`https://instagram.com/${cafe.instagram_handle}`)}
                     style={s.metaItem}
                   >
                     <InstagramIcon />
@@ -567,7 +568,7 @@ export default function CafeDetailPage() {
                   </View>
                 ) : (
                   <Pressable
-                    onPress={() => cafe.website && Linking.openURL(cafe.website)}
+                    onPress={() => cafe.website && openExternal(cafe.website)}
                     style={s.metaItem}
                   >
                     <ExternalLinkIcon />
@@ -827,17 +828,17 @@ export default function CafeDetailPage() {
             )}
             <View style={s.metaRows}>
               {cafe.address && (
-                <Pressable onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(cafe.address!)}`)} style={s.metaItem}>
+                <Pressable onPress={() => openExternal(`https://maps.google.com/?q=${encodeURIComponent(cafe.address!)}`)} style={s.metaItem}>
                   <MapPinIcon /><Text style={s.metaText} numberOfLines={2}>{cafe.address}</Text>
                 </Pressable>
               )}
               {cafe.instagram_handle && (
-                <Pressable onPress={() => Linking.openURL(`https://instagram.com/${cafe.instagram_handle}`)} style={s.metaItem}>
+                <Pressable onPress={() => openExternal(`https://instagram.com/${cafe.instagram_handle}`)} style={s.metaItem}>
                   <InstagramIcon /><Text style={s.metaText}>@{cafe.instagram_handle}</Text>
                 </Pressable>
               )}
               {cafe.website && (
-                <Pressable onPress={() => Linking.openURL(cafe.website!)} style={s.metaItem}>
+                <Pressable onPress={() => openExternal(cafe.website!)} style={s.metaItem}>
                   <ExternalLinkIcon /><Text style={s.metaText}>Website</Text>
                 </Pressable>
               )}

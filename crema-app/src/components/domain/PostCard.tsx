@@ -9,7 +9,7 @@
 
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import * as Linking from "expo-linking";
+import { openExternal } from "../../utils/openExternal";
 import { useRouter } from "expo-router";
 import { Image } from "expo-image";
 
@@ -61,7 +61,7 @@ export default function PostCard({
   };
 
   const handleOpen = () => {
-    if (post.external_url) Linking.openURL(post.external_url);
+    if (post.external_url) openExternal(post.external_url);
   };
 
   return (

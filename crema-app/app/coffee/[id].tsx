@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
-import * as Linking from "expo-linking";
+import { openExternal } from "../../src/utils/openExternal";
 import { MapPin, Mountain, Leaf, Settings } from "lucide-react-native";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useShare } from "../../src/hooks/useShare";
@@ -99,7 +99,7 @@ export default function CoffeeDetailPage() {
                 wholesale_note={coffee.wholesale_note}
               />
               <Pressable
-                onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "coffee_page"); Linking.openURL(coffee.product_url); }}
+                onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "coffee_page"); openExternal(coffee.product_url); }}
                 style={st.buyBtn}
               >
                 <CartIcon size={16} color="#FFFFFF" />

@@ -4,7 +4,7 @@
  * Shows current account header, menu items (Manage / Edit / Sign out),
  * and a multi-account switcher with "Add another account".
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -25,16 +25,33 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
   const router = useRouter();
   const [switching, setSwitching] = useState(false);
   const [showQR, setShowQR] = useState(false);
-  // Delay backdrop so the opening click doesn't immediately close the dropdown
-  const [ready, setReady] = useState(false);
+  const cardRef = useRef<any>(null);
 
+  // Outside-click dismissal on web — mirrors Messages + Notifications
+  // so opening this dropdown no longer freezes the rest of the site.
+  // Armed 150ms after open so the opening click doesn't instantly
+  // close the panel. Ignores clicks inside the card or on the navbar
+  // (toggle-off logic on the avatar button still works).
   useEffect(() => {
-    if (visible) {
-      const id = setTimeout(() => setReady(true), 50);
-      return () => { clearTimeout(id); setReady(false); };
-    }
-    setReady(false);
-  }, [visible]);
+    if (!visible || Platform.OS !== "web") return;
+    let armed = false;
+    const armTimer = setTimeout(() => { armed = true; }, 150);
+    const handler = (e: MouseEvent) => {
+      if (!armed) return;
+      const card = cardRef.current as any;
+      const target = e.target as Node;
+      if (card && typeof card.contains === "function" && card.contains(target)) return;
+      const navbar = (typeof document !== "undefined")
+        ? document.querySelector('[data-role="navbar"]') : null;
+      if (navbar && (navbar as any).contains && (navbar as any).contains(target)) return;
+      onClose();
+    };
+    if (typeof document !== "undefined") document.addEventListener("click", handler);
+    return () => {
+      clearTimeout(armTimer);
+      if (typeof document !== "undefined") document.removeEventListener("click", handler);
+    };
+  }, [visible, onClose]);
 
   if (!visible || !user) return null;
 
@@ -108,22 +125,17 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
     }
   };
 
-  // Inline styles for fixed positioning (StyleSheet.create can't handle conditional spreads)
-  const backdropFixedStyle = Platform.OS === "web"
-    ? { position: "fixed" as any, top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998 }
-    : { position: "absolute" as any, top: -2000, left: -2000, width: 8000, height: 8000, zIndex: 9998 };
-
   const cardFixedStyle = Platform.OS === "web"
     ? { position: "fixed" as any, top: 72, right: 90, zIndex: 9999 }
     : { position: "absolute" as any, top: 8, right: 0, zIndex: 9999 };
 
   return (
     <>
-      {/* Backdrop — delayed so the opening click doesn't close immediately */}
-      {ready && <Pressable onPress={onClose} style={backdropFixedStyle} />}
+      {/* No full-viewport backdrop — dismissed via outside-click
+         listener above (web) or the avatar icon toggle (native). */}
 
       {/* Dropdown card */}
-      <View style={[s.card, cardFixedStyle]}>
+      <View ref={cardRef} style={[s.card, cardFixedStyle]}>
         {/* ── Current account header — clickable, goes to profile ── */}
         <Pressable onPress={handleManage} style={({ pressed }) => [s.accountHeader, pressed && s.menuItemPressed]}>
           {user.avatar_url ? (

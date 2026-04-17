@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, Stack, useRouter } from "expo-router";
-import * as Linking from "expo-linking";
+import { openExternal } from "../../src/utils/openExternal";
 import Svg, { Path } from "react-native-svg";
 import { Plus, X, PenLine, Camera, MapPin, Check } from "lucide-react-native";
 
@@ -612,7 +612,7 @@ export default function RoasterDetailPage() {
             ) : (
               <>
                 {website && (
-                  <Pressable onPress={() => Linking.openURL(website)} style={s.metaItem}>
+                  <Pressable onPress={() => openExternal(website)} style={s.metaItem}>
                     <ExternalLinkIcon /><Text style={s.metaText}>Website</Text>
                   </Pressable>
                 )}

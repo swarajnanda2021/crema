@@ -1003,16 +1003,19 @@ const s = StyleSheet.create({
     paddingBottom: 24,
   },
 
-  // Avatar (Figma 116:1020 — 488.84x501.72, borderRadius 5)
+  // Uniform avatar across own profile + /user/[username], for regular
+  // user accounts. Fixed pixel dimensions so the avatar can't rescale
+  // when entering / leaving edit mode (the old width: "34%" + maxWidth
+  // 489 vs 280 between the two pages was the source of the "image
+  // size changes" bug). Business entities (café + roaster) render
+  // their own hero assets and don't hit this rule.
   avatarWrap: {
-    width: "34%",
-    aspectRatio: 488.84 / 501.72,
-    maxWidth: 489,
+    width: 200, height: 200,
     borderRadius: 5,
     overflow: "hidden",
     position: "relative",
   } as any,
-  avatarWrapNarrow: { width: "60%", maxWidth: 300 },
+  avatarWrapNarrow: { width: 160, height: 160 },
   avatarImgZoomWrap: { width: "100%", height: "100%" } as any,
   avatarImg: { width: "100%", height: "100%" } as any,
   avatarFallback: {

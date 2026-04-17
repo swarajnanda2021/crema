@@ -8,7 +8,7 @@
  */
 
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
-import * as Linking from "expo-linking";
+import { openExternal } from "../utils/openExternal";
 import { t } from "../tokens/useTokens";
 import { CartIcon } from "./icons/FigmaIcons";
 
@@ -185,7 +185,7 @@ export default function TastingNoteCard({
           <View style={{ flex: 1 }} />
         )}
         {product_url ? (
-          <Pressable onPress={() => Linking.openURL(product_url)}>
+          <Pressable onPress={() => openExternal(product_url)}>
             <CartIcon size={Math.round(44.36 * s)} />
           </Pressable>
         ) : (

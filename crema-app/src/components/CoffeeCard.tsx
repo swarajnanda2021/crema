@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
-import * as Linking from "expo-linking";
+import { openExternal } from "../utils/openExternal";
 import { Coffee, Package } from "lucide-react-native";
 import Svg, { Circle, Path, G } from "react-native-svg";
 import { t, cardShadow, SHELF_LABELS, ShelfKey } from "../tokens/useTokens";
@@ -183,7 +183,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
               <ShareIcon size={BTN_SIZE} />
             </Pressable>
             <Pressable
-              onPress={() => { if (coffee.product_url) { trackClick(coffee.product_id, coffee.roaster_slug, "card_front"); Linking.openURL(coffee.product_url); } }}
+              onPress={() => { if (coffee.product_url) { trackClick(coffee.product_id, coffee.roaster_slug, "card_front"); openExternal(coffee.product_url); } }}
             >
               <CartIcon size={BTN_SIZE} />
             </Pressable>
