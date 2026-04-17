@@ -20,8 +20,9 @@ export type NotificationType =
   | "menu_added"
   | "menu_removed"
   | "menu_updated"
-  // ── Business (reserved for Phase 1 §2.1 / loyalty) ────────────────
+  // ── Business (wholesale thread + loyalty) ─────────────────────────
   | "wholesale_inquiry"
+  | "inquiry_reply"
   | "stamp_awarded";
 
 // Notifications split into two streams for roaster + café accounts
@@ -33,6 +34,7 @@ const BUSINESS_TYPES: ReadonlySet<string> = new Set<string>([
   "menu_removed",
   "menu_updated",
   "wholesale_inquiry",
+  "inquiry_reply",
   "stamp_awarded",
 ]);
 
@@ -58,6 +60,7 @@ export interface Notification {
   actor_zoom: number | null;
   post_id: number | null;
   comment_id: number | null;
+  inquiry_id: number | null;
   // Catalog-change extras: "roaster:blue-tokai-coffee-roasters" or "cafe:prana-goa"
   target_slug: string | null;
   subject: string | null;

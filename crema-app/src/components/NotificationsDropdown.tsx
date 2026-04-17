@@ -19,6 +19,7 @@ import {
   notificationCategory,
 } from "../hooks/useNotifications";
 import { useAuth } from "../hooks/useAuth";
+import InquiryThreadModal from "./InquiryThreadModal";
 
 interface Props {
   visible: boolean;
@@ -61,6 +62,11 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
   const hasTabs = user?.account_type === "roaster" || user?.account_type === "cafe";
   const [tab, setTab] = useState<NotificationCategory>("activity");
 
+  // When a wholesale_inquiry or inquiry_reply notification is tapped,
+  // open the thread modal inline instead of navigating. The modal
+  // portals over the dropdown via React Native's Modal primitive.
+  const [openInquiryId, setOpenInquiryId] = useState<number | null>(null);
+
   // Fetch full list when opened
   useEffect(() => {
     if (visible) {
@@ -85,8 +91,6 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
     return { visibleList: filtered, activityUnread: aUnread, businessUnread: bUnread };
   }, [notifications, hasTabs, tab]);
 
-  if (!visible) return null;
-
   const goToProfile = (n: Notification) => {
     markRead(n.id);
     onClose();
@@ -95,6 +99,13 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
 
   const goToSource = (n: Notification) => {
     markRead(n.id);
+    // Wholesale inquiry + reply notifications open the thread modal in
+    // place, so we keep the dropdown closed but don't navigate away.
+    if ((n.type === "wholesale_inquiry" || n.type === "inquiry_reply") && n.inquiry_id) {
+      onClose();
+      setOpenInquiryId(n.inquiry_id);
+      return;
+    }
     onClose();
     if (n.type === "follow") {
       router.push(`/user/${n.actor_username}`);
@@ -122,6 +133,14 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
 
   return (
     <>
+      {/* Thread modal is always mounted — it must survive the dropdown
+         closing when a notification is tapped. */}
+      <InquiryThreadModal
+        inquiryId={openInquiryId}
+        onClose={() => setOpenInquiryId(null)}
+      />
+
+      {!visible ? null : (<>
       {/* Backdrop */}
       {ready && (
         <Pressable
@@ -231,7 +250,7 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
           )}
         </ScrollView>
       </View>
-
+      </>)}
     </>
   );
 }

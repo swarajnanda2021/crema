@@ -488,6 +488,21 @@ _MIGRATIONS = [
     )""",
     "CREATE INDEX IF NOT EXISTS idx_brew_methods_product ON brew_methods(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_brew_methods_roaster ON brew_methods(roaster_slug)",
+    # ── Inquiry thread messages (short-form chat between café + roaster) ─
+    # One row per message. Either party (the inquiring café or the
+    # recipient roaster) can read + write. Deletion cascades with the
+    # parent inquiry.
+    """CREATE TABLE IF NOT EXISTS inquiry_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inquiry_id INTEGER NOT NULL REFERENCES wholesale_inquiries(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        body TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_inquiry_msgs_inquiry ON inquiry_messages(inquiry_id, created_at)",
+    # Notifications grow an optional inquiry_id so a wholesale_inquiry
+    # or inquiry_reply notification can deep-link to the exact thread.
+    "ALTER TABLE notifications ADD COLUMN inquiry_id INTEGER",
 ]
 
 

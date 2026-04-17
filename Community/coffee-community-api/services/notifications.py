@@ -19,6 +19,7 @@ def create_notification(
     *,
     post_id=None,
     comment_id=None,
+    inquiry_id=None,
     target_slug=None,
     subject=None,
 ):
@@ -27,9 +28,10 @@ def create_notification(
         return
     db.execute(
         "INSERT INTO notifications (user_id, type, actor_id, post_id, comment_id, "
-        "target_slug, subject, read, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
-        (user_id, notif_type, actor_id, post_id, comment_id, target_slug, subject, _now()),
+        "inquiry_id, target_slug, subject, read, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
+        (user_id, notif_type, actor_id, post_id, comment_id, inquiry_id,
+         target_slug, subject, _now()),
     )
 
 
@@ -261,12 +263,14 @@ def _handle_notify_wholesale_inquiry(db, item, actor):
         (roaster_slug,),
     ).fetchall()
     actor_id = actor["id"] if actor else 0
+    inquiry_id = item.get("id")
     for r in recipients:
         create_notification(
             db,
             r["id"],
             "wholesale_inquiry",
             actor_id,
+            inquiry_id=inquiry_id,
             target_slug=f"cafe:{cafe_slug}",
             subject=subject,
         )

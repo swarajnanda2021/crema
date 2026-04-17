@@ -24,7 +24,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  View, Text, Pressable, StyleSheet, Platform, TextInput, ActivityIndicator,
+  View, Text, Pressable, StyleSheet, Platform, TextInput, ActivityIndicator, Modal,
 } from "react-native";
 import { Handshake, Package } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
@@ -127,8 +127,8 @@ export default function InterestedButton({
         </Pressable>
       )}
 
-      {open && (
-        <View style={s.overlayWrap} pointerEvents="box-none">
+      <Modal visible={open} transparent animationType="fade" onRequestClose={reset}>
+        <View style={s.overlayWrap}>
           <Pressable onPress={reset} style={s.backdrop} />
           <View style={s.card}>
             {phase === "sent" ? (
@@ -210,7 +210,7 @@ export default function InterestedButton({
             )}
           </View>
         </View>
-      )}
+      </Modal>
     </>
   );
 }
@@ -229,26 +229,21 @@ const s = StyleSheet.create({
   },
   btnTextCompact: { fontSize: 11 },
 
-  overlayWrap: Platform.OS === "web"
-    ? ({
-      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      alignItems: "center", justifyContent: "center",
-      zIndex: 10000,
-    } as any)
-    : ({
-      position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-      alignItems: "center", justifyContent: "center",
-      zIndex: 10000,
-    } as any),
-  backdrop: Platform.OS === "web"
-    ? ({
-      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: "rgba(0,0,0,0.35)",
-    } as any)
-    : ({
-      position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: "rgba(0,0,0,0.35)",
-    } as any),
+  // Modal is portaled to the app root by React Native, so viewport
+  // positioning doesn't need fixed/absolute hacks — flex centering
+  // inside the overlay is enough. Matches PostPromptModal / AuthModal.
+  overlayWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    ...(Platform.OS === "web"
+      ? ({ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" } as any)
+      : {}),
+  } as any,
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  } as any,
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 14,

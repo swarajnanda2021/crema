@@ -970,6 +970,136 @@ def my_wholesale_inquiries(user=Depends(get_current_user)):
         db.close()
 
 
+# ── Inquiry thread (short-form chat between café + roaster) ─────────────
+#
+# Both parties authenticated against the same inquiry. Ownership check:
+# the current user must be either the café that opened the inquiry or a
+# roaster user on the target roaster_slug. Regular users get 403.
+
+def _require_inquiry_party(db, inquiry_id: int, user):
+    from fastapi import HTTPException
+    if not user:
+        raise HTTPException(401, "Authentication required")
+    row = db.execute(
+        "SELECT id, cafe_slug, roaster_slug FROM wholesale_inquiries WHERE id = ?",
+        (inquiry_id,),
+    ).fetchone()
+    if not row:
+        raise HTTPException(404, "Inquiry not found")
+    is_cafe = user.get("account_type") == "cafe" and user.get("cafe_slug") == row["cafe_slug"]
+    is_roaster = user.get("account_type") == "roaster" and user.get("roaster_slug") == row["roaster_slug"]
+    if not (is_cafe or is_roaster):
+        raise HTTPException(403, "Not a party to this inquiry")
+    return row
+
+
+@router.get("/wholesale-inquiries/{inquiry_id}/thread")
+def get_inquiry_thread(inquiry_id: int, user=Depends(get_current_user)):
+    """Return the inquiry record (with café context) plus the message
+    list, ordered oldest→newest. One round-trip powers the entire
+    inquiry-thread modal."""
+    from resources.crud import get_resource_by_id
+    db = get_db()
+    try:
+        _require_inquiry_party(db, inquiry_id, user)
+        inquiry = get_resource_by_id(
+            db, "wholesale_inquiries", inquiry_id, current_user_id=user["id"],
+        )
+        rows = db.execute(
+            """SELECT m.id, m.inquiry_id, m.user_id, m.body, m.created_at,
+                      u.username, u.display_name, u.avatar_url,
+                      u.avatar_crop_x, u.avatar_crop_y, u.avatar_zoom,
+                      u.account_type
+               FROM inquiry_messages m
+               JOIN users u ON u.id = m.user_id
+               WHERE m.inquiry_id = ?
+               ORDER BY m.created_at ASC""",
+            (inquiry_id,),
+        ).fetchall()
+        messages = [dict(r) for r in rows]
+        return ok({"inquiry": inquiry, "messages": messages},
+                  resource="wholesale_inquiry_thread")
+    finally:
+        db.close()
+
+
+@router.post("/wholesale-inquiries/{inquiry_id}/messages", status_code=201)
+def post_inquiry_message(inquiry_id: int, body: dict,
+                         user=Depends(get_current_user)):
+    """Add a message to the thread. Notifies the *other* party so the
+    thread surfaces in their Business tab."""
+    from fastapi import HTTPException
+    from services.notifications import create_notification
+    import datetime as _dt
+
+    text = (body or {}).get("body", "").strip()
+    if not text:
+        raise HTTPException(400, "body is required")
+    if len(text) > 2000:
+        raise HTTPException(400, "body too long (max 2000 chars)")
+
+    db = get_db()
+    try:
+        row = _require_inquiry_party(db, inquiry_id, user)
+        now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        cur = db.execute(
+            "INSERT INTO inquiry_messages (inquiry_id, user_id, body, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            (inquiry_id, user["id"], text, now),
+        )
+        mid = cur.lastrowid
+        # Touch the parent inquiry so updated_at reflects last activity.
+        db.execute(
+            "UPDATE wholesale_inquiries SET updated_at = ? WHERE id = ?",
+            (now, inquiry_id),
+        )
+
+        # Fan-out notification to the other party. If the sender is a
+        # café, recipients are every roaster-account user on that slug.
+        # If the sender is a roaster, recipient is the café-owner user
+        # tied to the inquiry's cafe_slug.
+        snippet = text if len(text) <= 60 else text[:57] + "…"
+        if user.get("account_type") == "cafe":
+            recipients = db.execute(
+                "SELECT id FROM users WHERE account_type = 'roaster' AND roaster_slug = ?",
+                (row["roaster_slug"],),
+            ).fetchall()
+        else:
+            recipients = db.execute(
+                "SELECT id FROM users WHERE account_type = 'cafe' AND cafe_slug = ?",
+                (row["cafe_slug"],),
+            ).fetchall()
+        for r in recipients:
+            if r["id"] == user["id"]:
+                continue
+            # Reuses the create_notification helper from services.
+            db.execute(
+                "INSERT INTO notifications (user_id, type, actor_id, inquiry_id, "
+                "target_slug, subject, read, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
+                (
+                    r["id"], "inquiry_reply", user["id"], inquiry_id,
+                    f"cafe:{row['cafe_slug']}", snippet, now,
+                ),
+            )
+        db.commit()
+
+        # Return the freshly inserted row in the same shape the thread
+        # endpoint returns so the client can append without re-fetching.
+        msg = db.execute(
+            """SELECT m.id, m.inquiry_id, m.user_id, m.body, m.created_at,
+                      u.username, u.display_name, u.avatar_url,
+                      u.avatar_crop_x, u.avatar_crop_y, u.avatar_zoom,
+                      u.account_type
+               FROM inquiry_messages m JOIN users u ON u.id = m.user_id
+               WHERE m.id = ?""",
+            (mid,),
+        ).fetchone()
+        return ok(dict(msg), resource="inquiry_messages")
+    finally:
+        db.close()
+
+
 @router.post("/wholesale-inquiries/{inquiry_id}/respond")
 def respond_to_inquiry(inquiry_id: int, body: dict,
                        user=Depends(get_current_user)):

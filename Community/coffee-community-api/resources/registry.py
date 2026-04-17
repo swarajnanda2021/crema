@@ -273,6 +273,7 @@ RESOURCES = {
             "actor_id": {"type": "int"},
             "post_id": {"type": "int"},
             "comment_id": {"type": "int"},
+            "inquiry_id": {"type": "int"},
             "target_slug": {"type": "str"},
             "subject": {"type": "str"},
             "read": {"type": "int", "default": 0},
