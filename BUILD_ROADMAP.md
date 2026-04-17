@@ -173,7 +173,53 @@ The 3 fields + owner-editable block + admin readiness metric have
 landed. Conditional visibility to roasters is intentionally deferred
 to §2.1 where the wholesale inquiry notification carries the snapshot.
 
-### 2.7 Launch blockers (from LAUNCH_TODO.md)
+### 2.7 Profile edit: eliminate *every* layout shift between modes
+
+The user profile's edit mode still visibly reflows the hero row.
+Two commits have taken a swing at this already (banner → overlay;
+padding → 0) but the core bug is deeper: `<TextInput multiline>` and
+`<Text>` compute their line-box width slightly differently on Expo
+Web, so a name like "Aayushi Kapadia" renders on one line as display
+`<Text>` but wraps to two lines once you enter edit mode — which
+grows the info column, which nudges the hero flex row, which fires
+the avatar wrapper's `onLayout` with new dimensions, which reflows
+the inner avatar image via the MIN_OVER × zoom math.
+
+Cumulative effect: avatar nudges right/down + image rescales on
+every edit-mode toggle. "It's a simple thing, why is it happening?"
+— because four separate pieces have to all render pixel-identically
+between `<Text>` and `<TextInput>`, and they don't.
+
+Real fix is a careful pass:
+- Per-field width/line-count lock (nowrap on name, fixed minHeight
+  on bio, etc.) so every `inlineEdit` input has the *exact* rendered
+  dimensions of its display-mode `<Text>` sibling — not just
+  visually close.
+- Decouple the avatar's `onLayout` from container reflow: set an
+  explicit fixed `width` + `height` on `avatarWrap` in CSS px, not a
+  percentage. The avatar should render identically regardless of
+  what happens to the info column.
+- Regression-test by snapshotting the hero DOM rect on entering and
+  leaving edit — any delta beyond rounding is a fail.
+
+Worth doing right once, not another band-aid. Park here until it
+can get a dedicated 1-2h commit.
+
+### 2.8 Wholesale chip rework on CoffeeCard + EditableCoffeeCard
+
+The current wholesale UX is too bureaucratic: a checkbox row plus an
+expandable panel with three fields (flag, min kg, note). The roaster
+only really needs two values — **max kg available for wholesale**
+and **price per kg**. Surface these as two simple text inputs
+anchored to the bottom of the image half of the card, with the
+existing Package wholesale symbol as the visual anchor (keeps the
+info half clean). Café viewer sees the chip on a saved card →
+tapping opens a floating modal with whatever the roaster filled in
+(kg / ₹-per-kg / both / neither), plus the Interested button that
+already works. Empty values are fine — "available for wholesale,
+details TBD in the inquiry" is a valid signal.
+
+### 2.9 Launch blockers (from LAUNCH_TODO.md)
 
 Before any of the above ships to real users:
 - Password reset flow
