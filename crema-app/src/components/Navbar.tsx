@@ -53,8 +53,20 @@ export default function Navbar() {
   const isShop = pathname === "/browse";
   const isHome = pathname === "/";
 
+  // Close every dropdown except the one named. Called from every
+  // navbar-button onPress so clicking any icon/search always
+  // dismisses whatever else was open. Keeps the three dropdowns
+  // mutually exclusive without threading state through each toggler.
+  const closeOthers = (keep?: "messages" | "notifications" | "profile" | "search") => {
+    if (keep !== "messages") setShowMessages(false);
+    if (keep !== "notifications") setShowNotifications(false);
+    if (keep !== "profile") setShowDropdown(false);
+    if (keep !== "search") setSearchOpen(false);
+  };
+
   const openThreadFromNotification = (kind: ThreadKind, id: number) => {
     setInitialThread({ kind, id });
+    closeOthers("messages");
     setShowMessages(true);
   };
 
@@ -112,7 +124,10 @@ export default function Navbar() {
             </View>
           ) : (
             <>
-              <Pressable onPress={() => setSearchOpen(true)} style={s.iconBtn}>
+              <Pressable
+                onPress={() => { closeOthers("search"); setSearchOpen(true); }}
+                style={s.iconBtn}
+              >
                 <Search size={24} color="#E7D5B8" strokeWidth={1.5} />
               </Pressable>
 
@@ -125,9 +140,8 @@ export default function Navbar() {
                 <Pressable
                   onPress={() => {
                     setInitialThread(null);
+                    closeOthers("messages");
                     setShowMessages((v) => !v);
-                    setShowNotifications(false);
-                    setShowDropdown(false);
                   }}
                   style={s.iconBtn}
                 >
@@ -144,8 +158,8 @@ export default function Navbar() {
               {user && (
                 <Pressable
                   onPress={() => {
+                    closeOthers("notifications");
                     setShowNotifications((v) => !v);
-                    setShowDropdown(false);
                   }}
                   style={s.iconBtn}
                 >
@@ -161,8 +175,8 @@ export default function Navbar() {
               {user ? (
                 <Pressable
                   onPress={() => {
+                    closeOthers("profile");
                     setShowDropdown((v) => !v);
-                    setShowNotifications(false);
                   }}
                   style={s.iconBtn}
                 >
