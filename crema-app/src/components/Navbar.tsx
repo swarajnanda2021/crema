@@ -19,7 +19,7 @@ import { CroppedAvatar } from "./primitives";
 import CremaLogo from "./CremaLogo";
 import ProfileDropdown from "./ProfileDropdown";
 import NotificationsDropdown from "./NotificationsDropdown";
-import MessagesDropdown from "./MessagesDropdown";
+import MessagesDrawer from "./MessagesDrawer";
 
 export default function Navbar() {
   const router = useRouter();
@@ -29,7 +29,11 @@ export default function Navbar() {
   const [query, setQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showMessages, setShowMessages] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  // Which thread the drawer should open to. null = list view.
+  // Tapping the navbar Messages icon clears this; tapping a
+  // wholesale_inquiry notification sets it to that inquiry's id.
+  const [drawerInquiryId, setDrawerInquiryId] = useState<number | null>(null);
   const { unreadCount } = useNotifications(!!user);
   const showMessagesIcon = user?.account_type === "cafe" || user?.account_type === "roaster";
   const { totalUnread: messagesUnread } = useInquiryInbox(!!user && showMessagesIcon);
@@ -90,11 +94,12 @@ export default function Navbar() {
               {/* Messages icon — café + roaster accounts only. Sits
                  next to the bell so the two alert surfaces feel like
                  siblings. Hidden for regular users until user↔user DMs
-                 ship. */}
+                 ship. Opens the right-docked MessagesDrawer. */}
               {user && showMessagesIcon && (
                 <Pressable
                   onPress={() => {
-                    setShowMessages((v) => !v);
+                    setDrawerInquiryId(null);
+                    setDrawerOpen((v) => !v);
                     setShowNotifications(false);
                     setShowDropdown(false);
                   }}
@@ -114,7 +119,6 @@ export default function Navbar() {
                 <Pressable
                   onPress={() => {
                     setShowNotifications((v) => !v);
-                    setShowMessages(false);
                     setShowDropdown(false);
                   }}
                   style={s.iconBtn}
@@ -133,7 +137,6 @@ export default function Navbar() {
                   onPress={() => {
                     setShowDropdown((v) => !v);
                     setShowNotifications(false);
-                    setShowMessages(false);
                   }}
                   style={s.iconBtn}
                 >
@@ -161,16 +164,26 @@ export default function Navbar() {
         </View>
       </View>
 
-      {/* Notifications dropdown */}
+      {/* Notifications dropdown. Tapping a wholesale_inquiry or
+         inquiry_reply notification opens the MessagesDrawer at the
+         relevant thread instead of navigating away. */}
       <NotificationsDropdown
         visible={showNotifications}
         onClose={() => setShowNotifications(false)}
+        onOpenInquiry={(inquiryId: number) => {
+          setDrawerInquiryId(inquiryId);
+          setDrawerOpen(true);
+        }}
       />
 
-      {/* Messages dropdown — chat-style inbox (café + roaster only) */}
-      <MessagesDropdown
-        visible={showMessages}
-        onClose={() => setShowMessages(false)}
+      {/* Messages drawer — right-docked chat surface (café + roaster
+         only). Non-blocking: the rest of the site stays scrollable
+         while a conversation is open. Falls back to a full-screen
+         Modal on narrow viewports. */}
+      <MessagesDrawer
+        open={drawerOpen}
+        initialInquiryId={drawerInquiryId}
+        onClose={() => setDrawerOpen(false)}
       />
 
       {/* Profile dropdown — rendered OUTSIDE the navbar View to avoid RNW overflow clip */}

@@ -8,7 +8,7 @@
  * another hook.
  *
  * Polls every 15 seconds while enabled so the navbar badge stays
- * fresh. Separate from the message-level poll that InquiryThreadModal
+ * fresh. Separate from the message-level poll that InquiryThreadBody
  * runs while a specific thread is open (which is faster).
  */
 

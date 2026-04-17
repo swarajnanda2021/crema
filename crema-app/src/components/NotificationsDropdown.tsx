@@ -19,11 +19,14 @@ import {
   notificationCategory,
 } from "../hooks/useNotifications";
 import { useAuth } from "../hooks/useAuth";
-import InquiryThreadModal from "./InquiryThreadModal";
 
 interface Props {
   visible: boolean;
   onClose: () => void;
+  /** Called when the user taps a wholesale_inquiry or inquiry_reply
+   *  notification. The caller (Navbar) opens the MessagesDrawer at
+   *  the relevant thread. */
+  onOpenInquiry?: (inquiryId: number) => void;
 }
 
 const NOTIF_MESSAGES: Record<string, string> = {
@@ -50,7 +53,7 @@ function parseTarget(target_slug: string | null): { kind: string; slug: string }
   return { kind: target_slug.slice(0, idx), slug: target_slug.slice(idx + 1) };
 }
 
-export default function NotificationsDropdown({ visible, onClose }: Props) {
+export default function NotificationsDropdown({ visible, onClose, onOpenInquiry }: Props) {
   const router = useRouter();
   const { user } = useAuth();
   const { notifications, loading, fetchNotifications, markAllRead, markRead, unreadCount } = useNotifications(true);
@@ -61,11 +64,6 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
   // alongside social ones. Regular users see everything in one flat list.
   const hasTabs = user?.account_type === "roaster" || user?.account_type === "cafe";
   const [tab, setTab] = useState<NotificationCategory>("activity");
-
-  // When a wholesale_inquiry or inquiry_reply notification is tapped,
-  // open the thread modal inline instead of navigating. The modal
-  // portals over the dropdown via React Native's Modal primitive.
-  const [openInquiryId, setOpenInquiryId] = useState<number | null>(null);
 
   // Fetch full list when opened
   useEffect(() => {
@@ -99,11 +97,12 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
 
   const goToSource = (n: Notification) => {
     markRead(n.id);
-    // Wholesale inquiry + reply notifications open the thread modal in
-    // place, so we keep the dropdown closed but don't navigate away.
-    if ((n.type === "wholesale_inquiry" || n.type === "inquiry_reply") && n.inquiry_id) {
+    // Wholesale inquiry + reply notifications open the MessagesDrawer
+    // at the relevant thread instead of navigating. The drawer is
+    // owned by Navbar and reached through the onOpenInquiry prop.
+    if ((n.type === "wholesale_inquiry" || n.type === "inquiry_reply") && n.inquiry_id && onOpenInquiry) {
       onClose();
-      setOpenInquiryId(n.inquiry_id);
+      onOpenInquiry(n.inquiry_id);
       return;
     }
     onClose();
@@ -133,13 +132,6 @@ export default function NotificationsDropdown({ visible, onClose }: Props) {
 
   return (
     <>
-      {/* Thread modal is always mounted — it must survive the dropdown
-         closing when a notification is tapped. */}
-      <InquiryThreadModal
-        inquiryId={openInquiryId}
-        onClose={() => setOpenInquiryId(null)}
-      />
-
       {!visible ? null : (<>
       {/* Backdrop */}
       {ready && (
