@@ -537,7 +537,55 @@ Two composer bugs folded into one commit:
   it's matched before the catch-all. Now returns Open Graph
   metadata + a favicon fallback as originally intended.
 
-### 2.23 Launch blockers (from LAUNCH_TODO.md)
+### 2.23 Composer polish
+
+Follow-on items surfaced during the §2.22 verification pass.
+`ComposePost.tsx` needs four linked changes — doing them together
+so the composer feels like one redesign, not four patches:
+
+- **Long-form as a top tab, not a toggle.** Current flow: a
+  "Long form · on" toggle below the teaser that expands a *second*
+  textarea (`bodyFull`) for the long body. Target: a **Short / Long**
+  tab row **above the "What's on your mind…" input**. Tapping Long
+  just (a) extends the character limit (300 → 5000) on the same
+  existing textarea and (b) grows the modal vertically. No second
+  input. No `bodyFull` split — the one teaser field carries
+  everything. Backend still stores the long body under `body_full`
+  for posts flagged `sourcing_story`; the composer just stops
+  treating it as a separate UI surface.
+- **URLs don't count toward the character count.** Strip detected
+  URLs before computing `teaser.length` for the counter. Keeps
+  users from losing 30-60 chars to a pasted link.
+- **Optional fields on one row.** Location, tag-a-café, and
+  tag-a-drink currently stack vertically as three separate rows
+  (reads as a form). Target: one horizontal row of three small
+  chips, each opening its own picker / input on tap.
+- **Link-preview trigger re-verified.** The preview fetcher was
+  fixed server-side in §2.22; confirm the composer actually pulls
+  + displays the card once a URL is pasted (no regression from
+  the other changes).
+
+Sitewide: ComposePost is one shared component (feed FAB, roaster
+Posts tab, café Posts tab), so all of the above lands in every
+call site in one commit.
+
+### 2.24 Café menu — column header + tighter row height
+
+Two small follow-ons to §2.10:
+
+- **Column header.** The table has no row explaining what each
+  column is. Add a header row above the first drink block —
+  "Drink · Roaster · Roast · Price · Tasting Notes" — in a muted
+  style so it reads as metadata, not another row. Same Inter body
+  font as the cells, slightly smaller / uppercase / letter-spaced
+  (the notifications-tab label style works).
+- **Tighter rows.** Each row has too much vertical padding today
+  — the whole table should mimic the opening-hours block's
+  density. Drop `paddingVertical` on `menuRow` + `menuDrink` to
+  the same values `hoursRow` uses (`6px` top / bottom). Dividers
+  stay where they are; it's just the internal padding that shrinks.
+
+### 2.25 Launch blockers (from LAUNCH_TODO.md)
 
 Before any of the above ships to real users:
 - Password reset flow
