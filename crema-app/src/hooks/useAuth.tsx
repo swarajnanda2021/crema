@@ -14,6 +14,7 @@ interface User {
   brewing_style?: string;
   favorite_drink?: string;
   favorite_cafe?: string;
+  favorite_cafe_slug?: string | null;
   avatar_crop_x?: number;
   avatar_crop_y?: number;
   avatar_zoom?: number;

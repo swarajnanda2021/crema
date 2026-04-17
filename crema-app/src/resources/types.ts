@@ -268,6 +268,7 @@ export interface Cafe {
   open_to_new_roasters: number;
   procurement_note: string | null;
   stamps_given?: number;
+  love_count?: number;
   rewards_redeemed?: number;
   created_at: string;
   updated_at: string;

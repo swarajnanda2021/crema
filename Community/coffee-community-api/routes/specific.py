@@ -976,6 +976,27 @@ def toggle_cafe_like(slug: str, user=Depends(get_current_user)):
         db.close()
 
 
+@router.get("/cafes/{slug}/regulars")
+def cafe_regulars(slug: str):
+    """List users who have this café set as their favorite (aka
+    regulars). Public — the signal is meant to be visible, same as
+    follower lists. Returns enough per-user info for the modal row to
+    render (avatar + crop + display name + username)."""
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT id, username, display_name, avatar_url, "
+            "avatar_crop_x, avatar_crop_y, avatar_zoom "
+            "FROM users WHERE favorite_cafe_slug = ? "
+            "ORDER BY display_name ASC",
+            (slug,),
+        ).fetchall()
+        items = [dict(r) for r in rows]
+        return ok(items, resource="cafe_regulars", total=len(items))
+    finally:
+        db.close()
+
+
 @router.get("/cafes/{slug}/love")
 def cafe_love_status(slug: str, authorization: str = Header(None)):
     """Read-only status + count. Anonymous callers only get the count;

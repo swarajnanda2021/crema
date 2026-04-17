@@ -229,6 +229,7 @@ export default function ProfilePage() {
   // fallback for un-migrated users.
   const [editFavCafeSlug, setEditFavCafeSlug] = useState<string | null>(null);
   const [showCafePicker, setShowCafePicker] = useState(false);
+  const [cafeQuery, setCafeQuery] = useState("");
   const [editPref, setEditPref] = useState("");
   const [editBrew, setEditBrew] = useState("");
   const [editLocation, setEditLocation] = useState("");
@@ -910,6 +911,76 @@ export default function ProfilePage() {
         </Modal>
       )}
 
+      {/* Café picker — mirrors the drink picker pattern, with a
+         search bar on top so it scales as the café roster grows.
+         Filter runs over name + city + slug so "mandrem" or
+         "brightside" both land you where you want. */}
+      {showCafePicker && (() => {
+        const q = cafeQuery.trim().toLowerCase();
+        const filtered = !q
+          ? cafes
+          : cafes.filter((c) => {
+              const hay = [c.name, c.city, c.state, c.cafe_slug]
+                .filter(Boolean).join(" ").toLowerCase();
+              return hay.includes(q);
+            });
+        return (
+          <Modal visible transparent animationType="fade" onRequestClose={() => { setShowCafePicker(false); setCafeQuery(""); }}>
+            <View style={s.followersOverlayWrap}>
+              <Pressable style={s.followersOverlayBg} onPress={() => { setShowCafePicker(false); setCafeQuery(""); }} />
+              <View style={s.followersModal}>
+                <View style={s.followersHeader}>
+                  <Text style={s.followersTitle}>Favorite café</Text>
+                  <Pressable onPress={() => { setShowCafePicker(false); setCafeQuery(""); }} hitSlop={8}>
+                    <X size={16} color="#351101" />
+                  </Pressable>
+                </View>
+                <View style={s.cafePickerSearchWrap}>
+                  <TextInput
+                    style={s.cafePickerSearchInput}
+                    value={cafeQuery}
+                    onChangeText={setCafeQuery}
+                    placeholder="Search cafés"
+                    placeholderTextColor="rgba(104,79,68,0.45)"
+                    autoFocus
+                  />
+                </View>
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 360 }}>
+                  {filtered.length === 0 ? (
+                    <Text style={[s.followerName, { padding: 16, color: "#A09580" }]}>
+                      {q ? `No cafés match "${cafeQuery}"` : "No cafés yet"}
+                    </Text>
+                  ) : (
+                    filtered.map((c, idx) => (
+                      <View key={c.cafe_slug}>
+                        {idx > 0 && <View style={s.followerDivider} />}
+                        <Pressable
+                          onPress={() => { setEditFavCafeSlug(c.cafe_slug); setShowCafePicker(false); setCafeQuery(""); }}
+                          style={s.followerRow}
+                        >
+                          <View style={s.followerInfo}>
+                            <View style={[s.drinkDot, editFavCafeSlug === c.cafe_slug && s.drinkDotActive]} />
+                            <View>
+                              <Text style={s.followerName}>{c.name}</Text>
+                              {c.city && (
+                                <Text style={{ fontFamily: t.font["body.regular"], fontSize: 11, color: "#A09580" }}>
+                                  {c.city}{c.state ? `, ${c.state}` : ""}
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                          {editFavCafeSlug === c.cafe_slug && <Check size={14} color="#D798DA" strokeWidth={2.5} />}
+                        </Pressable>
+                      </View>
+                    ))
+                  )}
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
+        );
+      })()}
+
       {/* Followers modal (same pattern as roaster profile) */}
       {showFollowersModal && (
         <Modal visible transparent animationType="fade" onRequestClose={() => setShowFollowersModal(false)}>
@@ -1238,6 +1309,16 @@ const s = StyleSheet.create({
   editPostOverlayBg: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" } as any,
   editPostModal: { width: "90%", maxWidth: 680, backgroundColor: "#FAF8F0", borderRadius: 12, overflow: "hidden", maxHeight: "85%", zIndex: 1 } as any,
   followersHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
+  // Café picker search input — sits above the scrolling list.
+  cafePickerSearchWrap: { marginBottom: 10 } as any,
+  cafePickerSearchInput: {
+    fontFamily: t.font["body.regular"], fontSize: 13, color: "#351101",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1, borderColor: "rgba(53,17,1,0.12)",
+    borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 9,
+    ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
+  } as any,
   followersTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: "#351101" },
   followersEmpty: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#A09580", textAlign: "center", paddingVertical: 32 },
   followerDivider: { height: 1, backgroundColor: "rgba(215,209,196,0.3)", marginVertical: 2 },

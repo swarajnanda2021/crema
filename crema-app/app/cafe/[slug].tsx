@@ -64,6 +64,23 @@ function UsersMetaIcon() {
   return <Users size={14} color={t.color.accent} strokeWidth={2} />;
 }
 
+// Same heart glyph as user profile's HeroHeartIcon — pink accent,
+// matched stroke. Keeps the design language consistent across
+// profiles and café pages.
+function CafeHeartIcon() {
+  return (
+    <Svg width={14} height={13} viewBox="0 0 16.97 16" fill="none">
+      <Path
+        d="M8.483 3.616C6.765 -0.649 0.75 -0.195 0.75 5.256C0.75 10.708 8.483 15.25 8.483 15.25C8.483 15.25 16.217 10.708 16.217 5.256C16.217 -0.195 10.202 -0.649 8.483 3.616Z"
+        stroke={t.color.accent}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 function CafeFollowButton({
   following, onToggle,
 }: {
@@ -173,6 +190,14 @@ export default function CafeDetailPage() {
   // discriminates on the follows table).
   const [following, setFollowing] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
+
+  // Two people-list modals, same pattern as the roaster profile's
+  // followers modal. Lazy-fetch on open so the café page loads fast
+  // even when both lists are big.
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [followersList, setFollowersList] = useState<any[]>([]);
+  const [showRegularsModal, setShowRegularsModal] = useState(false);
+  const [regularsList, setRegularsList] = useState<any[]>([]);
 
   // Post-prompt state — after a menu mutation succeeds we offer the owner
   // a chance to announce the change in a post.
@@ -576,12 +601,43 @@ export default function CafeDetailPage() {
                   </Pressable>
                 )
               )}
-              {/* Followers count row (non-editable, just informational) */}
-              <View style={s.metaItem}>
-                <UsersMetaIcon />
-                <Text style={s.metaText}>
-                  {followerCount} {followerCount === 1 ? "follower" : "followers"}
-                </Text>
+              {/* Followers + Regulars — side-by-side, both tappable.
+                 Followers use the existing list endpoint; regulars
+                 use /cafes/{slug}/regulars. Both open a person-list
+                 modal (same pattern as roaster profile). */}
+              <View style={[s.metaItem, { gap: 16, flexDirection: "row" }]}>
+                <Pressable
+                  onPress={async () => {
+                    setShowFollowersModal(true);
+                    try {
+                      const res = await apiFetchRaw<any>(`/followers/${slug}`);
+                      const d = res?.data ?? res;
+                      setFollowersList(Array.isArray(d?.followers) ? d.followers : []);
+                    } catch { setFollowersList([]); }
+                  }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <UsersMetaIcon />
+                  <Text style={s.metaText}>
+                    {followerCount} {followerCount === 1 ? "follower" : "followers"}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={async () => {
+                    setShowRegularsModal(true);
+                    try {
+                      const res = await apiFetchRaw<any>(`/cafes/${slug}/regulars`);
+                      const d = res?.data ?? res;
+                      setRegularsList(Array.isArray(d) ? d : []);
+                    } catch { setRegularsList([]); }
+                  }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <CafeHeartIcon />
+                  <Text style={s.metaText}>
+                    {cafe.love_count || 0} {cafe.love_count === 1 ? "regular" : "regulars"}
+                  </Text>
+                </Pressable>
               </View>
             </View>
 
@@ -842,11 +898,39 @@ export default function CafeDetailPage() {
                   <ExternalLinkIcon /><Text style={s.metaText}>Website</Text>
                 </Pressable>
               )}
-              <View style={s.metaItem}>
-                <UsersMetaIcon />
-                <Text style={s.metaText}>
-                  {followerCount} {followerCount === 1 ? "follower" : "followers"}
-                </Text>
+              <View style={[s.metaItem, { gap: 16, flexDirection: "row" }]}>
+                <Pressable
+                  onPress={async () => {
+                    setShowFollowersModal(true);
+                    try {
+                      const res = await apiFetchRaw<any>(`/followers/${slug}`);
+                      const d = res?.data ?? res;
+                      setFollowersList(Array.isArray(d?.followers) ? d.followers : []);
+                    } catch { setFollowersList([]); }
+                  }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <UsersMetaIcon />
+                  <Text style={s.metaText}>
+                    {followerCount} {followerCount === 1 ? "follower" : "followers"}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={async () => {
+                    setShowRegularsModal(true);
+                    try {
+                      const res = await apiFetchRaw<any>(`/cafes/${slug}/regulars`);
+                      const d = res?.data ?? res;
+                      setRegularsList(Array.isArray(d) ? d : []);
+                    } catch { setRegularsList([]); }
+                  }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <CafeHeartIcon />
+                  <Text style={s.metaText}>
+                    {cafe.love_count || 0} {cafe.love_count === 1 ? "regular" : "regulars"}
+                  </Text>
+                </Pressable>
               </View>
             </View>
             {!isOwner && (
@@ -1012,9 +1096,101 @@ export default function CafeDetailPage() {
           </View>
         </View>
       </Modal>
+
+      {/* Followers + Regulars list modals — tappable from the meta
+         row in the left info column. Clicking a row navigates to
+         that user's profile. */}
+      <PeopleListModal
+        visible={showFollowersModal}
+        title={`Followers · ${followerCount}`}
+        people={followersList}
+        onClose={() => setShowFollowersModal(false)}
+        onPick={(u) => { setShowFollowersModal(false); router.push(`/user/${u.username}` as any); }}
+      />
+      <PeopleListModal
+        visible={showRegularsModal}
+        title={`Regulars · ${cafe?.love_count || 0}`}
+        people={regularsList}
+        onClose={() => setShowRegularsModal(false)}
+        onPick={(u) => { setShowRegularsModal(false); router.push(`/user/${u.username}` as any); }}
+      />
     </>
   );
 }
+
+// ── People list modal (shared: followers + regulars) ───────────────────
+
+function PeopleListModal({
+  visible, title, people, onClose, onPick,
+}: {
+  visible: boolean; title: string;
+  people: any[];
+  onClose: () => void;
+  onPick: (u: any) => void;
+}) {
+  if (!visible) return null;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={plm.overlay}>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+        <View style={plm.card}>
+          <View style={plm.header}>
+            <Text style={plm.title}>{title}</Text>
+            <Pressable onPress={onClose} hitSlop={8}>
+              <Text style={plm.close}>×</Text>
+            </Pressable>
+          </View>
+          {people.length === 0 ? (
+            <Text style={plm.empty}>No one yet.</Text>
+          ) : (
+            <View>
+              {people.map((u, idx) => (
+                <View key={u.id || u.username}>
+                  {idx > 0 && <View style={plm.divider} />}
+                  <Pressable onPress={() => onPick(u)} style={plm.row}>
+                    {u.avatar_url ? (
+                      <Image
+                        source={{ uri: resolveUploadUrl(u.avatar_url) }}
+                        style={plm.avatar}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <View style={[plm.avatar, plm.avatarFallback]}>
+                        <Text style={plm.avatarLetter}>
+                          {(u.display_name || u.username || "?")[0].toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={plm.name} numberOfLines={1}>{u.display_name || u.username}</Text>
+                      <Text style={plm.username} numberOfLines={1}>@{u.username}</Text>
+                    </View>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const plm = StyleSheet.create({
+  overlay: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.35)" } as any,
+  card: { backgroundColor: "#FAF8F0", borderRadius: 12, width: "90%", maxWidth: 420, maxHeight: "70%", overflow: "hidden" } as any,
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "rgba(53,17,1,0.08)" } as any,
+  title: { fontFamily: t.font["body.semibold"], fontSize: 15, color: t.color["text.primary"] },
+  close: { fontSize: 22, color: t.color["text.primary"], lineHeight: 22 } as any,
+  empty: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.muted"], textAlign: "center", paddingVertical: 28 } as any,
+  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 10 } as any,
+  avatar: { width: 38, height: 38, borderRadius: 19 } as any,
+  avatarFallback: { backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 14, color: "#FAF8F0" },
+  name: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.primary"] },
+  username: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"], marginTop: 1 } as any,
+  divider: { height: 1, backgroundColor: "rgba(53,17,1,0.05)", marginHorizontal: 20 } as any,
+});
 
 // ── Bio Tab ────────────────────────────────────────────────────────────────
 

@@ -291,7 +291,20 @@ export default function UserProfilePage() {
           {u.favorite_drink ? (
             <View style={s.infoItem}><HeroCoffeeIcon /><Text style={s.infoText}>{u.favorite_drink}</Text></View>
           ) : null}
-          {u.favorite_cafe ? (
+          {u.favorite_cafe_slug ? (
+            // Prefer the FK link when set — tap navigates to the
+            // café, making this a real connection rather than a
+            // stringly-typed label. Falls back to free text for
+            // users whose column wasn't migrated yet.
+            <View style={s.infoItem}>
+              <HeroHeartIcon />
+              <Pressable onPress={() => router.push(`/cafe/${u.favorite_cafe_slug}` as any)}>
+                <Text style={[s.infoText, { textDecorationLine: "underline" }]}>
+                  {u.favorite_cafe || u.favorite_cafe_slug}
+                </Text>
+              </Pressable>
+            </View>
+          ) : u.favorite_cafe ? (
             <View style={s.infoItem}>
               <HeroHeartIcon />
               <FavoriteCafeText text={u.favorite_cafe} />
