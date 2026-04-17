@@ -9,7 +9,7 @@
  */
 import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import { useRouter, usePathname } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { User, Search, X, Bell, MessageCircle } from "lucide-react-native";
 import { t, NAVBAR_HEIGHT } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
