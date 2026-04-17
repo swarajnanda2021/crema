@@ -87,12 +87,16 @@ export default function CoffeeDetailPage() {
               <Pressable onPress={() => share(coffee)} style={st.shareBtn}>
                 <ShareIcon size={18} color={t.color["text.secondary"]} />
               </Pressable>
-              {/* Café accounts: wholesale "Interested" handshake (§2.1) */}
+              {/* Café accounts: wholesale "Interested" handshake (§2.1).
+                 Pulls in wholesale_minimum_kg + wholesale_note so the
+                 modal shows the roaster's note before the café replies. */}
               <InterestedButton
                 roaster_slug={coffee.roaster_slug}
                 roaster_name={coffee.roaster_name}
                 product_id={coffee.product_id}
                 product_name={coffee.coffee_name}
+                wholesale_minimum_kg={coffee.wholesale_minimum_kg}
+                wholesale_note={coffee.wholesale_note}
               />
               <Pressable
                 onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "coffee_page"); Linking.openURL(coffee.product_url); }}

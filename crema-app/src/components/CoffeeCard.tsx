@@ -17,6 +17,7 @@ import { useShare } from "../hooks/useShare";
 import { useShelves } from "../hooks/useShelves";
 import { useAuth } from "../hooks/useAuth";
 import PopularityModal from "./PopularityModal";
+import InterestedButton from "./InterestedButton";
 
 interface CoffeeCardProps {
   coffee: any;
@@ -40,6 +41,7 @@ const BTN_SIZE = 31;
 export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 240, height: cardH = 372, shelfMode, isOwner = true, currentShelf, onMoveShelf, onRemove, onAddToShelf }: CoffeeCardProps) {
   const [showPopularity, setShowPopularity] = useState(false);
   const [showShelfPicker, setShowShelfPicker] = useState(false);
+  const [showWholesaleInquiry, setShowWholesaleInquiry] = useState(false);
   const [shelvedAs, setShelvedAs] = useState<ShelfKey | null>(currentShelf || null);
   const { share } = useShare();
   const { addToShelf } = useShelves();
@@ -88,14 +90,18 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
          5. Otherwise nothing
       */}
       {isCafeViewer && showWholesale ? (
-        <View style={s.wholesaleBtn}>
+        <Pressable
+          onPress={() => setShowWholesaleInquiry(true)}
+          style={s.wholesaleBtn}
+          accessibilityLabel={`See wholesale details for ${coffee.coffee_name}`}
+        >
           <View style={s.wholesaleCircle}>
             <Package size={15} color="#351101" strokeWidth={1.7} />
           </View>
           {coffee.wholesale_minimum_kg != null && coffee.wholesale_minimum_kg > 0 && (
             <Text style={s.wholesaleMinText}>{coffee.wholesale_minimum_kg}kg</Text>
           )}
-        </View>
+        </Pressable>
       ) : shelfMode && isOwner && onRemove ? (
         <Pressable onPress={onRemove} style={s.binBtn}>
           <Svg width={BTN_SIZE} height={BTN_SIZE} viewBox="0 0 29.1645 29.1645" fill="none">
@@ -190,6 +196,20 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
         productId={coffee.product_id}
         coffeeName={coffee.coffee_name}
         onClose={() => setShowPopularity(false)}
+      />
+
+      {/* Controlled wholesale inquiry modal — opens when a café viewer
+         taps the Package chip on the card. Renders nothing for non-café
+         viewers (gated inside InterestedButton). */}
+      <InterestedButton
+        roaster_slug={coffee.roaster_slug}
+        roaster_name={coffee.roaster_name}
+        product_id={coffee.product_id}
+        product_name={coffee.coffee_name}
+        wholesale_minimum_kg={coffee.wholesale_minimum_kg}
+        wholesale_note={coffee.wholesale_note}
+        controlledOpen={showWholesaleInquiry}
+        onControlledClose={() => setShowWholesaleInquiry(false)}
       />
     </View>
   );

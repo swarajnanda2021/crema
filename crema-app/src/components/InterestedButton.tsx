@@ -8,13 +8,25 @@
  * notification lands in the roaster's Business tab (§2.4) with a
  * deep-link to the sending café's profile where §2.6 procurement fields
  * render for lead qualification.
+ *
+ * Two call styles:
+ *   1. Uncontrolled (default) — renders a pill button that opens its
+ *      own modal. Used next to Buy on the product detail page.
+ *   2. Controlled via `controlledOpen` + `onControlledClose` — renders
+ *      only the modal; the caller owns the trigger. Used by CoffeeCard
+ *      so the wholesale Package icon on the card opens the inquiry
+ *      flow directly (see §2.2 design polish).
+ *
+ * When the roaster has set a wholesale minimum or note, those surface
+ * at the top of the modal as a "From the roaster" block so the café
+ * sees what they're responding to before composing their own note.
  */
 
 import { useMemo, useState } from "react";
 import {
   View, Text, Pressable, StyleSheet, Platform, TextInput, ActivityIndicator,
 } from "react-native";
-import { Handshake } from "lucide-react-native";
+import { Handshake, Package } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
 import { apiFetchRaw } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
@@ -24,19 +36,33 @@ interface Props {
   roaster_name?: string;
   product_id?: string;
   product_name?: string;
+  /** Minimum-order kg flagged by the roaster on this product. */
+  wholesale_minimum_kg?: number | null;
+  /** Roaster's free-text note about this wholesale lot. */
+  wholesale_note?: string | null;
   /** Override default label ("Interested"). */
   label?: string;
   /** Compact variant for dense card layouts. */
   compact?: boolean;
+  /** Controlled open state — when defined, the component renders only
+   *  the modal. The trigger lives with the caller. */
+  controlledOpen?: boolean;
+  /** Close callback, paired with `controlledOpen`. */
+  onControlledClose?: () => void;
 }
 
 type Phase = "idle" | "submitting" | "sent";
 
 export default function InterestedButton({
-  roaster_slug, roaster_name, product_id, product_name, label, compact,
+  roaster_slug, roaster_name, product_id, product_name,
+  wholesale_minimum_kg, wholesale_note,
+  label, compact,
+  controlledOpen, onControlledClose,
 }: Props) {
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = isControlled ? !!controlledOpen : uncontrolledOpen;
   const [note, setNote] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +73,9 @@ export default function InterestedButton({
     if (roaster_name) return roaster_name;
     return "this roaster";
   }, [product_name, roaster_name]);
+  const hasRoasterNote =
+    (wholesale_minimum_kg != null && wholesale_minimum_kg > 0) ||
+    (!!wholesale_note && wholesale_note.trim().length > 0);
 
   if (!visible) return null;
 
@@ -70,22 +99,33 @@ export default function InterestedButton({
   };
 
   const reset = () => {
-    setOpen(false);
+    if (isControlled) {
+      onControlledClose?.();
+    } else {
+      setUncontrolledOpen(false);
+    }
     setNote("");
     setPhase("idle");
     setError(null);
   };
 
+  const openModal = () => {
+    if (isControlled) return; // caller owns the open state
+    setUncontrolledOpen(true);
+  };
+
   return (
     <>
-      <Pressable
-        onPress={() => setOpen(true)}
-        style={[s.btn, compact && s.btnCompact]}
-        accessibilityLabel={`Express wholesale interest in ${targetLabel}`}
-      >
-        <Handshake size={compact ? 14 : 16} color={t.color["text.on-dark"]} />
-        <Text style={[s.btnText, compact && s.btnTextCompact]}>{label || "Interested"}</Text>
-      </Pressable>
+      {!isControlled && (
+        <Pressable
+          onPress={openModal}
+          style={[s.btn, compact && s.btnCompact]}
+          accessibilityLabel={`Express wholesale interest in ${targetLabel}`}
+        >
+          <Handshake size={compact ? 14 : 16} color={t.color["text.on-dark"]} />
+          <Text style={[s.btnText, compact && s.btnTextCompact]}>{label || "Interested"}</Text>
+        </Pressable>
+      )}
 
       {open && (
         <View style={s.overlayWrap} pointerEvents="box-none">
@@ -108,6 +148,28 @@ export default function InterestedButton({
             ) : (
               <>
                 <Text style={s.title}>Interested in {targetLabel}</Text>
+
+                {/* Roaster-side context — only renders when the roaster
+                    actually filled in a minimum or a note. Sits above
+                    the café's response input so the café sees what
+                    they're replying to. */}
+                {hasRoasterNote && (
+                  <View style={s.roasterCard}>
+                    <View style={s.roasterHeader}>
+                      <Package size={13} color="#351101" strokeWidth={1.7} />
+                      <Text style={s.roasterHeaderText}>
+                        From {roaster_name || "the roaster"}
+                      </Text>
+                      {wholesale_minimum_kg != null && wholesale_minimum_kg > 0 && (
+                        <Text style={s.roasterMin}>· min {wholesale_minimum_kg}kg</Text>
+                      )}
+                    </View>
+                    {wholesale_note && (
+                      <Text style={s.roasterNote}>{wholesale_note}</Text>
+                    )}
+                  </View>
+                )}
+
                 <Text style={s.body}>
                   Send a quick note to {roaster_name || "the roaster"}. Your
                   café's procurement profile (volume, openness, preferences)
@@ -206,6 +268,29 @@ const s = StyleSheet.create({
     fontFamily: t.font["body.regular"], fontSize: 13,
     color: t.color["text.secondary"], lineHeight: 19,
   },
+  // Roaster's wholesale note block — cream card nested inside the
+  // inquiry modal so the café can read the lot note before replying.
+  roasterCard: {
+    backgroundColor: "#EFE9DB",
+    borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    gap: 6,
+  } as any,
+  roasterHeader: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+  } as any,
+  roasterHeaderText: {
+    fontFamily: t.font["body.semibold"], fontSize: 11,
+    color: "#351101", letterSpacing: 0.5, textTransform: "uppercase",
+  } as any,
+  roasterMin: {
+    fontFamily: t.font["body.medium"], fontSize: 11,
+    color: "rgba(53,17,1,0.6)", letterSpacing: 0.3,
+  } as any,
+  roasterNote: {
+    fontFamily: t.font["body.regular"], fontSize: 13,
+    color: "#351101", lineHeight: 19,
+  } as any,
   input: {
     fontFamily: t.font["body.regular"], fontSize: 13,
     color: t.color["text.primary"],
