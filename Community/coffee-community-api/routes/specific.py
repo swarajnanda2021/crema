@@ -921,6 +921,84 @@ def user_stamp_book(username: str, authorization: str = Header(None)):
         db.close()
 
 
+# ── Favorite café "like" ────────────────────────────────────────────────────
+#
+# One per user, scarce. Distinct from follows (plural, casual). Stored
+# as a single FK on users.favorite_cafe_slug; switching cafés just
+# overwrites the column. The café-side "love_count" is the primary
+# cult-status signal — computed server-side on every read via the
+# registry's counts declaration.
+
+@router.post("/cafes/{slug}/like")
+def toggle_cafe_like(slug: str, user=Depends(get_current_user)):
+    """Toggle the current user's favorite café. If they already love
+    this café, clears the field (unlike). Otherwise sets it, replacing
+    whatever café they previously loved (one love per user).
+    Returns the new like state + current love_count in one round-trip
+    so the UI can update both in-place without re-fetching."""
+    from fastapi import HTTPException
+    if not user:
+        raise HTTPException(401, "Authentication required")
+    # Only regular users can "love" a café — roaster + café accounts
+    # don't have a personal favorite in the product sense. We allow
+    # the column to be set for any account_type, but don't surface
+    # the UI for business accounts.
+    db = get_db()
+    try:
+        exists = db.execute(
+            "SELECT 1 FROM cafe_profiles WHERE cafe_slug = ?", (slug,),
+        ).fetchone()
+        if not exists:
+            raise HTTPException(404, f"Café {slug} not found")
+        current = db.execute(
+            "SELECT favorite_cafe_slug FROM users WHERE id = ?", (user["id"],),
+        ).fetchone()
+        already_loved = (current and current["favorite_cafe_slug"] == slug)
+        if already_loved:
+            db.execute(
+                "UPDATE users SET favorite_cafe_slug = NULL WHERE id = ?",
+                (user["id"],),
+            )
+            liked = False
+        else:
+            db.execute(
+                "UPDATE users SET favorite_cafe_slug = ? WHERE id = ?",
+                (slug, user["id"]),
+            )
+            liked = True
+        db.commit()
+        love_count = db.execute(
+            "SELECT COUNT(*) AS n FROM users WHERE favorite_cafe_slug = ?", (slug,),
+        ).fetchone()["n"]
+        return ok({"liked": liked, "love_count": love_count},
+                  resource="cafe_love")
+    finally:
+        db.close()
+
+
+@router.get("/cafes/{slug}/love")
+def cafe_love_status(slug: str, authorization: str = Header(None)):
+    """Read-only status + count. Anonymous callers only get the count;
+    authenticated callers also get whether *they* love this café."""
+    user = get_optional_user(authorization)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT COUNT(*) AS n FROM users WHERE favorite_cafe_slug = ?", (slug,),
+        ).fetchone()
+        love_count = row["n"] if row else 0
+        liked = False
+        if user:
+            me = db.execute(
+                "SELECT favorite_cafe_slug FROM users WHERE id = ?", (user["id"],),
+            ).fetchone()
+            liked = bool(me and me["favorite_cafe_slug"] == slug)
+        return ok({"liked": liked, "love_count": love_count},
+                  resource="cafe_love")
+    finally:
+        db.close()
+
+
 # ── Wholesale inquiries (Phase 1 §2.1) ──────────────────────────────────────
 #
 # The generic list endpoint can't safely list wholesale_inquiries: a café

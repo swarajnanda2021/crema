@@ -52,6 +52,12 @@ export default function EditableCoffeeCard({
   const [weightGrams, setWeightGrams] = useState("");
   const [productUrl, setProductUrl] = useState("");
   const [showUrlInput, setShowUrlInput] = useState(false);
+  // Wholesale availability (§2.2). Collapsed by default — expands
+  // inline when the toggle row is tapped.
+  const [showWholesale, setShowWholesale] = useState(false);
+  const [wholesaleAvailable, setWholesaleAvailable] = useState(false);
+  const [wholesaleMinKg, setWholesaleMinKg] = useState("");
+  const [wholesaleNote, setWholesaleNote] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [cropY, setCropY] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
@@ -69,6 +75,8 @@ export default function EditableCoffeeCard({
     setFlavorNotes(""); setPriceInr(""); setWeightGrams(""); setProductUrl("");
     setShowUrlInput(false); setImageUrl(""); setCropY(50);
     setShowImageModal(false); setSaving(false);
+    setShowWholesale(false); setWholesaleAvailable(false);
+    setWholesaleMinKg(""); setWholesaleNote("");
   }, []);
 
   const handleOpenEdit = useCallback(() => {
@@ -125,6 +133,13 @@ export default function EditableCoffeeCard({
       product_url: productUrl.trim() || null,
       image_url: imageUrl || null,
       description_raw: null,
+      // Wholesale availability — sent to POST /api/roasters/{slug}/products
+      // which accepts these three fields (see backend commit fada03c).
+      wholesale_available: wholesaleAvailable ? 1 : 0,
+      wholesale_minimum_kg: wholesaleAvailable && wholesaleMinKg
+        ? parseInt(wholesaleMinKg, 10) : null,
+      wholesale_note: wholesaleAvailable && wholesaleNote.trim()
+        ? wholesaleNote.trim() : null,
     };
     Animated.sequence([
       Animated.timing(saveAnim, { toValue: 1.03, duration: 120, useNativeDriver: true }),
@@ -139,7 +154,9 @@ export default function EditableCoffeeCard({
       saveAnim.setValue(1);
     });
   }, [coffeeName, beanType, processVal, roastLevel, tastingNotes, origin, varietal,
-    altitudeMasl, flavorNotes, priceInr, weightGrams, productUrl, imageUrl, saving, onSave, width, resetFields]);
+    altitudeMasl, flavorNotes, priceInr, weightGrams, productUrl, imageUrl,
+    wholesaleAvailable, wholesaleMinKg, wholesaleNote,
+    saving, onSave, width, resetFields]);
 
   const imageH = Math.round(height * IMAGE_RATIO);
   const infoH = height - imageH;
@@ -219,25 +236,40 @@ export default function EditableCoffeeCard({
               <TextInput style={s.fieldRowInput} value={beanType} onChangeText={setBeanType} placeholder="Add Bean Type" placeholderTextColor={t.color["text.secondary"]} />
             </View>
             <View style={s.divider} />
+            {/* Process / Roast row. The dot separator here mirrors
+               CoffeeLabel's "{process} Process • {roast} Roast" format
+               so the editable version aligns with how the card reads
+               once saved. Rendering label + input pairs in one row
+               rather than three separate text nodes kept the dot from
+               floating mid-row. */}
             <View style={s.fieldRow}>
-              <Text style={s.fieldLabel}>Process </Text>
-              <TextInput style={s.fieldRowInput} value={processVal} onChangeText={setProcessVal} placeholder="" placeholderTextColor={t.color["text.secondary"]} />
-              <Text style={s.dot}> {"\u2022"} </Text>
-              <Text style={s.fieldLabel}>Roast </Text>
-              <TextInput style={s.fieldRowInput} value={roastLevel} onChangeText={setRoastLevel} placeholder="" placeholderTextColor={t.color["text.secondary"]} />
+              <View style={s.processRoastPair}>
+                <Text style={s.fieldLabel}>Process </Text>
+                <TextInput style={s.fieldRowInput} value={processVal} onChangeText={setProcessVal} placeholder="" placeholderTextColor={t.color["text.secondary"]} />
+              </View>
+              <Text style={s.dotSep}>•</Text>
+              <View style={s.processRoastPair}>
+                <Text style={s.fieldLabel}>Roast </Text>
+                <TextInput style={s.fieldRowInput} value={roastLevel} onChangeText={setRoastLevel} placeholder="" placeholderTextColor={t.color["text.secondary"]} />
+              </View>
             </View>
             <View style={s.divider} />
             <View style={s.fieldRow}>
               <TextInput style={s.fieldRowInput} value={tastingNotes} onChangeText={setTastingNotes} placeholder="Add Tasting Notes" placeholderTextColor={t.color["text.secondary"]} />
             </View>
             <View style={s.divider} />
+            {/* Price / weight row. Placeholders use literal Unicode
+               (— and ₹) because Expo Web's TextInput occasionally
+               renders escape-sequence strings ("\u2013\u2013") as
+               the raw escape instead of the glyph, which surfaced as
+               "\u201" showing in the field. */}
             <View style={s.bottomRow}>
               <View style={s.priceWeightRow}>
-                <Text style={s.rupee}>{"\u20B9"} </Text>
-                <TextInput style={s.priceInput} value={priceInr} onChangeText={setPriceInr} placeholder="\u2013\u2013\u2013\u2013" placeholderTextColor={t.color["text.primary"]} keyboardType="numeric" />
+                <Text style={s.rupee}>₹ </Text>
+                <TextInput style={s.priceInput} value={priceInr} onChangeText={setPriceInr} placeholder="————" placeholderTextColor={t.color["text.primary"]} keyboardType="numeric" />
                 <View style={s.weightGroup}>
                   <Text style={s.weightText}>/  </Text>
-                  <TextInput style={s.weightInput} value={weightGrams} onChangeText={setWeightGrams} placeholder="\u2013\u2013\u2013" placeholderTextColor={t.color["text.primary"]} keyboardType="numeric" />
+                  <TextInput style={s.weightInput} value={weightGrams} onChangeText={setWeightGrams} placeholder="———" placeholderTextColor={t.color["text.primary"]} keyboardType="numeric" />
                   <Text style={s.weightText}>  g</Text>
                 </View>
               </View>
@@ -245,6 +277,58 @@ export default function EditableCoffeeCard({
                 <CartIcon size={BTN_SZ} />
               </Pressable>
             </View>
+
+            {/* Wholesale flag (§2.2). Opens a tiny inline sheet where
+               the roaster marks this bean wholesale-available, sets a
+               minimum-order kg, and a short note café viewers see
+               when they tap the Package chip on the card. */}
+            <View style={s.divider} />
+            <Pressable onPress={() => setShowWholesale((v) => !v)} style={s.wholesaleToggleRow}>
+              <View style={[s.wholesaleCheckbox, wholesaleAvailable && s.wholesaleCheckboxOn]}>
+                {wholesaleAvailable && <Text style={s.wholesaleCheck}>✓</Text>}
+              </View>
+              <Text style={s.wholesaleLabel}>Available wholesale</Text>
+              {wholesaleAvailable && wholesaleMinKg ? (
+                <Text style={s.wholesaleMinHint}>min {wholesaleMinKg}kg</Text>
+              ) : null}
+            </Pressable>
+            {showWholesale && (
+              <View style={s.wholesalePanel}>
+                <Pressable
+                  onPress={() => setWholesaleAvailable((v) => !v)}
+                  style={[s.wholesaleFlagBtn, wholesaleAvailable && s.wholesaleFlagBtnOn]}
+                >
+                  <Text style={[s.wholesaleFlagText, wholesaleAvailable && s.wholesaleFlagTextOn]}>
+                    {wholesaleAvailable ? "Yes — wholesale available" : "No — retail only"}
+                  </Text>
+                </Pressable>
+                {wholesaleAvailable && (
+                  <>
+                    <View style={s.wholesaleInputRow}>
+                      <Text style={s.wholesaleInputLabel}>Minimum order</Text>
+                      <TextInput
+                        style={s.wholesaleKgInput}
+                        value={wholesaleMinKg}
+                        onChangeText={(v) => setWholesaleMinKg(v.replace(/[^0-9]/g, ""))}
+                        placeholder="e.g. 5"
+                        placeholderTextColor="rgba(104,79,68,0.5)"
+                        keyboardType="numeric"
+                      />
+                      <Text style={s.wholesaleInputLabel}>kg</Text>
+                    </View>
+                    <TextInput
+                      style={s.wholesaleNoteInput}
+                      value={wholesaleNote}
+                      onChangeText={setWholesaleNote}
+                      placeholder="Note for café viewers (optional)"
+                      placeholderTextColor="rgba(104,79,68,0.5)"
+                      multiline
+                      maxLength={300}
+                    />
+                  </>
+                )}
+              </View>
+            )}
           </View>
 
           {/* URL modal */}
@@ -339,6 +423,83 @@ const s = StyleSheet.create({
   dot: {
     fontFamily: t.font["body.regular"], fontSize: 9.563, color: t.color["text.secondary"],
     lineHeight: 12, ...liningNumerals,
+  } as any,
+  // Each Process/Roast label+input is its own flex unit so the dot
+  // separator sits cleanly between them instead of floating in the
+  // middle of the row because of flex: 1 fights.
+  processRoastPair: { flexDirection: "row", alignItems: "center", flex: 1 } as any,
+  dotSep: {
+    fontFamily: t.font["body.regular"], fontSize: 9.563,
+    color: t.color["text.secondary"], lineHeight: 12,
+    paddingHorizontal: 4,
+  } as any,
+
+  // Wholesale availability section (§2.2). Row shows a small
+  // checkbox + label; tapping reveals the flag/min/note panel.
+  wholesaleToggleRow: {
+    flexDirection: "row", alignItems: "center", gap: 7,
+    paddingVertical: 2,
+  } as any,
+  wholesaleCheckbox: {
+    width: 12, height: 12, borderRadius: 2, borderWidth: 1,
+    borderColor: t.color["text.secondary"],
+    alignItems: "center", justifyContent: "center",
+  } as any,
+  wholesaleCheckboxOn: {
+    backgroundColor: t.color["text.primary"],
+    borderColor: t.color["text.primary"],
+  } as any,
+  wholesaleCheck: {
+    fontFamily: t.font["body.semibold"], fontSize: 8,
+    color: t.color["text.on-dark"], lineHeight: 10,
+  } as any,
+  wholesaleLabel: {
+    fontFamily: t.font["body.regular"], fontSize: 9.563,
+    color: t.color["text.secondary"],
+  } as any,
+  wholesaleMinHint: {
+    fontFamily: t.font["body.medium"], fontSize: 9, color: t.color["text.secondary"],
+    marginLeft: "auto" as any,
+  } as any,
+  wholesalePanel: {
+    marginTop: 6, padding: 8, borderRadius: 4,
+    backgroundColor: "rgba(53,17,1,0.04)", gap: 6,
+  } as any,
+  wholesaleFlagBtn: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10,
+    borderWidth: 1, borderColor: "rgba(53,17,1,0.2)",
+  } as any,
+  wholesaleFlagBtnOn: {
+    backgroundColor: t.color["text.primary"],
+    borderColor: t.color["text.primary"],
+  } as any,
+  wholesaleFlagText: {
+    fontFamily: t.font["body.medium"], fontSize: 9, color: t.color["text.secondary"],
+    letterSpacing: 0.2,
+  } as any,
+  wholesaleFlagTextOn: { color: t.color["text.on-dark"] } as any,
+  wholesaleInputRow: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+  } as any,
+  wholesaleInputLabel: {
+    fontFamily: t.font["body.regular"], fontSize: 9.563, color: t.color["text.secondary"],
+  } as any,
+  wholesaleKgInput: {
+    fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.primary"],
+    backgroundColor: "#FFFFFF", borderRadius: 3,
+    paddingHorizontal: 6, paddingVertical: 3,
+    borderWidth: 1, borderColor: "rgba(53,17,1,0.1)",
+    width: 50,
+    ...(Platform.OS === "web" ? { outlineStyle: "none", ...liningNumerals } : {}),
+  } as any,
+  wholesaleNoteInput: {
+    fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["text.primary"],
+    backgroundColor: "#FFFFFF", borderRadius: 3,
+    paddingHorizontal: 6, paddingVertical: 4,
+    borderWidth: 1, borderColor: "rgba(53,17,1,0.1)",
+    minHeight: 40, textAlignVertical: "top",
+    ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
   } as any,
   bottomRow: {
     flexDirection: "row", alignItems: "flex-end",

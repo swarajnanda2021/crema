@@ -8,6 +8,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, TextInput, ScrollView, Pressable, RefreshControl,
   StyleSheet, useWindowDimensions, LayoutChangeEvent, Modal, ActivityIndicator,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -17,6 +18,7 @@ import Svg, { Path, Circle } from "react-native-svg";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useShelves } from "../../src/hooks/useShelves";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
+import { useCafes } from "../../src/hooks/useCafes";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t, SHELF_LABELS } from "../../src/tokens/useTokens";
 
@@ -170,6 +172,7 @@ export default function ProfilePage() {
   const { user, updateProfile } = useAuth();
   const { shelves, fetchShelves, addToShelf, removeFromShelf } = useShelves();
   const { productMap } = useCoffeeData();
+  const { cafes } = useCafes();
   const router = useRouter();
   const { edit } = useLocalSearchParams<{ edit?: string }>();
   const { width: screenW } = useWindowDimensions();
@@ -221,6 +224,11 @@ export default function ProfilePage() {
   const [editBio, setEditBio] = useState("");
   const [editDrink, setEditDrink] = useState("");
   const [editCafe, setEditCafe] = useState("");
+  // Favorite café is now a proper FK pick from the cafés list (scarce
+  // "cult status" signal, one per user). Free text stays around as a
+  // fallback for un-migrated users.
+  const [editFavCafeSlug, setEditFavCafeSlug] = useState<string | null>(null);
+  const [showCafePicker, setShowCafePicker] = useState(false);
   const [editPref, setEditPref] = useState("");
   const [editBrew, setEditBrew] = useState("");
   const [editLocation, setEditLocation] = useState("");
@@ -244,6 +252,7 @@ export default function ProfilePage() {
       setEditBio(user.bio || "");
       setEditDrink(user.favorite_drink || "");
       setEditCafe(user.favorite_cafe || "");
+      setEditFavCafeSlug(user.favorite_cafe_slug || null);
       setEditPref(user.coffee_preference || "");
       setEditBrew(user.brewing_style || "");
       setEditLocation(user.location || "");
@@ -372,6 +381,10 @@ export default function ProfilePage() {
         bio: editBio || undefined,
         favorite_drink: editDrink || undefined,
         favorite_cafe: editCafe || undefined,
+        // Only send when the user picked something in the dropdown.
+        // Clearing your fav café from the profile edit isn't a flow —
+        // un-liking happens via the heart on the café page itself.
+        favorite_cafe_slug: editFavCafeSlug || undefined,
         coffee_preference: editPref || undefined,
         brewing_style: editBrew || undefined,
         location: editLocation || undefined,
@@ -561,13 +574,27 @@ export default function ProfilePage() {
           <View style={s.infoItem}>
             <HeroHeartIcon />
             {isEditing ? (
-              <TextInput
-                style={[s.infoText, s.inlineEditSmall]}
-                value={editCafe}
-                onChangeText={setEditCafe}
-                placeholder="Favorite cafe"
-                placeholderTextColor="rgba(199,186,165,0.5)"
-              />
+              // Picker opens a modal listing real cafés (useCafes).
+              // Free-text editing is gone — the "favorite café" is
+              // now a scarce link, not a typed string.
+              <Pressable onPress={() => setShowCafePicker(true)}>
+                <Text style={[s.infoText, !editFavCafeSlug && { color: "rgba(199,186,165,0.5)" }]}>
+                  {editFavCafeSlug
+                    ? (cafes.find((c) => c.cafe_slug === editFavCafeSlug)?.name || editFavCafeSlug)
+                    : (editCafe || "Pick a café")}
+                </Text>
+              </Pressable>
+            ) : user.favorite_cafe_slug ? (
+              // Linked chip — tap to jump to the café. This is the
+              // "connection" we're creating between users and the
+              // single café they frequent most.
+              <Pressable onPress={() => router.push(`/cafe/${user.favorite_cafe_slug}` as any)}>
+                <Text style={[s.infoText, { textDecorationLine: "underline" }]}>
+                  {cafes.find((c) => c.cafe_slug === user.favorite_cafe_slug)?.name
+                    || user.favorite_cafe
+                    || user.favorite_cafe_slug}
+                </Text>
+              </Pressable>
             ) : (
               <Text style={s.infoText}>{user.favorite_cafe || "—"}</Text>
             )}
@@ -967,15 +994,22 @@ const s = StyleSheet.create({
   loadingWrap: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FAF8F0" },
   loadingText: { fontFamily: t.font["body.regular"], fontSize: 16, color: "#684F44" },
 
-  // Edit banner (matches roaster profile)
+  // Edit banner — positioned as a sticky overlay at the top of the
+  // profile card so toggling edit mode doesn't shove the hero + image
+  // down 44px (which the eye reads as "the avatar moved / resized").
+  // Keeping the discard/save controls always-visible at the top of
+  // the viewport is also nicer UX than inline-above-the-hero.
   editBanner: {
+    position: Platform.OS === "web" ? ("sticky" as any) : "absolute",
+    top: 0, left: 0, right: 0,
+    zIndex: 100,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: "#2a0d00",
     paddingHorizontal: 20,
     height: 44,
-  },
+  } as any,
   editBannerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   editBannerLabel: { fontFamily: t.font["body.medium"], fontSize: 12, color: "#D798DA" },
   editBannerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
@@ -1101,18 +1135,23 @@ const s = StyleSheet.create({
   // Info text (Figma: Inter Medium 14px, #351101)
   infoText: { fontFamily: t.font["body.medium"], fontSize: 14, color: "#351101" },
 
-  // In-place editing — rounded light boxes (not underlines)
+  // In-place editing — cream background only, NO padding change.
+  // The display-mode <Text> has 0 padding; the edit-mode <TextInput>
+  // used to add 6/10 which grew every field by 12×20px and shoved
+  // neighbours around. Keeping padding at 0 means the field looks
+  // the same size edit vs display; the cream background is the only
+  // visual cue that it's editable.
   inlineEdit: {
     backgroundColor: "#EFE9DB",
     borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
   },
   inlineEditSmall: {
     backgroundColor: "#EFE9DB",
     borderRadius: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
     minWidth: 60,
     maxWidth: 150,
   },

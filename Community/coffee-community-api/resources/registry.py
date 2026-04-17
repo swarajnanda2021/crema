@@ -38,6 +38,7 @@ RESOURCES = {
             "brewing_style": {"type": "str"},
             "favorite_drink": {"type": "str"},
             "favorite_cafe": {"type": "str"},
+            "favorite_cafe_slug": {"type": "str"},
             "avatar_crop_x": {"type": "float", "default": 50},
             "avatar_crop_y": {"type": "float", "default": 50},
             "avatar_zoom": {"type": "float", "default": 1},
@@ -417,6 +418,9 @@ RESOURCES = {
         "counts": [
             {"name": "stamps_given", "table": "stamps", "fk": "cafe_slug"},
             {"name": "rewards_redeemed", "table": "stamp_rewards", "fk": "cafe_slug"},
+            # "Love count" — the scarce favorite-café signal. One per
+            # user, so this is just COUNT(users WHERE favorite_cafe_slug).
+            {"name": "love_count", "table": "users", "fk": "favorite_cafe_slug"},
         ],
         # When the café owner changes the logo, mirror it onto their
         # user.avatar_url so the navbar avatar reflects the new image.

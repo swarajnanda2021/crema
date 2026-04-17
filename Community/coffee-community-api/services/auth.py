@@ -38,6 +38,7 @@ def _user_to_dict(row) -> dict:
         "cafe_slug": row["cafe_slug"] if "cafe_slug" in keys else None,
         "favorite_drink": row["favorite_drink"] if "favorite_drink" in keys else None,
         "favorite_cafe": row["favorite_cafe"] if "favorite_cafe" in keys else None,
+        "favorite_cafe_slug": row["favorite_cafe_slug"] if "favorite_cafe_slug" in keys else None,
         "avatar_crop_x": row["avatar_crop_x"] if "avatar_crop_x" in keys else 50,
         "avatar_crop_y": row["avatar_crop_y"] if "avatar_crop_y" in keys else 50,
         "avatar_zoom": row["avatar_zoom"] if "avatar_zoom" in keys else 1,
@@ -137,7 +138,7 @@ def update_profile(user, data: dict):
         sets = []
         vals = []
         allowed = ["display_name", "bio", "avatar_url", "location", "coffee_preference",
-                    "brewing_style", "favorite_drink", "favorite_cafe",
+                    "brewing_style", "favorite_drink", "favorite_cafe", "favorite_cafe_slug",
                     "avatar_crop_x", "avatar_crop_y", "avatar_zoom"]
         for key in allowed:
             if key in data and data[key] is not None:
@@ -165,7 +166,7 @@ def get_user_public(username: str):
         row = db.execute(
             "SELECT id, username, display_name, bio, avatar_url, location, "
             "coffee_preference, brewing_style, favorite_drink, favorite_cafe, "
-            "avatar_crop_x, avatar_crop_y, avatar_zoom, "
+            "favorite_cafe_slug, avatar_crop_x, avatar_crop_y, avatar_zoom, "
             "account_type, roaster_slug, created_at FROM users WHERE username = ?",
             (username,),
         ).fetchone()

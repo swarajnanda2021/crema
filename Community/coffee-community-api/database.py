@@ -508,6 +508,12 @@ _MIGRATIONS = [
     # side marking a thread read doesn't clear the other's badge.
     "ALTER TABLE wholesale_inquiries ADD COLUMN cafe_last_read_at TEXT",
     "ALTER TABLE wholesale_inquiries ADD COLUMN roaster_last_read_at TEXT",
+    # ── Favorite café "like" (scarce, exactly one per user) ─────────────
+    # Distinct from follows: follows are plural + casual, this is one
+    # cult-status café per user. Stored as FK on users; the old free-
+    # text `favorite_cafe` column stays for a migration period.
+    "ALTER TABLE users ADD COLUMN favorite_cafe_slug TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_users_fav_cafe ON users(favorite_cafe_slug)",
     # ── User-to-user direct messages ────────────────────────────────────
     # Canonical pair ordering: user_a_id < user_b_id so (A↔B) and (B↔A)
     # collapse to the same row. Last-read stamped per participant.
