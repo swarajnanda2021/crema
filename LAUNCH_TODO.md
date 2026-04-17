@@ -86,6 +86,11 @@ Frontend hardcodes:
 - `http://<hostname>:8000/api` in `getBaseUrl()` — already respects
   `EXPO_PUBLIC_API_URL`, but the fallback runs on localhost, which
   breaks the phone-on-LAN case (see iOS section).
+- `.env` ships commented-out by default so local web dev uses the
+  window.location.hostname fallback (prevents the "moved network →
+  hardcoded IP now wrong → Failed to fetch" trap). Phone-on-LAN dev
+  is the one case that still needs an IP — document that in the .env
+  header, don't ship a stale value.
 
 ### 1.8 Error boundary + 404 route
 Expo Router's `ErrorBoundary` is exported but not explicitly wired to
