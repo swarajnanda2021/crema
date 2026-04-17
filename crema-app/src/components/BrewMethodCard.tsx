@@ -10,6 +10,7 @@
  */
 
 import { View, Text, StyleSheet } from "react-native";
+import Svg, { Circle, Path, G } from "react-native-svg";
 import { t, cardShadow } from "../tokens/useTokens";
 import type { BrewMethod, BrewMethodKind } from "../resources/types";
 
@@ -91,6 +92,39 @@ export default function BrewMethodCard({ brew, width = 240, height = 372 }: Prop
 
   return (
     <View style={[s.card, { width, height }]}>
+      {/* Decorative steam + pour motif. Placeholder art — reads as
+         "something brewing" without needing a specific illustration. */}
+      <View style={s.artWrap} pointerEvents="none">
+        <Svg width={72} height={64} viewBox="0 0 72 64" fill="none">
+          <G>
+            {/* Three wavy steam curls rising from an invisible baseline */}
+            <Path
+              d="M16 8 Q20 16 16 24 Q12 32 16 40"
+              stroke="#FAF8F0" strokeOpacity={0.5}
+              strokeWidth={1.4} strokeLinecap="round" fill="none"
+            />
+            <Path
+              d="M36 2 Q40 12 36 22 Q32 32 36 42"
+              stroke="#FAF8F0" strokeOpacity={0.75}
+              strokeWidth={1.4} strokeLinecap="round" fill="none"
+            />
+            <Path
+              d="M56 8 Q60 16 56 24 Q52 32 56 40"
+              stroke="#FAF8F0" strokeOpacity={0.5}
+              strokeWidth={1.4} strokeLinecap="round" fill="none"
+            />
+            {/* Cup rim — a thin horizontal line with subtle cup curvature */}
+            <Path
+              d="M10 52 Q36 58 62 52"
+              stroke="#FAF8F0" strokeOpacity={0.35}
+              strokeWidth={1.2} strokeLinecap="round" fill="none"
+            />
+            {/* Small droplet in the middle, suggesting a pour */}
+            <Circle cx={36} cy={48} r={1.6} fill="#FAF8F0" opacity={0.55} />
+          </G>
+        </Svg>
+      </View>
+
       <View style={s.topStrip}>
         <Text style={s.kindLabel}>{METHOD_LABELS[kind]}</Text>
         <Text style={s.byLine}>By roaster</Text>
@@ -123,7 +157,14 @@ const s = StyleSheet.create({
     borderRadius: 5,
     padding: 18,
     justifyContent: "flex-start",
+    overflow: "hidden",
     ...cardShadow,
+  } as any,
+  artWrap: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    opacity: 0.9,
   } as any,
   topStrip: {
     flexDirection: "row",
@@ -133,6 +174,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(250,248,240,0.18)",
     marginBottom: 14,
+    marginTop: 32,
   } as any,
   kindLabel: {
     fontFamily: t.font.display,

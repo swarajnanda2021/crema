@@ -15,11 +15,10 @@ The vision anchor. Everything else is downstream of this.
 The moment a request is about writing, modifying, debugging, reviewing,
 deploying, or scoping code (anything beyond discussion, research,
 docs-only edits, or non-technical planning), Read the full contents of
-all three before proposing changes or writing code:
+both before proposing changes or writing code:
 
 - [CRUD_UTOPIA.md](CRUD_UTOPIA.md) — architecture rules (registry-driven backend, design tokens, the non-negotiables)
 - [BUILD_ROADMAP.md](BUILD_ROADMAP.md) — what's built, what's next, key files per feature
-- [LAUNCH_TODO.md](LAUNCH_TODO.md) — prioritised backlog with explicit green-light convention
 
 If unsure whether a request counts as "dev work," err on the side of
 reading them. The cost is small; the cost of acting on stale
@@ -30,19 +29,18 @@ assumptions is large.
 Pull these in only when the task touches their area:
 
 - [README.md](README.md) — repo overview, onboarding, local setup
+- [LAUNCH_TODO.md](LAUNCH_TODO.md) — pre-launch backlog. Don't self-direct onto these items; only pull in when the user explicitly asks to work on launch blockers / infra / legal / app-store prep.
 - [specs/UI_SPEC.md](specs/UI_SPEC.md) — component structure, page flows, design tokens
 - [specs/CATALOG_SPEC.md](specs/CATALOG_SPEC.md) — catalog data model
 - [specs/SCRAPER_SPEC.md](specs/SCRAPER_SPEC.md) — scraper architecture
 - [specs/COMMUNITY_SPEC.md](specs/COMMUNITY_SPEC.md) — social feed (the retention surface)
 - [specs/ENRICHMENT_PROMPT.md](specs/ENRICHMENT_PROMPT.md) — LLM enrichment prompts
 
-## Keeping BUILD_ROADMAP.md and LAUNCH_TODO.md current
+## Keeping BUILD_ROADMAP.md current
 
-Both docs are living. When work lands, update them in the same change
-(or the immediate follow-up commit) — don't let reality drift from
-what's written.
-
-### BUILD_ROADMAP.md
+Living doc. When work lands, update it in the same change (or the
+immediate follow-up commit) — don't let reality drift from what's
+written.
 
 - When a feature is shipped, move it from "next build targets" into
   the appropriate "What has been built" section with a one-line
@@ -55,30 +53,22 @@ what's written.
   expands), add it to the "next build targets" section so it isn't
   lost.
 
-### LAUNCH_TODO.md
+If it's unclear whether a feature is "done enough" to move into the
+shipped section, prefer a brief note over guessing. BUILD_ROADMAP is
+read by humans as the project's ground truth — accuracy matters.
 
-Work items autonomously — no permission ritual before picking something
-up. Keep status accurate:
+## Not doing yet: LAUNCH_TODO.md items
 
-- `[ ]` → `[~]` when I start the work.
-- `[~]` → `[x]` when it's genuinely complete. Add a short note
-  (commit hash or brief outcome) on the next line.
-- `[~]` → `[!]` if blocked. Reason on the next line.
-- New items: add under the appropriate Part 1/Part 2 section in the
-  same prose style as existing entries.
-- Never silently delete items. If something is obsolete, flip to `[x]`
-  with a one-line reason.
+The launch blockers, infra setup, legal review, and app-store prep in
+[LAUNCH_TODO.md](LAUNCH_TODO.md) are **not the default workstream**.
+Don't self-direct onto them. If status on those items matters to a
+specific request, the user will say so explicitly.
 
-**Part 2 items require your credentials/money/decision** — I can
-prepare code but can't sign up or pay. Leave a "YOU: <decision>" line
-instead of starting those.
-
-### When in doubt
-
-If the honest status of an item is unclear (is it "done enough" for
-`[x]`?), prefer a brief note on the line below the checkbox over
-guessing. These files are read by humans as the project's ground
-truth — accuracy matters.
+When LAUNCH_TODO items do come up:
+- `[ ]` → `[~]` when starting, `[~]` → `[x]` when done (with commit
+  hash / short note), `[~]` → `[!]` if blocked.
+- Part 2 items need the user's credentials/money/decision — leave a
+  "YOU: <decision>" line instead of starting those.
 
 ## Standing rules
 

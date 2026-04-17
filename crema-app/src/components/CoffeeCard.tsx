@@ -7,7 +7,7 @@ import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import * as Linking from "expo-linking";
-import { Coffee } from "lucide-react-native";
+import { Coffee, Package } from "lucide-react-native";
 import Svg, { Circle, Path, G } from "react-native-svg";
 import { t, cardShadow, SHELF_LABELS, ShelfKey } from "../tokens/useTokens";
 import { HeartIcon, HeartFilledIcon, ShareIcon, CartIcon, UsersIcon } from "./icons/FigmaIcons";
@@ -44,10 +44,12 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
   const { share } = useShare();
   const { addToShelf } = useShelves();
   const { user } = useAuth();
-  // Phase 1 §2.2 — only café viewers see the wholesale signal. The field
-  // itself is public in the API; the visibility gate lives here.
-  const showWholesaleBadge =
-    user?.account_type === "cafe" && coffee.wholesale_available === 1;
+  // Phase 1 §2.2 — café viewers see the wholesale signal; nobody else
+  // does. The field itself is public in the API; the visibility gate
+  // lives here. Cafés don't have a personal shelf, so for café viewers
+  // the wholesale affordance replaces the heart / shelf-add slot.
+  const isCafeViewer = user?.account_type === "cafe";
+  const showWholesale = isCafeViewer && coffee.wholesale_available === 1;
 
   const imageH = Math.round(cardH * IMAGE_RATIO);
   const infoH = cardH - imageH;
@@ -74,19 +76,27 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
         ) : (
           <View style={s.imagePlaceholder}><Coffee size={40} color="rgba(53,17,1,0.12)" /></View>
         )}
-        {/* Wholesale badge — §2.2, café viewers only */}
-        {showWholesaleBadge && (
-          <View style={s.wholesaleBadge}>
-            <Text style={s.wholesaleBadgeText}>Wholesale</Text>
-            {coffee.wholesale_minimum_kg != null && coffee.wholesale_minimum_kg > 0 && (
-              <Text style={s.wholesaleBadgeMin}>· {coffee.wholesale_minimum_kg}kg min</Text>
-            )}
-          </View>
-        )}
       </View>
 
-      {/* Top-left overlay: delete (own shelf), heart (other's shelf), or social badge */}
-      {shelfMode && isOwner && onRemove ? (
+      {/* Top-left overlay. Order of precedence:
+         1. Café viewer with a wholesale-flagged bean → wholesale chip
+            (displaces the heart because cafés don't have a personal
+            shelf — the heart's target)
+         2. Shelf mode + owner → bin
+         3. Shelf mode + non-owner non-café → heart to add to own shelf
+         4. Someone else has this on a shelf → friends badge
+         5. Otherwise nothing
+      */}
+      {isCafeViewer && showWholesale ? (
+        <View style={s.wholesaleBtn}>
+          <View style={s.wholesaleCircle}>
+            <Package size={15} color="#351101" strokeWidth={1.7} />
+          </View>
+          {coffee.wholesale_minimum_kg != null && coffee.wholesale_minimum_kg > 0 && (
+            <Text style={s.wholesaleMinText}>{coffee.wholesale_minimum_kg}kg</Text>
+          )}
+        </View>
+      ) : shelfMode && isOwner && onRemove ? (
         <Pressable onPress={onRemove} style={s.binBtn}>
           <Svg width={BTN_SIZE} height={BTN_SIZE} viewBox="0 0 29.1645 29.1645" fill="none">
             <G>
@@ -101,7 +111,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
             </G>
           </Svg>
         </Pressable>
-      ) : shelfMode && !isOwner && onAddToShelf ? (
+      ) : shelfMode && !isOwner && !isCafeViewer && onAddToShelf ? (
         <Pressable onPress={() => { setShowShelfPicker(!showShelfPicker); }} style={s.binBtn}>
           {shelvedAs ? <HeartFilledIcon size={BTN_SIZE} /> : <HeartIcon size={BTN_SIZE} />}
         </Pressable>
@@ -120,8 +130,11 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
         </Pressable>
       )}
 
-      {/* Heart — top right, hidden when owner is managing their own beans (shelfMode) */}
-      {!shelfMode && (
+      {/* Top-right. On browse/discover this is the heart (shelf-add)
+         for regular users. Cafés don't have a shelf, so for them we
+         hide the heart entirely; the wholesale chip on the top-left
+         covers the café-relevant signal. */}
+      {!shelfMode && !isCafeViewer && (
         <Pressable onPress={() => setShowShelfPicker(!showShelfPicker)} style={s.heartBtn}>
           {shelvedAs ? <HeartFilledIcon size={BTN_SIZE} /> : <HeartIcon size={BTN_SIZE} />}
         </Pressable>
@@ -235,28 +248,32 @@ const s = StyleSheet.create({
   },
 
   // Social badge — top right in shelf mode
-  wholesaleBadge: {
+  // Wholesale chip — same top-left slot as the bin / heart, same 31px
+  // circle + cream fill + dark icon language as the rest of the card's
+  // overlay buttons. A tiny kg tag sits beneath when a minimum is set.
+  wholesaleBtn: {
     position: "absolute",
-    bottom: 8,
-    left: 8,
-    flexDirection: "row",
+    top: 10,
+    left: 12,
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(53,17,1,0.82)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
   } as any,
-  wholesaleBadgeText: {
+  wholesaleCircle: {
+    width: BTN_SIZE, height: BTN_SIZE,
+    borderRadius: BTN_SIZE / 2,
+    backgroundColor: "#EFE9DB",
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+  wholesaleMinText: {
     fontFamily: t.font["body.semibold"],
-    fontSize: 10,
-    color: "#FAF8F0",
+    fontSize: 9,
+    color: "#351101",
     letterSpacing: 0.3,
-  } as any,
-  wholesaleBadgeMin: {
-    fontFamily: t.font["body.regular"],
-    fontSize: 10,
-    color: "rgba(250,248,240,0.85)",
+    marginTop: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    backgroundColor: "#EFE9DB",
+    borderRadius: 4,
   } as any,
   socialBadge: {
     position: "absolute",
