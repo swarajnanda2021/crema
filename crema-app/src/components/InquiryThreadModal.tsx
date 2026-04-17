@@ -183,7 +183,7 @@ export default function InquiryThreadModal({ inquiryId, onClose }: Props) {
               )}
               {inquiry.note && (
                 <View style={s.initialNote}>
-                  <Text style={s.contextLabel}>Initial message</Text>
+                  <Text style={s.contextLabel}>Inquiry</Text>
                   <Text style={s.contextNote}>{inquiry.note}</Text>
                 </View>
               )}
