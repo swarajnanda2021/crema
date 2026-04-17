@@ -429,6 +429,35 @@ _MIGRATIONS = [
     # body_full holds the expanded content (up to ~5000 chars, no hard
     # SQL limit — enforced client-side). Null for any other post type.
     "ALTER TABLE roaster_posts ADD COLUMN body_full TEXT",
+    # ── Avatar-mirror backfill ─────────────────────────────────────────
+    # The `sync_cafe_logo_to_user` / `sync_roaster_logo_to_user` hooks
+    # only fire when a café or roaster *updates* their profile. Rows
+    # seeded via direct INSERT never triggered the hook, so users whose
+    # entity had a logo set at seed time ended up with avatar_url=''.
+    # Result: the navbar + dropdown + any avatar thumbnail site-wide
+    # showed a blank circle for most café accounts.
+    #
+    # The two statements below fill the gap idempotently — they only
+    # touch user rows whose avatar is still empty, so once an owner
+    # picks a different avatar via the in-app editor the backfill won't
+    # clobber it.
+    """UPDATE users
+       SET avatar_url  = (SELECT logo_url      FROM cafe_profiles cp WHERE cp.cafe_slug = users.cafe_slug),
+           avatar_crop_x = COALESCE((SELECT logo_crop_x FROM cafe_profiles cp WHERE cp.cafe_slug = users.cafe_slug), avatar_crop_x),
+           avatar_crop_y = COALESCE((SELECT logo_crop_y FROM cafe_profiles cp WHERE cp.cafe_slug = users.cafe_slug), avatar_crop_y),
+           avatar_zoom   = COALESCE((SELECT logo_zoom   FROM cafe_profiles cp WHERE cp.cafe_slug = users.cafe_slug), avatar_zoom)
+       WHERE account_type = 'cafe'
+         AND cafe_slug IS NOT NULL
+         AND (avatar_url IS NULL OR avatar_url = '')
+         AND EXISTS (SELECT 1 FROM cafe_profiles cp WHERE cp.cafe_slug = users.cafe_slug AND cp.logo_url IS NOT NULL AND cp.logo_url <> '')
+    """,
+    """UPDATE users
+       SET avatar_url = (SELECT logo_url FROM roaster_profiles rp WHERE rp.roaster_slug = users.roaster_slug)
+       WHERE account_type = 'roaster'
+         AND roaster_slug IS NOT NULL
+         AND (avatar_url IS NULL OR avatar_url = '')
+         AND EXISTS (SELECT 1 FROM roaster_profiles rp WHERE rp.roaster_slug = users.roaster_slug AND rp.logo_url IS NOT NULL AND rp.logo_url <> '')
+    """,
     # ── Phase 1 §2.5 Brew method cards ─────────────────────────────────
     # Roaster-submitted recipe cards that sit in a product's carousel
     # alongside user-submitted tasting notes. One row per method per

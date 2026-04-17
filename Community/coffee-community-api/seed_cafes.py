@@ -310,21 +310,49 @@ def upsert_cafe(db, cafe):
 
 
 def upsert_owner_account(db, cafe):
-    """Create/update a user account for the café owner."""
+    """Create/update a user account for the café owner. Mirrors the
+    café's logo + crop into users.avatar_* so the navbar / dropdown /
+    every sitewide avatar thumbnail renders the café's brand mark
+    without waiting for the sync_cafe_logo_to_user hook (which only
+    fires on profile updates, not on seed-time INSERTs)."""
     username = f"{cafe['cafe_slug'].replace('-', '_')}_cafe"
     password = cafe.get("owner_password", cafe["cafe_slug"].replace("-", "_"))
-    existing = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
     pwd_hash = bcrypt.hash(password)
+
+    # Pull the logo that was just written to cafe_profiles so the new
+    # user row starts life with a visible avatar.
+    profile_row = db.execute(
+        "SELECT logo_url, logo_crop_x, logo_crop_y, logo_zoom FROM cafe_profiles WHERE cafe_slug = ?",
+        (cafe["cafe_slug"],),
+    ).fetchone()
+    avatar_url = profile_row["logo_url"] if profile_row else None
+    crop_x = (profile_row["logo_crop_x"] if profile_row else None) or 50
+    crop_y = (profile_row["logo_crop_y"] if profile_row else None) or 50
+    zoom   = (profile_row["logo_zoom"]   if profile_row else None) or 1
+
+    existing = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
     if existing:
+        # On update we only refresh the avatar when it was previously
+        # empty — the owner may have picked a different avatar in-app.
         db.execute(
-            "UPDATE users SET password_hash = ?, account_type = 'cafe', cafe_slug = ?, display_name = ? WHERE username = ?",
-            (pwd_hash, cafe["cafe_slug"], cafe["name"], username),
+            """UPDATE users
+               SET password_hash = ?, account_type = 'cafe', cafe_slug = ?, display_name = ?,
+                   avatar_url = CASE WHEN (avatar_url IS NULL OR avatar_url = '') THEN ? ELSE avatar_url END,
+                   avatar_crop_x = CASE WHEN (avatar_url IS NULL OR avatar_url = '') THEN ? ELSE avatar_crop_x END,
+                   avatar_crop_y = CASE WHEN (avatar_url IS NULL OR avatar_url = '') THEN ? ELSE avatar_crop_y END,
+                   avatar_zoom   = CASE WHEN (avatar_url IS NULL OR avatar_url = '') THEN ? ELSE avatar_zoom END
+               WHERE username = ?""",
+            (pwd_hash, cafe["cafe_slug"], cafe["name"],
+             avatar_url, crop_x, crop_y, zoom, username),
         )
         print(f"    ✓ Updated owner: {username} / {password}")
     else:
         db.execute(
-            "INSERT INTO users (username, display_name, password_hash, account_type, cafe_slug, created_at) VALUES (?, ?, ?, 'cafe', ?, ?)",
-            (username, cafe["name"], pwd_hash, cafe["cafe_slug"], now()),
+            "INSERT INTO users (username, display_name, password_hash, account_type, cafe_slug, "
+            "avatar_url, avatar_crop_x, avatar_crop_y, avatar_zoom, created_at) "
+            "VALUES (?, ?, ?, 'cafe', ?, ?, ?, ?, ?, ?)",
+            (username, cafe["name"], pwd_hash, cafe["cafe_slug"],
+             avatar_url, crop_x, crop_y, zoom, now()),
         )
         print(f"    + Created owner: {username} / {password}")
 
