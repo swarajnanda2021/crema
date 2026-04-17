@@ -539,6 +539,8 @@ RESOURCES = {
             "product_id": {"type": "str"},
             "note": {"type": "str"},
             "status": {"type": "str", "default": "open"},
+            "cafe_last_read_at": {"type": "str"},
+            "roaster_last_read_at": {"type": "str"},
             "created_at": {"type": "str", "ro": True, "auto": "now"},
             "updated_at": {"type": "str"},
         },

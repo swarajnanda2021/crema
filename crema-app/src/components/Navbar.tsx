@@ -10,14 +10,16 @@
 import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useState } from "react";
-import { User, Search, X, Bell } from "lucide-react-native";
+import { User, Search, X, Bell, MessageCircle } from "lucide-react-native";
 import { t, NAVBAR_HEIGHT } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
+import { useInquiryInbox } from "../hooks/useInquiryInbox";
 import { CroppedAvatar } from "./primitives";
 import CremaLogo from "./CremaLogo";
 import ProfileDropdown from "./ProfileDropdown";
 import NotificationsDropdown from "./NotificationsDropdown";
+import MessagesDropdown from "./MessagesDropdown";
 
 export default function Navbar() {
   const router = useRouter();
@@ -27,7 +29,10 @@ export default function Navbar() {
   const [query, setQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showMessages, setShowMessages] = useState(false);
   const { unreadCount } = useNotifications(!!user);
+  const showMessagesIcon = user?.account_type === "cafe" || user?.account_type === "roaster";
+  const { totalUnread: messagesUnread } = useInquiryInbox(!!user && showMessagesIcon);
 
 
   const handleSearch = () => {
@@ -82,10 +87,36 @@ export default function Navbar() {
                 <Search size={24} color="#E7D5B8" strokeWidth={1.5} />
               </Pressable>
 
+              {/* Messages icon — café + roaster accounts only. Sits
+                 next to the bell so the two alert surfaces feel like
+                 siblings. Hidden for regular users until user↔user DMs
+                 ship. */}
+              {user && showMessagesIcon && (
+                <Pressable
+                  onPress={() => {
+                    setShowMessages((v) => !v);
+                    setShowNotifications(false);
+                    setShowDropdown(false);
+                  }}
+                  style={s.iconBtn}
+                >
+                  <MessageCircle size={22} color="#E7D5B8" strokeWidth={1.5} />
+                  {messagesUnread > 0 && (
+                    <View style={s.badge}>
+                      <Text style={s.badgeText}>{messagesUnread > 9 ? "9+" : messagesUnread}</Text>
+                    </View>
+                  )}
+                </Pressable>
+              )}
+
               {/* Bell icon with unread badge */}
               {user && (
                 <Pressable
-                  onPress={() => { setShowNotifications((v) => !v); setShowDropdown(false); }}
+                  onPress={() => {
+                    setShowNotifications((v) => !v);
+                    setShowMessages(false);
+                    setShowDropdown(false);
+                  }}
                   style={s.iconBtn}
                 >
                   <Bell size={22} color="#E7D5B8" strokeWidth={1.5} />
@@ -99,7 +130,11 @@ export default function Navbar() {
 
               {user ? (
                 <Pressable
-                  onPress={() => { setShowDropdown((v) => !v); setShowNotifications(false); }}
+                  onPress={() => {
+                    setShowDropdown((v) => !v);
+                    setShowNotifications(false);
+                    setShowMessages(false);
+                  }}
                   style={s.iconBtn}
                 >
                   {user.avatar_url ? (
@@ -130,6 +165,12 @@ export default function Navbar() {
       <NotificationsDropdown
         visible={showNotifications}
         onClose={() => setShowNotifications(false)}
+      />
+
+      {/* Messages dropdown — chat-style inbox (café + roaster only) */}
+      <MessagesDropdown
+        visible={showMessages}
+        onClose={() => setShowMessages(false)}
       />
 
       {/* Profile dropdown — rendered OUTSIDE the navbar View to avoid RNW overflow clip */}

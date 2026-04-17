@@ -503,6 +503,11 @@ _MIGRATIONS = [
     # Notifications grow an optional inquiry_id so a wholesale_inquiry
     # or inquiry_reply notification can deep-link to the exact thread.
     "ALTER TABLE notifications ADD COLUMN inquiry_id INTEGER",
+    # Per-party last-read timestamps on wholesale inquiries — powers
+    # the unread badge in the Messages inbox. Split by party so one
+    # side marking a thread read doesn't clear the other's badge.
+    "ALTER TABLE wholesale_inquiries ADD COLUMN cafe_last_read_at TEXT",
+    "ALTER TABLE wholesale_inquiries ADD COLUMN roaster_last_read_at TEXT",
 ]
 
 

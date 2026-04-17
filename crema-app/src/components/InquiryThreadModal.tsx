@@ -1,16 +1,21 @@
 /**
- * InquiryThreadModal — short-form chat between a café and a roaster
- * on a single wholesale inquiry (Phase 1 §2.1 follow-up).
+ * InquiryThreadModal — chat thread between a café and a roaster,
+ * scoped to a single wholesale inquiry (Phase 1 §2.1 follow-up).
  *
- * Opens from either side's Business notification tab. Displays:
- *   - The roaster's original wholesale note + minimum kg (if set)
- *   - The café's procurement snapshot (volume, openness, note)
- *   - The initial "Interested" note the café sent
- *   - All subsequent messages, aligned by sender (self right, other left)
- *   - A composer at the bottom — either party can send
+ * Conversation-first layout. Business context (inquiry note, café
+ * procurement snapshot, roaster's lot note) lives in a compact Details
+ * drawer behind a toggle — visible when it matters, out of the way the
+ * rest of the time. The goal is to feel like a chat thread you'd
+ * happily reply to, not a business form.
  *
- * Uses the site's Modal + overlayWrap + card pattern (same as
- * PostPromptModal / AuthModal) so it portals over any content.
+ * Polls messages every 5 seconds while open. Marks read on first open
+ * (and again when a new message arrives while the modal is focused).
+ * Roasters get a compact status menu (Respond / Archive / Reopen) in
+ * the header.
+ *
+ * The underlying data is wholesale-inquiry-specific today, but the UI
+ * shape is deliberately generic — when user↔user DMs land, the only
+ * thing that drops out is the Details drawer.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -18,7 +23,7 @@ import {
   View, Text, Pressable, StyleSheet, Platform,
   TextInput, Modal, ActivityIndicator, ScrollView,
 } from "react-native";
-import { X, Send, Package } from "lucide-react-native";
+import { X, Send, Package, ChevronDown, ChevronUp, MoreHorizontal, Check, Archive, RotateCcw } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
 import { apiFetchRaw } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
@@ -44,6 +49,8 @@ interface InquiryMessage {
   account_type: string;
 }
 
+const POLL_MS = 5000;
+
 export default function InquiryThreadModal({ inquiryId, onClose }: Props) {
   const { user } = useAuth();
   const [inquiry, setInquiry] = useState<any>(null);
@@ -52,13 +59,18 @@ export default function InquiryThreadModal({ inquiryId, onClose }: Props) {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const pollRef = useRef<any>(null);
+  const lastMessageCount = useRef(0);
 
   const open = inquiryId !== null;
+  const isRoaster = user?.account_type === "roaster";
 
-  const fetchThread = useCallback(async () => {
+  const fetchThread = useCallback(async (opts: { silent?: boolean } = {}) => {
     if (!inquiryId) return;
-    setLoading(true);
+    if (!opts.silent) setLoading(true);
     setError(null);
     try {
       const raw = await apiFetchRaw<any>(`/wholesale-inquiries/${inquiryId}/thread`);
@@ -66,26 +78,56 @@ export default function InquiryThreadModal({ inquiryId, onClose }: Props) {
       setInquiry(data?.inquiry || null);
       setMessages(Array.isArray(data?.messages) ? data.messages : []);
     } catch (e: any) {
-      setError(e?.message || "Couldn't load this inquiry.");
+      if (!opts.silent) setError(e?.message || "Couldn't load this conversation.");
     } finally {
-      setLoading(false);
+      if (!opts.silent) setLoading(false);
     }
   }, [inquiryId]);
 
+  const markRead = useCallback(async () => {
+    if (!inquiryId) return;
+    try {
+      await apiFetchRaw(`/wholesale-inquiries/${inquiryId}/read`, { method: "POST" });
+    } catch {
+      // Silent — read-state is eventually consistent; next open retries.
+    }
+  }, [inquiryId]);
+
+  // On open: fetch, mark read, start the 5s poll. If we open a thread
+  // with zero messages (fresh inquiry), auto-expand Details so the
+  // recipient has context before the first reply.
   useEffect(() => {
-    if (open) {
-      setDraft("");
-      fetchThread();
-    } else {
+    if (!open) {
       setInquiry(null);
       setMessages([]);
+      setDetailsOpen(false);
+      setMenuOpen(false);
+      setDraft("");
+      lastMessageCount.current = 0;
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      return;
     }
-  }, [open, fetchThread]);
+    fetchThread();
+    markRead();
+    pollRef.current = setInterval(() => fetchThread({ silent: true }), POLL_MS);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [open, fetchThread, markRead]);
 
+  // Auto-expand details the first time we see zero messages.
   useEffect(() => {
-    // Scroll to bottom whenever messages change.
-    requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
-  }, [messages.length]);
+    if (open && inquiry && messages.length === 0 && !detailsOpen) {
+      setDetailsOpen(true);
+    }
+  }, [open, inquiry, messages.length]);
+
+  // When new messages arrive, mark read + scroll to bottom.
+  useEffect(() => {
+    if (messages.length > lastMessageCount.current) {
+      markRead();
+      requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    }
+    lastMessageCount.current = messages.length;
+  }, [messages.length, markRead]);
 
   const send = useCallback(async () => {
     const text = draft.trim();
@@ -107,87 +149,173 @@ export default function InquiryThreadModal({ inquiryId, onClose }: Props) {
     }
   }, [draft, inquiryId, sending]);
 
+  const setStatus = useCallback(async (next: "open" | "responded" | "archived") => {
+    if (!inquiryId || !isRoaster) return;
+    setMenuOpen(false);
+    try {
+      await apiFetchRaw(`/wholesale-inquiries/${inquiryId}/respond`, {
+        method: "POST",
+        body: JSON.stringify({ status: next }),
+      });
+      setInquiry((prev: any) => (prev ? { ...prev, status: next } : prev));
+    } catch (e: any) {
+      setError(e?.message || "Couldn't update status.");
+    }
+  }, [inquiryId, isRoaster]);
+
   const counterparty = useMemo(() => {
-    if (!inquiry) return "the other side";
-    if (user?.account_type === "roaster") return inquiry.cafe_name || inquiry.cafe_slug || "the café";
-    return inquiry.roaster_slug?.replace(/-/g, " ") || "the roaster";
+    if (!inquiry) return { name: "…", logo: null as string | null, cropX: null as number | null, cropY: null as number | null, zoom: null as number | null };
+    if (user?.account_type === "roaster") {
+      return {
+        name: inquiry.cafe_name || inquiry.cafe_slug || "the café",
+        logo: inquiry.cafe_logo_url,
+        cropX: inquiry.cafe_logo_crop_x, cropY: inquiry.cafe_logo_crop_y, zoom: inquiry.cafe_logo_zoom,
+      };
+    }
+    return {
+      name: inquiry.roaster_name || inquiry.roaster_slug?.replace(/-/g, " ") || "the roaster",
+      logo: inquiry.roaster_logo_url,
+      cropX: null, cropY: null, zoom: null,
+    };
   }, [inquiry, user]);
+
+  const hasContext =
+    !!inquiry?.note ||
+    !!inquiry?.wholesale_note ||
+    (inquiry?.wholesale_minimum_kg != null) ||
+    (inquiry?.cafe_monthly_volume_kg != null) ||
+    (inquiry?.cafe_open_to_new_roasters === 1) ||
+    !!inquiry?.cafe_procurement_note;
+
+  const statusLabel = inquiry?.status === "responded" ? "Replied"
+    : inquiry?.status === "archived" ? "Archived"
+    : "Open";
 
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.overlayWrap}>
         <Pressable style={s.backdrop} onPress={onClose} />
         <View style={s.card}>
-          {/* Header */}
+          {/* Compact header — avatar + name + product + status + actions */}
           <View style={s.header}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.title} numberOfLines={1}>
-                {inquiry?.product_name || "Wholesale inquiry"}
-              </Text>
-              <Text style={s.subtitle} numberOfLines={1}>
-                {inquiry
-                  ? `${inquiry.cafe_name || inquiry.cafe_slug} ↔ ${inquiry.roaster_slug?.replace(/-/g, " ") || ""}`
-                  : "\u00a0"}
-              </Text>
+            {counterparty.logo ? (
+              <CroppedAvatar
+                url={counterparty.logo}
+                cropX={counterparty.cropX ?? undefined}
+                cropY={counterparty.cropY ?? undefined}
+                zoom={counterparty.zoom ?? undefined}
+                size={36}
+              />
+            ) : (
+              <View style={s.avatarFb}>
+                <Text style={s.avatarLetter}>{(counterparty.name || "?")[0].toUpperCase()}</Text>
+              </View>
+            )}
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={s.title} numberOfLines={1}>{counterparty.name}</Text>
+              <View style={s.subtitleRow}>
+                {inquiry?.product_name && (
+                  <Text style={s.subtitle} numberOfLines={1}>{inquiry.product_name}</Text>
+                )}
+                <View style={[s.statusChip, statusLabel === "Open" ? s.statusChipOpen : statusLabel === "Replied" ? s.statusChipReplied : s.statusChipArchived]}>
+                  <Text style={s.statusChipText}>{statusLabel}</Text>
+                </View>
+              </View>
             </View>
-            <Pressable onPress={onClose} hitSlop={8} style={s.closeBtn}>
+
+            {/* Roaster status menu */}
+            {isRoaster && (
+              <Pressable onPress={() => setMenuOpen((v) => !v)} style={s.iconBtn} hitSlop={6}>
+                <MoreHorizontal size={18} color={t.color["text.primary"]} />
+              </Pressable>
+            )}
+            <Pressable onPress={onClose} hitSlop={8} style={s.iconBtn}>
               <X size={18} color={t.color["text.primary"]} />
             </Pressable>
           </View>
 
-          {/* Context strip — roaster note + café procurement snapshot */}
-          {inquiry && (
-            <View style={s.contextWrap}>
-              {(inquiry.wholesale_note || inquiry.cafe_monthly_volume_kg != null
-                || inquiry.cafe_open_to_new_roasters === 1) && (
-                <View style={s.contextRow}>
-                  {/* Roaster side */}
-                  {(inquiry.cafe_monthly_volume_kg != null || inquiry.cafe_procurement_note) && (
-                    <View style={s.contextCol}>
-                      <Text style={s.contextLabel}>From the café</Text>
-                      {inquiry.cafe_monthly_volume_kg != null && (
-                        <Text style={s.contextValue}>
-                          {inquiry.cafe_monthly_volume_kg} kg/month
-                        </Text>
-                      )}
-                      {inquiry.cafe_open_to_new_roasters === 1 && (
-                        <Text style={s.contextChip}>Open to new roasters</Text>
-                      )}
-                      {inquiry.cafe_procurement_note && (
-                        <Text style={s.contextNote} numberOfLines={3}>
-                          {inquiry.cafe_procurement_note}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-                  {/* Roaster's lot note (if present) */}
-                  {(inquiry.wholesale_note || inquiry.wholesale_minimum_kg != null) && (
-                    <View style={s.contextCol}>
-                      <View style={s.contextLabelRow}>
-                        <Package size={11} color="#351101" strokeWidth={1.8} />
-                        <Text style={s.contextLabel}>From the roaster</Text>
-                      </View>
-                      {inquiry.wholesale_minimum_kg != null && (
-                        <Text style={s.contextValue}>
-                          min {inquiry.wholesale_minimum_kg} kg
-                        </Text>
-                      )}
-                      {inquiry.wholesale_note && (
-                        <Text style={s.contextNote} numberOfLines={3}>
-                          {inquiry.wholesale_note}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-                </View>
-              )}
-              {inquiry.note && (
-                <View style={s.initialNote}>
-                  <Text style={s.contextLabel}>Inquiry</Text>
-                  <Text style={s.contextNote}>{inquiry.note}</Text>
-                </View>
+          {/* Roaster menu overlay */}
+          {menuOpen && isRoaster && (
+            <View style={s.menuCard}>
+              <Pressable style={s.menuItem} onPress={() => setStatus("responded")}>
+                <Check size={14} color={t.color["text.primary"]} />
+                <Text style={s.menuText}>Mark as replied</Text>
+              </Pressable>
+              <Pressable style={s.menuItem} onPress={() => setStatus("archived")}>
+                <Archive size={14} color={t.color["text.primary"]} />
+                <Text style={s.menuText}>Archive</Text>
+              </Pressable>
+              {inquiry?.status !== "open" && (
+                <Pressable style={s.menuItem} onPress={() => setStatus("open")}>
+                  <RotateCcw size={14} color={t.color["text.primary"]} />
+                  <Text style={s.menuText}>Reopen</Text>
+                </Pressable>
               )}
             </View>
+          )}
+
+          {/* Details toggle — collapsible business context */}
+          {hasContext && (
+            <>
+              <Pressable
+                onPress={() => setDetailsOpen((v) => !v)}
+                style={s.detailsToggle}
+              >
+                <Text style={s.detailsToggleText}>
+                  {detailsOpen ? "Hide details" : "Details"}
+                </Text>
+                {detailsOpen
+                  ? <ChevronUp size={14} color={t.color["text.muted"]} />
+                  : <ChevronDown size={14} color={t.color["text.muted"]} />}
+              </Pressable>
+
+              {detailsOpen && inquiry && (
+                <View style={s.detailsWrap}>
+                  <View style={s.contextRow}>
+                    {(inquiry.cafe_monthly_volume_kg != null
+                      || inquiry.cafe_procurement_note
+                      || inquiry.cafe_open_to_new_roasters === 1) && (
+                      <View style={s.contextCol}>
+                        <Text style={s.contextLabel}>From the café</Text>
+                        {inquiry.cafe_monthly_volume_kg != null && (
+                          <Text style={s.contextValue}>
+                            {inquiry.cafe_monthly_volume_kg} kg/month
+                          </Text>
+                        )}
+                        {inquiry.cafe_open_to_new_roasters === 1 && (
+                          <Text style={s.contextChip}>Open to new roasters</Text>
+                        )}
+                        {inquiry.cafe_procurement_note && (
+                          <Text style={s.contextNote} numberOfLines={4}>
+                            {inquiry.cafe_procurement_note}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                    {(inquiry.wholesale_note || inquiry.wholesale_minimum_kg != null) && (
+                      <View style={s.contextCol}>
+                        <View style={s.contextLabelRow}>
+                          <Package size={11} color="#351101" strokeWidth={1.8} />
+                          <Text style={s.contextLabel}>From the roaster</Text>
+                        </View>
+                        {inquiry.wholesale_minimum_kg != null && (
+                          <Text style={s.contextValue}>min {inquiry.wholesale_minimum_kg} kg</Text>
+                        )}
+                        {inquiry.wholesale_note && (
+                          <Text style={s.contextNote} numberOfLines={4}>{inquiry.wholesale_note}</Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                  {inquiry.note && (
+                    <View style={s.initialNote}>
+                      <Text style={s.contextLabel}>Inquiry</Text>
+                      <Text style={s.contextNote}>{inquiry.note}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </>
           )}
 
           {/* Message list */}
@@ -197,11 +325,11 @@ export default function InquiryThreadModal({ inquiryId, onClose }: Props) {
             contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 14, gap: 10 }}
             showsVerticalScrollIndicator={false}
           >
-            {loading ? (
+            {loading && messages.length === 0 ? (
               <ActivityIndicator size="small" color="#D798DA" style={{ marginTop: 20 }} />
             ) : messages.length === 0 ? (
               <Text style={s.emptyText}>
-                No replies yet — be the first to say something to {counterparty}.
+                Say hi 👋 — {counterparty.name} is waiting to hear from you.
               </Text>
             ) : (
               messages.map((m) => {
@@ -221,19 +349,14 @@ export default function InquiryThreadModal({ inquiryId, onClose }: Props) {
                           size={26}
                         />
                       ) : (
-                        <View style={s.avatarFb}>
-                          <Text style={s.avatarLetter}>
+                        <View style={s.avatarFbSmall}>
+                          <Text style={s.avatarLetterSmall}>
                             {(m.display_name || "?")[0].toUpperCase()}
                           </Text>
                         </View>
                       )
                     )}
-                    <View
-                      style={[
-                        s.bubble,
-                        self ? s.bubbleSelf : s.bubbleOther,
-                      ]}
-                    >
+                    <View style={[s.bubble, self ? s.bubbleSelf : s.bubbleOther]}>
                       {!self && (
                         <Text style={s.bubbleName}>{m.display_name}</Text>
                       )}
@@ -258,7 +381,7 @@ export default function InquiryThreadModal({ inquiryId, onClose }: Props) {
               style={s.input}
               value={draft}
               onChangeText={setDraft}
-              placeholder={`Message ${counterparty}…`}
+              placeholder={`Message ${counterparty.name}…`}
               placeholderTextColor="rgba(53,17,1,0.4)"
               multiline
               maxLength={2000}
@@ -308,39 +431,95 @@ const s = StyleSheet.create({
     shadowOpacity: 0.22,
     shadowRadius: 34,
   } as any,
+
+  // Header
   header: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    paddingHorizontal: 20, paddingTop: 18, paddingBottom: 12,
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: "#EDE8E1",
   } as any,
   title: {
     fontFamily: t.font["body.semibold"], fontSize: 15,
     color: t.color["text.primary"],
   },
+  subtitleRow: {
+    flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2,
+  } as any,
   subtitle: {
     fontFamily: t.font["body.medium"], fontSize: 11,
-    color: t.color["text.muted"], marginTop: 2,
+    color: t.color["text.muted"], maxWidth: 200,
   } as any,
-  closeBtn: {
+  statusChip: {
+    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,
+  } as any,
+  statusChipOpen: { backgroundColor: "rgba(215,152,218,0.18)" } as any,
+  statusChipReplied: { backgroundColor: "rgba(78,156,104,0.18)" } as any,
+  statusChipArchived: { backgroundColor: "rgba(53,17,1,0.08)" } as any,
+  statusChipText: {
+    fontFamily: t.font["body.semibold"], fontSize: 9,
+    color: "#351101", letterSpacing: 0.5, textTransform: "uppercase",
+  } as any,
+  iconBtn: {
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: "rgba(53,17,1,0.06)",
     alignItems: "center", justifyContent: "center",
   } as any,
-  contextWrap: {
-    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 14,
+  avatarFb: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: t.color["text.primary"],
+    alignItems: "center", justifyContent: "center",
+  } as any,
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 14, color: "#FAF8F0" },
+  avatarFbSmall: {
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: t.color["text.primary"],
+    alignItems: "center", justifyContent: "center",
+  } as any,
+  avatarLetterSmall: { fontFamily: t.font["body.semibold"], fontSize: 11, color: "#FAF8F0" },
+
+  // Roaster status menu
+  menuCard: {
+    position: "absolute",
+    top: 60, right: 56,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    paddingVertical: 4,
+    minWidth: 180,
+    ...cardShadow,
+    shadowOpacity: 0.2,
+    zIndex: 20,
+  } as any,
+  menuItem: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 14, paddingVertical: 10,
+  } as any,
+  menuText: {
+    fontFamily: t.font["body.medium"], fontSize: 13,
+    color: t.color["text.primary"],
+  },
+
+  // Details drawer (collapsible business context)
+  detailsToggle: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    alignSelf: "flex-start",
+    paddingHorizontal: 16, paddingVertical: 8,
+  } as any,
+  detailsToggleText: {
+    fontFamily: t.font["body.semibold"], fontSize: 11,
+    color: t.color["text.muted"], letterSpacing: 0.4, textTransform: "uppercase",
+  } as any,
+  detailsWrap: {
+    paddingHorizontal: 16, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: "#EDE8E1",
-    gap: 12,
+    gap: 10,
   } as any,
   contextRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
+    flexDirection: "row", flexWrap: "wrap", gap: 10,
   } as any,
   contextCol: {
-    flex: 1,
-    minWidth: 140,
+    flex: 1, minWidth: 140,
     backgroundColor: "#EFE9DB",
     borderRadius: 8,
     padding: 10,
@@ -372,10 +551,13 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(53,17,1,0.04)",
     borderRadius: 8, padding: 10, gap: 4,
   } as any,
-  messages: { flex: 1, minHeight: 180, maxHeight: 360 } as any,
+
+  // Message list
+  messages: { flex: 1, minHeight: 220, maxHeight: 420 } as any,
   emptyText: {
     fontFamily: t.font["body.regular"], fontSize: 13,
-    color: t.color["text.muted"], textAlign: "center", paddingVertical: 20,
+    color: t.color["text.muted"], textAlign: "center", paddingVertical: 40,
+    paddingHorizontal: 20,
   } as any,
   bubbleRow: {
     flexDirection: "row",
@@ -384,14 +566,6 @@ const s = StyleSheet.create({
   } as any,
   bubbleRowSelf: { justifyContent: "flex-end" } as any,
   bubbleRowOther: { justifyContent: "flex-start" } as any,
-  avatarFb: {
-    width: 26, height: 26, borderRadius: 13,
-    backgroundColor: t.color["text.primary"],
-    alignItems: "center", justifyContent: "center",
-  } as any,
-  avatarLetter: {
-    fontFamily: t.font["body.semibold"], fontSize: 11, color: "#FAF8F0",
-  },
   bubble: {
     maxWidth: "78%",
     paddingHorizontal: 12, paddingVertical: 8,
@@ -420,6 +594,8 @@ const s = StyleSheet.create({
     color: t.color["text.muted"],
   } as any,
   bubbleTimeSelf: { color: "rgba(250,248,240,0.55)" } as any,
+
+  // Composer
   error: {
     fontFamily: t.font["body.medium"], fontSize: 11,
     color: "#B5393C", textAlign: "center", paddingVertical: 4,

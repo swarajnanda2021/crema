@@ -1100,6 +1100,99 @@ def post_inquiry_message(inquiry_id: int, body: dict,
         db.close()
 
 
+# ── Messages inbox ─────────────────────────────────────────────────────────
+#
+# A projected list of inquiry threads for the current café or roaster,
+# with last-message preview + per-thread unread count. Powers the
+# navbar Messages dropdown. Separate from /my-wholesale-inquiries,
+# which serves the admin / analytics perspective.
+
+@router.get("/my-inquiry-threads")
+def my_inquiry_threads(user=Depends(get_current_user)):
+    from fastapi import HTTPException
+    if not user:
+        raise HTTPException(401, "Authentication required")
+    account_type = user.get("account_type")
+    db = get_db()
+    try:
+        if account_type == "cafe" and user.get("cafe_slug"):
+            where_col, where_val = "cafe_slug", user["cafe_slug"]
+            last_read_col = "cafe_last_read_at"
+        elif account_type == "roaster" and user.get("roaster_slug"):
+            where_col, where_val = "roaster_slug", user["roaster_slug"]
+            last_read_col = "roaster_last_read_at"
+        else:
+            return ok([], resource="inquiry_threads", total=0)
+
+        # One query: inquiry + counterparty display fields + latest
+        # message preview + a per-thread unread count scoped to
+        # messages authored by the other party after last_read.
+        rows = db.execute(
+            f"""
+            SELECT
+                wi.id AS inquiry_id,
+                wi.cafe_slug, wi.roaster_slug,
+                wi.product_id, wi.note AS inquiry_note,
+                wi.status, wi.created_at AS opened_at,
+                wi.{last_read_col} AS last_read_at,
+                (SELECT cp.name FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_name,
+                (SELECT cp.logo_url FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_url,
+                (SELECT cp.logo_crop_x FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_crop_x,
+                (SELECT cp.logo_crop_y FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_crop_y,
+                (SELECT cp.logo_zoom   FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_zoom,
+                (SELECT rp.name FROM roaster_profiles rp WHERE rp.roaster_slug = wi.roaster_slug) AS roaster_name,
+                (SELECT rp.logo_url FROM roaster_profiles rp WHERE rp.roaster_slug = wi.roaster_slug) AS roaster_logo_url,
+                (SELECT p.coffee_name FROM products p WHERE p.product_id = wi.product_id) AS product_name,
+                (SELECT m.body FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+                (SELECT m.created_at FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
+                (SELECT m.user_id FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_user_id,
+                (SELECT COUNT(*) FROM inquiry_messages m
+                    WHERE m.inquiry_id = wi.id
+                      AND m.user_id != ?
+                      AND (wi.{last_read_col} IS NULL OR m.created_at > wi.{last_read_col})
+                ) AS unread_count
+            FROM wholesale_inquiries wi
+            WHERE wi.{where_col} = ?
+            ORDER BY COALESCE(
+                (SELECT m.created_at FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1),
+                wi.created_at
+            ) DESC
+            LIMIT 100
+            """,
+            (user["id"], where_val),
+        ).fetchall()
+
+        threads = [dict(r) for r in rows]
+        total_unread = sum(int(t.get("unread_count") or 0) for t in threads)
+        return ok(threads, resource="inquiry_threads",
+                  total=len(threads), total_unread=total_unread,
+                  perspective="cafe" if account_type == "cafe" else "roaster")
+    finally:
+        db.close()
+
+
+@router.post("/wholesale-inquiries/{inquiry_id}/read")
+def mark_inquiry_read(inquiry_id: int, user=Depends(get_current_user)):
+    """Stamp the current party's last_read_at so new messages from the
+    other side no longer count as unread in the inbox. Safe to call
+    multiple times."""
+    import datetime as _dt
+    db = get_db()
+    try:
+        row = _require_inquiry_party(db, inquiry_id, user)
+        col = "cafe_last_read_at" if user.get("account_type") == "cafe" else "roaster_last_read_at"
+        now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        db.execute(
+            f"UPDATE wholesale_inquiries SET {col} = ? WHERE id = ?",
+            (now, inquiry_id),
+        )
+        db.commit()
+        return ok({"id": inquiry_id, "last_read_at": now},
+                  resource="wholesale_inquiries")
+    finally:
+        db.close()
+
+
 @router.post("/wholesale-inquiries/{inquiry_id}/respond")
 def respond_to_inquiry(inquiry_id: int, body: dict,
                        user=Depends(get_current_user)):
