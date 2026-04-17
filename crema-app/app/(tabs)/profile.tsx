@@ -1003,19 +1003,22 @@ const s = StyleSheet.create({
     paddingBottom: 24,
   },
 
-  // Uniform avatar across own profile + /user/[username], for regular
-  // user accounts. Fixed pixel dimensions so the avatar can't rescale
-  // when entering / leaving edit mode (the old width: "34%" + maxWidth
-  // 489 vs 280 between the two pages was the source of the "image
-  // size changes" bug). Business entities (café + roaster) render
-  // their own hero assets and don't hit this rule.
+  // Avatar sizing matches Figma node 202:2548 — 488.68 × 501.72 at
+  // the 1440 design viewport (33.94% of width, aspect 1:1.027).
+  // Shared with app/user/[username].tsx so the avatar has the same
+  // dimensions on a user's own profile and on anyone else's view —
+  // previously the two pages used different aspectRatio + maxWidth
+  // pairs, which made the image "jump" when entering edit mode and
+  // look inconsistent between users.
   avatarWrap: {
-    width: 200, height: 200,
+    width: "34%",
+    aspectRatio: 488.68 / 501.72,
+    maxWidth: 489,
     borderRadius: 5,
     overflow: "hidden",
     position: "relative",
   } as any,
-  avatarWrapNarrow: { width: 160, height: 160 },
+  avatarWrapNarrow: { width: "60%", maxWidth: 300 },
   avatarImgZoomWrap: { width: "100%", height: "100%" } as any,
   avatarImg: { width: "100%", height: "100%" } as any,
   avatarFallback: {

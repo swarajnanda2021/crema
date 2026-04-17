@@ -491,10 +491,18 @@ const s = StyleSheet.create({
   heroNarrow: { flexDirection: "column", alignItems: "center", gap: 20, paddingTop: 24, paddingBottom: 24 },
 
   // Avatar — SQUARE with slight rounding (borderRadius: 5)
-  // Matches app/(tabs)/profile.tsx so a user's avatar is the same
-  // size on their own profile and on anyone else's view of it.
-  avatarWrap: { width: 200, height: 200, borderRadius: 5, overflow: "hidden" } as any,
-  avatarWrapNarrow: { width: 160, height: 160 },
+  // Matches app/(tabs)/profile.tsx + Figma 202:2548 (488.68 × 501.72
+  // at 1440 design viewport). Same responsive rule on both pages so
+  // the avatar size doesn't jump when someone edits their own profile
+  // or when comparing across users.
+  avatarWrap: {
+    width: "34%",
+    aspectRatio: 488.68 / 501.72,
+    maxWidth: 489,
+    borderRadius: 5,
+    overflow: "hidden",
+  } as any,
+  avatarWrapNarrow: { width: "60%", maxWidth: 300 },
   avatarFallback: { width: "100%", height: "100%", backgroundColor: t.color["card.info"], alignItems: "center", justifyContent: "center" } as any,
   avatarLetter: { fontFamily: t.font.display, fontSize: 48, color: t.color["text.primary"] },
 
