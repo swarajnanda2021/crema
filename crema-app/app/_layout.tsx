@@ -12,6 +12,7 @@ import { CoffeeDataProvider } from "../src/hooks/useCoffeeData";
 import { t } from "../src/tokens/useTokens";
 import PostModal from "../src/components/shell/PostModal";
 import AuthModal from "../src/components/AuthModal";
+import NavigationLoader from "../src/components/NavigationLoader";
 
 export { ErrorBoundary } from "expo-router";
 
@@ -135,6 +136,10 @@ export default function RootLayout() {
           {/* Sitewide floating auth modal — opened from ProfileDropdown's
               "Add another account" item via crema:open-auth-modal event. */}
           <AuthModal />
+          {/* Page-transition overlay. Paints the content area below the
+              navbar solid cream + a pulsing crema wordmark while routes
+              change, so the partial-render flicker doesn't show. */}
+          <NavigationLoader />
         </AuthGate>
       </CoffeeDataProvider>
     </AuthProvider>

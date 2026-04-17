@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { View, Text, ScrollView, StyleSheet, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
 import { t } from "../tokens/useTokens";
 import CoffeeCard from "./CoffeeCard";
@@ -14,13 +14,16 @@ interface CoffeeListProps {
   popularity?: Record<string, number>;
   compact?: boolean;
   ListHeaderComponent?: React.ReactElement | null;
-  onScrollDirection?: (direction: "up" | "down", scrollY: number) => void;
+  // Raw scroll passthrough. The search-bar hide logic now lives in
+  // `useSearchBarAutoHide` (§2.16); passing the bare event lets
+  // callers chain that hook without re-implementing direction
+  // heuristics per-tab.
+  onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }
 
-export default function CoffeeList({ coffees, popularity = {}, compact, ListHeaderComponent, onScrollDirection }: CoffeeListProps) {
+export default function CoffeeList({ coffees, popularity = {}, compact, ListHeaderComponent, onScroll }: CoffeeListProps) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [containerW, setContainerW] = useState(0);
-  const lastScrollY = useRef(0);
   const visible = (Array.isArray(coffees) ? coffees : []).slice(0, visibleCount);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
@@ -34,20 +37,15 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
 
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    onScroll?.(e);
+
+    // End-of-list pagination (unchanged).
     const currentY = contentOffset.y;
-
-    // Scroll direction detection
-    if (onScrollDirection) {
-      const direction = currentY > lastScrollY.current ? "down" : "up";
-      onScrollDirection(direction, currentY);
-    }
-    lastScrollY.current = currentY;
-
     const distanceFromBottom = contentSize.height - layoutMeasurement.height - currentY;
     if (distanceFromBottom < 400 && visibleCount < coffees.length) {
       setVisibleCount(prev => Math.min(prev + PAGE_SIZE, coffees.length));
     }
-  }, [visibleCount, coffees.length, onScrollDirection]);
+  }, [visibleCount, coffees.length, onScroll]);
 
   if (coffees.length === 0) {
     return (

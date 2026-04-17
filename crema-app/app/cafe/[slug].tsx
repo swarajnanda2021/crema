@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Check, Coffee, Camera, PenLine, Plus, Trash2, Users } from "lucide-react-native";
+import { ArrowLeft, Check, Coffee, Camera, ExternalLink, PenLine, Plus, Trash2, Users } from "lucide-react-native";
 import Svg, { Path } from "react-native-svg";
 import { t } from "../../src/tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
@@ -180,12 +180,6 @@ export default function CafeDetailPage() {
   const [showSeasonalPicker, setShowSeasonalPicker] = useState(false);
   const [showRewardPicker, setShowRewardPicker] = useState(false);
 
-  // Procurement profile (Phase 1 §2.6) — qualifies a café lead for
-  // roasters receiving the §2.1 "Interested" wholesale inquiry.
-  const [editMonthlyVolume, setEditMonthlyVolume] = useState<string>("");
-  const [editOpenToNew, setEditOpenToNew] = useState(false);
-  const [editProcurementNote, setEditProcurementNote] = useState("");
-
   // Follow state (café can be followed just like a roaster; target_type
   // discriminates on the follows table).
   const [following, setFollowing] = useState(false);
@@ -246,11 +240,6 @@ export default function CafeDetailPage() {
         setEditStampsEnabled(cafeData.stamps_enabled === 1);
         setEditStampTarget(cafeData.stamp_target ?? 10);
         setEditStampReward(cafeData.stamp_reward || "Free coffee");
-        setEditMonthlyVolume(
-          cafeData.monthly_volume_kg != null ? String(cafeData.monthly_volume_kg) : "",
-        );
-        setEditOpenToNew(cafeData.open_to_new_roasters === 1);
-        setEditProcurementNote(cafeData.procurement_note || "");
       }
     } catch (e) {
       console.warn("Café fetch failed:", e);
@@ -311,11 +300,6 @@ export default function CafeDetailPage() {
           stamps_enabled: editStampsEnabled ? 1 : 0,
           stamp_target: editStampTarget,
           stamp_reward: editStampReward || "Free coffee",
-          monthly_volume_kg: editMonthlyVolume.trim() === ""
-            ? null
-            : Math.max(0, parseInt(editMonthlyVolume, 10) || 0),
-          open_to_new_roasters: editOpenToNew ? 1 : 0,
-          procurement_note: editProcurementNote.trim() || null,
         }),
       });
       setIsEditing(false);
@@ -329,7 +313,6 @@ export default function CafeDetailPage() {
     editLogoCropX, editLogoCropY, editLogoZoom,
     editSeasonalOpen, editSeasonalClose,
     editStampsEnabled, editStampTarget, editStampReward,
-    editMonthlyVolume, editOpenToNew, editProcurementNote,
     fetchAll,
   ]);
 
@@ -641,71 +624,13 @@ export default function CafeDetailPage() {
               </View>
             </View>
 
-            {/* Wholesale procurement — owner-only. Qualifies a café lead
-               for roasters who receive an "Interested" inquiry (§2.1). */}
-            {isOwner && (
-              <View style={s.procurementBlock}>
-                <Text style={s.procurementTitle}>Wholesale procurement</Text>
-                <Text style={s.procurementHint}>
-                  Private. Only shared with roasters you reach out to.
-                </Text>
-
-                <View style={s.procurementRow}>
-                  <Text style={s.procurementLabel}>Monthly volume (kg)</Text>
-                  {isEditing ? (
-                    <TextInput
-                      style={[s.metaText, s.inlineEditMeta, s.procurementInput]}
-                      value={editMonthlyVolume}
-                      onChangeText={(v) => setEditMonthlyVolume(v.replace(/[^0-9]/g, ""))}
-                      placeholder="e.g. 20"
-                      placeholderTextColor="rgba(199,186,165,0.4)"
-                      keyboardType="numeric"
-                    />
-                  ) : (
-                    <Text style={s.procurementValue}>
-                      {cafe.monthly_volume_kg != null ? `${cafe.monthly_volume_kg} kg` : "Not set"}
-                    </Text>
-                  )}
-                </View>
-
-                <View style={s.procurementRow}>
-                  <Text style={s.procurementLabel}>Open to new roasters</Text>
-                  {isEditing ? (
-                    <Pressable
-                      onPress={() => setEditOpenToNew((v) => !v)}
-                      style={[s.procurementToggle, editOpenToNew && s.procurementToggleOn]}
-                      hitSlop={8}
-                    >
-                      <Text style={s.procurementToggleText}>
-                        {editOpenToNew ? "Yes" : "No"}
-                      </Text>
-                    </Pressable>
-                  ) : (
-                    <Text style={s.procurementValue}>
-                      {cafe.open_to_new_roasters === 1 ? "Yes" : "No"}
-                    </Text>
-                  )}
-                </View>
-
-                <View style={[s.procurementRow, s.procurementRowNote]}>
-                  <Text style={s.procurementLabel}>Note</Text>
-                  {isEditing ? (
-                    <TextInput
-                      style={[s.metaText, s.inlineEditMeta, s.procurementNoteInput]}
-                      value={editProcurementNote}
-                      onChangeText={setEditProcurementNote}
-                      placeholder="What do you look for in a roaster? (bean style, sourcing ethics, price band)"
-                      placeholderTextColor="rgba(199,186,165,0.4)"
-                      multiline
-                    />
-                  ) : (
-                    <Text style={[s.procurementValue, { flex: 1 }]} numberOfLines={4}>
-                      {cafe.procurement_note || "Not set"}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            )}
+            {/* §2.17 — the wholesale procurement block that used to live
+               here (monthly_volume_kg / open_to_new_roasters / procurement_note)
+               was removed. Once an inquiry thread exists, the conversation
+               carries the context; the public profile block was a
+               pre-emptive sales sheet the café didn't ask to fill. DB
+               columns remain for legacy rows but are no longer captured
+               or displayed. */}
 
             {/* Follow button — only shown to non-owners, mirrors roaster */}
             {!isOwner && (
@@ -1062,9 +987,20 @@ export default function CafeDetailPage() {
         onClose={() => setPostPrompt(null)}
       />
 
+      {/* FAB — owner, posts tab. Same floating composer the roaster
+          profile + feed use, so café owners get a standalone "write a
+          post" entry point instead of only the menu-mutation-triggered
+          PostPromptModal. */}
+      {isOwner && !isEditing && activeTab === "posts" && (
+        <Pressable onPress={() => { setComposerPrefill(""); setComposerOpen(true); }} style={s.fab}>
+          <Plus size={22} color={t.color["text.on-dark"]} strokeWidth={2.5} />
+        </Pressable>
+      )}
+
       {/* Composer modal, pre-filled with the post-prompt teaser when
-          launched from a catalog change. Reuses the site's floating
-          overlay pattern (same as the feed composer). */}
+          launched from a catalog change, empty when opened from the FAB.
+          Reuses the site's floating overlay pattern (same as the feed
+          composer). */}
       <Modal
         visible={composerOpen}
         transparent
@@ -1376,24 +1312,213 @@ function MenuTab({
 
   return (
     <View style={s.tabContent}>
-      {grouped.map(([drinkName, items]) => (
-        <DrinkRow
-          key={drinkName}
-          drinkName={drinkName}
-          items={items}
-          isOwner={isOwner}
-          isEditing={isEditing}
-          onDelete={handleDelete}
-          onUpdate={handleUpdate}
-          onAddBean={(body) => handleAddBean(drinkName, body)}
-          onTapRoaster={(roaster_slug) => router.push(`/roaster/${roaster_slug}` as any)}
-          onTapProduct={(product_id) => router.push(`/coffee/${product_id}` as any)}
-        />
-      ))}
-      {/* "Add a drink" is available to owners any time, not gated on isEditing */}
+      {/* §2.10 (v2) — true tabular menu. Each drink is one block with
+         a horizontal divider between blocks. Within a block every
+         roaster is its own row with five vertically-aligned columns:
+         **Drink** (only on the first row of the block) | **Roaster**
+         (clickable) | **Roast** | **Tasting Notes** | **Actions**.
+         An "Add roaster" row sits at the end of each block in edit
+         mode so a café can layer another supplier under the same
+         drink without opening the full Add-drink form. */}
+      <View style={s.menuTable}>
+        {grouped.map(([drinkName, items], drinkIdx) => (
+          <View key={drinkName} style={s.menuDrink}>
+            {drinkIdx > 0 && <View style={s.menuDrinkDivider} />}
+            {items.map((item, beanIdx) => {
+              const slug = item.roaster_slug;
+              const derivedFromSlug = slug
+                ? String(slug).replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
+                : null;
+              // Display roaster name with priority: joined name,
+              // derived from slug, manual name, or manual bean name
+              // as a last resort when no roaster was picked.
+              const roasterLabel = item.roaster_name
+                || derivedFromSlug
+                || item.manual_roaster_name
+                || item.manual_bean_name
+                || "\u2014";
+              // Price — prefers the menu item's own field, falls back
+              // to the joined catalog product price (not all menu
+              // items carry an explicit price today; §2.10b tracks a
+              // scraper follow-up for the rest).
+              const price = (item as any).price_inr ?? (item as any).product?.price_inr ?? null;
+              return (
+                <View key={item.id ?? `${drinkName}-${beanIdx}`} style={s.menuRow}>
+                  {/* Col 1 — Drink name (first row only) */}
+                  <View style={s.menuColDrink}>
+                    {beanIdx === 0 && (
+                      <Text style={s.menuDrinkName} numberOfLines={1}>{drinkName}</Text>
+                    )}
+                  </View>
+
+                  {/* Col 2 — Roaster. Name is plain (no underline);
+                     a small crema-pink external-link icon after it
+                     signals "tap to visit the roaster". */}
+                  <View style={s.menuColRoaster}>
+                    {slug ? (
+                      <Pressable
+                        onPress={() => router.push(`/roaster/${slug}` as any)}
+                        style={s.menuRoasterPressable}
+                      >
+                        <Text style={s.menuRoasterText} numberOfLines={1}>{roasterLabel}</Text>
+                        <ExternalLink size={11} color={t.color.accent} strokeWidth={1.8} />
+                      </Pressable>
+                    ) : (
+                      <Text style={s.menuRoasterText} numberOfLines={1}>{roasterLabel}</Text>
+                    )}
+                  </View>
+
+                  {/* Col 3 — Roast level */}
+                  <View style={s.menuColRoast}>
+                    <Text style={s.menuCellText} numberOfLines={1}>
+                      {item.roast_level || "\u2014"}
+                    </Text>
+                  </View>
+
+                  {/* Col 4 — Price */}
+                  <View style={s.menuColPrice}>
+                    <Text style={s.menuCellText} numberOfLines={1}>
+                      {price != null ? `\u20B9 ${price}` : "\u2014"}
+                    </Text>
+                  </View>
+
+                  {/* Col 5 — Tasting notes (`notes` in the schema) */}
+                  <View style={s.menuColNotes}>
+                    <Text style={s.menuCellMuted} numberOfLines={2}>
+                      {item.notes || "\u2014"}
+                    </Text>
+                  </View>
+
+                  {/* Col 6 — Actions (delete, only in edit mode) */}
+                  <View style={s.menuColActions}>
+                    {isOwner && isEditing && item.id != null && (
+                      <Pressable onPress={() => handleDelete(item.id!)} hitSlop={8} style={s.menuRowAction}>
+                        <Trash2 size={14} color={t.color["text.secondary"]} />
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+
+            {/* Inline "add roaster" row — only in edit mode. Opens a
+               compact sub-form to layer another supplier under the
+               same drink without the full Add-drink form below. */}
+            {isOwner && isEditing && (
+              <AddRoasterToDrinkRow
+                drinkName={drinkName}
+                onSubmit={(body) => handleAddBean(drinkName, body)}
+              />
+            )}
+          </View>
+        ))}
+      </View>
+
+      {/* "Add drink" is available to owners any time; this is the
+         existing new-drink form repurposed for the table. */}
       {isOwner && (
         <AddMenuItemForm cafe_slug={cafe_slug} onAdded={onChange} />
       )}
+    </View>
+  );
+}
+
+// §2.10 — inline "add another roaster" row for a specific drink.
+// Collapsed by default; expands into Roaster / Roast / Notes inputs
+// and a small Save.
+function AddRoasterToDrinkRow({
+  drinkName, onSubmit,
+}: {
+  drinkName: string;
+  onSubmit: (body: Partial<CafeMenuItem>) => void | Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [roasterName, setRoasterName] = useState("");
+  const [roast, setRoast] = useState("");
+  const [priceInput, setPriceInput] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const reset = () => {
+    setRoasterName(""); setRoast(""); setPriceInput(""); setNotes(""); setOpen(false);
+  };
+
+  const save = async () => {
+    if (!roasterName.trim() && !roast.trim() && !priceInput.trim() && !notes.trim()) {
+      setOpen(false); return;
+    }
+    await onSubmit({
+      manual_roaster_name: roasterName.trim() || null,
+      roast_level: roast.trim() || null,
+      price_inr: priceInput ? parseInt(priceInput, 10) : null,
+      notes: notes.trim() || null,
+    } as any);
+    reset();
+  };
+
+  if (!open) {
+    return (
+      <View style={s.menuRow}>
+        <View style={s.menuColDrink} />
+        <View style={{ flexDirection: "row", flex: 1 }}>
+          <Pressable onPress={() => setOpen(true)} style={s.menuAddRoasterRow}>
+            <Plus size={12} color={t.color.accent} />
+            <Text style={s.menuAddRoasterText}>Add a roaster</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={s.menuRow}>
+      <View style={s.menuColDrink} />
+      <View style={s.menuColRoaster}>
+        <TextInput
+          value={roasterName}
+          onChangeText={setRoasterName}
+          placeholder={`Roaster for ${drinkName}`}
+          placeholderTextColor={t.color["text.muted"]}
+          style={s.menuInlineInput}
+        />
+      </View>
+      <View style={s.menuColRoast}>
+        <TextInput
+          value={roast}
+          onChangeText={setRoast}
+          placeholder="Roast"
+          placeholderTextColor={t.color["text.muted"]}
+          style={s.menuInlineInput}
+        />
+      </View>
+      <View style={s.menuColPrice}>
+        {/* Price is captured as a plain number input so it merges
+           into the same column as the displayed `\u20B9 ###`. */}
+        <TextInput
+          value={priceInput}
+          onChangeText={(v) => setPriceInput(v.replace(/[^0-9]/g, ""))}
+          placeholder="\u20B9"
+          placeholderTextColor={t.color["text.muted"]}
+          keyboardType="numeric"
+          style={s.menuInlineInput}
+        />
+      </View>
+      <View style={s.menuColNotes}>
+        <TextInput
+          value={notes}
+          onChangeText={setNotes}
+          placeholder="Tasting notes"
+          placeholderTextColor={t.color["text.muted"]}
+          style={s.menuInlineInput}
+        />
+      </View>
+      <View style={[s.menuColActions, { flexDirection: "row", gap: 6 }]}>
+        <Pressable onPress={reset} hitSlop={6}>
+          <Text style={s.menuInlineCancel}>Cancel</Text>
+        </Pressable>
+        <Pressable onPress={save} hitSlop={6} style={s.menuInlineSaveBtn}>
+          <Text style={s.menuInlineSaveText}>Save</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -2454,12 +2579,109 @@ const s = StyleSheet.create({
     borderRadius: t.radius.lg, overflow: "hidden", maxHeight: "85%", zIndex: 1,
   } as any,
 
+  // Matches the feed + roaster FABs: dark primary disc pinned to the
+  // bottom-right, cream plus icon, soft shadow. Only shown on the Posts
+  // tab to café owners (not editing).
+  fab: {
+    position: "absolute", bottom: 28, right: 28,
+    width: t.size["fab.size"], height: t.size["fab.size"], borderRadius: t.size["fab.size"] / 2,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: t.color["text.primary"],
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8,
+  } as any,
+
   // Baristas
   // (baristas feature removed; styles dropped)
 
   // Hours
   hoursBlock: {},
   hoursRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: t.color["border.light"] },
+
+  // §2.10 — tabular menu (v2). Five columns per row, vertical-divider-less
+  // grid separated into drink blocks by full-width horizontal
+  // dividers. Every cell left-aligns to its column's leading edge so
+  // the entire table reads as one scannable grid — mirrors the hours
+  // table but with more columns.
+  menuTable: { marginTop: 8 } as any,
+  menuDrink: { paddingVertical: 6 } as any,
+  menuDrinkDivider: {
+    height: 1, backgroundColor: t.color["border.light"],
+    marginVertical: 6,
+  } as any,
+  menuRow: {
+    flexDirection: "row", alignItems: "center",
+    paddingVertical: 6,
+  } as any,
+  // Column widths. Drink / roast / price / actions are fixed so they
+  // align vertically across every drink block. Roaster + notes are
+  // flex so they absorb the remaining width.
+  menuColDrink: { width: 110, paddingRight: 12 } as any,
+  menuColRoaster: { flex: 1.2, paddingRight: 12, minWidth: 0 } as any,
+  menuColRoast: { width: 100, paddingRight: 12 } as any,
+  menuColPrice: { width: 80, paddingRight: 12 } as any,
+  menuColNotes: { flex: 1.6, paddingRight: 12, minWidth: 0 } as any,
+  menuColActions: { width: 50, alignItems: "flex-end" } as any,
+
+  // Drink label uses the same Inter body face as the hours table —
+  // not Canela. Keeps the table reading as a plain list of facts,
+  // not a feature copy block.
+  menuDrinkName: {
+    fontFamily: t.font["body.medium"], fontSize: 13,
+    color: t.color["text.primary"],
+  },
+  // Roaster cell: name + pink external-link icon in a single row.
+  // No underline — the pink icon carries the "tap to visit" signal.
+  menuRoasterPressable: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+  } as any,
+  menuRoasterText: {
+    fontFamily: t.font["body.medium"], fontSize: 13,
+    color: t.color["text.primary"],
+  } as any,
+  menuCellText: {
+    fontFamily: t.font["body.regular"], fontSize: 13,
+    color: t.color["text.secondary"],
+  },
+  menuCellMuted: {
+    fontFamily: t.font["body.regular"], fontSize: 13,
+    color: t.color["text.secondary"],
+    lineHeight: 17,
+  },
+  menuRowAction: {
+    padding: 4,
+    alignItems: "center", justifyContent: "center",
+  } as any,
+
+  // Inline "add roaster" expand-in-place form inside a drink block.
+  menuAddRoasterRow: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingVertical: 4, paddingHorizontal: 2,
+  } as any,
+  menuAddRoasterText: {
+    fontFamily: t.font["body.medium"], fontSize: 12,
+    color: t.color.accent, letterSpacing: 0.2,
+  },
+  menuInlineInput: {
+    fontFamily: t.font["body.regular"], fontSize: 12.5,
+    color: t.color["text.primary"],
+    paddingVertical: 4, paddingHorizontal: 6,
+    backgroundColor: t.color["card.info"],
+    borderRadius: 4,
+    ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
+  } as any,
+  menuInlineCancel: {
+    fontFamily: t.font["body.medium"], fontSize: 11,
+    color: t.color["text.muted"],
+    paddingHorizontal: 4, paddingVertical: 4,
+  },
+  menuInlineSaveBtn: {
+    backgroundColor: t.color["text.primary"],
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4,
+  } as any,
+  menuInlineSaveText: {
+    fontFamily: t.font["body.semibold"], fontSize: 11,
+    color: t.color["text.on-dark"],
+  },
   hoursDay: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"] },
   hoursTime: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.secondary"] },
 

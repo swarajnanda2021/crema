@@ -47,7 +47,7 @@ export default function PostCard({
     : post.post_type === "tasting_note" ? "Posted a tasting note"
     : post.post_type === "note" ? "Shared a moment"
     : isRepost ? "Reposted"
-    : isSourcingStory ? "Shared a sourcing story"
+    : isSourcingStory ? "Shared a long-form post"
     : "Shared an article";
 
   const author = post.author || {};
@@ -118,7 +118,7 @@ export default function PostCard({
             </>
           ) : (
             <Pressable onPress={() => setStoryExpanded(true)} hitSlop={8}>
-              <Text style={s.storyToggle}>Read full story →</Text>
+              <Text style={s.storyToggle}>Read the full post →</Text>
             </Pressable>
           )}
         </View>
@@ -184,9 +184,14 @@ export default function PostCard({
         </Pressable>
       )}
 
-      {/* Article thumbnail OR gallery */}
+      {/* Article thumbnail OR gallery. The article thumbnail was a
+         non-pressable <View>, so taps on the hero image / title did
+         nothing — users reported the post felt dead. Wrapping it in
+         a Pressable tied to handleOpen (same path the body text
+         already uses) makes the whole article card click through to
+         the external URL. */}
       {isArticle && post.cover_image_url ? (
-        <View style={s.articleWrap}>
+        <Pressable onPress={handleOpen} style={s.articleWrap}>
           <Image source={{ uri: resolveUploadUrl(post.cover_image_url) }} style={s.articleImg} contentFit="cover" />
           <View style={s.articleOverlay}>
             {post.title && <Text style={s.articleTitle} numberOfLines={2}>{post.title}</Text>}
@@ -194,7 +199,7 @@ export default function PostCard({
               {post.external_url?.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]}
             </Text>
           </View>
-        </View>
+        </Pressable>
       ) : (
         <View style={s.galleryWrap}>
           <PostGallery

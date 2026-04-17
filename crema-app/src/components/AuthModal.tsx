@@ -1,30 +1,32 @@
 /**
- * CRUD Utopia — floating auth modal. Opened from the profile dropdown's
- * "Add another account" item. Lets the user log into (or register) a
- * second account without leaving the current page; on success the
- * useAuth provider's upsertAccount enforces one-of-each type
- * (user/roaster/café) by evicting any existing saved account of the
- * same type.
+ * AuthModal — floating version of the `/auth` page. Opened from the
+ * profile dropdown's "Add another account" item; lets the user log
+ * into a second account without leaving the page.
  *
- * Uses the same overlayWrap + backdrop-blur language as PostModal.
- * Opens via window event: `crema:open-auth-modal` — dispatched from
- * ProfileDropdown's "Add another account" handler.
+ * Design matches the full auth screen: big CremaLogo SVG, tagline,
+ * User / Business tab selector, form card, social-auth row on the
+ * user track only. Tracks recolor the modal interior — cream for
+ * User, `roaster.panel` dark brown for Business — so business
+ * sign-ins carry the same visual signal as the dedicated screen.
+ *
+ * Cap behaviour: upsertAccount enforces one account per type
+ * (user / roaster / café), so signing into a 4th slot automatically
+ * evicts the existing account of the same category.
+ *
+ * Opens via `window.dispatchEvent(new CustomEvent("crema:open-auth-modal"))`.
  */
 
 import { useEffect, useState } from "react";
 import {
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+  Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { X } from "lucide-react-native";
 
 import { t } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
+import CremaLogo from "./CremaLogo";
+
+type Track = "user" | "business";
 
 export default function AuthModal() {
   const [visible, setVisible] = useState(false);
@@ -37,9 +39,7 @@ export default function AuthModal() {
   }, []);
 
   if (!visible) return null;
-  return (
-    <AuthModalContent visible={visible} onClose={() => setVisible(false)} />
-  );
+  return <AuthModalContent visible={visible} onClose={() => setVisible(false)} />;
 }
 
 function AuthModalContent({
@@ -47,6 +47,7 @@ function AuthModalContent({
 }: { visible: boolean; onClose: () => void }) {
   const { login, register } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
+  const [track, setTrack] = useState<Track>("user");
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
@@ -55,11 +56,16 @@ function AuthModalContent({
 
   const reset = () => {
     setIsLogin(true);
+    setTrack("user");
     setUsername(""); setDisplayName(""); setPassword("");
     setError(""); setLoading(false);
   };
-
   const close = () => { reset(); onClose(); };
+
+  const isBusiness = track === "business";
+  const bgColor = isBusiness ? t.color["roaster.panel"] : t.color.bg;
+  const fgColor = isBusiness ? t.color["text.on-dark"] : t.color["text.primary"];
+  const mutedFg = isBusiness ? "rgba(250,248,240,0.6)" : t.color["text.muted"];
 
   const submit = async () => {
     setError("");
@@ -75,71 +81,127 @@ function AuthModalContent({
     }
   };
 
+  const handleSocial = (provider: "google" | "instagram" | "reddit") => {
+    setError(`${provider[0].toUpperCase() + provider.slice(1)} sign-in is coming soon.`);
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
       <View style={s.overlayWrap}>
         <Pressable style={s.overlayBg} onPress={close} />
-        <View style={s.card}>
-          <View style={s.header}>
-            <Text style={s.title}>
-              {isLogin ? "Add another account" : "Create a new account"}
-            </Text>
-            <Pressable onPress={close} hitSlop={8}>
-              <X size={20} color={t.color["text.primary"]} />
-            </Pressable>
-          </View>
-          <View style={s.body}>
-            <Text style={s.hint}>
-              Only one user, one roaster, and one café account stay signed
-              in at a time. Adding a new account of the same type replaces
-              the previous one.
-            </Text>
+        <View style={[s.card, { backgroundColor: bgColor }]}>
+          {/* Close button in the corner — absolute so it doesn't
+             throw off the hero's centering. */}
+          <Pressable onPress={close} hitSlop={8} style={s.closeBtn}>
+            <X size={20} color={fgColor} />
+          </Pressable>
 
-            <TextInput
-              placeholder="Username"
-              placeholderTextColor={t.color["text.muted"]}
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={s.input}
-            />
-            {!isLogin && (
+          <ScrollView
+            contentContainerStyle={s.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Hero — Crema SVG + tagline, flips with the track. */}
+            <View style={s.hero}>
+              <CremaLogo width={200} height={42} />
+              <Text style={[s.tagline, { color: fgColor }]}>Discover coffee.</Text>
+            </View>
+
+            {/* Track selector */}
+            <View style={s.trackRow}>
+              <Pressable
+                onPress={() => { setTrack("user"); setError(""); }}
+                style={[s.trackTab, !isBusiness && s.trackTabActiveLight]}
+              >
+                <Text style={[s.trackTabText, !isBusiness ? s.trackTabTextActiveLight : { color: mutedFg }]}>
+                  For you
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => { setTrack("business"); setError(""); }}
+                style={[s.trackTab, isBusiness && s.trackTabActiveDark]}
+              >
+                <Text style={[s.trackTabText, isBusiness ? s.trackTabTextActiveDark : { color: mutedFg }]}>
+                  For businesses
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Form card — always cream so inputs read consistently
+               across both tracks. */}
+            <View style={s.formCard}>
+              <Text style={s.formTitle}>
+                {isBusiness
+                  ? (isLogin ? "Sign in for business" : "Create a business account")
+                  : (isLogin ? "Add another account" : "Create a new account")}
+              </Text>
+              <Text style={s.formHint}>
+                Only one user, one roaster, and one café stay signed in at once. Adding a new account of the same type replaces the previous one.
+              </Text>
+
               <TextInput
-                placeholder="Display Name"
+                placeholder="Username"
                 placeholderTextColor={t.color["text.muted"]}
-                value={displayName}
-                onChangeText={setDisplayName}
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
                 style={s.input}
               />
-            )}
-            <TextInput
-              placeholder="Password"
-              placeholderTextColor={t.color["text.muted"]}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              style={s.input}
-            />
+              {!isLogin && (
+                <TextInput
+                  placeholder={isBusiness ? "Business name" : "Display Name"}
+                  placeholderTextColor={t.color["text.muted"]}
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                  style={s.input}
+                />
+              )}
+              <TextInput
+                placeholder="Password"
+                placeholderTextColor={t.color["text.muted"]}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                style={s.input}
+              />
 
-            {error ? <Text style={s.error}>{error}</Text> : null}
+              {error ? <Text style={s.error}>{error}</Text> : null}
 
-            <Pressable
-              onPress={submit}
-              disabled={loading || !username || !password}
-              style={[s.submit, (loading || !username || !password) && s.submitDisabled]}
-            >
-              <Text style={s.submitText}>
-                {loading ? "…" : isLogin ? "Sign in" : "Create account"}
-              </Text>
-            </Pressable>
+              <Pressable
+                onPress={submit}
+                disabled={loading || !username || !password}
+                style={[s.submit, (loading || !username || !password) && s.submitDisabled]}
+              >
+                <Text style={s.submitText}>
+                  {loading ? "…" : isLogin ? "Sign in" : "Create account"}
+                </Text>
+              </Pressable>
 
-            <Pressable onPress={() => setIsLogin((v) => !v)}>
-              <Text style={s.toggle}>
-                {isLogin ? "Don't have an account? Create one" : "Already have one? Sign in"}
-              </Text>
-            </Pressable>
-          </View>
+              <Pressable onPress={() => { setIsLogin(!isLogin); setError(""); }}>
+                <Text style={s.toggleText}>
+                  {isLogin ? "New here? Create an account" : "Already have one? Sign in"}
+                </Text>
+              </Pressable>
+
+              {/* Social row — user track only. */}
+              {!isBusiness && (
+                <>
+                  <View style={s.dividerRow}>
+                    <View style={s.dividerLine} />
+                    <Text style={s.dividerText}>or continue with</Text>
+                    <View style={s.dividerLine} />
+                  </View>
+                  <View style={s.socialRow}>
+                    {(["google", "instagram", "reddit"] as const).map((p) => (
+                      <Pressable key={p} onPress={() => handleSocial(p)} style={s.socialBtn}>
+                        <Text style={s.socialBtnText}>{p[0].toUpperCase() + p.slice(1)}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              )}
+            </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -148,9 +210,7 @@ function AuthModalContent({
 
 const s = StyleSheet.create({
   overlayWrap: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    flex: 1, justifyContent: "center", alignItems: "center",
     ...(Platform.OS === "web"
       ? ({ backdropFilter: "blur(35px)", WebkitBackdropFilter: "blur(35px)" } as any)
       : {}),
@@ -160,73 +220,135 @@ const s = StyleSheet.create({
     backgroundColor: t.color.overlay,
   } as any,
   card: {
-    backgroundColor: t.color.bg,
     borderRadius: t.radius.lg,
     width: "92%",
-    maxWidth: 420,
+    maxWidth: 460,
+    maxHeight: "90%",
     overflow: "hidden",
     zIndex: 1,
   } as any,
-  header: {
-    flexDirection: "row",
+  closeBtn: {
+    position: "absolute",
+    top: 14, right: 14,
+    zIndex: 2,
+    padding: 4,
+  } as any,
+
+  scrollContent: {
+    paddingHorizontal: 28,
+    paddingTop: 40,
+    paddingBottom: 28,
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: t.spacing.xl,
-    paddingVertical: t.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: t.color["border.light"],
+    gap: 22,
+  } as any,
+
+  hero: { alignItems: "center", gap: 6 } as any,
+  tagline: {
+    fontFamily: t.font.display,
+    fontSize: 16,
+    letterSpacing: 0.2,
+    opacity: 0.85,
+  } as any,
+
+  trackRow: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 999,
+    padding: 4,
+    gap: 4,
+  } as any,
+  trackTab: {
+    paddingHorizontal: 16, paddingVertical: 7,
+    borderRadius: 999,
+  } as any,
+  trackTabActiveLight: { backgroundColor: t.color["text.primary"] } as any,
+  trackTabActiveDark: { backgroundColor: t.color.accent } as any,
+  trackTabText: {
+    fontFamily: t.font["body.semibold"], fontSize: 12,
+    letterSpacing: 0.3,
   },
-  title: {
-    fontFamily: t.font["body.semibold"],
-    fontSize: t.size["font.lg"],
+  trackTabTextActiveLight: { color: t.color["text.on-dark"] } as any,
+  trackTabTextActiveDark: { color: t.color["text.primary"] } as any,
+
+  formCard: {
+    width: "100%",
+    backgroundColor: t.color["card.front"],
+    borderRadius: t.radius.md,
+    padding: 22,
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
+  } as any,
+  formTitle: {
+    fontFamily: t.font.display,
+    fontSize: 20,
+    lineHeight: 26,
     color: t.color["text.primary"],
-    flex: 1,
-    paddingRight: t.spacing.md,
   },
-  body: {
-    paddingHorizontal: t.spacing.xl,
-    paddingVertical: t.spacing.xl,
-    gap: t.spacing.md,
-  },
-  hint: {
-    fontFamily: t.font["body.regular"],
-    fontSize: t.size["font.sm"],
-    color: t.color["text.secondary"],
-    lineHeight: t.lineHeight.relaxed,
+  formHint: {
+    fontFamily: t.font["body.regular"], fontSize: 12,
+    color: t.color["text.muted"],
+    lineHeight: 17,
+    marginTop: -4, marginBottom: 4,
   },
   input: {
-    backgroundColor: t.color["card.info"],
-    borderRadius: t.radius.sm,
+    backgroundColor: t.color.bg,
+    borderWidth: 1,
+    borderColor: t.color["border.light"],
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontFamily: t.font["body.regular"],
-    fontSize: t.size["font.md"],
+    paddingVertical: 11,
+    fontFamily: t.font["body.regular"], fontSize: 14,
     color: t.color["text.primary"],
-    outlineStyle: "none" as any,
+    ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
   } as any,
-  submit: {
-    backgroundColor: t.color.accent,
-    borderRadius: t.radius.sm,
-    paddingVertical: 10,
-    alignItems: "center",
-    marginTop: t.spacing.xs,
-  },
-  submitDisabled: { opacity: 0.4 },
-  submitText: {
-    fontFamily: t.font["body.semibold"],
-    fontSize: t.size["font.md"],
-    color: t.color["text.primary"],
-  },
-  toggle: {
-    fontFamily: t.font["body.medium"],
-    fontSize: t.size["font.sm"],
-    color: t.color["text.muted"],
-    textAlign: "center",
-    paddingVertical: t.spacing.xs,
-  },
   error: {
-    fontFamily: t.font["body.regular"],
-    fontSize: t.size["font.sm"],
-    color: t.color["accent.cta"],
+    fontFamily: t.font["body.regular"], fontSize: 12.5,
+    color: "#C8553D",
+    textAlign: "center",
+  },
+  submit: {
+    backgroundColor: t.color["text.primary"],
+    borderRadius: 10,
+    paddingVertical: 13,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  submitDisabled: { opacity: 0.5 } as any,
+  submitText: {
+    fontFamily: t.font["body.semibold"], fontSize: 13,
+    color: t.color["text.on-dark"], letterSpacing: 0.3,
+  },
+  toggleText: {
+    fontFamily: t.font["body.medium"], fontSize: 12.5,
+    color: t.color["text.secondary"],
+    textAlign: "center",
+    paddingVertical: 4,
+  },
+
+  dividerRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginTop: 8, marginBottom: 2,
+  } as any,
+  dividerLine: { flex: 1, height: 1, backgroundColor: t.color["border.light"] } as any,
+  dividerText: {
+    fontFamily: t.font["body.regular"], fontSize: 10.5,
+    color: t.color["text.muted"], letterSpacing: 0.3,
+  },
+  socialRow: { flexDirection: "row", gap: 8 } as any,
+  socialBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1, borderColor: t.color["border.light"],
+    alignItems: "center",
+    backgroundColor: t.color.bg,
+  } as any,
+  socialBtnText: {
+    fontFamily: t.font["body.semibold"], fontSize: 12.5,
+    color: t.color["text.primary"],
   },
 });

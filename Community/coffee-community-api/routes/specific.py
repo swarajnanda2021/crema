@@ -28,12 +28,96 @@ def _require_admin(user):
         raise HTTPException(403, "Admin only")
 
 
+# ── Link preview ────────────────────────────────────────────────────────────
+# Lives here (not main.py) so the router registration fires BEFORE
+# resources_router's `/{resource}` catch-all would otherwise swallow
+# `/api/link-preview` as `resource="link-preview"` and 500.
+
+_link_preview_cache: dict = {}
+
+
+@router.get("/link-preview")
+def link_preview(url: str = ""):
+    """Fetch Open Graph metadata for a URL. Used by the composer to
+    turn a pasted URL into an article card. Failures fall through to
+    a domain-favicon fallback so the composer never ends up stuck
+    with no preview."""
+    import re as _re
+    import urllib.request
+    from urllib.parse import urlparse
+
+    if not url or not url.startswith("http"):
+        return ok({"title": "", "description": "", "image_url": "", "domain": ""}, resource="link_preview")
+
+    if url in _link_preview_cache:
+        return ok(_link_preview_cache[url], resource="link_preview")
+
+    domain = urlparse(url).netloc.replace("www.", "")
+
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; CremaBot/1.0)"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            html = resp.read(50_000).decode("utf-8", errors="ignore")
+
+        def og(prop: str) -> str:
+            m = _re.search(rf'<meta[^>]+property=["\']og:{prop}["\'][^>]+content=["\']([^"\']+)["\']', html, _re.I)
+            if not m:
+                m = _re.search(rf'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:{prop}["\']', html, _re.I)
+            return m.group(1) if m else ""
+
+        title = og("title")
+        if not title:
+            m = _re.search(r"<title[^>]*>([^<]+)</title>", html, _re.I)
+            title = m.group(1).strip() if m else ""
+
+        image_url = og("image")
+        if not image_url:
+            image_url = f"https://www.google.com/s2/favicons?domain={domain}&sz=128"
+
+        result = {"title": title, "description": og("description"), "image_url": image_url, "domain": domain}
+        _link_preview_cache[url] = result
+        return ok(result, resource="link_preview")
+    except Exception:
+        image_url = f"https://www.google.com/s2/favicons?domain={domain}&sz=128"
+        result = {"title": "", "description": "", "image_url": image_url, "domain": domain}
+        _link_preview_cache[url] = result
+        return ok(result, resource="link_preview")
+
+
 @router.get("/stats/traction")
 def stats_traction(user=Depends(get_current_user)):
     _require_admin(user)
     db = get_db()
     try:
         return ok(compute_traction(db), resource="traction")
+    finally:
+        db.close()
+
+
+@router.get("/stats/series")
+def stats_series(key: str, range: str = "30d", user=Depends(get_current_user)):
+    """Daily time-series for a single admin metric.
+
+    §2.18 drill-down — every card in `TractionDashboard` opens a
+    modal that fetches one named series from here. Dispatch by key;
+    each series is a plain SQL snippet that returns
+    (date, count) rows, fed through the shared `_daily_series`
+    helper so leading zeros are trimmed and the window is filled.
+
+    The key naming mirrors the `snake_case` identifiers returned by
+    `compute_traction` (e.g. `daily_signups`, `dau`), so the frontend
+    can route without a separate mapping table.
+    """
+    from services.admin_stats import build_series
+    _require_admin(user)
+    try:
+        days = int(range.rstrip("d")) if range.endswith("d") else 30
+    except ValueError:
+        days = 30
+    db = get_db()
+    try:
+        series = build_series(db, key, max(1, min(365, days)))
+        return ok(series, resource="series", key=key, range=f"{days}d")
     finally:
         db.close()
 
@@ -531,6 +615,50 @@ def product_popularity():
             "SELECT product_id, COUNT(DISTINCT user_id) as user_count FROM shelf_entries GROUP BY product_id"
         ).fetchall()
         return ok({r["product_id"]: r["user_count"] for r in rows}, resource="products")
+    finally:
+        db.close()
+
+
+@router.get("/products/{product_id}/posts")
+def product_posts(product_id: str, authorization: str = Header(None)):
+    """Posts that reference this product via tasting_note.
+
+    Returns full envelope-wrapped `Post` objects (with `author`, counts,
+    `liked_by_me` flag) so the frontend can render them through the
+    shared `PostCard` component — no custom-shaped rendering for
+    tasting-notes-on-shelf. Used by `PopularityModal` to replace the
+    earlier bespoke tasting-note display.
+    """
+    current_user = get_optional_user(authorization)
+    uid = current_user["id"] if current_user else None
+    db = get_db()
+    try:
+        # Collect every tasting-note row for this product, then the
+        # roaster_posts that wrap them. Two small lookups beats a
+        # join-heavy one and keeps the logic obvious.
+        tn_rows = db.execute(
+            "SELECT id FROM tasting_notes WHERE product_id = ?",
+            (product_id,),
+        ).fetchall()
+        tn_ids = [r["id"] for r in tn_rows]
+        if not tn_ids:
+            return ok([], resource="posts", total=0)
+        placeholders = ",".join(["?"] * len(tn_ids))
+        post_id_rows = db.execute(
+            f"SELECT id FROM roaster_posts WHERE tasting_note_id IN ({placeholders})",
+            tn_ids,
+        ).fetchall()
+        post_ids = {r["id"] for r in post_id_rows}
+        if not post_ids:
+            return ok([], resource="posts", total=0)
+        # Run posts through the registry's list_resource so author +
+        # counts + liked_by_me come back fully populated, then filter
+        # to the matched set. Limit=500 caps the worst-case fan-out
+        # but real distributions are tiny (N shelf-writers per bean).
+        all_posts, _total = list_resource(db, "posts", limit=500, offset=0, current_user_id=uid)
+        matched = [p for p in all_posts if p["id"] in post_ids]
+        matched.sort(key=lambda p: p.get("published_at", ""), reverse=True)
+        return ok(matched, resource="posts", total=len(matched))
     finally:
         db.close()
 

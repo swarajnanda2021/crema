@@ -31,42 +31,69 @@ interface EditableCoffeeCardProps {
   width: number;
   height: number;
   onSave: (data: any) => Promise<void>;
+  /** §2.9 — when set, the component starts directly in "editing"
+   *  mode pre-filled with these fields, and onCancel is expected
+   *  to close the surrounding modal rather than revert to the
+   *  placeholder. The parent decides whether `onSave` POSTs (new
+   *  product) or PUTs (existing product). */
+  initialData?: any;
+  /** §2.9 — cancel callback for edit mode. Only used when
+   *  `initialData` is present; the placeholder-creation flow still
+   *  uses its own internal slide-out. */
+  onCancel?: () => void;
 }
 
 export default function EditableCoffeeCard({
-  roasterName, width, height, onSave,
+  roasterName, width, height, onSave, initialData, onCancel,
 }: EditableCoffeeCardProps) {
-  const [mode, setMode] = useState<"placeholder" | "editing">("placeholder");
+  // When `initialData` is provided we're in edit-an-existing-bean
+  // mode and the placeholder step is skipped entirely. Otherwise the
+  // original placeholder → editing flow runs.
+  const startMode: "placeholder" | "editing" = initialData ? "editing" : "placeholder";
+  const [mode, setMode] = useState<"placeholder" | "editing">(startMode);
 
-  // Field states
-  const [coffeeName, setCoffeeName] = useState("");
-  const [beanType, setBeanType] = useState("");
-  const [processVal, setProcessVal] = useState("");
-  const [roastLevel, setRoastLevel] = useState("");
-  const [tastingNotes, setTastingNotes] = useState("");
-  const [flavorNotes, setFlavorNotes] = useState("");
-  const [origin, setOrigin] = useState("");
-  const [varietal, setVarietal] = useState("");
-  const [altitudeMasl, setAltitudeMasl] = useState("");
-  const [priceInr, setPriceInr] = useState("");
-  const [weightGrams, setWeightGrams] = useState("");
-  const [productUrl, setProductUrl] = useState("");
+  // Field states — pre-filled from initialData when editing.
+  const [coffeeName, setCoffeeName] = useState(initialData?.coffee_name || "");
+  const [beanType, setBeanType] = useState(initialData?.bean_type || "");
+  const [processVal, setProcessVal] = useState(initialData?.process || "");
+  const [roastLevel, setRoastLevel] = useState(initialData?.roast_level || "");
+  const [tastingNotes, setTastingNotes] = useState(initialData?.tasting_notes || "");
+  const [flavorNotes, setFlavorNotes] = useState(initialData?.flavor_notes || "");
+  const [origin, setOrigin] = useState(initialData?.origin || "");
+  const [varietal, setVarietal] = useState(initialData?.varietal || "");
+  const [altitudeMasl, setAltitudeMasl] = useState(
+    initialData?.altitude_masl != null ? String(initialData.altitude_masl) : "",
+  );
+  const [priceInr, setPriceInr] = useState(
+    initialData?.price_inr != null ? String(initialData.price_inr) : "",
+  );
+  const [weightGrams, setWeightGrams] = useState(
+    initialData?.weight_grams != null ? String(initialData.weight_grams) : "",
+  );
+  const [productUrl, setProductUrl] = useState(initialData?.product_url || "");
   const [showUrlInput, setShowUrlInput] = useState(false);
-  // Wholesale availability (§2.2). Collapsed by default — expands
-  // inline when the toggle row is tapped.
-  const [showWholesale, setShowWholesale] = useState(false);
-  const [wholesaleAvailable, setWholesaleAvailable] = useState(false);
-  const [wholesaleMinKg, setWholesaleMinKg] = useState("");
-  const [wholesaleNote, setWholesaleNote] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [cropY, setCropY] = useState(50);
+  // Wholesale availability (§2.2) — a single checkbox. Minimum-kg +
+  // note fields were dropped: roasters only need to declare "yes,
+  // wholesale is on the table for this bean" — the rest (quantity,
+  // price, terms) gets negotiated inline on the inquiry thread where
+  // the café can ask and the roaster can answer with context. This
+  // kept the form from feeling like a procurement SKU editor.
+  const [wholesaleAvailable, setWholesaleAvailable] = useState(
+    initialData?.wholesale_available === 1,
+  );
+  const [imageUrl, setImageUrl] = useState(initialData?.image_url || "");
+  const [cropY, setCropY] = useState(
+    initialData?.image_crop_y != null ? initialData.image_crop_y : 50,
+  );
   const [isDragging, setIsDragging] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const imgDragRef = useRef({ y: 0, cropY: 50 });
+  const imgDragRef = useRef({ y: 0, cropY: cropY });
   const imgWrapRef = useRef<View>(null);
-  const editSlideAnim = useRef(new Animated.Value(width)).current;
+  // In edit-existing mode the card is already visible (no slide-in
+  // animation), so start the slide at 0 instead of `width`.
+  const editSlideAnim = useRef(new Animated.Value(initialData ? 0 : width)).current;
   const saveAnim = useRef(new Animated.Value(1)).current;
 
   const resetFields = useCallback(() => {
@@ -75,8 +102,7 @@ export default function EditableCoffeeCard({
     setFlavorNotes(""); setPriceInr(""); setWeightGrams(""); setProductUrl("");
     setShowUrlInput(false); setImageUrl(""); setCropY(50);
     setShowImageModal(false); setSaving(false);
-    setShowWholesale(false); setWholesaleAvailable(false);
-    setWholesaleMinKg(""); setWholesaleNote("");
+    setWholesaleAvailable(false);
   }, []);
 
   const handleOpenEdit = useCallback(() => {
@@ -90,11 +116,14 @@ export default function EditableCoffeeCard({
   }, [editSlideAnim, width]);
 
   const handleCancel = useCallback(() => {
+    // Edit-an-existing-bean flow: let the parent close the modal.
+    // Create-new-bean flow: slide back to the placeholder.
+    if (initialData && onCancel) { onCancel(); return; }
     Animated.timing(editSlideAnim, {
       toValue: width, duration: 200, useNativeDriver: true,
       easing: Easing.in(Easing.cubic),
     }).start(() => { setMode("placeholder"); resetFields(); });
-  }, [editSlideAnim, width, resetFields]);
+  }, [editSlideAnim, width, resetFields, initialData, onCancel]);
 
   const handleImgDragStart = useCallback((e: any) => {
     e.preventDefault();
@@ -133,14 +162,24 @@ export default function EditableCoffeeCard({
       product_url: productUrl.trim() || null,
       image_url: imageUrl || null,
       description_raw: null,
-      // Wholesale availability — sent to POST /api/roasters/{slug}/products
-      // which accepts these three fields (see backend commit fada03c).
+      // Wholesale availability — just the flag. The backend still
+      // accepts wholesale_minimum_kg + wholesale_note (they're in the
+      // schema for legacy rows), but the roaster-facing form stops
+      // capturing them; null-through both.
       wholesale_available: wholesaleAvailable ? 1 : 0,
-      wholesale_minimum_kg: wholesaleAvailable && wholesaleMinKg
-        ? parseInt(wholesaleMinKg, 10) : null,
-      wholesale_note: wholesaleAvailable && wholesaleNote.trim()
-        ? wholesaleNote.trim() : null,
+      wholesale_minimum_kg: null,
+      wholesale_note: null,
     };
+    // Edit-an-existing flow: skip the slide-out-to-placeholder
+    // animation entirely — the parent closes the hosting modal on
+    // save, and animating the card's opacity to 0 here leaves a
+    // visible "blank card" frame if the parent hasn't unmounted yet
+    // (that was the blank-on-tick bug). Just save and hand back.
+    if (initialData) {
+      setSaving(true);
+      try { await onSave(data); } finally { setSaving(false); }
+      return;
+    }
     Animated.sequence([
       Animated.timing(saveAnim, { toValue: 1.03, duration: 120, useNativeDriver: true }),
       Animated.timing(saveAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
@@ -155,7 +194,7 @@ export default function EditableCoffeeCard({
     });
   }, [coffeeName, beanType, processVal, roastLevel, tastingNotes, origin, varietal,
     altitudeMasl, flavorNotes, priceInr, weightGrams, productUrl, imageUrl,
-    wholesaleAvailable, wholesaleMinKg, wholesaleNote,
+    wholesaleAvailable, initialData,
     saving, onSave, width, resetFields]);
 
   const imageH = Math.round(height * IMAGE_RATIO);
@@ -165,13 +204,16 @@ export default function EditableCoffeeCard({
 
   return (
     <View style={[s.outerWrap, { width, height }]}>
-      {/* Placeholder */}
-      <Pressable onPress={handleOpenEdit} style={[s.placeholder, { width, height }]}>
-        <Svg width={44} height={44} viewBox="0 0 44 44" fill="none">
-          <Circle cx={22} cy={22} r={22} fill={t.color["card.info"]} />
-          <Path d="M22 12V32M12 22H32" stroke={t.color["text.primary"]} strokeWidth={2} strokeLinecap="round" />
-        </Svg>
-      </Pressable>
+      {/* Placeholder (new-product creation flow only; hidden when
+          editing an existing bean since the card is already in-form). */}
+      {!initialData && (
+        <Pressable onPress={handleOpenEdit} style={[s.placeholder, { width, height }]}>
+          <Svg width={44} height={44} viewBox="0 0 44 44" fill="none">
+            <Circle cx={22} cy={22} r={22} fill={t.color["card.info"]} />
+            <Path d="M22 12V32M12 22H32" stroke={t.color["text.primary"]} strokeWidth={2} strokeLinecap="round" />
+          </Svg>
+        </Pressable>
+      )}
 
       {/* Edit form — slides in from right */}
       {mode === "editing" && (
@@ -278,57 +320,18 @@ export default function EditableCoffeeCard({
               </Pressable>
             </View>
 
-            {/* Wholesale flag (§2.2). Opens a tiny inline sheet where
-               the roaster marks this bean wholesale-available, sets a
-               minimum-order kg, and a short note café viewers see
-               when they tap the Package chip on the card. */}
+            {/* Wholesale flag (§2.2). One row, one checkbox. Tapping
+               toggles wholesale_available; there are no further fields
+               to expand. Café viewers see a Package chip on the card
+               for flagged beans, and negotiate min-kg / price inline
+               in the inquiry thread. */}
             <View style={s.divider} />
-            <Pressable onPress={() => setShowWholesale((v) => !v)} style={s.wholesaleToggleRow}>
+            <Pressable onPress={() => setWholesaleAvailable((v) => !v)} style={s.wholesaleToggleRow}>
               <View style={[s.wholesaleCheckbox, wholesaleAvailable && s.wholesaleCheckboxOn]}>
                 {wholesaleAvailable && <Text style={s.wholesaleCheck}>✓</Text>}
               </View>
               <Text style={s.wholesaleLabel}>Available wholesale</Text>
-              {wholesaleAvailable && wholesaleMinKg ? (
-                <Text style={s.wholesaleMinHint}>min {wholesaleMinKg}kg</Text>
-              ) : null}
             </Pressable>
-            {showWholesale && (
-              <View style={s.wholesalePanel}>
-                <Pressable
-                  onPress={() => setWholesaleAvailable((v) => !v)}
-                  style={[s.wholesaleFlagBtn, wholesaleAvailable && s.wholesaleFlagBtnOn]}
-                >
-                  <Text style={[s.wholesaleFlagText, wholesaleAvailable && s.wholesaleFlagTextOn]}>
-                    {wholesaleAvailable ? "Yes — wholesale available" : "No — retail only"}
-                  </Text>
-                </Pressable>
-                {wholesaleAvailable && (
-                  <>
-                    <View style={s.wholesaleInputRow}>
-                      <Text style={s.wholesaleInputLabel}>Minimum order</Text>
-                      <TextInput
-                        style={s.wholesaleKgInput}
-                        value={wholesaleMinKg}
-                        onChangeText={(v) => setWholesaleMinKg(v.replace(/[^0-9]/g, ""))}
-                        placeholder="e.g. 5"
-                        placeholderTextColor="rgba(104,79,68,0.5)"
-                        keyboardType="numeric"
-                      />
-                      <Text style={s.wholesaleInputLabel}>kg</Text>
-                    </View>
-                    <TextInput
-                      style={s.wholesaleNoteInput}
-                      value={wholesaleNote}
-                      onChangeText={setWholesaleNote}
-                      placeholder="Note for café viewers (optional)"
-                      placeholderTextColor="rgba(104,79,68,0.5)"
-                      multiline
-                      maxLength={300}
-                    />
-                  </>
-                )}
-              </View>
-            )}
           </View>
 
           {/* URL modal */}
@@ -456,50 +459,6 @@ const s = StyleSheet.create({
   wholesaleLabel: {
     fontFamily: t.font["body.regular"], fontSize: 9.563,
     color: t.color["text.secondary"],
-  } as any,
-  wholesaleMinHint: {
-    fontFamily: t.font["body.medium"], fontSize: 9, color: t.color["text.secondary"],
-    marginLeft: "auto" as any,
-  } as any,
-  wholesalePanel: {
-    marginTop: 6, padding: 8, borderRadius: 4,
-    backgroundColor: "rgba(53,17,1,0.04)", gap: 6,
-  } as any,
-  wholesaleFlagBtn: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10,
-    borderWidth: 1, borderColor: "rgba(53,17,1,0.2)",
-  } as any,
-  wholesaleFlagBtnOn: {
-    backgroundColor: t.color["text.primary"],
-    borderColor: t.color["text.primary"],
-  } as any,
-  wholesaleFlagText: {
-    fontFamily: t.font["body.medium"], fontSize: 9, color: t.color["text.secondary"],
-    letterSpacing: 0.2,
-  } as any,
-  wholesaleFlagTextOn: { color: t.color["text.on-dark"] } as any,
-  wholesaleInputRow: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-  } as any,
-  wholesaleInputLabel: {
-    fontFamily: t.font["body.regular"], fontSize: 9.563, color: t.color["text.secondary"],
-  } as any,
-  wholesaleKgInput: {
-    fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.primary"],
-    backgroundColor: "#FFFFFF", borderRadius: 3,
-    paddingHorizontal: 6, paddingVertical: 3,
-    borderWidth: 1, borderColor: "rgba(53,17,1,0.1)",
-    width: 50,
-    ...(Platform.OS === "web" ? { outlineStyle: "none", ...liningNumerals } : {}),
-  } as any,
-  wholesaleNoteInput: {
-    fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["text.primary"],
-    backgroundColor: "#FFFFFF", borderRadius: 3,
-    paddingHorizontal: 6, paddingVertical: 4,
-    borderWidth: 1, borderColor: "rgba(53,17,1,0.1)",
-    minHeight: 40, textAlignVertical: "top",
-    ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
   } as any,
   bottomRow: {
     flexDirection: "row", alignItems: "flex-end",

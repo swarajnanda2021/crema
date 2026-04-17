@@ -101,8 +101,10 @@ function removeAccount(username: string) {
 
 /** Where to land a user after a hard-reload switch. Roasters and cafés
  * go to their entity profile so the owner affordances (edit banner,
- * menu controls, scan button) light up immediately; regular users go
- * to the feed. */
+ * menu controls, scan button) light up immediately; regular users
+ * land on their own profile tab (`/profile`) rather than the feed so
+ * the "who am I now?" question is answered visually the moment the
+ * switch completes. */
 function entityHomeFor(user: User): string {
   if (user.account_type === "roaster" && user.roaster_slug) {
     return `/roaster/${user.roaster_slug}`;
@@ -110,7 +112,7 @@ function entityHomeFor(user: User): string {
   if (user.account_type === "cafe" && user.cafe_slug) {
     return `/cafe/${user.cafe_slug}`;
   }
-  return "/";
+  return "/profile";
 }
 
 // ── Provider ─────────────────────────────────────────────────────────────────
@@ -175,12 +177,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     const username = user?.username;
+    // Drop the current session first so any follow-up fetch uses
+    // the next account's token.
     await setToken(null);
     setUser(null);
     if (username) removeAccount(username);
+
+    // If the user still has other saved accounts on the device,
+    // slip into the next one instead of bouncing to /auth. That
+    // matches the mental model of Gmail / Twitter account
+    // switching — "sign out" really means "drop this identity" not
+    // "log me out of everything". The next-account pick order:
+    //   1. user  2. roaster  3. café
+    // which is the order people tend to think of them in.
+    const remaining = readSavedAccounts();
+    const typePriority: Record<string, number> = { user: 0, roaster: 1, cafe: 2 };
+    const next = remaining
+      .slice()
+      .sort((a, b) => (typePriority[a.account_type || "user"] ?? 9)
+        - (typePriority[b.account_type || "user"] ?? 9))[0];
+
+    if (next && Platform.OS === "web" && typeof window !== "undefined") {
+      // Slip into the next saved account. Write the token first so
+      // the follow-up /auth/me carries the right session, then call
+      // it to pull the full user row (we need slug fields the saved
+      // entry doesn't carry). Hard-reload at the entity home so the
+      // new identity mounts cleanly.
+      await setToken(next.token);
+      try {
+        const meRes = await apiFetchRaw<any>("/auth/me");
+        const me = meRes?.data ?? meRes;
+        upsertAccount(me, next.token);
+        window.location.assign(entityHomeFor(me));
+        return;
+      } catch {
+        // Token expired — fall through to the default logout path
+        // after wiping the stale saved entry.
+        removeAccount(next.username);
+        await setToken(null);
+      }
+    }
+
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      // Fresh reload drops any in-memory state bound to the old
-      // session token (feed, café/roaster owner UI, etc.).
+      // No other accounts — fresh reload drops any in-memory state
+      // bound to the old session token and lands at the auth screen
+      // via AuthGate's unauthenticated redirect.
       window.location.assign("/");
     }
   }, [user]);

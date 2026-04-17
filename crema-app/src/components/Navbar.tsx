@@ -7,10 +7,10 @@
  *
  * Profile dropdown (Chrome-style) appears on avatar click for authenticated users.
  */
-import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useEffect, useState } from "react";
-import { User, Search, X, Bell, MessageCircle } from "lucide-react-native";
+import { User, Search, Bell, MessageCircle } from "lucide-react-native";
 import { t, NAVBAR_HEIGHT } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
@@ -20,14 +20,18 @@ import CremaLogo from "./CremaLogo";
 import ProfileDropdown from "./ProfileDropdown";
 import NotificationsDropdown from "./NotificationsDropdown";
 import MessagesDropdown from "./MessagesDropdown";
+import SearchDropdown from "./SearchDropdown";
 import type { ThreadKind } from "./ThreadBody";
 
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, backendAvailable } = useAuth();
+  // §2.11 — sitewide search moved to a floating dropdown (same
+  // language as messages / notifications). The navbar glass just
+  // toggles visibility; all typing + results happen inside
+  // SearchDropdown.
   const [searchOpen, setSearchOpen] = useState(false);
-  const [query, setQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   // Messages dropdown holds list + active thread in a single floating
@@ -41,14 +45,6 @@ export default function Navbar() {
   const showMessagesIcon = !!user;
   const { totalUnread: messagesUnread } = useInquiryInbox(!!user);
 
-
-  const handleSearch = () => {
-    if (query.trim()) {
-      router.push(`/browse?q=${encodeURIComponent(query.trim())}`);
-    }
-    setSearchOpen(false);
-    setQuery("");
-  };
 
   const isShop = pathname === "/browse";
   const isHome = pathname === "/";
@@ -107,25 +103,9 @@ export default function Navbar() {
 
         {/* Right side — search + user avatar */}
         <View style={s.rightSide}>
-          {searchOpen ? (
-            <View style={s.searchContainer}>
-              <TextInput
-                autoFocus
-                value={query}
-                onChangeText={setQuery}
-                onSubmitEditing={handleSearch}
-                placeholder="Search"
-                placeholderTextColor="rgba(250,248,240,0.5)"
-                style={s.searchInput}
-              />
-              <Pressable onPress={() => { setSearchOpen(false); setQuery(""); }}>
-                <X size={18} color="#E7D5B8" />
-              </Pressable>
-            </View>
-          ) : (
-            <>
+          <>
               <Pressable
-                onPress={() => { closeOthers("search"); setSearchOpen(true); }}
+                onPress={() => { closeOthers("search"); setSearchOpen((v) => !v); }}
                 style={s.iconBtn}
               >
                 <Search size={24} color="#E7D5B8" strokeWidth={1.5} />
@@ -200,9 +180,14 @@ export default function Navbar() {
                 </Pressable>
               ) : null}
             </>
-          )}
         </View>
       </View>
+
+      {/* §2.11 — sitewide search dropdown. */}
+      <SearchDropdown
+        visible={searchOpen}
+        onClose={() => setSearchOpen(false)}
+      />
 
       {/* Notifications dropdown. Tapping a thread-related notification
          opens the Messages dropdown directly at the right thread. */}
@@ -294,21 +279,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 3,
   } as any,
   badgeText: { fontFamily: t.font["body.semibold"], fontSize: 9, color: "#351101" },
-
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    width: 200,
-  },
-  searchInput: {
-    flex: 1,
-    fontFamily: t.font["body.regular"],
-    fontSize: 14,
-    color: "#E7D5B8",
-  },
+  // searchContainer / searchInput styles removed — the sitewide
+  // search moved to a floating dropdown (see SearchDropdown).
 });

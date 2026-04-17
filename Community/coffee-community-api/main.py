@@ -70,53 +70,10 @@ def root():
     return {"service": "Crema API", "version": "2.0", "architecture": "CRUD Utopia"}
 
 
-# ── Link Preview (utility, not a CRUD resource) ─────────────────────────────
-
-_link_preview_cache: dict = {}
-
-
-@app.get("/api/link-preview")
-def link_preview(url: str):
-    """Fetch Open Graph metadata for a URL."""
-    import urllib.request
-    from urllib.parse import urlparse
-
-    if not url or not url.startswith("http"):
-        return ok({"title": "", "description": "", "image_url": "", "domain": ""}, resource="link_preview")
-
-    if url in _link_preview_cache:
-        return ok(_link_preview_cache[url], resource="link_preview")
-
-    domain = urlparse(url).netloc.replace("www.", "")
-
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; CremaBot/1.0)"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            html = resp.read(50_000).decode("utf-8", errors="ignore")
-
-        def og(prop: str) -> str:
-            m = re.search(rf'<meta[^>]+property=["\']og:{prop}["\'][^>]+content=["\']([^"\']+)["\']', html, re.I)
-            if not m:
-                m = re.search(rf'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:{prop}["\']', html, re.I)
-            return m.group(1) if m else ""
-
-        title = og("title")
-        if not title:
-            m = re.search(r"<title[^>]*>([^<]+)</title>", html, re.I)
-            title = m.group(1).strip() if m else ""
-
-        image_url = og("image")
-        if not image_url:
-            image_url = f"https://www.google.com/s2/favicons?domain={domain}&sz=128"
-
-        result = {"title": title, "description": og("description"), "image_url": image_url, "domain": domain}
-        _link_preview_cache[url] = result
-        return ok(result, resource="link_preview")
-    except Exception:
-        image_url = f"https://www.google.com/s2/favicons?domain={domain}&sz=128"
-        result = {"title": "", "description": "", "image_url": image_url, "domain": domain}
-        _link_preview_cache[url] = result
-        return ok(result, resource="link_preview")
+# Link-preview used to be declared here on @app.get, but it was
+# shadowed by resources_router's `/{resource}` catch-all which
+# matched "link-preview" first. Moved to specific.py so it sits
+# under the same router as other pre-catchall endpoints.
 
 
 # ── Catalog Sync (imports scraped JSON → products table) ─────────────────────

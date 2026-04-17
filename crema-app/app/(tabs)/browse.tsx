@@ -5,14 +5,15 @@
  * Only imports, API calls, and component references are updated for crud-utopia.
  */
 
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
+import { useMemo, useState, useEffect } from "react";
+import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { Search, X, ArrowRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useCafes } from "../../src/hooks/useCafes";
+import { useSearchBarAutoHide } from "../../src/hooks/useSearchBarAutoHide";
 import { t } from "../../src/tokens/useTokens";
 import CoffeeList from "../../src/components/CoffeeList";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
@@ -29,10 +30,17 @@ export default function BrowsePage() {
   const [selectedRoasters, setSelectedRoasters] = useState<string[]>([]);
   const [selectedRoasts, setSelectedRoasts] = useState<string[]>([]);
   const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
-  const [searchBarHidden, setSearchBarHidden] = useState(false);
-  // Phase 1 §2.2 — café viewers can filter to wholesale-available beans.
+  // §2.16 — stable search-bar hide that doesn't thrash at
+  // end-of-list. Replaces the old raw `y > lastY && y > 10` toggle.
+  const { hidden: searchBarHidden, handleScroll: handleBeansScroll } = useSearchBarAutoHide();
+  // Phase 1 §2.2 — business viewers (cafés + roasters) can filter to
+  // wholesale-available beans. Matches CoffeeCard's Package chip,
+  // which is also visible to both account types. A roaster browsing
+  // competitors' offerings can legitimately want to see what's on the
+  // table for bulk orders — e.g. when they need a backup supplier for
+  // a specific origin they're running low on.
   const { user } = useAuth();
-  const canSeeWholesale = user?.account_type === "cafe";
+  const canSeeWholesale = user?.account_type === "cafe" || user?.account_type === "roaster";
   const [wholesaleOnly, setWholesaleOnly] = useState(false);
 
   useEffect(() => {
@@ -79,10 +87,6 @@ export default function BrowsePage() {
 
   const clearAll = () => { setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]); setQuery(""); setWholesaleOnly(false); };
 
-  const handleScrollDirection = useCallback((dir: "up" | "down") => {
-    setSearchBarHidden(dir === "down");
-  }, []);
-
   return (
     <View style={s.container}>
       {/* Sub-tabs */}
@@ -118,7 +122,7 @@ export default function BrowsePage() {
                 </Pressable>
               )}
 
-              {/* Café-only wholesale filter — §2.2 */}
+              {/* Business-viewer wholesale filter — §2.2 (roaster + café) */}
               {canSeeWholesale && (
                 <>
                   <View style={s.filterSection}>
@@ -129,9 +133,9 @@ export default function BrowsePage() {
                       accessibilityState={{ checked: wholesaleOnly }}
                     >
                       <View style={[s.wholesaleBox, wholesaleOnly && s.wholesaleBoxOn]}>
-                        {wholesaleOnly && <View style={s.wholesaleBoxDot} />}
+                        {wholesaleOnly && <Text style={s.wholesaleBoxTick}>{"\u2713"}</Text>}
                       </View>
-                      <Text style={s.wholesaleLabel}>Wholesale available only</Text>
+                      <Text style={s.wholesaleLabel}>Wholesale</Text>
                     </Pressable>
                     <Text style={s.wholesaleHint}>
                       Shows products roasters have flagged as available for wholesale orders.
@@ -183,7 +187,7 @@ export default function BrowsePage() {
             <CoffeeList
               coffees={filtered}
               popularity={popularity}
-              onScrollDirection={handleScrollDirection}
+              onScroll={handleBeansScroll}
               ListHeaderComponent={
                 hasActiveFilters ? (
                   <View style={s.listHeader}>
@@ -303,8 +307,7 @@ function RoastersList() {
   const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
   const [roasterQuery, setRoasterQuery] = useState("");
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
-  const [searchBarHidden, setSearchBarHidden] = useState(false);
-  const lastScrollY = useRef(0);
+  const { hidden: searchBarHidden, handleScroll } = useSearchBarAutoHide();
 
   const roasterImages = useMemo(() => {
     const map: Record<string, string> = {};
@@ -338,12 +341,6 @@ function RoastersList() {
   const toggleCity = (city: string) => {
     setSelectedCities(prev => prev.includes(city) ? prev.filter(c => c !== city) : [...prev, city]);
   };
-
-  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const currentY = e.nativeEvent.contentOffset.y;
-    setSearchBarHidden(currentY > lastScrollY.current && currentY > 10);
-    lastScrollY.current = currentY;
-  }, []);
 
   return (
     <View style={s.browseLayout}>
@@ -443,8 +440,7 @@ function CafesList() {
   const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
   const [cafeQuery, setCafeQuery] = useState("");
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
-  const [searchBarHidden, setSearchBarHidden] = useState(false);
-  const lastScrollY = useRef(0);
+  const { hidden: searchBarHidden, handleScroll } = useSearchBarAutoHide();
 
   const cities = useMemo(() => {
     const set = new Set<string>();
@@ -471,12 +467,6 @@ function CafesList() {
   const toggleCity = (city: string) => {
     setSelectedCities(prev => prev.includes(city) ? prev.filter(c => c !== city) : [...prev, city]);
   };
-
-  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const currentY = e.nativeEvent.contentOffset.y;
-    setSearchBarHidden(currentY > lastScrollY.current && currentY > 10);
-    lastScrollY.current = currentY;
-  }, []);
 
   return (
     <View style={s.browseLayout}>
@@ -597,7 +587,12 @@ const s = StyleSheet.create({
     backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center",
   } as any,
   wholesaleBoxOn: { borderColor: t.color["text.primary"], backgroundColor: t.color["text.primary"] } as any,
-  wholesaleBoxDot: { width: 10, height: 2, borderRadius: 1, backgroundColor: "#FAF8F0" } as any,
+  // Checkmark tick replaces the earlier minus-sign dot (per user
+  // feedback — a check reads as "enabled" rather than "unavailable").
+  wholesaleBoxTick: {
+    fontFamily: t.font["body.semibold"], fontSize: 11, color: "#FAF8F0",
+    lineHeight: 13,
+  } as any,
   wholesaleLabel: {
     fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.primary"],
   } as any,

@@ -31,6 +31,7 @@ import { t } from "../../tokens/useTokens";
 import { useTractionStats } from "../../hooks/useTractionStats";
 import LineChart from "./LineChart";
 import MetricCard from "./MetricCard";
+import MetricSeriesModal from "./MetricSeriesModal";
 import MetricTable from "./MetricTable";
 import RetentionTable from "./RetentionTable";
 
@@ -82,6 +83,16 @@ export default function TractionDashboard() {
   const [section, setSection] = useState<AdminSection>("engagement");
   const { stats, loading, error, refresh } = useTractionStats(true);
   const { width } = useWindowDimensions();
+
+  // §2.18 drill-down — Card invocations call `_openMetric` (a module
+  // ref set here on mount) to open the daily-chart modal for the
+  // clicked metric. Using a module ref keeps every Card prop API
+  // unchanged; the dashboard is the single parent so there's no
+  // cross-tree coordination.
+  const [activeMetric, setActiveMetric] = useState<OpenMetric | null>(null);
+  if (_openMetric !== setActiveMetric as any) {
+    _openMetric = setActiveMetric;
+  }
 
   const headlineBasis = (() => {
     if (width >= 1100) return "31%";
@@ -197,6 +208,16 @@ export default function TractionDashboard() {
       <Text style={s.footer}>
         Generated at {stats.generated_at?.replace("T", " ").replace("Z", " UTC")}
       </Text>
+
+      {/* §2.18 — daily drill-down modal mounted once at the root. */}
+      <MetricSeriesModal
+        visible={!!activeMetric}
+        metricKey={activeMetric?.key || ""}
+        label={activeMetric?.label || ""}
+        value={activeMetric?.value ?? ""}
+        info={activeMetric?.info}
+        onClose={() => setActiveMetric(null)}
+      />
     </View>
   );
 }
@@ -409,12 +430,8 @@ const E = {
     "Cafés whose menu mentions at least one roaster in our catalog — an ecosystem-density signal.",
   ecosystemDensity:
     "% of cafés pouring at least one catalog roaster. 100% = the whole network is plugged together.",
-  procurementReady:
-    "Cafés that filled at least one procurement field (monthly volume, open-to-new-roasters, or note). Leading indicator for §2.1 wholesale inquiry quality.",
-  procurementOpen:
-    "Cafés that explicitly marked themselves open to new roasters — the top prospecting signal.",
-  procurementReadiness:
-    "% of cafés with any procurement profile field filled. A higher share means richer signals flow to roasters when a café opens an 'Interested' inquiry.",
+  // §2.17 — procurementReady / procurementOpen / procurementReadiness
+  // explanations removed alongside the cards.
   businessNotifs:
     "Catalog-change, wholesale, and stamp notifications fired in the last 30 days. Surfaced to roaster + café accounts under the Business tab.",
   activityNotifs:
@@ -466,17 +483,17 @@ function renderEngagement(stats: any, basis: any) {
       <Text style={s.sectionHead}>Headline</Text>
       {grid(
         <>
-          <Card basis={basis} label="Total Users" value={e.total_users} hint={`${e.total_roasters} roasters · ${e.total_cafe_accounts} cafés`} info={E.totalUsers} />
-          <Card basis={basis} label="DAU" value={e.dau} hint="Active in last 24h" info={E.dau} />
-          <Card basis={basis} label="WAU" value={e.wau} hint="Active in last 7d" info={E.wau} />
-          <Card basis={basis} label="MAU" value={e.mau} hint="Active in last 30d" info={E.mau} />
+          <Card basis={basis} label="Total Users" value={e.total_users} hint={`${e.total_roasters} roasters · ${e.total_cafe_accounts} cafés`} info={E.totalUsers} seriesKey="daily_signups" />
+          <Card basis={basis} label="DAU" value={e.dau} hint="Active in last 24h" info={E.dau} seriesKey="dau" />
+          <Card basis={basis} label="WAU" value={e.wau} hint="Active in last 7d" info={E.wau} seriesKey="dau" />
+          <Card basis={basis} label="MAU" value={e.mau} hint="Active in last 30d" info={E.mau} seriesKey="dau" />
           <Card basis={basis} label="Writers" value={e.writers} hint={`${e.writer_pct}% of all users`} info={E.writers} />
           <Card basis={basis} label="Notes / Writer · mean" value={e.mean_notes_per_writer} info={E.meanNotes} />
           <Card basis={basis} label="Notes / Writer · median" value={e.median_notes_per_writer} info={E.medianNotes} />
-          <Card basis={basis} label="Posts / Week / User" value={e.posts_per_active_user_per_week} hint="Active users, last 30d" info={E.postsPerWeek} />
-          <Card basis={basis} label="Total Posts" value={e.total_posts} info={E.totalPosts} />
-          <Card basis={basis} label="Comments / Post" value={e.comments_per_post} hint={`${e.total_comments} total`} info={E.commentsPerPost} />
-          <Card basis={basis} label="Reposts" value={e.total_reposts} hint={`${e.repost_rate_pct}% of posts`} info={E.reposts} />
+          <Card basis={basis} label="Posts / Week / User" value={e.posts_per_active_user_per_week} hint="Active users, last 30d" info={E.postsPerWeek} seriesKey="daily_posts" />
+          <Card basis={basis} label="Total Posts" value={e.total_posts} info={E.totalPosts} seriesKey="total_posts" />
+          <Card basis={basis} label="Comments / Post" value={e.comments_per_post} hint={`${e.total_comments} total`} info={E.commentsPerPost} seriesKey="total_comments" />
+          <Card basis={basis} label="Reposts" value={e.total_reposts} hint={`${e.repost_rate_pct}% of posts`} info={E.reposts} seriesKey="total_reposts" />
         </>,
       )}
       <Text style={s.sectionHead}>Plots</Text>
@@ -523,7 +540,7 @@ function renderCommerce(stats: any, basis: any) {
       <Text style={s.sectionHead}>Headline</Text>
       {grid(
         <>
-          <Card basis={basis} label="Total Clicks" value={c.total_clicks} hint="All-time outbound Buy intents" info={E.totalClicks} />
+          <Card basis={basis} label="Total Clicks" value={c.total_clicks} hint="All-time outbound Buy intents" info={E.totalClicks} seriesKey="total_clicks" />
           <Card basis={basis} label="Users Who Clicked" value={c.funnel.clicked} info={E.funnelClicked} />
           <Card basis={basis} label="Users Who Shelved" value={c.funnel.shelved} info={E.funnelShelved} />
           <Card basis={basis} label="Users Who Rated" value={c.funnel.rated} info={E.funnelRated} />
@@ -586,7 +603,7 @@ function renderLoyalty(stats: any, basis: any) {
       <Text style={s.sectionHead}>Headline</Text>
       {grid(
         <>
-          <Card basis={basis} label="Total Stamps" value={l.total_stamps} info={E.totalStamps} />
+          <Card basis={basis} label="Total Stamps" value={l.total_stamps} info={E.totalStamps} seriesKey="total_stamps" />
           <Card basis={basis} label="Last 7 days" value={l.stamps_7d} info={E.stamps7} />
           <Card basis={basis} label="Last 30 days" value={l.stamps_30d} info={E.stamps30} />
           <Card basis={basis} label="Last 90 days" value={l.stamps_90d} info={E.stamps90} />
@@ -633,7 +650,7 @@ function renderNetwork(stats: any, basis: any) {
       <Text style={s.sectionHead}>Headline</Text>
       {grid(
         <>
-          <Card basis={basis} label="Total Follow Edges" value={n.total_follows} info={E.totalFollows} />
+          <Card basis={basis} label="Total Follow Edges" value={n.total_follows} info={E.totalFollows} seriesKey="total_follows" />
           <Card basis={basis} label="Users Following Anyone" value={n.unique_followers} info={E.uniqueFollowers} />
           <Card basis={basis} label="Avg Follows / User" value={n.avg_follows_per_user} info={E.avgFollowsPerUser} />
           <Card basis={basis} label="Reciprocal Pairs" value={n.reciprocal_pairs} hint="Friend-graph signal" info={E.reciprocal} />
@@ -756,14 +773,14 @@ function renderSupply(stats: any, basis: any) {
           <Card basis={basis} label="Avg Menu Items" value={sup.avg_menu_items_per_cafe} info={E.avgMenu} />
           <Card basis={basis} label="Sourcing From Catalog" value={sup.cafes_using_catalog_roasters} info={E.cafesCatalog} />
           <Card basis={basis} label="Ecosystem Density" value={`${sup.ecosystem_density_pct}%`} hint="% of cafés pouring a catalog roaster" info={E.ecosystemDensity} />
-          <Card basis={basis} label="Procurement Ready" value={sup.cafes_procurement_ready ?? 0} info={E.procurementReady} />
-          <Card basis={basis} label="Open to New Roasters" value={sup.cafes_open_to_new_roasters ?? 0} info={E.procurementOpen} />
-          <Card basis={basis} label="Procurement Readiness" value={`${sup.procurement_readiness_pct ?? 0}%`} hint="% of cafés with procurement profile filled" info={E.procurementReadiness} />
+          {/* §2.17 — procurement readiness cards removed; the underlying UI on
+              the café profile was dropped because the inquiry thread already
+              carries the context the procurement fields were meant to provide. */}
           <Card basis={basis} label="Business Notifs (30d)" value={sup.business_notifs_30d ?? 0} info={E.businessNotifs} />
           <Card basis={basis} label="Activity Notifs (30d)" value={sup.activity_notifs_30d ?? 0} info={E.activityNotifs} />
           <Card basis={basis} label="Business Share" value={`${sup.business_share_pct ?? 0}%`} hint="B2B vs social" info={E.businessShare} />
-          <Card basis={basis} label="Inquiries Total" value={sup.inquiries_total ?? 0} info={E.inquiriesTotal} />
-          <Card basis={basis} label="Inquiries (30d)" value={sup.inquiries_30d ?? 0} info={E.inquiries30d} />
+          <Card basis={basis} label="Inquiries Total" value={sup.inquiries_total ?? 0} info={E.inquiriesTotal} seriesKey="inquiries_total" />
+          <Card basis={basis} label="Inquiries (30d)" value={sup.inquiries_30d ?? 0} info={E.inquiries30d} seriesKey="inquiries_30d" />
           <Card basis={basis} label="Inquiries Open" value={sup.inquiries_open ?? 0} info={E.inquiriesOpen} />
           <Card basis={basis} label="Inquiry Response Rate" value={`${sup.inquiry_response_rate_pct ?? 0}%`} hint="responded or archived" info={E.inquiryResponseRate} />
           <Card basis={basis} label="Cafés Inquiring" value={sup.inquiry_cafes_participating ?? 0} info={E.inquiryCafes} />
@@ -771,10 +788,10 @@ function renderSupply(stats: any, basis: any) {
           <Card basis={basis} label="Wholesale Available" value={sup.wholesale_available_total ?? 0} info={E.wholesaleAvailable} />
           <Card basis={basis} label="Wholesale Signal" value={`${sup.wholesale_signal_pct ?? 0}%`} hint="% of active products" info={E.wholesaleSignalPct} />
           <Card basis={basis} label="Roasters With Wholesale" value={sup.roasters_offering_wholesale ?? 0} info={E.wholesaleRoasters} />
-          <Card basis={basis} label="Sourcing Stories" value={sup.sourcing_stories_total ?? 0} info={E.sourcingStories} />
-          <Card basis={basis} label="Stories (30d)" value={sup.sourcing_stories_30d ?? 0} info={E.sourcingStories30d} />
+          <Card basis={basis} label="Sourcing Stories" value={sup.sourcing_stories_total ?? 0} info={E.sourcingStories} seriesKey="sourcing_stories_total" />
+          <Card basis={basis} label="Stories (30d)" value={sup.sourcing_stories_30d ?? 0} info={E.sourcingStories30d} seriesKey="sourcing_stories_total" />
           <Card basis={basis} label="Story Share" value={`${sup.sourcing_story_share_pct ?? 0}%`} hint="% of roaster posts" info={E.sourcingStoryShare} />
-          <Card basis={basis} label="Brew Recipes" value={sup.brew_methods_total ?? 0} info={E.brewMethods} />
+          <Card basis={basis} label="Brew Recipes" value={sup.brew_methods_total ?? 0} info={E.brewMethods} seriesKey="brew_methods_total" />
           <Card basis={basis} label="Recipe Coverage" value={`${sup.recipe_coverage_pct ?? 0}%`} hint="% of products with a recipe" info={E.recipeCoverage} />
           <Card basis={basis} label="Top Method" value={sup.top_brew_method || "—"} info={E.topBrewMethod} />
         </>,
@@ -785,21 +802,37 @@ function renderSupply(stats: any, basis: any) {
 
 // ── Card helper that applies responsive basis ─────────────────────────────
 
+// §2.18 — global drill-down. Card wraps in a Pressable and fires
+// `openMetric` on click; the parent dashboard holds the modal state
+// so only one modal is mounted at a time. `seriesKey` is the
+// backend dispatcher key (`daily_signups`, `dau`, etc.); cards
+// without one still open the modal but hit the empty-state path.
+let _openMetric: ((m: OpenMetric) => void) | null = null;
+interface OpenMetric { key: string; label: string; value: string | number; info?: string; }
+
 function Card({
   basis,
   label,
   value,
   hint,
   info,
+  seriesKey,
 }: {
   basis: string;
   label: string;
   value: string | number;
   hint?: string;
   info?: string;
+  seriesKey?: string;
 }) {
+  const key = seriesKey || label.toLowerCase().replace(/[^a-z0-9]+/g, "_");
   return (
-    <View style={{ flexBasis: basis as any, flexGrow: 1, minWidth: 180 } as any}>
+    <Pressable
+      onPress={() => _openMetric?.({ key, label, value, info })}
+      style={{ flexBasis: basis as any, flexGrow: 1, minWidth: 180 } as any}
+      accessibilityRole="button"
+      accessibilityLabel={`See daily history for ${label}`}
+    >
       <MetricCard
         label={label}
         value={value}
@@ -807,7 +840,7 @@ function Card({
         info={info}
         wide={basis === "100%"}
       />
-    </View>
+    </Pressable>
   );
 }
 

@@ -1,16 +1,14 @@
 import { useState, useEffect } from "react";
-import { View, Text, Pressable, Modal, ScrollView, StyleSheet } from "react-native";
+import { View, Text, Pressable, Modal, ScrollView, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { X, Coffee, Check, Star, MapPin } from "lucide-react-native";
+import { X, MapPin } from "lucide-react-native";
 import { t } from "../tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
-import TastingNoteDisplay from "./TastingNoteDisplay";
-
-const SHELF_LABELS: Record<string, { label: string; icon: any; color: string }> = {
-  open_bags: { label: "Open Bags", icon: Coffee, color: "#D798DA" },
-  on_the_list: { label: "On the List", icon: Star, color: "#D798DA" },
-};
+import { useAuth } from "../hooks/useAuth";
+import PostCard from "./domain/PostCard";
+import { openPostModal } from "./primitives";
+import type { Post } from "../resources/types";
 
 interface Props {
   visible: boolean;
@@ -21,121 +19,146 @@ interface Props {
 
 export default function PopularityModal({ visible, productId, coffeeName, onClose }: Props) {
   const router = useRouter();
-  const [data, setData] = useState<any>(null);
+  const { user } = useAuth();
+  const [users, setUsers] = useState<any[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!visible) return;
+    let cancelled = false;
     setLoading(true);
-    apiFetchRaw<any>(`/products/${productId}/users`)
-      .then((res) => { const d = res?.data ?? res; setData(d); })
-      .catch(() => setData({ users: [] }))
-      .finally(() => setLoading(false));
+    Promise.all([
+      apiFetchRaw<any>(`/products/${productId}/users`).catch(() => ({ data: { users: [] } })),
+      apiFetchRaw<any>(`/products/${productId}/posts`).catch(() => ({ data: [] })),
+    ]).then(([uRes, pRes]) => {
+      if (cancelled) return;
+      const uData = uRes?.data ?? uRes;
+      const pData = pRes?.data ?? pRes;
+      setUsers(uData?.users || []);
+      setPosts(Array.isArray(pData) ? pData : []);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
   }, [visible, productId]);
 
-  // Sort: users with notes first
-  const sortedUsers = data?.users
-    ? [...data.users].sort((a: any, b: any) => (b.notes?.length || 0) - (a.notes?.length || 0))
-    : [];
+  // Dedupe users-without-notes against the people who posted — if
+  // they appear in both, the PostCard already represents them, so the
+  // "also on shelf" list only mentions the rest. Matched by username
+  // via author, which the post carries through the registry's join.
+  const writerUsernames = new Set(posts.map((p) => p.author?.username).filter(Boolean));
+  const silentShelvers = users.filter((u) => !writerUsernames.has(u.username));
+
+  const count = users.length;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={s.overlay} onPress={onClose}>
-        <Pressable style={s.card} onPress={(e) => e.stopPropagation?.()}>
-          {/* Header */}
+      <View style={s.overlayWrap}>
+        <Pressable style={s.overlayBg} onPress={onClose} />
+        <View style={s.card}>
+          {/* Header — count now lives here (moved off the CoffeeCard
+             social dot which became number-free). */}
           <View style={s.header}>
-            <Text style={s.title} numberOfLines={1}>{coffeeName}</Text>
-            <Pressable onPress={onClose} style={s.closeBtn}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.title} numberOfLines={1}>{coffeeName}</Text>
+              {!loading && (
+                <Text style={s.subtitle}>
+                  {count === 0 ? "On nobody's shelf yet" : count === 1 ? "On 1 person's shelf" : `On ${count} people's shelves`}
+                </Text>
+              )}
+            </View>
+            <Pressable onPress={onClose} style={s.closeBtn} hitSlop={8}>
               <X size={18} color={t.color["text.secondary"]} />
             </Pressable>
           </View>
 
-          {/* User list — scrollable */}
+          {/* Body. Tasting-note posts render through the shared
+             `PostCard` so the card shows the same header + tasting
+             note + action bar language as the rest of the site (feed,
+             roaster profile, user profile). Silent shelvers get a
+             compact avatar row at the bottom — they shelved the bean
+             but didn't write, so there's no post to surface. */}
           <ScrollView
             style={s.scrollArea}
-            contentContainerStyle={{ padding: 20 }}
+            contentContainerStyle={s.scrollContent}
             showsVerticalScrollIndicator={false}
           >
             {loading ? (
               <Text style={s.emptyText}>Loading...</Text>
-            ) : sortedUsers.length === 0 ? (
-              <Text style={s.emptyText}>Nobody has this on their shelf yet.</Text>
             ) : (
-              sortedUsers.map((u: any) => {
-                const shelfMeta = SHELF_LABELS[u.shelf] || SHELF_LABELS.open_bags;
-                const ShelfIcon = shelfMeta.icon;
-                return (
-                  <View key={u.username} style={s.userBlock}>
-                    {/* User row */}
-                    <View style={s.userRow}>
-                      <Pressable onPress={() => { onClose(); router.push(`/user/${u.username}`); }}>
+              <>
+                {posts.map((post, idx) => (
+                  <View key={post.id}>
+                    <PostCard
+                      post={post}
+                      user={user}
+                      isOwner={user?.id === post.user_id}
+                      onComment={(p) => openPostModal({ post: p, mode: "comment" })}
+                      onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
+                      onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
+                    />
+                    {idx < posts.length - 1 && <View style={s.divider} />}
+                  </View>
+                ))}
+
+                {silentShelvers.length > 0 && (
+                  <>
+                    {posts.length > 0 && <View style={s.sectionGap} />}
+                    <Text style={s.sectionLabel}>Also on shelf</Text>
+                    {silentShelvers.map((u) => (
+                      <Pressable
+                        key={u.username}
+                        onPress={() => { onClose(); router.push(`/user/${u.username}`); }}
+                        style={s.silentRow}
+                      >
                         {u.avatar_url ? (
-                          <Image source={{ uri: resolveUploadUrl(u.avatar_url) }} style={s.avatar} />
+                          <Image source={{ uri: resolveUploadUrl(u.avatar_url) }} style={s.silentAvatar} />
                         ) : (
-                          <View style={s.avatarFallback}>
-                            <Text style={s.avatarLetter}>{(u.display_name || "?")[0]}</Text>
+                          <View style={s.silentAvatarFallback}>
+                            <Text style={s.silentAvatarLetter}>{(u.display_name || "?")[0]}</Text>
                           </View>
                         )}
-                      </Pressable>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Pressable onPress={() => { onClose(); router.push(`/user/${u.username}`); }}>
-                          <Text style={s.userName}>{u.display_name}</Text>
-                        </Pressable>
-                        <View style={s.metaRow}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={s.silentName}>{u.display_name}</Text>
                           {u.location && (
-                            <View style={s.metaItem}>
-                              <MapPin size={8} color={t.color["text.muted"]} />
-                              <Text style={s.metaText}>{u.location}</Text>
+                            <View style={s.silentMeta}>
+                              <MapPin size={9} color={t.color["text.muted"]} />
+                              <Text style={s.silentLocation}>{u.location}</Text>
                             </View>
                           )}
-                          <View style={s.metaItem}>
-                            <ShelfIcon size={9} color={shelfMeta.color} />
-                            <Text style={[s.metaText, { color: shelfMeta.color }]}>{shelfMeta.label}</Text>
-                          </View>
                         </View>
-                      </View>
-                    </View>
+                      </Pressable>
+                    ))}
+                  </>
+                )}
 
-                    {/* Their tasting notes */}
-                    {u.notes && u.notes.length > 0 && (
-                      <View style={s.notesArea}>
-                        {u.notes.map((note: any) => (
-                          <TastingNoteDisplay key={note.id} note={note} />
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                );
-              })
+                {posts.length === 0 && silentShelvers.length === 0 && (
+                  <Text style={s.emptyText}>Nobody has this on their shelf yet.</Text>
+                )}
+              </>
             )}
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
 
+// Overlay + card shell match the site's new floating-modal language
+// (feed composer, roaster/café composer): blurred backdrop on web,
+// token overlay color, 680px max card width, 85% max height, token
+// radius. Content inside leans on the shared `PostCard` so tasting
+// notes on-shelf render identically to tasting notes in the feed.
 const s = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
+  overlayWrap: {
+    flex: 1, justifyContent: "center", alignItems: "center",
+    ...(Platform.OS === "web" ? ({ backdropFilter: "blur(35px)", WebkitBackdropFilter: "blur(35px)" } as any) : {}),
+  } as any,
+  overlayBg: { ...StyleSheet.absoluteFillObject, backgroundColor: t.color.overlay } as any,
   card: {
-    width: "100%",
-    maxWidth: 540,
-    maxHeight: "70%",
-    backgroundColor: t.color.bg,
-    borderRadius: 16,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 32,
-    elevation: 12,
-  },
+    width: "90%", maxWidth: 680, backgroundColor: t.color.bg,
+    borderRadius: t.radius.lg, overflow: "hidden", maxHeight: "85%", zIndex: 1,
+  } as any,
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -146,17 +169,49 @@ const s = StyleSheet.create({
     borderColor: t.color["border.light"],
   },
   title: {
-    fontFamily: t.font["body.semibold"],
-    fontSize: 16,
+    fontFamily: t.font.display,
+    fontSize: 20,
     color: t.color["text.primary"],
-    flex: 1,
-    marginRight: 12,
+    lineHeight: 26,
   },
-  closeBtn: { padding: 4 },
-  scrollArea: {
-    flex: 1,
-    minHeight: 0,
+  subtitle: {
+    fontFamily: t.font["body.regular"],
+    fontSize: 12,
+    color: t.color["text.muted"],
+    marginTop: 2,
   },
+  closeBtn: { padding: 4, marginLeft: 12 },
+  scrollArea: { flex: 1, minHeight: 0 },
+  scrollContent: { paddingVertical: 8 },
+  divider: { height: 1, backgroundColor: t.color.divider, marginVertical: 4 },
+  sectionGap: { height: 12 },
+  sectionLabel: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: 11,
+    color: t.color["text.muted"],
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  } as any,
+  silentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  silentAvatar: { width: 32, height: 32, borderRadius: 16 },
+  silentAvatarFallback: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: t.color["tag.bg"],
+  },
+  silentAvatarLetter: { fontFamily: t.font["body.bold"], fontSize: 12, color: t.color["tag.text"] },
+  silentName: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"] },
+  silentMeta: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
+  silentLocation: { fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["text.muted"] },
   emptyText: {
     fontFamily: t.font["body.regular"],
     textAlign: "center",
@@ -164,28 +219,4 @@ const s = StyleSheet.create({
     fontSize: 14,
     color: t.color["text.muted"],
   },
-  userBlock: {
-    marginBottom: 20,
-  },
-  userRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 8,
-  },
-  avatar: { width: 32, height: 32, borderRadius: 16 },
-  avatarFallback: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: t.color["tag.bg"],
-  },
-  avatarLetter: { fontFamily: t.font["body.bold"], fontSize: 12, color: t.color["tag.text"] },
-  userName: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"] },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 },
-  metaItem: { flexDirection: "row", alignItems: "center", gap: 3 },
-  metaText: { fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["text.muted"] },
-  notesArea: { marginLeft: 42, marginTop: 4 },
 });

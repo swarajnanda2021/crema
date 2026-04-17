@@ -995,30 +995,11 @@ def _supply(db) -> dict:
         else 0.0
     )
 
-    # Procurement profile readiness (Phase 1 §2.6) — tracks how many café
-    # owners have filled in at least one of the three procurement fields.
-    # This is the leading indicator for §2.1 "Interested" inquiry conversion:
-    # a café with no volume/note/openness signal is a poor lead for roasters.
-    cafes_procurement_ready = _n(
-        db.execute(
-            """
-            SELECT COUNT(*) FROM cafe_profiles
-            WHERE monthly_volume_kg IS NOT NULL
-               OR open_to_new_roasters = 1
-               OR (procurement_note IS NOT NULL AND procurement_note != '')
-            """
-        ).fetchone()[0]
-    )
-    cafes_open_to_new = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM cafe_profiles WHERE open_to_new_roasters = 1"
-        ).fetchone()[0]
-    )
-    procurement_readiness_pct = (
-        round(cafes_procurement_ready / cafes_total * 100.0, 1)
-        if cafes_total
-        else 0.0
-    )
+    # §2.17 — café procurement readiness metric removed. The underlying
+    # UI (§2.6 procurement block on café profile) was dropped because
+    # the context it captured is redundant once an inquiry thread
+    # exists. DB columns stay so historic rows don't break, but the
+    # metric doesn't get computed or returned.
 
     return {
         "roasters_total": roasters_known,
@@ -1036,9 +1017,6 @@ def _supply(db) -> dict:
         "avg_menu_items_per_cafe": avg_menu_items,
         "cafes_using_catalog_roasters": cafes_using_catalog,
         "ecosystem_density_pct": ecosystem_density_pct,
-        "cafes_procurement_ready": cafes_procurement_ready,
-        "cafes_open_to_new_roasters": cafes_open_to_new,
-        "procurement_readiness_pct": procurement_readiness_pct,
         "business_notifs_30d": business_notifs_30d,
         "activity_notifs_30d": activity_notifs_30d,
         "business_share_pct": business_share_pct,
@@ -1061,6 +1039,107 @@ def _supply(db) -> dict:
         "recipe_coverage_pct": recipe_coverage_pct,
         "top_brew_method": top_brew_method,
     }
+
+
+# ── Named-series dispatcher (§2.18 drill-down) ───────────────────────────────
+
+# Each entry maps a metric key to a SQL snippet that returns (date, count)
+# rows grouped by UTC day. `_daily_series` fills gaps with zero and trims
+# the leading zero window. Keys mirror the identifiers returned by
+# `compute_traction` so the frontend can route straight off a card's data
+# key without an extra mapping table.
+_SERIES_DEFS: dict[str, str] = {
+    # ── Engagement ──────────────────────────────────────────────────
+    "daily_signups": (
+        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
+        "FROM users WHERE account_type = 'user' AND created_at IS NOT NULL "
+        "GROUP BY DATE(created_at)"
+    ),
+    # DAU is built from the union of six activity tables. Each row
+    # counts as one user-day; COUNT(DISTINCT user_id) per day is what
+    # renders as DAU in the chart.
+    "dau": (
+        "SELECT DATE(t) AS date, COUNT(DISTINCT user_id) AS count FROM ("
+        "  SELECT user_id, created_at AS t FROM tasting_notes "
+        "  UNION ALL SELECT user_id, created_at AS t FROM roaster_posts "
+        "  UNION ALL SELECT user_id, created_at AS t FROM post_comments "
+        "  UNION ALL SELECT user_id, created_at AS t FROM post_likes "
+        "  UNION ALL SELECT user_id, added_at AS t FROM shelf_entries "
+        "  UNION ALL SELECT user_id, scanned_at AS t FROM stamps "
+        ") GROUP BY DATE(t)"
+    ),
+    "daily_posts": (
+        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
+        "FROM roaster_posts GROUP BY DATE(created_at)"
+    ),
+    "total_posts": (
+        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
+        "FROM roaster_posts GROUP BY DATE(created_at)"
+    ),
+    "total_comments": (
+        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
+        "FROM post_comments GROUP BY DATE(created_at)"
+    ),
+    "total_reposts": (
+        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
+        "FROM roaster_posts WHERE repost_of_id IS NOT NULL "
+        "GROUP BY DATE(created_at)"
+    ),
+    # ── Commerce ────────────────────────────────────────────────────
+    "daily_clicks": (
+        "SELECT DATE(clicked_at) AS date, COUNT(*) AS count "
+        "FROM click_events GROUP BY DATE(clicked_at)"
+    ),
+    "total_clicks": (
+        "SELECT DATE(clicked_at) AS date, COUNT(*) AS count "
+        "FROM click_events GROUP BY DATE(clicked_at)"
+    ),
+    # ── Loyalty ─────────────────────────────────────────────────────
+    "daily_stamps": (
+        "SELECT DATE(scanned_at) AS date, COUNT(*) AS count "
+        "FROM stamps GROUP BY DATE(scanned_at)"
+    ),
+    "total_stamps": (
+        "SELECT DATE(scanned_at) AS date, COUNT(*) AS count "
+        "FROM stamps GROUP BY DATE(scanned_at)"
+    ),
+    # ── Supply (B2B) ───────────────────────────────────────────────
+    "inquiries_total": (
+        "SELECT DATE(opened_at) AS date, COUNT(*) AS count "
+        "FROM wholesale_inquiries GROUP BY DATE(opened_at)"
+    ),
+    "inquiries_30d": (
+        "SELECT DATE(opened_at) AS date, COUNT(*) AS count "
+        "FROM wholesale_inquiries GROUP BY DATE(opened_at)"
+    ),
+    "sourcing_stories_total": (
+        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
+        "FROM roaster_posts WHERE post_type = 'sourcing_story' "
+        "GROUP BY DATE(created_at)"
+    ),
+    "brew_methods_total": (
+        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
+        "FROM brew_methods GROUP BY DATE(created_at)"
+    ),
+    # ── Network / follows ──────────────────────────────────────────
+    "total_follows": (
+        "SELECT DATE(followed_at) AS date, COUNT(*) AS count "
+        "FROM follows GROUP BY DATE(followed_at)"
+    ),
+}
+
+
+def build_series(db, key: str, days: int) -> list:
+    """Return a daily series for the given metric key, or an empty
+    list if the key isn't known. The frontend renders an "Daily
+    history not yet captured for this metric" state on empty."""
+    sql = _SERIES_DEFS.get(key)
+    if not sql:
+        return []
+    try:
+        return _daily_series(db, days, sql)
+    except Exception:
+        return []
 
 
 # ── Composer ─────────────────────────────────────────────────────────────────

@@ -533,10 +533,7 @@ export interface SupplyStats {
   avg_menu_items_per_cafe: number;
   cafes_using_catalog_roasters: number;
   ecosystem_density_pct: number;
-  // Phase 1 §2.6 procurement profile readiness
-  cafes_procurement_ready: number;
-  cafes_open_to_new_roasters: number;
-  procurement_readiness_pct: number;
+  // §2.17 — procurement readiness fields removed (UI + metric dropped).
   // Phase 1 §2.4 business vs activity notification split (30d)
   business_notifs_30d: number;
   activity_notifs_30d: number;

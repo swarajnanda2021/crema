@@ -112,11 +112,13 @@ const TARGET_CARD_W = 240;
 const CARD_ASPECT = 372 / 240;
 
 function CoffeeGrid({
-  coffees, isOwner, onDeleteProduct, roasterName, onSaveCard,
+  coffees, isOwner, onDeleteProduct, onEditProduct, roasterName, onSaveCard, popularity,
 }: {
   coffees: any[]; isOwner?: boolean;
   onDeleteProduct?: (id: string) => void;
+  onEditProduct?: (product: any) => void;
   roasterName?: string; onSaveCard?: (data: any) => Promise<void>;
+  popularity?: Record<string, number>;
 }) {
   const [containerW, setContainerW] = useState(0);
   const available = containerW > 0 ? containerW - GRID_PAD * 2 : 800;
@@ -136,7 +138,9 @@ function CoffeeGrid({
           <CoffeeCard
             coffee={c} width={cardW} height={cardH}
             shelfMode={isOwner && !!onDeleteProduct}
+            userCount={popularity?.[c.product_id]}
             onRemove={isOwner && onDeleteProduct ? () => onDeleteProduct(c.product_id || c.id) : undefined}
+            onEdit={isOwner && onEditProduct ? () => onEditProduct(c) : undefined}
           />
         </View>
       ))}
@@ -184,6 +188,18 @@ export default function RoasterDetailPage() {
   const catalogCoffees = useMemo(() => products.filter((p: any) => p.roaster_slug === slug), [products, slug]);
   const [localCoffees, setLocalCoffees] = useState<any[]>([]);
   const [deletedProductIds, setDeletedProductIds] = useState<Set<string>>(new Set());
+  // Popularity map — how many users have each product shelved. Drives
+  // the top-left social dot on CoffeeCard. Browse loads the same
+  // endpoint; we refetch here so the dot shows up on the roaster's
+  // profile too (previously missing because no `userCount` was
+  // passed through CoffeeGrid).
+  const [popularity, setPopularity] = useState<Record<string, number>>({});
+  useEffect(() => {
+    apiFetchRaw("/products/popularity").then((r: any) => {
+      const d = r?.data ?? r;
+      if (d && typeof d === "object" && !Array.isArray(d)) setPopularity(d);
+    }).catch(() => {});
+  }, []);
   // Post-prompt state — same pattern as the café page
   const [postPrompt, setPostPrompt] = useState<{
     title: string; body: string; teaser: string;
@@ -217,8 +233,6 @@ export default function RoasterDetailPage() {
 
   // Tabs & compose
   const [activeTab, setActiveTab] = useState<"posts" | "beans">("posts");
-  const [showCompose, setShowCompose] = useState(false);
-  const [composing, setComposing] = useState(false);
   const [editingPost, setEditingPost] = useState<any>(null);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
@@ -358,25 +372,6 @@ export default function RoasterDetailPage() {
     await loadPosts();
   }, [loadPosts]);
 
-  const handleCreatePost = useCallback(async (data: any) => {
-    try {
-      setComposing(true);
-      await apiFetchRaw("/posts", {
-        method: "POST",
-        body: JSON.stringify({
-          title: data.title, teaser: data.teaser,
-          external_url: data.external_url || null,
-          cover_image_url: data.cover_image_url || null,
-          post_type: data.post_type || "article",
-          location: data.location || null, images: data.images || [],
-        }),
-      });
-      setShowCompose(false);
-      await loadPosts();
-    } catch (e: any) { console.warn("Create post error:", e.message); }
-    finally { setComposing(false); }
-  }, [loadPosts]);
-
   const handleCreateProduct = useCallback(async (data: any) => {
     try {
       const raw = await apiFetchRaw(`/roasters/${slug}/products`, {
@@ -399,6 +394,45 @@ export default function RoasterDetailPage() {
       });
     } catch (e: any) { console.warn("Create product error:", e.message); }
   }, [slug, appendProducts, roaster]);
+
+  // §2.9 — edit an existing bean. Opens a floating modal with
+  // EditableCoffeeCard pre-filled from the product row; on save
+  // PUTs to /api/roasters/{slug}/products/{id}, which exists via
+  // the registry.
+  const [editingProduct, setEditingProduct] = useState<any | null>(null);
+  const handleUpdateProduct = useCallback(async (data: any) => {
+    if (!editingProduct) return;
+    const rawId = editingProduct.product_id?.startsWith("rp_")
+      ? editingProduct.product_id.replace(/^rp_/, "")
+      : (editingProduct.id ?? editingProduct.product_id);
+    try {
+      const resp = await apiFetchRaw(`/roasters/${slug}/products/${rawId}`, {
+        method: "PUT", body: JSON.stringify(data),
+      });
+      const updated = resp?.data ?? resp;
+      // Patch local state so the edited card re-renders immediately
+      // without a full refetch.
+      setLocalCoffees((prev) => prev.map((c) => {
+        const matches = (c.product_id ?? c.id) === (editingProduct.product_id ?? editingProduct.id);
+        return matches ? { ...c, ...updated } : c;
+      }));
+      appendProducts([{ ...updated, product_id: editingProduct.product_id, roaster_slug: slug }]);
+      setEditingProduct(null);
+    } catch (e: any) {
+      console.warn("Update product error:", e.message);
+    }
+  }, [editingProduct, slug, appendProducts]);
+
+  // Delete flow (now gated on confirmation — see §2.9 user feedback).
+  // The bin button on CoffeeCard fires `requestDelete(product)` which
+  // surfaces a confirmation modal. Only after the user confirms does
+  // `handleDeleteProduct` actually run.
+  const [confirmingDelete, setConfirmingDelete] = useState<any | null>(null);
+  const requestDelete = useCallback((productOrId: string | any) => {
+    const id = typeof productOrId === "string" ? productOrId : (productOrId.product_id ?? productOrId.id);
+    const product = localCoffees.find((c) => (c.product_id ?? c.id) === id) || { product_id: id };
+    setConfirmingDelete(product);
+  }, [localCoffees]);
 
   const handleDeleteProduct = useCallback(async (productId: string) => {
     // Capture the coffee name before optimistic removal for the prompt
@@ -706,12 +740,6 @@ export default function RoasterDetailPage() {
             {/* POSTS TAB */}
             {activeTab === "posts" && (
               <>
-                {showCompose && (
-                  <>
-                    <ComposePost onSubmit={handleCreatePost} onCancel={() => setShowCompose(false)} loading={composing} products={products} user={user} />
-                    {sortedPosts.length > 0 && <View style={s.dividerLight} />}
-                  </>
-                )}
                 {!postsLoading && sortedPosts.length > 0 && sortedPosts.slice(0, visiblePosts).map((post, i) => (
                   <View key={post.id}>
                     <PostCard
@@ -730,7 +758,7 @@ export default function RoasterDetailPage() {
                   <View style={s.emptyPostsWrap}>
                     <Text style={s.emptyPostsTitle}>Share your story</Text>
                     <Text style={s.emptyPostsBody}>Post about your coffee, link to press coverage, or share anything worth reading.</Text>
-                    <Pressable onPress={() => setShowCompose(true)} style={s.emptyPostsBtn}>
+                    <Pressable onPress={() => { setComposerPrefill(""); setComposerOpen(true); }} style={s.emptyPostsBtn}>
                       <Text style={s.emptyPostsBtnText}>Write your first post {"\u2192"}</Text>
                     </Pressable>
                   </View>
@@ -744,7 +772,7 @@ export default function RoasterDetailPage() {
                 <Text style={s.gridHeading}>
                   {`Explore ${coffees.length} ${coffees.length === 1 ? "coffee" : "coffees"} from ${roaster.name}`}
                 </Text>
-                <CoffeeGrid coffees={coffees} isOwner={isOwner} onDeleteProduct={handleDeleteProduct} roasterName={roaster.name} onSaveCard={handleCreateProduct} />
+                <CoffeeGrid coffees={coffees} isOwner={isOwner} onDeleteProduct={requestDelete} onEditProduct={setEditingProduct} roasterName={roaster.name} onSaveCard={handleCreateProduct} popularity={popularity} />
               </>
             )}
 
@@ -808,9 +836,14 @@ export default function RoasterDetailPage() {
 
           {isEditing && <View style={s.editDimOverlay} pointerEvents="none" />}
 
-          {/* FAB — owner, posts tab */}
+          {/* FAB — owner, posts tab. Opens the same floating composer modal
+              the PostPromptModal flow uses, so a roaster gets the same
+              "float over the page" experience the consumer feed FAB has.
+              The old version expanded ComposePost inline at the top of the
+              Posts tab (and posted as the user, not the roaster), which
+              was the wrong mechanism. */}
           {isOwner && !isEditing && activeTab === "posts" && (
-            <Pressable onPress={() => setShowCompose(true)} style={s.fab}>
+            <Pressable onPress={() => { setComposerPrefill(""); setComposerOpen(true); }} style={s.fab}>
               <Plus size={22} color={t.color["text.on-dark"]} strokeWidth={2.5} />
             </Pressable>
           )}
@@ -884,6 +917,67 @@ export default function RoasterDetailPage() {
               </View>
             </View>
           </Modal>
+
+          {/* §2.9 — confirm-before-delete. The bin on CoffeeCard now
+             opens this sheet instead of removing immediately. */}
+          <Modal
+            visible={!!confirmingDelete}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setConfirmingDelete(null)}
+          >
+            <View style={s.composerOverlayWrap}>
+              <Pressable style={s.composerOverlayBg} onPress={() => setConfirmingDelete(null)} />
+              <View style={s.confirmCard}>
+                <Text style={s.confirmTitle}>Remove this bean?</Text>
+                <Text style={s.confirmBody}>
+                  {confirmingDelete?.coffee_name
+                    ? `"${confirmingDelete.coffee_name}" will come off your catalog. You can always add it back later.`
+                    : "This coffee will come off your catalog. You can always add it back later."}
+                </Text>
+                <View style={s.confirmActions}>
+                  <Pressable onPress={() => setConfirmingDelete(null)} style={s.confirmCancel}>
+                    <Text style={s.confirmCancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={async () => {
+                      const id = confirmingDelete?.product_id ?? confirmingDelete?.id;
+                      setConfirmingDelete(null);
+                      if (id) await handleDeleteProduct(id);
+                    }}
+                    style={s.confirmDelete}
+                  >
+                    <Text style={s.confirmDeleteText}>Remove</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </Modal>
+
+          {/* §2.9 — edit an existing bean. EditableCoffeeCard pre-filled
+             from the product row; save PUTs via handleUpdateProduct. */}
+          <Modal
+            visible={!!editingProduct}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setEditingProduct(null)}
+          >
+            <View style={s.composerOverlayWrap}>
+              <Pressable style={s.composerOverlayBg} onPress={() => setEditingProduct(null)} />
+              <View style={s.editBeanCard}>
+                {editingProduct && (
+                  <EditableCoffeeCard
+                    roasterName={roaster?.name || slug}
+                    width={380}
+                    height={588}
+                    initialData={editingProduct}
+                    onSave={handleUpdateProduct}
+                    onCancel={() => setEditingProduct(null)}
+                  />
+                )}
+              </View>
+            </View>
+          </Modal>
         </View>
       </View>
       </ResponsiveWrapper>
@@ -921,6 +1015,50 @@ const s = StyleSheet.create({
     width: "90%", maxWidth: 680, backgroundColor: t.color.bg,
     borderRadius: t.radius.lg, overflow: "hidden", maxHeight: "85%", zIndex: 1,
   } as any,
+
+  // §2.9 — edit-bean modal frame. Narrower than the composer because
+  // EditableCoffeeCard's internal layout is calibrated around a
+  // product-card width (380×588 matches the saved dimensions).
+  editBeanCard: {
+    backgroundColor: t.color.bg,
+    borderRadius: t.radius.lg, overflow: "hidden", zIndex: 1,
+    maxHeight: "90%",
+  } as any,
+
+  // §2.9 — confirm-delete sheet. Compact two-button card in the same
+  // floating-modal language as the rest of the site.
+  confirmCard: {
+    width: "90%", maxWidth: 420, backgroundColor: t.color.bg,
+    borderRadius: t.radius.lg, padding: 24, zIndex: 1,
+  } as any,
+  confirmTitle: {
+    fontFamily: t.font.display, fontSize: 22,
+    color: t.color["text.primary"], lineHeight: 28,
+  },
+  confirmBody: {
+    fontFamily: t.font["body.regular"], fontSize: 13,
+    color: t.color["text.secondary"],
+    marginTop: 8, lineHeight: 19,
+  },
+  confirmActions: {
+    flexDirection: "row", justifyContent: "flex-end",
+    gap: 10, marginTop: 20,
+  } as any,
+  confirmCancel: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6,
+  } as any,
+  confirmCancelText: {
+    fontFamily: t.font["body.semibold"], fontSize: 13,
+    color: t.color["text.primary"],
+  },
+  confirmDelete: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6,
+    backgroundColor: "#B5393C",
+  } as any,
+  confirmDeleteText: {
+    fontFamily: t.font["body.semibold"], fontSize: 13,
+    color: "#FAF8F0",
+  },
 
   pageContainer: { flexDirection: "row", overflow: "hidden" } as any,
 

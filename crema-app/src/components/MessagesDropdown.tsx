@@ -82,12 +82,28 @@ function rowPresenter(row: InboxRow, currentUserId?: number) {
 // falls back to roaster_name / roaster_logo. This works because the
 // backend's /my-threads scopes what the viewer sees.
 
+// §2.15 — business users see the inbox split into tabs. The tab
+// discriminator is the `kind` field for active threads and `status`
+// for archive. Regular users see a single flat list (no tabs).
+type InboxTab = "business" | "non_business" | "archive";
+
+function threadTab(row: InboxRow): InboxTab {
+  if (row.kind === "wholesale_inquiry" && row.status === "archived") return "archive";
+  if (row.kind === "wholesale_inquiry") return "business";
+  return "non_business";
+}
+
 export default function MessagesDropdown({ visible, onClose, initialThread }: Props) {
   const { user } = useAuth();
   const { threads, totalUnread, loading, error, refresh, markRead } = useInquiryInbox(visible);
   const [activeThread, setActiveThread] = useState<{ kind: ThreadKind; id: number } | null>(null);
   const [ready, setReady] = useState(false);
   const cardRef = useRef<any>(null);
+
+  // Tab routing (business users only). Default to Business on open —
+  // that's the wholesale-lead feed they'll check most often.
+  const isBusiness = user?.account_type === "cafe" || user?.account_type === "roaster";
+  const [tab, setTab] = useState<InboxTab>("business");
 
   // Sync initialThread when the caller pushes one (e.g. notification
   // tap). Clearing on close is handled below.
@@ -178,24 +194,60 @@ export default function MessagesDropdown({ visible, onClose, initialThread }: Pr
           </View>
           <View style={s.divider} />
 
-          <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
-            {loading && threads.length === 0 ? (
-              <ActivityIndicator size="small" color="#D798DA" style={{ paddingVertical: 24 }} />
-            ) : error ? (
-              <View style={{ paddingVertical: 18, alignItems: "center", gap: 8 }}>
-                <Text style={s.errorText}>{error}</Text>
-                <Pressable onPress={refresh} hitSlop={6}>
-                  <Text style={s.retryText}>Retry</Text>
-                </Pressable>
+          {/* Tabs (business only). Regular users skip this strip. Each
+             tab carries its own unread count — mirrors §2.4
+             Activity/Business notification tabs. */}
+          {isBusiness && (
+            <>
+              <View style={s.tabRow}>
+                {(["business", "non_business", "archive"] as InboxTab[]).map((key) => {
+                  const active = key === tab;
+                  const label = key === "business" ? "Business"
+                    : key === "non_business" ? "Non-business"
+                    : "Archive";
+                  const unread = threads
+                    .filter((r) => threadTab(r) === key)
+                    .reduce((n, r) => n + (r.unread_count || 0), 0);
+                  return (
+                    <Pressable key={key} onPress={() => setTab(key)} style={[s.tab, active && s.tabActive]}>
+                      <Text style={[s.tabLabel, active && s.tabLabelActive]}>{label}</Text>
+                      {unread > 0 && <Text style={s.tabUnread}>{unread}</Text>}
+                    </Pressable>
+                  );
+                })}
               </View>
-            ) : threads.length === 0 ? (
-              <Text style={s.empty}>
-                {user?.account_type === "cafe" || user?.account_type === "roaster"
-                  ? "No conversations yet. Tap a profile to message someone, or the wholesale chip on a coffee card to open an inquiry."
-                  : "No conversations yet. Tap the Message button on anyone's profile to start a chat."}
-              </Text>
-            ) : (
-              threads.map((row, idx) => {
+              <View style={s.divider} />
+            </>
+          )}
+
+          <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
+            {(() => {
+              // Filter once per render; cheap enough for small inboxes.
+              const visibleThreads = isBusiness ? threads.filter((r) => threadTab(r) === tab) : threads;
+              if (loading && threads.length === 0) {
+                return <ActivityIndicator size="small" color="#D798DA" style={{ paddingVertical: 24 }} />;
+              }
+              if (error) {
+                return (
+                  <View style={{ paddingVertical: 18, alignItems: "center", gap: 8 }}>
+                    <Text style={s.errorText}>{error}</Text>
+                    <Pressable onPress={refresh} hitSlop={6}>
+                      <Text style={s.retryText}>Retry</Text>
+                    </Pressable>
+                  </View>
+                );
+              }
+              if (visibleThreads.length === 0) {
+                const emptyText = !isBusiness
+                  ? "No conversations yet. Tap the Message button on anyone's profile to start a chat."
+                  : tab === "business"
+                    ? "No wholesale inquiries in this tab yet."
+                    : tab === "non_business"
+                      ? "No direct messages yet."
+                      : "No archived threads.";
+                return <Text style={s.empty}>{emptyText}</Text>;
+              }
+              return visibleThreads.map((row, idx) => {
                 const pres = rowPresenter(row, user?.id);
                 return (
                   <View key={`${row.kind}:${pres.id}`}>
@@ -244,8 +296,8 @@ export default function MessagesDropdown({ visible, onClose, initialThread }: Pr
                     </Pressable>
                   </View>
                 );
-              })
-            )}
+              });
+            })()}
           </ScrollView>
         </>
       )}
@@ -280,6 +332,36 @@ const s = StyleSheet.create({
   headerTitle: { fontFamily: t.font["body.semibold"], fontSize: 15, color: "#351101" },
   headerUnread: { fontFamily: t.font["body.medium"], fontSize: 10.5, color: "#D798DA" },
   divider: { height: 1, backgroundColor: "#EDE8E1", marginHorizontal: 12 },
+
+  // Tab strip (business users, §2.15). Small enough to fit three
+  // labels inside the 340px card without wrapping.
+  tabRow: {
+    flexDirection: "row",
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: 4,
+    gap: 4,
+  } as any,
+  tab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 6,
+    borderRadius: 8,
+  } as any,
+  tabActive: { backgroundColor: "rgba(215,152,218,0.12)" } as any,
+  tabLabel: { fontFamily: t.font["body.medium"], fontSize: 11, color: "#A09580", letterSpacing: 0.2 },
+  tabLabelActive: { color: "#351101", fontFamily: t.font["body.semibold"] } as any,
+  tabUnread: {
+    fontFamily: t.font["body.semibold"], fontSize: 9,
+    color: "#FFFFFF",
+    backgroundColor: "#D798DA",
+    paddingHorizontal: 5, paddingVertical: 1,
+    borderRadius: 6,
+    overflow: "hidden",
+  } as any,
   list: { maxHeight: 380 } as any,
 
   empty: {

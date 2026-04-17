@@ -526,35 +526,47 @@ export default function ProfilePage() {
 
       {/* Info column (Figma 202:2831 — 291x330.7, all content confined to maxWidth 281) */}
       <View style={[s.infoCol, isNarrow && s.infoColNarrow]}>
-        {/* Name (Figma 116:777 — Canela Text Regular 56.804px, #351101) */}
+        {/* Name (Figma 116:777 — Canela Text Regular 56.804px, #351101).
+            Single-line in both modes. Dropping multiline + maxWidth is
+            what kept the line-box identical between <Text> and <TextInput>;
+            previously the input wrapped names like "Aayushi Kapadia" to two
+            lines while the display <Text> rendered them on one, and that
+            2-line-vs-1-line delta was the biggest info-column height
+            swing after the roast picker. */}
         {isEditing ? (
           <TextInput
-            style={[s.displayName, s.inlineEdit, { maxWidth: 281 }]}
+            style={[s.displayName, s.inlineEdit]}
             value={editName}
             onChangeText={setEditName}
             placeholder="Your name"
             placeholderTextColor="rgba(199,186,165,0.35)"
-            multiline
             maxLength={40}
           />
         ) : (
-          <Text style={s.displayName}>{user.display_name}</Text>
+          <Text style={s.displayName} numberOfLines={1}>{user.display_name}</Text>
         )}
 
-        {/* Bio (Figma 116:776 — Inter Regular 12px, #684F44) */}
-        {isEditing ? (
-          <TextInput
-            style={[s.bio, s.inlineEdit, { minHeight: 36, maxWidth: 281, maxHeight: 54 }]}
-            value={editBio}
-            onChangeText={setEditBio}
-            placeholder="Tell us about yourself..."
-            placeholderTextColor="rgba(199,186,165,0.35)"
-            multiline
-            maxLength={160}
-          />
-        ) : (
-          user.bio ? <Text style={[s.bio, { maxWidth: 291 }]}>{user.bio}</Text> : null
-        )}
+        {/* Bio (Figma 116:776 — Inter Regular 12px, #684F44).
+            The bio slot reserves a fixed minHeight in BOTH modes so the
+            info column doesn't grow/shrink when toggling edit. Users with
+            no bio see 36px of empty space in display mode — that's the
+            price of a stable hero layout, and it reads as intentional
+            breathing room rather than emptiness. */}
+        <View style={s.bioSlot}>
+          {isEditing ? (
+            <TextInput
+              style={[s.bio, s.inlineEdit, s.bioInput]}
+              value={editBio}
+              onChangeText={setEditBio}
+              placeholder="Tell us about yourself..."
+              placeholderTextColor="rgba(199,186,165,0.35)"
+              multiline
+              maxLength={160}
+            />
+          ) : (
+            user.bio ? <Text style={[s.bio, { maxWidth: 291 }]}>{user.bio}</Text> : null
+          )}
+        </View>
 
         <View style={s.divider} />
 
@@ -604,37 +616,33 @@ export default function ProfilePage() {
 
         <View style={s.divider} />
 
-        {/* Row 2: roast preference (Figma 202:2835 + 116:775) */}
+        {/* Row 2: roast preference (Figma 202:2835 + 116:775).
+            Edit mode renders one flat chip row (3 roast + divider + 2 grind)
+            instead of the earlier two-labelled-section widget. The original
+            widget was ~70px tall vs ~18px for display — single-row chips
+            bring it down to ~18px, matching the display so toggling edit
+            doesn't grow the info column here. */}
         <View style={s.infoRow}>
           <HeroBeanIcon />
           {isEditing ? (
-            <View style={{ gap: 8, maxWidth: 260 }}>
-              <View>
-                <Text style={s.editFieldLabel}>Roast type</Text>
-                <View style={s.chipEditRow}>
-                  {["light", "medium", "dark"].map((p) => (
-                    <Pressable key={p} onPress={() => setEditPref(editPref === p ? "" : p)}
-                      style={[s.miniChip, editPref === p && s.miniChipActive]}>
-                      <Text style={[s.miniChipText, editPref === p && s.miniChipTextActive]}>
-                        {p[0].toUpperCase() + p.slice(1)}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-              <View>
-                <Text style={s.editFieldLabel}>Grind type</Text>
-                <View style={s.chipEditRow}>
-                  {["espresso", "filter"].map((b) => (
-                    <Pressable key={b} onPress={() => setEditBrew(editBrew === b ? "" : b)}
-                      style={[s.miniChip, editBrew === b && s.miniChipActive]}>
-                      <Text style={[s.miniChipText, editBrew === b && s.miniChipTextActive]}>
-                        {b[0].toUpperCase() + b.slice(1)}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
+            <View style={s.chipEditRow}>
+              {["light", "medium", "dark"].map((p) => (
+                <Pressable key={p} onPress={() => setEditPref(editPref === p ? "" : p)}
+                  style={[s.miniChip, editPref === p && s.miniChipActive]}>
+                  <Text style={[s.miniChipText, editPref === p && s.miniChipTextActive]}>
+                    {p[0].toUpperCase() + p.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
+              <View style={s.chipGroupSep} />
+              {["espresso", "filter"].map((b) => (
+                <Pressable key={b} onPress={() => setEditBrew(editBrew === b ? "" : b)}
+                  style={[s.miniChip, editBrew === b && s.miniChipActive]}>
+                  <Text style={[s.miniChipText, editBrew === b && s.miniChipTextActive]}>
+                    {b[0].toUpperCase() + b.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
           ) : (
             <Text style={s.infoText}>{roastLabel || "—"}</Text>
@@ -1111,11 +1119,17 @@ const s = StyleSheet.create({
   // Avatar sizing matches Figma node 202:2548 — 488.68 × 501.72 at
   // the 1440 design viewport (33.94% of width, aspect 1:1.027).
   // Shared with app/user/[username].tsx so the avatar has the same
-  // dimensions on a user's own profile and on anyone else's view —
-  // previously the two pages used different aspectRatio + maxWidth
-  // pairs, which made the image "jump" when entering edit mode and
-  // look inconsistent between users.
+  // dimensions on a user's own profile and on anyone else's view.
+  //
+  // alignSelf "flex-start" is load-bearing: the hero row's default
+  // stretch was fighting the aspectRatio on Expo Web, so any time
+  // the info column grew in edit mode the avatar's height stretched
+  // with it — which re-fired onLayout with new cH, which re-ran the
+  // MIN_OVER × zoom math, which visibly rescaled the image. Pinning
+  // to flex-start lets aspectRatio win; the container stays the
+  // same pixel size no matter what the sibling column does.
   avatarWrap: {
+    alignSelf: "flex-start",
     width: "34%",
     aspectRatio: 488.68 / 501.72,
     maxWidth: 489,
@@ -1183,6 +1197,12 @@ const s = StyleSheet.create({
     marginTop: 4,
     lineHeight: 18,
   },
+  // Slot reserves the same vertical space in display + edit so the
+  // hero stays pixel-stable through the toggle. 36 matches the old
+  // edit-mode minHeight so users who already had a bio don't see any
+  // change.
+  bioSlot: { minHeight: 36, maxWidth: 291 } as any,
+  bioInput: { minHeight: 36, maxHeight: 54, maxWidth: 281 } as any,
   // Separator lines (Figma: 280.964px wide, #D7D1C4)
   divider: {
     height: 1,
@@ -1226,15 +1246,10 @@ const s = StyleSheet.create({
     minWidth: 60,
     maxWidth: 150,
   },
-  editFieldLabel: {
-    fontFamily: t.font["body.medium"],
-    fontSize: 10,
-    color: "#A09580",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  chipEditRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  chipEditRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
+  // Thin vertical rule between the roast chips and the grind chips.
+  // Visual separator that matches the "Medium · Espresso" display read.
+  chipGroupSep: { width: 1, height: 12, backgroundColor: "#D7D1C4", marginHorizontal: 4 } as any,
   miniChip: {
     paddingHorizontal: 8,
     paddingVertical: 3,

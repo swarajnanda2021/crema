@@ -65,11 +65,16 @@ export default function ComposePost({
   // Core state
   const [teaser, setTeaser] = useState(initialData?.body || "");
   const [location, setLocation] = useState(initialData?.location || "");
-  // Phase 1 §2.3 — sourcing story mode (roaster accounts only). The
-  // teaser becomes an excerpt; bodyFull is the expanded narrative. When
-  // `storyMode` is true, we submit post_type: "sourcing_story" +
-  // body_full instead of the regular note/article flow.
-  const canStoryMode = user?.account_type === "roaster";
+  // §2.14 — long-form mode. Promotes the post to a long-form body
+  // (teaser becomes an excerpt, bodyFull carries the expanded
+  // narrative). Originally gated to roaster accounts as "sourcing
+  // story" — now open to every account type because the underlying
+  // thing it does is just *extend the character limit*. Consumers
+  // can write a detailed brew walkthrough; cafés can write a menu
+  // rationale; roasters can still write a sourcing story. Backend
+  // post_type stays `sourcing_story` for now (no migration); the
+  // label layer renames it to "Long form" everywhere user-visible.
+  const canStoryMode = true;
   const [storyMode, setStoryMode] = useState(
     initialData?.post_type === "sourcing_story",
   );
@@ -182,7 +187,7 @@ export default function ComposePost({
     if (storyMode) {
       const imgs = imageUrls.filter(Boolean);
       await onSubmit({
-        title: teaser.trim().slice(0, 80) || "Sourcing story",
+        title: teaser.trim().slice(0, 80) || "Long-form post",
         teaser: teaser.trim(),
         body_full: bodyFull.trim(),
         post_type: "sourcing_story",
@@ -262,7 +267,8 @@ export default function ComposePost({
       />
       <Text style={s.charCount}>{teaser.length}/300</Text>
 
-      {/* Roaster-only: promote post to sourcing story (§2.3) */}
+      {/* Long-form toggle (§2.14). Open to every account type — just
+         extends the character limit and adds a body_full textarea. */}
       {canStoryMode && !isRepost && (
         <Pressable
           onPress={() => setStoryMode((v) => !v)}
@@ -271,19 +277,19 @@ export default function ComposePost({
           accessibilityState={{ checked: storyMode }}
         >
           <Text style={[s.storyToggleText, storyMode && s.storyToggleTextOn]}>
-            {storyMode ? "Sourcing story · on" : "Make this a sourcing story"}
+            {storyMode ? "Long form · on" : "Long form"}
           </Text>
         </Pressable>
       )}
 
-      {/* Sourcing story long-form body */}
+      {/* Long-form body */}
       {storyMode && (
         <>
           <TextInput
             style={s.storyBodyInput}
             value={bodyFull}
             onChangeText={setBodyFull}
-            placeholder="Tell the full story — the farm, the producer, how you chose the lot, the process, what makes this origin matter..."
+            placeholder="Write the long version \u2014 a sourcing story, a brew walkthrough, a detailed review. Whatever doesn't fit in the teaser."
             placeholderTextColor="#A09580"
             multiline
             maxLength={STORY_MAX}
