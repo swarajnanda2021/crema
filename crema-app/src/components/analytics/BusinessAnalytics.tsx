@@ -141,9 +141,10 @@ export default function BusinessAnalytics({ kind, slug }: Props) {
             <Pressable
               key={tab.key}
               onPress={() => setActiveTab(tab.key)}
-              style={[s.subTabBtn, active && s.subTabBtnActive]}
+              style={s.subTabBtn}
             >
               <Text style={[s.subTabText, active && s.subTabTextActive]}>{tab.label}</Text>
+              {active && <View style={s.subTabUnderline} />}
             </Pressable>
           );
         })}
@@ -282,6 +283,10 @@ const s = StyleSheet.create({
     color: t.color["text.muted"],
   } as any,
 
+  // Same pattern the roaster profile uses — underline is a separate
+  // absolute-positioned View at `bottom: -1`, so the active-tab bar
+  // rides the parent's borderBottom line instead of sitting inside
+  // the button's own border box.
   subTabRow: {
     flexDirection: "row",
     gap: t.spacing.md,
@@ -290,12 +295,16 @@ const s = StyleSheet.create({
     marginBottom: t.spacing.md,
   } as any,
   subTabBtn: {
+    position: "relative",
     paddingHorizontal: t.spacing.sm,
     paddingVertical: 8,
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
   } as any,
-  subTabBtnActive: { borderBottomColor: t.color.accent } as any,
+  subTabUnderline: {
+    position: "absolute",
+    bottom: -1, left: 0, right: 0,
+    height: 2,
+    backgroundColor: t.color.accent,
+  } as any,
   subTabText: {
     fontFamily: t.font["body.medium"],
     fontSize: t.size["font.sm"],

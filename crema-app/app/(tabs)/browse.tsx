@@ -225,8 +225,9 @@ function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }
 
 function TabButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={[s.tabBtn, active && s.tabBtnActive]}>
+    <Pressable onPress={onPress} style={s.tabBtn}>
       <Text style={[s.tabLabel, active && s.tabLabelActive]}>{label}</Text>
+      {active && <View style={s.tabUnderline} />}
     </Pressable>
   );
 }
@@ -535,17 +536,20 @@ const s = StyleSheet.create({
     borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(215,209,196,0.5)",
     backgroundColor: t.color.bg, height: 80, justifyContent: "center",
   },
-  tabBarInner: { flexDirection: "row", alignItems: "center", paddingLeft: "6.25%" as any, paddingRight: "6.25%" as any, width: "100%" as any },
+  // `alignItems: "stretch"` so the tab buttons span the full tabBar
+  // height — lets the tabUnderline's `bottom: -1` ride the parent's
+  // borderBottom line (roaster profile pattern).
+  tabBarInner: { flexDirection: "row", alignItems: "stretch", paddingLeft: "6.25%" as any, paddingRight: "6.25%" as any, width: "100%" as any },
   tabBarLeft: { width: 195, flexShrink: 0, justifyContent: "center" } as any,
-  tabBarRight: { flex: 1, flexDirection: "row", alignItems: "center", paddingLeft: 16, gap: 48 } as any,
+  tabBarRight: { flex: 1, flexDirection: "row", alignItems: "stretch", paddingLeft: 16, gap: 48 } as any,
   lookingForLabel: {
     fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.primary"],
-    textTransform: "uppercase", paddingVertical: 10, borderBottomWidth: 4, borderBottomColor: "transparent",
+    textTransform: "uppercase", alignSelf: "center",
   } as any,
-  tabBtn: { paddingVertical: 10, borderBottomWidth: 4, borderBottomColor: "transparent" },
-  tabBtnActive: { borderBottomColor: t.color["text.primary"] },
+  tabBtn: { justifyContent: "center", position: "relative" } as any,
   tabLabel: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"] },
   tabLabelActive: { fontFamily: t.font["body.semibold"], color: t.color["text.primary"] },
+  tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: t.color["text.primary"] } as any,
 
   // Browse layout
   browseLayout: { flex: 1, flexDirection: "row", paddingLeft: "6.25%" as any, paddingRight: "6.25%" as any, paddingTop: 63 } as any,

@@ -30,6 +30,7 @@ import CoffeeCard from "../../src/components/CoffeeCard";
 import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 import Navbar from "../../src/components/Navbar";
+import CremaLogo from "../../src/components/CremaLogo";
 import StampBookList from "../../src/components/StampBookList";
 import TractionDashboard from "../../src/components/admin/TractionDashboard";
 
@@ -169,7 +170,7 @@ const g = StyleSheet.create({
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
-  const { user, updateProfile } = useAuth();
+  const { user, loading: authLoading, updateProfile } = useAuth();
   const { shelves, fetchShelves, addToShelf, removeFromShelf } = useShelves();
   const { productMap } = useCoffeeData();
   const { cafes } = useCafes();
@@ -439,6 +440,18 @@ export default function ProfilePage() {
   const handleMoveShelf = (productId: string, shelf: string) => { addToShelf(productId, shelf); };
   const handleRemoveShelf = (entryId: string) => { removeFromShelf(Number(entryId)); };
 
+  // Session hydrating (e.g. after an account switch's hard-reload):
+  // paint the pulsing Crema logo instead of the "Log in" prompt, so
+  // the swap from one profile to the next never flashes an
+  // unauthenticated-looking screen. The prompt stays for real
+  // not-signed-in users once hydration settles.
+  if (authLoading) {
+    return (
+      <View style={s.loadingWrap}>
+        <CremaLogo width={180} height={38} />
+      </View>
+    );
+  }
   if (!user) {
     return (
       <View style={s.loadingWrap}>

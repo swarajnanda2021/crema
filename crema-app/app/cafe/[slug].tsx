@@ -2532,8 +2532,11 @@ const s = StyleSheet.create({
   // (Edit profile + Scan QR are now wired through navbar dropdown / bio scan icon)
 
   // Tabs
-  tabs: { flexDirection: "row", gap: 32, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)", marginBottom: 20 },
-  tabBtn: { position: "relative", paddingBottom: 8 } as any,
+  // Moved the vertical padding from the parent onto the button so
+  // the tabUnderline's `bottom: -1` actually rides the parent's
+  // borderBottom line — same pattern the roaster profile uses.
+  tabs: { flexDirection: "row", gap: 32, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)", marginBottom: 20 },
+  tabBtn: { position: "relative", paddingTop: 4, paddingBottom: 20 } as any,
   tabText: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.muted"], letterSpacing: 0.5 },
   tabTextActive: { color: t.color["text.primary"] },
   tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 3, backgroundColor: t.color["text.primary"] } as any,
