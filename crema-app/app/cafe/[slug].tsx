@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Check, Coffee, Camera, ExternalLink, PenLine, Plus, Trash2, Users } from "lucide-react-native";
+import { ArrowLeft, Check, Coffee, Camera, ExternalLink, PenLine, Plus, QrCode, Trash2, Users } from "lucide-react-native";
 import Svg, { Path } from "react-native-svg";
 import { t } from "../../src/tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
@@ -1207,7 +1207,7 @@ function BioTab({
           </Text>
           {isOwner && !isEditing && (
             <Pressable onPress={onScan} style={s.scanIconBtn} hitSlop={8} accessibilityLabel="Scan QR to stamp">
-              <Camera size={18} color={t.color["text.primary"]} />
+              <QrCode size={18} color={t.color["text.primary"]} />
             </Pressable>
           )}
           {isOwner && isEditing && (
@@ -2569,7 +2569,9 @@ const s = StyleSheet.create({
   tabTextActive: { color: t.color["text.primary"] },
   tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: t.color["text.primary"] } as any,
 
-  tabContent: { gap: 24 },
+  // paddingTop gives the stamp-info row breathing room below the
+  // tab-bar border now that heroWrap.marginBottom is gone.
+  tabContent: { gap: 24, paddingTop: 20 } as any,
 
   sectionTitle: {
     fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"],
@@ -2577,7 +2579,10 @@ const s = StyleSheet.create({
   },
 
   // Stamps stats — inline sentence + optional compact scan icon (owner only)
-  statsRowInline: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  // center align vertically so the scan/camera button sits on the
+  // stamp-sentence's visual midline (with breathing room above +
+  // below) rather than riding the first line of text.
+  statsRowInline: { flexDirection: "row", alignItems: "center", gap: 12 } as any,
   statsSentence: {
     fontFamily: t.font["body.regular"],
     fontSize: 13,
