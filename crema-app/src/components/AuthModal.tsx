@@ -121,7 +121,7 @@ function AuthModalContent({
                 style={[s.trackTab, isBusiness && s.trackTabActiveDark]}
               >
                 <Text style={[s.trackTabText, isBusiness ? s.trackTabTextActiveDark : { color: mutedFg }]}>
-                  For businesses
+                  For business
                 </Text>
               </Pressable>
             </View>

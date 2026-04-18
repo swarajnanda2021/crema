@@ -7,12 +7,12 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  View, Text, ScrollView, Pressable, RefreshControl,
+  View, Text, ScrollView, Pressable, RefreshControl, Modal,
   StyleSheet, useWindowDimensions, LayoutChangeEvent, ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
-import { Plus, Check, MessageCircle } from "lucide-react-native";
+import { Plus, Check, MessageCircle, X } from "lucide-react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { useAuth } from "../../src/hooks/useAuth";
@@ -164,6 +164,9 @@ export default function UserProfilePage() {
   const [shelves, setShelves] = useState<any>({ open_bags: [], on_the_list: [] });
   const [followingList, setFollowingList] = useState<any[]>([]);
   const [followerCount, setFollowerCount] = useState(0);
+  const [followers, setFollowers] = useState<any[]>([]);
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [myFollows, setMyFollows] = useState<string[]>([]);
   const [following, setFollowing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -181,7 +184,11 @@ export default function UserProfilePage() {
       const u = raw?.data ?? raw;
       setProfileUser(u);
       const slug = `user_${u.id}`;
-      apiFetchRaw(`/followers/${slug}`).then((r) => { const d = r?.data ?? r; setFollowerCount(d?.follower_count || 0); }).catch(() => {});
+      apiFetchRaw(`/followers/${slug}`).then((r) => {
+        const d = r?.data ?? r;
+        setFollowerCount(d?.follower_count || 0);
+        setFollowers(Array.isArray(d?.followers) ? d.followers : []);
+      }).catch(() => {});
       if (authUser && !isOwn) {
         apiFetchRaw(`/follow-status/${slug}`).then((r) => { const d = r?.data ?? r; setFollowing(d?.following || false); }).catch(() => {});
       }
@@ -204,6 +211,24 @@ export default function UserProfilePage() {
       apiFetchRaw("/my-following").then((r) => { const d = r?.data ?? r; setFollowingList(d?.following || []); }).catch(() => {});
     }
   }, [activeTab, profileUser, isOwn]);
+
+  // Pull the viewer's own follow slugs when the followers modal
+  // opens, so we can show a "Following / Follow" pill per row.
+  useEffect(() => {
+    if (!showFollowersModal || !authUser) return;
+    apiFetchRaw<any>("/my-following").then((r) => {
+      const d = r?.data ?? r;
+      setMyFollows(d.slugs || d.following || []);
+    }).catch(() => {});
+  }, [showFollowersModal, authUser]);
+
+  const handleToggleFollowInModal = useCallback(async (slug: string) => {
+    try {
+      const raw = await apiFetchRaw<any>(`/roasters/${slug}/follow`, { method: "POST" });
+      const res = raw?.data ?? raw;
+      setMyFollows((prev) => res.following ? [...prev, slug] : prev.filter((s) => s !== slug));
+    } catch (e) { console.warn("Follow toggle failed:", e); }
+  }, []);
 
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
 
@@ -324,7 +349,9 @@ export default function UserProfilePage() {
 
         {/* Row 3: followers + location */}
         <View style={s.infoRow}>
-          <View style={s.infoItem}><HeroPeopleIcon /><Text style={s.infoText}>{followerCount} followers</Text></View>
+          <Pressable onPress={() => setShowFollowersModal(true)} style={s.infoItem}>
+            <HeroPeopleIcon /><Text style={s.infoText}>{followerCount} followers</Text>
+          </Pressable>
           {u.location ? (
             <View style={s.infoItem}><HeroPinIcon /><Text style={s.infoText}>{u.location}</Text></View>
           ) : null}
@@ -483,6 +510,62 @@ export default function UserProfilePage() {
           {tabContent}
         </ScrollView>
       </View>
+
+      {/* Followers modal — mirrors the owner-profile pattern in
+         app/(tabs)/profile.tsx. Tapping a row navigates to that
+         user's profile; follow pill toggles via /roasters/{slug}/follow. */}
+      {showFollowersModal && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setShowFollowersModal(false)}>
+          <View style={s.followersOverlayWrap}>
+            <Pressable style={s.followersOverlayBg} onPress={() => setShowFollowersModal(false)} />
+            <View style={s.followersModal}>
+              <View style={s.followersHeader}>
+                <Text style={s.followersTitle}>{followerCount} {followerCount === 1 ? "follower" : "followers"}</Text>
+                <Pressable onPress={() => setShowFollowersModal(false)} hitSlop={8}>
+                  <X size={16} color={t.color["text.primary"]} />
+                </Pressable>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
+                {followers.length === 0 ? (
+                  <Text style={s.followersEmpty}>No followers yet</Text>
+                ) : (
+                  followers.map((f: any, idx: number) => {
+                    const isMe = authUser && (f.user_id === authUser.id || f.username === authUser.username);
+                    const fSlug = f.roaster_slug || `user_${f.user_id}`;
+                    const amFollowing = myFollows.includes(fSlug);
+                    return (
+                      <View key={f.user_id || idx}>
+                        {idx > 0 && <View style={s.followerDivider} />}
+                        <View style={s.followerRow}>
+                          <Pressable onPress={() => { setShowFollowersModal(false); router.push(`/user/${f.username}`); }} style={s.followerInfo}>
+                            {f.avatar_url ? (
+                              <Image source={{ uri: resolveUploadUrl(f.avatar_url) }} style={s.followerAvatar} contentFit="cover" />
+                            ) : (
+                              <View style={[s.followerAvatar, s.followerAvatarFb]}>
+                                <Text style={s.followerAvatarLetter}>{(f.display_name || "?")[0].toUpperCase()}</Text>
+                              </View>
+                            )}
+                            <View>
+                              <Text style={s.followerName}>{f.display_name}</Text>
+                              {f.location ? <Text style={s.followerLocation}>{f.location}</Text> : null}
+                            </View>
+                          </Pressable>
+                          {!isMe && authUser && (
+                            <Pressable onPress={() => handleToggleFollowInModal(fSlug)} style={[s.followerFollowBtn, amFollowing && s.followerFollowBtnActive]}>
+                              {amFollowing ? <Check size={10} color={t.color["text.primary"]} strokeWidth={2.5} /> : <Plus size={10} color={t.color["text.primary"]} strokeWidth={2.5} />}
+                              <Text style={s.followerFollowBtnText}>{amFollowing ? "Following" : "Follow"}</Text>
+                            </Pressable>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
     </>
   );
 }
@@ -578,4 +661,23 @@ const s = StyleSheet.create({
   followInfo: { flex: 1 },
   followName: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.primary"] },
   followMeta: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"], marginTop: 2 },
+
+  // Followers modal — same visual language as app/(tabs)/profile.tsx
+  followersOverlayWrap: { flex: 1, justifyContent: "center", alignItems: "center" } as any,
+  followersOverlayBg: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(104,79,68,0.6)" } as any,
+  followersModal: { width: "90%", maxWidth: 440, backgroundColor: "#FAF8F0", borderRadius: 12, padding: 20, maxHeight: "70%", zIndex: 1 } as any,
+  followersHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
+  followersTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: "#351101" },
+  followersEmpty: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#A09580", textAlign: "center" as any, paddingVertical: 32 },
+  followerDivider: { height: 1, backgroundColor: "rgba(215,209,196,0.3)", marginVertical: 2 },
+  followerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 },
+  followerInfo: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  followerAvatar: { width: 32, height: 32, borderRadius: 16, overflow: "hidden" } as any,
+  followerAvatarFb: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,
+  followerAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: "#FAF8F0" },
+  followerName: { fontFamily: t.font["body.medium"], fontSize: 13, color: "#351101" },
+  followerLocation: { fontFamily: t.font["body.regular"], fontSize: 11, color: "#A09580" },
+  followerFollowBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1.5, borderColor: "#351101", borderRadius: 2, paddingHorizontal: 10, paddingVertical: 4 } as any,
+  followerFollowBtnActive: { backgroundColor: "#D798DA", borderColor: "#D798DA" },
+  followerFollowBtnText: { fontFamily: t.font["body.semibold"], fontSize: 11, color: "#351101" },
 });
