@@ -2401,13 +2401,17 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
 
-  // Hero (right panel top) — full-width landscape
+  // Hero (right panel top) — full-width landscape. No marginBottom
+  // so the tab-bar below butts up directly against the hero edge
+  // (same as the roaster profile — the 16px gap was making the
+  // tab-bar region read as "thicker" because it widened the empty
+  // cream area above the tab text, making the text sit south of
+  // visual center).
   heroWrap: {
     width: "100%",
     height: 280,
     backgroundColor: t.color["card.info"],
     overflow: "hidden",
-    marginBottom: 16,
     position: "relative",
   } as any,
   heroFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
