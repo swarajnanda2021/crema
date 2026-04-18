@@ -2554,10 +2554,12 @@ const s = StyleSheet.create({
   // letting tabUnderline's `bottom: -1` ride the parent's border.
   // Mirror the roaster profile's right-tab styles exactly — same
   // height (80), same stretch alignment, same font size (14), same
-  // 4px underline. Gap is slightly tighter (48 vs roaster's 100)
-  // because the café has up to 4 tabs (BIO / COFFEE MENU / POSTS /
-  // ANALYTICS) where the roaster only has 2-3.
-  tabs: { flexDirection: "row", alignItems: "stretch", gap: 48, height: 80, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)", marginBottom: 20 },
+  // 4px underline, NO marginBottom (content flows straight after
+  // the tab-bar border so the total tab-area reads the same
+  // ~80px the roaster does). Gap is tighter (48 vs roaster's 100)
+  // because the café can have up to 4 tabs (BIO / COFFEE MENU /
+  // POSTS / ANALYTICS) where the roaster only has 2-3.
+  tabs: { flexDirection: "row", alignItems: "stretch", gap: 48, height: 80, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)" },
   tabBtn: { justifyContent: "center", position: "relative" } as any,
   tabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"], letterSpacing: 0.5, textTransform: "uppercase" } as any,
   tabTextActive: { color: t.color["text.primary"] },
