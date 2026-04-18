@@ -26,7 +26,7 @@ import ComposePost from "../../src/components/ComposePost";
 import PostCard from "../../src/components/domain/PostCard";
 import BusinessAnalytics from "../../src/components/analytics/BusinessAnalytics";
 import CremaLogo from "../../src/components/CremaLogo";
-import { openPostModal } from "../../src/components/primitives";
+import { openPostModal, ConfirmDeleteModal } from "../../src/components/primitives";
 import type { Cafe, CafeMenuItem } from "../../src/resources/types";
 
 const NAVBAR_H = 72;
@@ -1264,6 +1264,7 @@ function MenuTab({
   onCatalogChange?: (change: "added" | "updated" | "removed", subject: string) => void;
 }) {
   const router = useRouter();
+  const [menuItemToDelete, setMenuItemToDelete] = useState<CafeMenuItem | null>(null);
 
   // Group by drink_name so multi-bean drinks stack as carousel slides
   const grouped = useMemo(() => {
@@ -1435,7 +1436,7 @@ function MenuTab({
                   {/* Col 6 — Actions (delete, only in edit mode) */}
                   <View style={s.menuColActions}>
                     {isOwner && isEditing && item.id != null && (
-                      <Pressable onPress={() => handleDelete(item.id!)} hitSlop={8} style={s.menuRowAction}>
+                      <Pressable onPress={() => setMenuItemToDelete(item)} hitSlop={8} style={s.menuRowAction}>
                         <Trash2 size={14} color={t.color["text.secondary"]} />
                       </Pressable>
                     )}
@@ -1462,6 +1463,16 @@ function MenuTab({
       {isOwner && (
         <AddMenuItemForm cafe_slug={cafe_slug} onAdded={onChange} />
       )}
+
+      <ConfirmDeleteModal
+        visible={!!menuItemToDelete}
+        title="Remove from menu?"
+        confirmLabel="Remove"
+        onConfirm={async () => {
+          if (menuItemToDelete?.id != null) await handleDelete(menuItemToDelete.id);
+        }}
+        onClose={() => setMenuItemToDelete(null)}
+      />
     </View>
   );
 }
@@ -2541,11 +2552,16 @@ const s = StyleSheet.create({
   // read at the same vertical rhythm. Button is relative-positioned
   // with no padding — text centers vertically inside the 80px row,
   // letting tabUnderline's `bottom: -1` ride the parent's border.
-  tabs: { flexDirection: "row", alignItems: "stretch", gap: 32, height: 80, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)", marginBottom: 20 },
+  // Mirror the roaster profile's right-tab styles exactly — same
+  // height (80), same stretch alignment, same font size (14), same
+  // 4px underline. Gap is slightly tighter (48 vs roaster's 100)
+  // because the café has up to 4 tabs (BIO / COFFEE MENU / POSTS /
+  // ANALYTICS) where the roaster only has 2-3.
+  tabs: { flexDirection: "row", alignItems: "stretch", gap: 48, height: 80, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)", marginBottom: 20 },
   tabBtn: { justifyContent: "center", position: "relative" } as any,
-  tabText: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.muted"], letterSpacing: 0.5 },
+  tabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"], letterSpacing: 0.5, textTransform: "uppercase" } as any,
   tabTextActive: { color: t.color["text.primary"] },
-  tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 3, backgroundColor: t.color["text.primary"] } as any,
+  tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: t.color["text.primary"] } as any,
 
   tabContent: { gap: 24 },
 

@@ -205,6 +205,7 @@ export default function ProfilePage() {
   const [showCompose, setShowCompose] = useState(false);
   const [editingPost, setEditingPost] = useState<any>(null);
   const [postToDelete, setPostToDelete] = useState<any>(null);
+  const [shelfEntryToRemove, setShelfEntryToRemove] = useState<number | null>(null);
 
   // ── In-place editing state ──────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(edit === "1");
@@ -439,7 +440,9 @@ export default function ProfilePage() {
   }));
 
   const handleMoveShelf = (productId: string, shelf: string) => { addToShelf(productId, shelf); };
-  const handleRemoveShelf = (entryId: string) => { removeFromShelf(Number(entryId)); };
+  const handleRemoveShelf = (entryId: string) => {
+    setShelfEntryToRemove(Number(entryId));
+  };
 
   // Session hydrating (e.g. after an account switch's hard-reload):
   // paint the pulsing Crema logo instead of the "Log in" prompt, so
@@ -1085,6 +1088,16 @@ export default function ProfilePage() {
           loadData();
         }}
         onClose={() => setPostToDelete(null)}
+      />
+
+      <ConfirmDeleteModal
+        visible={shelfEntryToRemove != null}
+        title="Take off shelf?"
+        confirmLabel="Remove"
+        onConfirm={async () => {
+          if (shelfEntryToRemove != null) await removeFromShelf(shelfEntryToRemove);
+        }}
+        onClose={() => setShelfEntryToRemove(null)}
       />
     </View>
   );
