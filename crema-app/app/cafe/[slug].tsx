@@ -25,6 +25,7 @@ import PostPromptModal from "../../src/components/PostPromptModal";
 import ComposePost from "../../src/components/ComposePost";
 import PostCard from "../../src/components/domain/PostCard";
 import BusinessAnalytics from "../../src/components/analytics/BusinessAnalytics";
+import CremaLogo from "../../src/components/CremaLogo";
 import { openPostModal } from "../../src/components/primitives";
 import type { Cafe, CafeMenuItem } from "../../src/resources/types";
 
@@ -401,12 +402,15 @@ export default function CafeDetailPage() {
   const isWide = winW >= 800;
 
   if (loading || !cafe) {
+    // Match the rest of the site's buffering language — pulsing
+    // Crema logo instead of a generic spinner so profile switches
+    // into a café page read as a real site transition.
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <Navbar />
         <View style={s.loadingWrap}>
-          <ActivityIndicator size="large" color={t.color["text.primary"]} />
+          <CremaLogo width={180} height={38} />
         </View>
       </>
     );
@@ -2532,11 +2536,13 @@ const s = StyleSheet.create({
   // (Edit profile + Scan QR are now wired through navbar dropdown / bio scan icon)
 
   // Tabs
-  // Moved the vertical padding from the parent onto the button so
-  // the tabUnderline's `bottom: -1` actually rides the parent's
-  // borderBottom line — same pattern the roaster profile uses.
-  tabs: { flexDirection: "row", gap: 32, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)", marginBottom: 20 },
-  tabBtn: { position: "relative", paddingTop: 4, paddingBottom: 20 } as any,
+  // height: 80 matches the roaster profile's rightTabBar + the
+  // user profile's tabBar so all three business/account tabstrips
+  // read at the same vertical rhythm. Button is relative-positioned
+  // with no padding — text centers vertically inside the 80px row,
+  // letting tabUnderline's `bottom: -1` ride the parent's border.
+  tabs: { flexDirection: "row", alignItems: "stretch", gap: 32, height: 80, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)", marginBottom: 20 },
+  tabBtn: { justifyContent: "center", position: "relative" } as any,
   tabText: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.muted"], letterSpacing: 0.5 },
   tabTextActive: { color: t.color["text.primary"] },
   tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 3, backgroundColor: t.color["text.primary"] } as any,

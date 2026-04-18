@@ -16,7 +16,7 @@ import { useAuth } from "../../src/hooks/useAuth";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { apiFetchRaw } from "../../src/api/client";
 import { useResource } from "../../src/resources/useResource";
-import { openPostModal } from "../../src/components/primitives";
+import { openPostModal, ConfirmDeleteModal } from "../../src/components/primitives";
 import PostCard from "../../src/components/domain/PostCard";
 import ComposePost from "../../src/components/ComposePost";
 import { t } from "../../src/tokens/useTokens";
@@ -31,6 +31,7 @@ export default function FeedPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [showCompose, setShowCompose] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [postToDelete, setPostToDelete] = useState<Post | null>(null);
 
   // Generic resource hook — fetches all posts sorted by published_at DESC
   const { data: posts, loading, refetch } = useResource<Post>("posts", { limit: 40 });
@@ -108,10 +109,7 @@ export default function FeedPage() {
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
                 onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
                 onEdit={(p) => setEditingPost(p)}
-                onDelete={async (p) => {
-                  await apiFetchRaw(`/posts/${p.id}`, { method: "DELETE" });
-                  refetch();
-                }}
+                onDelete={(p) => setPostToDelete(p)}
               />
               {idx < Math.min(items.length, visibleCount) - 1 && <View style={s.divider} />}
             </View>
@@ -171,6 +169,21 @@ export default function FeedPage() {
           </View>
         </View>
       </Modal>
+
+      {/* Confirm before deleting. The post lands in the recycle bin
+         (§2.25) on delete — mention that in the body so the user
+         knows the action is recoverable. */}
+      <ConfirmDeleteModal
+        visible={!!postToDelete}
+        title="Delete this post?"
+        confirmLabel="Delete"
+        onConfirm={async () => {
+          if (!postToDelete) return;
+          await apiFetchRaw(`/posts/${postToDelete.id}`, { method: "DELETE" });
+          refetch();
+        }}
+        onClose={() => setPostToDelete(null)}
+      />
     </View>
   );
 }

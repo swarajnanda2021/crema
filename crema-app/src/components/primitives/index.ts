@@ -10,6 +10,7 @@ export { timeAgo } from "./TimeAgo";
 export { default as Toggle } from "./Toggle";
 export { default as ActionBar } from "./ActionBar";
 export { default as CommentThread } from "./CommentThread";
+export { default as ConfirmDeleteModal } from "./ConfirmDeleteModal";
 
 /** Dispatch global event to open the sitewide PostModal */
 export function openPostModal(opts: { postId?: number; post?: any; mode?: string; highlightCommentId?: number }) {

@@ -176,6 +176,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Raise the sitewide loader curtain BEFORE any async work so
+    // the old profile page doesn't re-render with stale state
+    // (null user / wrong account) while we swap tokens and fetch
+    // the next identity. No matching "loading-end" is fired — the
+    // window.location.assign hard-reload takes over, and the new
+    // page's NavigationLoader holds the curtain until authLoading
+    // settles there.
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("crema:loading-start"));
+    }
+
     const username = user?.username;
     // If there's a next saved account on the device, slip into it
     // instead of bouncing to /auth. Matches the mental model of
@@ -246,6 +257,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const switchAccount = useCallback(async (token: string) => {
+    // Same curtain-first pattern as logout() — paint the sitewide
+    // loader before any async work so the current page can't
+    // briefly render with the incoming account's token but the
+    // outgoing account's props.
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("crema:loading-start"));
+    }
     await setToken(token);
     const meRes = await apiFetchRaw<any>("/auth/me");
     const me = meRes?.data ?? meRes;

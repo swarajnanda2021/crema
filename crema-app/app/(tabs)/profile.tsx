@@ -25,7 +25,7 @@ import { t, SHELF_LABELS } from "../../src/tokens/useTokens";
 type ShelfKey = "open_bags" | "on_the_list";
 
 import PostCard from "../../src/components/domain/PostCard";
-import { openPostModal } from "../../src/components/primitives";
+import { openPostModal, ConfirmDeleteModal } from "../../src/components/primitives";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
@@ -204,6 +204,7 @@ export default function ProfilePage() {
   // Compose
   const [showCompose, setShowCompose] = useState(false);
   const [editingPost, setEditingPost] = useState<any>(null);
+  const [postToDelete, setPostToDelete] = useState<any>(null);
 
   // ── In-place editing state ──────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(edit === "1");
@@ -786,7 +787,7 @@ export default function ProfilePage() {
                 isOwner={user?.id === post.user_id}
                 onEdit={(p) => setEditingPost(p)}
                 onPin={(p) => handlePinToggle(p.id)}
-                onDelete={async (p) => { await apiFetchRaw(`/posts/${p.id}`, { method: "DELETE" }); loadData(); }}
+                onDelete={(p) => setPostToDelete(p)}
               />
               {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
             </View>
@@ -1073,6 +1074,18 @@ export default function ProfilePage() {
           </View>
         </View>
       </Modal>
+
+      <ConfirmDeleteModal
+        visible={!!postToDelete}
+        title="Delete this post?"
+        confirmLabel="Delete"
+        onConfirm={async () => {
+          if (!postToDelete) return;
+          await apiFetchRaw(`/posts/${postToDelete.id}`, { method: "DELETE" });
+          loadData();
+        }}
+        onClose={() => setPostToDelete(null)}
+      />
     </View>
   );
 }

@@ -28,16 +28,48 @@ import { usePathname } from "expo-router";
 
 import { NAVBAR_HEIGHT, t } from "../tokens/useTokens";
 import CremaLogo from "./CremaLogo";
+import Navbar from "./Navbar";
+import { useAuth } from "../hooks/useAuth";
 
 const MIN_DISPLAY_MS = 320;
 
 export default function NavigationLoader() {
   const pathname = usePathname();
+  const { loading: authLoading } = useAuth();
   const prevPathRef = useRef(pathname);
-  const [visible, setVisible] = useState(false);
+  // Start visible on initial mount so the first paint after a hard
+  // reload (e.g. account switch → window.location.assign) is the
+  // Crema wordmark, not the partially-hydrated destination page.
+  const [visible, setVisible] = useState(true);
   const minHoldTimerRef = useRef<any>(null);
   const explicitHoldRef = useRef(0);
   const pulse = useRef(new Animated.Value(0.45)).current;
+
+  // Arm the minimum-display timer on initial mount too, so the
+  // overlay isn't stuck up forever if auth resolves in under 5ms.
+  useEffect(() => {
+    showOverlay();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep the overlay up for the duration of auth hydration — on a
+  // fresh page load / account switch, the old profile page briefly
+  // tries to render as the new user (or as "not found" while the
+  // catalog hydrates). Holding the curtain until `authLoading` flips
+  // to false guarantees the user only ever sees the next fully-
+  // resolved page.
+  useEffect(() => {
+    if (authLoading) {
+      explicitHoldRef.current += 1;
+      showOverlay();
+    } else {
+      // Decrement but never below zero — guards against strict-mode
+      // double-fire in development.
+      explicitHoldRef.current = Math.max(0, explicitHoldRef.current - 1);
+      scheduleHide();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading]);
 
   // Start the overlay on pathname change.
   useEffect(() => {
@@ -98,16 +130,41 @@ export default function NavigationLoader() {
 
   if (!visible) return null;
 
+  // Navbar stays visible through the curtain on every page EXCEPT
+  // /auth — the auth screen replaces the navbar with its own hero
+  // layout, so rendering a navbar there would double up.
+  const onAuth = pathname?.startsWith("/auth");
+
   return (
-    <View style={s.overlay} pointerEvents="auto">
-      <Animated.View style={{ opacity: pulse }}>
-        <CremaLogo width={240} height={50} />
-      </Animated.View>
-    </View>
+    <>
+      {!onAuth && (
+        <View style={s.navbarLayer} pointerEvents="auto">
+          <Navbar />
+        </View>
+      )}
+      <View style={s.overlay} pointerEvents="auto">
+        <Animated.View style={{ opacity: pulse }}>
+          <CremaLogo width={240} height={50} />
+        </Animated.View>
+      </View>
+    </>
   );
 }
 
 const s = StyleSheet.create({
+  // Ensures the navbar is painted for the duration of the curtain,
+  // so hard-reloads (account switch) never leave a bare cream strip
+  // where the nav should be. zIndex sits just above the overlay
+  // card (9500) but below the dropdowns the navbar hosts.
+  navbarLayer: {
+    ...(Platform.OS === "web"
+      ? ({ position: "fixed" as any } as any)
+      : ({ position: "absolute" as any } as any)),
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 9600,
+  } as any,
   // Pinned below the navbar. Uses `position: "fixed"` on web so the
   // overlay stays put while the page underneath is paging in.
   overlay: {

@@ -29,11 +29,12 @@ import CoffeeCard from "../../src/components/CoffeeCard";
 import Navbar from "../../src/components/Navbar";
 import PostCard from "../../src/components/domain/PostCard";
 import BusinessAnalytics from "../../src/components/analytics/BusinessAnalytics";
+import CremaLogo from "../../src/components/CremaLogo";
 import EditableCoffeeCard from "../../src/components/domain/EditableCoffeeCard";
 import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 import PostPromptModal from "../../src/components/PostPromptModal";
-import { openPostModal } from "../../src/components/primitives";
+import { openPostModal, ConfirmDeleteModal } from "../../src/components/primitives";
 
 // ── Icons (Figma SVG paths, left panel only) ─────────────────────────────────
 
@@ -170,7 +171,7 @@ export default function RoasterDetailPage() {
   const { slug, edit } = useLocalSearchParams<{ slug: string; edit?: string }>();
   const router = useRouter();
   const { user } = useAuth();
-  const { products, roasters, appendProducts, removeProduct } = useCoffeeData();
+  const { products, roasters, appendProducts, removeProduct, loading: coffeeLoading } = useCoffeeData();
   const { getProfile, refreshProfiles, loading: profileLoading } = useRoasterProfiles();
   const { height: winH, width: winW } = useWindowDimensions();
   const isWide = winW >= 800;
@@ -235,6 +236,7 @@ export default function RoasterDetailPage() {
   // Tabs & compose
   const [activeTab, setActiveTab] = useState<"posts" | "beans" | "analytics">("posts");
   const [editingPost, setEditingPost] = useState<any>(null);
+  const [postToDelete, setPostToDelete] = useState<any>(null);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
   // Profile editing (owner)
@@ -521,11 +523,21 @@ export default function RoasterDetailPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (!roaster) {
+    // During account switching (hard reload) or cold data fetches,
+    // both caches are briefly empty — render the pulsing Crema logo
+    // instead of the "not found" fallback so a live slug never reads
+    // as broken mid-transition. The fallback only fires once both
+    // loaders settle with no match.
+    const hydrating = coffeeLoading || profileLoading;
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <Navbar />
-        <View style={s.notFound}><Text style={s.notFoundText}>Roaster not found</Text></View>
+        <View style={s.notFound}>
+          {hydrating
+            ? <CremaLogo width={180} height={38} />
+            : <Text style={s.notFoundText}>Roaster not found</Text>}
+        </View>
       </>
     );
   }
@@ -759,7 +771,7 @@ export default function RoasterDetailPage() {
                       onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
                       onEdit={(p) => setEditingPost(p)}
                       onPin={(p) => handlePinToggle(p.id)}
-                      onDelete={(p) => handleDeletePost(p.id)}
+                      onDelete={(p) => setPostToDelete(p)}
                     />
                     {i < Math.min(sortedPosts.length, visiblePosts) - 1 && <View style={s.dividerLight} />}
                   </View>
@@ -993,6 +1005,17 @@ export default function RoasterDetailPage() {
               </View>
             </View>
           </Modal>
+
+          <ConfirmDeleteModal
+            visible={!!postToDelete}
+            title="Delete this post?"
+            confirmLabel="Delete"
+            onConfirm={async () => {
+              if (!postToDelete) return;
+              await handleDeletePost(postToDelete.id);
+            }}
+            onClose={() => setPostToDelete(null)}
+          />
         </View>
       </View>
       </ResponsiveWrapper>
@@ -1150,7 +1173,9 @@ const s = StyleSheet.create({
   rightContent: { flexGrow: 1 },
 
   // Hero
-  heroImageWrap: { width: "100%" as any, height: 334, backgroundColor: t.color["roaster.hero.fallback"], position: "relative" as any, overflow: "hidden" } as any,
+  // Hero height matches the café profile (280) so both business
+  // profile types read with the same visual rhythm.
+  heroImageWrap: { width: "100%" as any, height: 280, backgroundColor: t.color["roaster.hero.fallback"], position: "relative" as any, overflow: "hidden" } as any,
   heroDragHint: {
     position: "absolute" as any, top: "50%" as any, left: "50%" as any,
     transform: [{ translateX: -70 }, { translateY: -14 }],
