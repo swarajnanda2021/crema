@@ -215,7 +215,7 @@ function MiniCard({
       ? t.color["accent.positive"]
       : card.tone === "negative"
       ? t.color["accent.cta"]
-      : t.color["text.primary"];
+      : t.color.accent;
 
   return (
     <>
@@ -287,7 +287,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   } as any,
-  subTabBtnActive: { borderBottomColor: t.color["text.primary"] } as any,
+  subTabBtnActive: { borderBottomColor: t.color.accent } as any,
   subTabText: {
     fontFamily: t.font["body.medium"],
     fontSize: t.size["font.sm"],
@@ -296,7 +296,7 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
   } as any,
   subTabTextActive: {
-    color: t.color["text.primary"],
+    color: t.color.accent,
     fontFamily: t.font["body.semibold"],
   } as any,
 
@@ -344,9 +344,9 @@ const cs = StyleSheet.create({
     gap: 6,
   } as any,
   cardSelected: {
-    borderColor: t.color["text.primary"],
+    borderColor: t.color.accent,
     // A gentle lift to signal "this is the chart source"
-    backgroundColor: t.color["card.info"],
+    backgroundColor: t.color["accent.soft"],
   } as any,
   cardStatic: {
     // Cards that can't drive the chart (no series) show without the
