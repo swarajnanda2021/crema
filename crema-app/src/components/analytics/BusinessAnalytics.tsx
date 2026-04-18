@@ -265,7 +265,15 @@ function MiniCard({
 // ── styles ──────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  wrap: { gap: t.spacing.lg } as any,
+  // Horizontal padding mirrors the Beans tab's GRID_PAD (20) so the
+  // analytics subtab/chart/cards sit at the same inset from the left
+  // column divider as the coffee grid. Top padding gives the first
+  // subtab some breathing room away from the top tab-bar underline.
+  wrap: {
+    gap: t.spacing.lg,
+    paddingHorizontal: 20,
+    paddingTop: t.spacing.md,
+  } as any,
   loadingWrap: { paddingVertical: 40, alignItems: "center" } as any,
   emptyWrap: { paddingVertical: 40, alignItems: "center" } as any,
   emptyText: {
