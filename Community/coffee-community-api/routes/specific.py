@@ -1774,6 +1774,46 @@ def respond_to_inquiry(inquiry_id: int, body: dict,
         db.close()
 
 
+# ── Business analytics (roaster / café owners only) ─────────────────────────
+# The counterpart to /stats/traction — but per-business, only the
+# slug's owner can read it. Admin override intentional: the seeded
+# "crema" account can read any business's dashboard, same shape as
+# the traction dashboard read permission.
+
+def _require_business_owner(user, *, kind: str, slug: str):
+    """Owner or admin gate. `kind` must be 'roaster' or 'cafe'."""
+    from fastapi import HTTPException
+    if not user:
+        raise HTTPException(401, "Sign in required")
+    is_admin = user.get("is_admin") == 1 and user.get("username") == "crema"
+    owner_slug_field = "roaster_slug" if kind == "roaster" else "cafe_slug"
+    owned = (user.get("account_type") == kind and user.get(owner_slug_field) == slug)
+    if not (owned or is_admin):
+        raise HTTPException(403, f"Not the owner of this {kind}")
+
+
+@router.get("/stats/business/roaster/{slug}")
+def business_stats_roaster(slug: str, user=Depends(get_current_user)):
+    _require_business_owner(user, kind="roaster", slug=slug)
+    from services.business_stats import compute_roaster_business
+    db = get_db()
+    try:
+        return ok(compute_roaster_business(db, slug), resource="business_stats")
+    finally:
+        db.close()
+
+
+@router.get("/stats/business/cafe/{slug}")
+def business_stats_cafe(slug: str, user=Depends(get_current_user)):
+    _require_business_owner(user, kind="cafe", slug=slug)
+    from services.business_stats import compute_cafe_business
+    db = get_db()
+    try:
+        return ok(compute_cafe_business(db, slug), resource="business_stats")
+    finally:
+        db.close()
+
+
 # ── Recycle bin / trash ─────────────────────────────────────────────────────
 # Every hard delete across the registry funnels through
 # `services/trash.py`. These endpoints surface the bin to the user:

@@ -28,6 +28,7 @@ import { t } from "../../src/tokens/useTokens";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import Navbar from "../../src/components/Navbar";
 import PostCard from "../../src/components/domain/PostCard";
+import BusinessAnalytics from "../../src/components/analytics/BusinessAnalytics";
 import EditableCoffeeCard from "../../src/components/domain/EditableCoffeeCard";
 import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
@@ -232,7 +233,7 @@ export default function RoasterDetailPage() {
   const [myFollows, setMyFollows] = useState<string[]>([]);
 
   // Tabs & compose
-  const [activeTab, setActiveTab] = useState<"posts" | "beans">("posts");
+  const [activeTab, setActiveTab] = useState<"posts" | "beans" | "analytics">("posts");
   const [editingPost, setEditingPost] = useState<any>(null);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
@@ -735,6 +736,15 @@ export default function RoasterDetailPage() {
                 <Text style={[s.rightTabText, activeTab === "beans" && s.rightTabTextActive]}>BEANS</Text>
                 {activeTab === "beans" && <View style={s.rightTabUnderline} />}
               </Pressable>
+              {/* Analytics tab — owner-only. The page layout is
+                 identical to the others (right-panel tab bar +
+                 conditionally-rendered content below). */}
+              {isOwner && (
+                <Pressable onPress={() => setActiveTab("analytics")} style={s.rightTab}>
+                  <Text style={[s.rightTabText, activeTab === "analytics" && s.rightTabTextActive]}>ANALYTICS</Text>
+                  {activeTab === "analytics" && <View style={s.rightTabUnderline} />}
+                </Pressable>
+              )}
             </View>
 
             {/* POSTS TAB */}
@@ -774,6 +784,11 @@ export default function RoasterDetailPage() {
                 </Text>
                 <CoffeeGrid coffees={coffees} isOwner={isOwner} onDeleteProduct={requestDelete} onEditProduct={setEditingProduct} roasterName={roaster.name} onSaveCard={handleCreateProduct} popularity={popularity} />
               </>
+            )}
+
+            {/* ANALYTICS TAB — owner-only per the isOwner gate above */}
+            {activeTab === "analytics" && isOwner && (
+              <BusinessAnalytics kind="roaster" slug={slug} />
             )}
 
             {/* Followers modal */}

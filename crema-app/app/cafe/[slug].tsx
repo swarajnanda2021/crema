@@ -24,6 +24,7 @@ import ImageUploadModal from "../../src/components/ImageUploadModal";
 import PostPromptModal from "../../src/components/PostPromptModal";
 import ComposePost from "../../src/components/ComposePost";
 import PostCard from "../../src/components/domain/PostCard";
+import BusinessAnalytics from "../../src/components/analytics/BusinessAnalytics";
 import { openPostModal } from "../../src/components/primitives";
 import type { Cafe, CafeMenuItem } from "../../src/resources/types";
 
@@ -121,7 +122,14 @@ const DAY_LABELS: Record<string, string> = {
   fri: "Friday", sat: "Saturday", sun: "Sunday",
 };
 
-type TabKey = "bio" | "menu" | "posts";
+type TabKey = "bio" | "menu" | "posts" | "analytics";
+
+const TAB_LABEL: Record<TabKey, string> = {
+  bio: "BIO",
+  menu: "COFFEE MENU",
+  posts: "POSTS",
+  analytics: "ANALYTICS",
+};
 
 export default function CafeDetailPage() {
   const { slug, edit } = useLocalSearchParams<{ slug: string; edit?: string }>();
@@ -694,10 +702,14 @@ export default function CafeDetailPage() {
 
             <View style={s.rightInner}>
               <View style={s.tabs}>
-                {(["bio", "menu", "posts"] as TabKey[]).map((tab) => (
+                {(
+                  isOwner
+                    ? ["bio", "menu", "posts", "analytics"] as TabKey[]
+                    : ["bio", "menu", "posts"] as TabKey[]
+                ).map((tab) => (
                   <Pressable key={tab} onPress={() => setActiveTab(tab)} style={s.tabBtn}>
                     <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
-                      {tab === "bio" ? "BIO" : tab === "menu" ? "COFFEE MENU" : "POSTS"}
+                      {TAB_LABEL[tab]}
                     </Text>
                     {activeTab === tab && <View style={s.tabUnderline} />}
                   </Pressable>
@@ -748,6 +760,9 @@ export default function CafeDetailPage() {
               )}
               {activeTab === "posts" && (
                 <PostsTab posts={posts} onRefresh={fetchAll} />
+              )}
+              {activeTab === "analytics" && isOwner && (
+                <BusinessAnalytics kind="cafe" slug={slug} />
               )}
             </View>
           </ScrollView>
@@ -925,6 +940,9 @@ export default function CafeDetailPage() {
               />
             )}
             {activeTab === "posts" && (<PostsTab posts={posts} onRefresh={fetchAll} />)}
+            {activeTab === "analytics" && isOwner && (
+              <BusinessAnalytics kind="cafe" slug={slug} />
+            )}
           </View>
         </ScrollView>
       )}

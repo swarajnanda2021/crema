@@ -636,7 +636,55 @@ Verified: signing out of one account with another saved now lands
 directly on the next entity's home, without any auth screen in
 between.
 
-### 2.27 Launch blockers (from LAUNCH_TODO.md)
+### 2.27 Business analytics dashboard *(shipped)*
+
+Per-business analytics sub-tab inside roaster and café profiles.
+Counterpart to the admin traction dashboard but scoped to "fast
+insight for one owner" rather than "data for the admin team":
+two subtabs, three small cards per subtab, one line chart above.
+Every card doubles as a chart selector — tap a card, the line
+chart re-plots that metric.
+
+**Backend.** `services/business_stats.py` exposes two composer
+entry points (`compute_roaster_business`, `compute_cafe_business`)
+that assemble the full payload — for each section, three metric
+cards + their per-card 30-day daily series. Owner-gated endpoints
+at `GET /api/stats/business/roaster/{slug}` and
+`/api/stats/business/cafe/{slug}` (with admin bypass for `crema`).
+
+**Roaster dashboard — "Am I finding buyers?"**
+- **Wholesale** subtab: Inquiries this week · Open inquiries
+  (tinted red when >0) · Top bean cafés are asking about (30d)
+- **Audience** subtab: Followers · Cafés following me (the
+  warm-lead number) · Posts this month
+
+**Café dashboard — "Is my loyalty program working?"**
+- **Loyalty** subtab: Stamps this week · Repeat-customer rate
+  (tinted red <10%, green ≥30%) · Top regular
+- **Menu** subtab: Tasting notes about my beans · Posts tagged
+  with this café · Unique roasters on menu (tinted red when ≤1
+  on a ≥3-item menu — the NORTH_STAR §2 supply-anxiety signal)
+
+**Design rules.** Cards are small (170-220px wide, ~140px tall),
+flex-wrap horizontally — they never span the full row. Label is
+uppercase muted micro-copy; value is 30px Canela display; delta
+is a single ↑/↓/→ arrow with % vs prior 7d; optional hint line
+below. Selected card gets a cream fill + dark border to signal
+"this is the chart source". Every card has an info "?" button
+with a one-line explanation + a suggested action ("If this is
+zero, try posting a sourcing story this week"). Empty series
+renders an honest "No daily history yet" placeholder instead of
+an empty chart.
+
+**Mounting.** New "ANALYTICS" tab on both `app/roaster/[slug].tsx`
+and `app/cafe/[slug].tsx`, visible only when `isOwner` (admin does
+*not* see this tab on other businesses' profiles — use the
+existing Traction dashboard for cross-business analytics).
+Component lives at `src/components/analytics/BusinessAnalytics.tsx`
+and reuses the admin `LineChart` + `InfoButton` / `InfoModal`
+primitives; no new schema, no new design tokens.
+
+### 2.28 Launch blockers (from LAUNCH_TODO.md)
 
 Before any of the above ships to real users:
 - Password reset flow
