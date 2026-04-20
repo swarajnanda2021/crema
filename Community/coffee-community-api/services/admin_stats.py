@@ -1001,6 +1001,168 @@ def _supply(db) -> dict:
     # exists. DB columns stay so historic rows don't break, but the
     # metric doesn't get computed or returned.
 
+    # ── §2.18 expansion: deeper B2B signals ─────────────────────────
+    # Inquiry velocity — last 7 days. Pairs with inquiries_30d as a
+    # leading-edge view; if 7d is high but 30d isn't, the wholesale
+    # surface just turned on.
+    inquiries_7d = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM wholesale_inquiries WHERE created_at > ?",
+            (_days_ago(7),),
+        ).fetchone()[0]
+    )
+
+    # Median hours to first roaster response on inquiries opened in
+    # the last 30 days. Median (not mean) shrugs off the long tail of
+    # never-responded threads. SQLite has no MEDIAN, so the rows come
+    # back as (hours per inquiry) and Python takes the middle one.
+    response_rows = db.execute(
+        """
+        SELECT (julianday(MIN(m.created_at)) - julianday(i.created_at)) * 24.0 AS hours
+        FROM wholesale_inquiries i
+        JOIN inquiry_messages m ON m.inquiry_id = i.id
+        JOIN users u ON m.user_id = u.id
+        WHERE i.created_at > ?
+          AND u.account_type = 'roaster'
+          AND u.roaster_slug = i.roaster_slug
+        GROUP BY i.id
+        """,
+        (since_30,),
+    ).fetchall()
+    response_hours = sorted(
+        float(r["hours"]) for r in response_rows if r["hours"] is not None
+    )
+    median_response_hours = (
+        round(response_hours[len(response_hours) // 2], 1)
+        if response_hours
+        else 0.0
+    )
+
+    # Average messages per inquiry thread. Distinguishes drive-by
+    # interest (1-2 messages) from real procurement conversations.
+    avg_thread_depth = _f(
+        db.execute(
+            "SELECT AVG(c) FROM ("
+            "  SELECT COUNT(*) c FROM inquiry_messages GROUP BY inquiry_id"
+            ")"
+        ).fetchone()[0]
+    )
+    avg_thread_depth = round(avg_thread_depth, 1) if avg_thread_depth else 0.0
+
+    # Cafés that have come back to the *same* roaster for a 2nd+
+    # inquiry. Best proxy for "this sourcing relationship is sticking";
+    # a single inquiry could be drive-by, two means real interest.
+    returning_cafes = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM ("
+            "  SELECT cafe_slug, roaster_slug FROM wholesale_inquiries"
+            "  GROUP BY cafe_slug, roaster_slug HAVING COUNT(*) >= 2"
+            ")"
+        ).fetchone()[0]
+    )
+
+    # Total inquiry message volume (lifetime + 30d). Pairs with
+    # avg_thread_depth as a denominator-side check.
+    inquiry_messages_total = _n(
+        db.execute("SELECT COUNT(*) FROM inquiry_messages").fetchone()[0]
+    )
+    inquiry_messages_30d = _n(
+        db.execute(
+            "SELECT COUNT(*) FROM inquiry_messages WHERE created_at > ?",
+            (since_30,),
+        ).fetchone()[0]
+    )
+
+    # Most-inquired-about beans — product-level demand signal,
+    # equivalent to the top-clicked-products table in Engagement
+    # but for wholesale interest. Joins both `products` and
+    # `roaster_products` so beans authored by either path show up.
+    top_inquired_rows = db.execute(
+        """
+        SELECT i.product_id, COUNT(*) AS n,
+               COALESCE(p.coffee_name, rp_label) AS coffee_name,
+               COALESCE(p.roaster_name, rp_label_r) AS roaster_name
+        FROM wholesale_inquiries i
+        LEFT JOIN products p ON p.product_id = i.product_id
+        LEFT JOIN (
+          SELECT 'rp_' || id AS product_id, coffee_name AS rp_label,
+                 roaster_slug AS rp_label_r
+          FROM roaster_products
+        ) rpx ON rpx.product_id = i.product_id
+        WHERE i.product_id IS NOT NULL AND i.product_id != ''
+        GROUP BY i.product_id
+        ORDER BY n DESC
+        LIMIT 5
+        """
+    ).fetchall()
+    top_inquired_beans = [
+        {
+            "label": r["coffee_name"] or r["product_id"],
+            "sub": r["roaster_name"] or "",
+            "value": _n(r["n"]),
+        }
+        for r in top_inquired_rows
+    ]
+
+    # Most-responded-to roasters — leaderboard by response rate
+    # weighted by volume. Filters to roasters with at least 3
+    # inquiries to dodge the "1 of 1 = 100%" noise.
+    top_responsive_rows = db.execute(
+        """
+        SELECT i.roaster_slug,
+               COUNT(*) AS total,
+               SUM(CASE WHEN i.status IN ('responded','archived') THEN 1 ELSE 0 END) AS responded,
+               rp.name AS roaster_name
+        FROM wholesale_inquiries i
+        LEFT JOIN roaster_profiles rp ON rp.roaster_slug = i.roaster_slug
+        GROUP BY i.roaster_slug
+        HAVING COUNT(*) >= 3
+        ORDER BY (responded * 1.0 / COUNT(*)) DESC, total DESC
+        LIMIT 5
+        """
+    ).fetchall()
+    top_responsive_roasters = [
+        {
+            "label": r["roaster_name"] or r["roaster_slug"],
+            "sub": f"{_n(r['responded'])} of {_n(r['total'])} responded",
+            "value": f"{round(_n(r['responded']) / max(_n(r['total']), 1) * 100.0)}%",
+        }
+        for r in top_responsive_rows
+    ]
+
+    # Inquiry geo distribution — cafés inquiring by city, roasters
+    # receiving by city. Foundation for the Goa-vs-Bangalore-vs-other
+    # network heatmap once enough volume lands. NULL/empty cities are
+    # filtered so the table doesn't degrade into a single "Unknown"
+    # row dominating the leaderboard.
+    inquiry_cafe_cities_rows = db.execute(
+        """
+        SELECT cp.city, COUNT(*) AS n
+        FROM wholesale_inquiries i
+        JOIN cafe_profiles cp ON cp.cafe_slug = i.cafe_slug
+        WHERE cp.city IS NOT NULL AND cp.city != ''
+        GROUP BY cp.city ORDER BY n DESC LIMIT 5
+        """
+    ).fetchall()
+    inquiry_cafe_cities = [
+        {"label": r["city"], "value": _n(r["n"])}
+        for r in inquiry_cafe_cities_rows
+    ]
+
+    inquiry_roaster_cities_rows = db.execute(
+        """
+        SELECT rp.city, COUNT(*) AS n
+        FROM wholesale_inquiries i
+        JOIN roaster_profiles rp ON rp.roaster_slug = i.roaster_slug
+        WHERE rp.city IS NOT NULL AND rp.city != ''
+        GROUP BY rp.city ORDER BY n DESC LIMIT 5
+        """
+    ).fetchall()
+    inquiry_roaster_cities = [
+        {"label": r["city"], "value": _n(r["n"])}
+        for r in inquiry_roaster_cities_rows
+    ]
+
     return {
         "roasters_total": roasters_known,
         "roasters_with_profiles": roasters_total,
@@ -1038,6 +1200,17 @@ def _supply(db) -> dict:
         "products_with_recipes": products_with_recipes,
         "recipe_coverage_pct": recipe_coverage_pct,
         "top_brew_method": top_brew_method,
+        # §2.18 expansion
+        "inquiries_7d": inquiries_7d,
+        "median_response_hours": median_response_hours,
+        "avg_thread_depth": avg_thread_depth,
+        "returning_cafes": returning_cafes,
+        "inquiry_messages_total": inquiry_messages_total,
+        "inquiry_messages_30d": inquiry_messages_30d,
+        "top_inquired_beans": top_inquired_beans,
+        "top_responsive_roasters": top_responsive_roasters,
+        "inquiry_cafe_cities": inquiry_cafe_cities,
+        "inquiry_roaster_cities": inquiry_roaster_cities,
     }
 
 
@@ -1104,13 +1277,28 @@ _SERIES_DEFS: dict[str, str] = {
         "FROM stamps GROUP BY DATE(scanned_at)"
     ),
     # ── Supply (B2B) ───────────────────────────────────────────────
+    # NOTE: column is `created_at`, not `opened_at` (was a stale typo
+    # from the original §2.18 drill-down work — both keys silently
+    # returned empty series until this fix).
     "inquiries_total": (
-        "SELECT DATE(opened_at) AS date, COUNT(*) AS count "
-        "FROM wholesale_inquiries GROUP BY DATE(opened_at)"
+        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
+        "FROM wholesale_inquiries GROUP BY DATE(created_at)"
     ),
     "inquiries_30d": (
-        "SELECT DATE(opened_at) AS date, COUNT(*) AS count "
-        "FROM wholesale_inquiries GROUP BY DATE(opened_at)"
+        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
+        "FROM wholesale_inquiries GROUP BY DATE(created_at)"
+    ),
+    "inquiries_7d": (
+        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
+        "FROM wholesale_inquiries GROUP BY DATE(created_at)"
+    ),
+    "inquiry_messages_total": (
+        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
+        "FROM inquiry_messages GROUP BY DATE(created_at)"
+    ),
+    "inquiry_messages_30d": (
+        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
+        "FROM inquiry_messages GROUP BY DATE(created_at)"
     ),
     "sourcing_stories_total": (
         "SELECT DATE(created_at) AS date, COUNT(*) AS count "

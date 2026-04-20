@@ -67,6 +67,14 @@ def run_hook(hook_name, db, *, resource_name=None, item=None, current_user=None,
         _handle_sync_entity_logo(db, item, current_user, "roaster")
     elif hook_name == "notify_wholesale_inquiry":
         _handle_notify_wholesale_inquiry(db, item, current_user)
+    elif hook_name == "notify_wholesale_available":
+        _handle_notify_wholesale_available(db, item, current_user)
+    elif hook_name == "notify_sourcing_story":
+        _handle_notify_sourcing_story(db, item, current_user)
+    elif hook_name == "notify_menu_updated_business":
+        _handle_notify_menu_updated_business(db, item, current_user)
+    elif hook_name == "notify_loyalty_changed":
+        _handle_notify_loyalty_changed(db, item, current_user)
     # validate_dictionary is handled inline in tasting_notes route
 
 
@@ -276,6 +284,122 @@ def _handle_notify_wholesale_inquiry(db, item, actor):
             subject=subject,
         )
     db.commit()
+
+
+# ── §2.20 cross-business follower fanout ────────────────────────────────────
+# Catalog notifications today (`notify_followers_catalog`) hit every follower
+# of a roaster/café regardless of the follower's account_type. §2.20 adds a
+# narrower fanout for events that are only meaningful to *business* followers
+# (cafés discovering a new wholesale supplier, roasters tracking another
+# café's menu activity, etc.). Everything below filters the follow edges
+# by `users.account_type IN ('roaster','cafe')` and lands in the recipient's
+# Business tab via the BUSINESS_TYPES set on the frontend.
+
+def _business_follower_user_ids(db, slug):
+    rows = db.execute(
+        "SELECT f.follower_user_id FROM follows f "
+        "JOIN users u ON f.follower_user_id = u.id "
+        "WHERE f.roaster_slug = ? AND u.account_type IN ('roaster','cafe')",
+        (slug,),
+    ).fetchall()
+    return [r["follower_user_id"] for r in rows]
+
+
+def _fanout_to_business_followers(db, slug, kind, change, subject, actor, *, post_id=None):
+    """Generic fanout helper used by every §2.20 hook. `kind` discriminates
+    the deep-link target (`roaster:<slug>` vs `cafe:<slug>`); `change` is
+    the notification type string."""
+    if not slug:
+        return
+    user_ids = _business_follower_user_ids(db, slug)
+    actor_id = actor["id"] if actor else 0
+    target_slug = f"{kind}:{slug}"
+    for uid in user_ids:
+        if actor_id and uid == actor_id:
+            continue
+        create_notification(
+            db, uid, change, actor_id,
+            target_slug=target_slug, subject=subject, post_id=post_id,
+        )
+    db.commit()
+
+
+def _handle_notify_wholesale_available(db, item, actor):
+    """Fired from `products` create/update and from the hand-rolled
+    roaster_products POST/PUT in routes/specific.py. Notifies business
+    followers when a bean is currently flagged wholesale-available.
+    Over-fires on every save where the flag is on; the §2.20 spec
+    accepts that — diff tracking would be required to fire only on the
+    0→1 transition."""
+    if not item:
+        return
+    if int(item.get("wholesale_available") or 0) != 1:
+        return
+    slug = item.get("roaster_slug")
+    if not slug:
+        return
+    subject = item.get("coffee_name") or "a wholesale-available coffee"
+    _fanout_to_business_followers(
+        db, slug, "roaster", "wholesale_available", subject, actor,
+    )
+
+
+def _handle_notify_sourcing_story(db, item, actor):
+    """Fired from `roaster_posts` on_create. Only fans out for
+    post_type='sourcing_story' — every other post_type is no-op so the
+    hook can sit alongside notify_repost without an extra registry
+    branch."""
+    if not item:
+        return
+    if (item.get("post_type") or "") != "sourcing_story":
+        return
+    slug = item.get("roaster_slug")
+    if not slug:
+        return
+    subject = (item.get("title") or item.get("teaser") or "a sourcing story").strip()
+    if len(subject) > 80:
+        subject = subject[:77] + "..."
+    _fanout_to_business_followers(
+        db, slug, "roaster", "sourcing_story", subject, actor,
+        post_id=item.get("id"),
+    )
+
+
+def _handle_notify_menu_updated_business(db, item, actor):
+    """Fired alongside the existing `notify_menu_updated` hook on
+    cafe_menu_items.on_update. The existing hook fans `menu_updated`
+    to all followers (lands in Activity for consumers, Business for
+    business followers via BUSINESS_TYPES). This hook adds a
+    business-only `menu_updated_business` so the wording in the
+    Business tab can speak to a B2B audience without polluting
+    consumers' Activity feed."""
+    if not item:
+        return
+    slug = item.get("cafe_slug")
+    if not slug:
+        return
+    subject = item.get("drink_name") or "a menu item"
+    _fanout_to_business_followers(
+        db, slug, "cafe", "menu_updated_business", subject, actor,
+    )
+
+
+def _handle_notify_loyalty_changed(db, item, actor):
+    """Fired from cafe_profiles on_update. Only fanned out when the
+    café currently has loyalty enabled — silences disable events. Like
+    wholesale_available, this over-fires on profile saves that don't
+    touch the loyalty fields; diff tracking is the proper fix."""
+    if not item:
+        return
+    if int(item.get("stamps_enabled") or 0) != 1:
+        return
+    slug = item.get("cafe_slug")
+    if not slug:
+        return
+    subject = item.get("name") or slug
+    _fanout_to_business_followers(
+        db, slug, "cafe", "loyalty_changed", subject, actor,
+    )
 
 
 def _handle_auto_create_post(db, item, user):

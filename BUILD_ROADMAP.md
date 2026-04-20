@@ -50,8 +50,8 @@ Android from a single codebase.
 | **Messages inbox + inquiry chat** | Navbar Messages icon (every authenticated user) with unread badge opens a chat-style inbox dropdown listing every inquiry + DM thread — counterparty avatar, product (for inquiries), last-message preview, time, unread count. Business users (roaster + café) see the inbox split into three tabs (§2.15): **Business** (wholesale inquiries), **Non-business** (direct messages), **Archive** (archived inquiries). Regular users see the flat list. Tapping a row opens `ThreadBody`: compact header with counterparty + product + status chip, collapsible Details drawer for business context, conversation area with self/other bubbles, composer at bottom. Polls every 5s while open; marks read on open + on new messages. Roasters get a `…` menu for Mark-replied / Archive / Reopen. Archive tab keeps archived threads reachable; Reopen lives inside the thread. | `/api/my-threads`, `/api/wholesale-inquiries/{id}/thread`, `/api/wholesale-inquiries/{id}/messages`, `/api/wholesale-inquiries/{id}/read`, `MessagesDropdown.tsx`, `ThreadBody.tsx`, `useInquiryInbox.ts` |
 | **Wholesale availability signal** | Roasters flag products as wholesale-available via a single checkbox on `EditableCoffeeCard`. The min-kg + note fields were dropped (negotiation happens inline on the inquiry thread). Products live in both `products` and `roaster_products` tables so the columns + indexes are mirrored; `wholesale_minimum_kg` and `wholesale_note` remain in the schema for legacy rows but the creation form null-throughs them. On `CoffeeCard` the Package chip sits in the top-right slot (displacing the heart for business viewers — roasters AND cafés, neither has a personal shelf), visible only when `wholesale_available === 1`. Browse has a "Wholesale available only" filter for business viewers (both roaster + café accounts). `POST /api/roasters/{slug}/products` still accepts the legacy 3 fields. Inline owner-edit UI on existing products is tracked in §2.9. | `products.wholesale_*`, `roaster_products.wholesale_*`, `CoffeeCard` Package chip, browse filter |
 | **Popularity modal (on-shelf viewer)** | Tapping the circular social dot on a CoffeeCard opens `PopularityModal`. Fetches `/products/{id}/users` and `/products/{id}/posts` in parallel, renders tasting-note posts via the shared `PostCard` (full header + tasting-note card + action bar — identical to the feed), and silent shelvers (no post) land in a compact "Also on shelf" list below. Shell matches the floating-modal language (blur backdrop, token overlay, Canela title). Count lives in the header subtitle ("On N people's shelves") — the card dot itself is number-free. | `PopularityModal.tsx`, `/api/products/{id}/posts`, `PostCard` |
-| **Notifications** | Dropdown with likes, comments, follows, reposts, reply, catalog-change notifications (product added/removed, menu changed). Subject line + deep-link to source entity. | `NotificationsDropdown.tsx`, `useNotifications.ts` |
-| **Activity / Business tabs** | Roaster + café accounts see the notifications dropdown split into two tabs. Activity = social (like/comment/follow/repost/reply); Business = catalog fanout + future wholesale inquiries (§2.1) + stamp awards. Regular users still see one flat list. Unread count appears next to each tab label. | `NotificationsDropdown.tsx` `BUSINESS_TYPES` set in `useNotifications.ts` |
+| **Notifications** | Dropdown with likes, comments, follows, reposts, reply, catalog-change notifications (product added/removed, menu changed), §2.20 cross-business fanout types (wholesale_available, sourcing_story, menu_updated_business, loyalty_changed). Subject line + deep-link to source entity (sourcing_story → PostModal, others → entity profile). | `NotificationsDropdown.tsx`, `useNotifications.ts` |
+| **Activity / Business tabs** | Roaster + café accounts see the notifications dropdown split into two tabs. Activity = social (like/comment/follow/repost/reply); Business = catalog fanout + wholesale inquiries (§2.1) + stamp awards + §2.20 cross-business signals (new wholesale flag, sourcing story, menu update from a followed café, loyalty program change). Regular users still see one flat list. Unread count appears next to each tab label. | `NotificationsDropdown.tsx` `BUSINESS_TYPES` set in `useNotifications.ts` |
 | **Browse / Discover** | Roasters list with city filter, cafés list with city filter, product catalog. Sticky search bar hides/shows via `useSearchBarAutoHide` (§2.16) with dead-band, bottom-freeze, and top-force-show guards so it doesn't thrash at end-of-list rubber-banding. | `app/(tabs)/browse.tsx`, `src/hooks/useSearchBarAutoHide.ts` |
 | **Sitewide search dropdown** (§2.11) | Navbar glass opens a floating dropdown styled like messages / notifications. Cream-backed input (no browser focus ring), live narrowing, four sections: Users (via `/api/users/search`), Beans, Roasters, Cafés (local-cache filter). Beans render without product image. Each section caps at 5 hits; a "See all results for …" row routes to Discover with the query pre-filled. | `SearchDropdown.tsx`, `Navbar.tsx` |
 | **QR identity** | Short-lived QR tokens (5-min TTL), displayed in profile dropdown "Show QR" and inside stamp book modals | `useQRToken.ts`, `QRModal.tsx`, `services/qr_tokens.py` |
@@ -95,6 +95,7 @@ Android from a single codebase.
 | **Supply · procurement readiness** | 3 cards in Supply tab: Procurement Ready (count), Open to New Roasters (count), Procurement Readiness % (of cafés with any procurement field filled). Leading indicator for §2.1 inquiry quality. |
 | **Supply · notification split (30d)** | 3 cards tracking how much of the last month's notification volume is B2B vs social: Business Notifs (30d), Activity Notifs (30d), Business Share %. Rises as catalog activity and wholesale inquiries grow. |
 | **Supply · wholesale inquiries** | 6 cards tracking the flagship Phase 1 B2B metric: Inquiries Total, Inquiries (30d), Inquiries Open, Response Rate %, Cafés Inquiring, Roasters Receiving. Response rate = (responded + archived) / total. |
+| **Supply · §2.18 expansion** | 6 additional cards: Inquiries (7d) (velocity), Median Response Time (median hours to first roaster reply, 30d), Avg Thread Depth, Returning Cafés (2nd+ inquiry to same roaster), Inquiry Messages (lifetime + 30d). Plus 4 ranked tables in a Plots carousel: Most-inquired beans, Most-responsive roasters, Cafés inquiring by city, Roasters receiving by city. Three remaining metrics (re-open rate, avg order size, wholesale flag churn) deferred — they need new schema (status history, structured quantity field, wholesale-flag history). |
 | **Supply · wholesale signal** | 3 cards tracking the roaster-side supply readiness: Wholesale Available (count), Wholesale Signal % (of active products), Roasters With Wholesale (distinct count). Low % means roasters aren't yet opting in. |
 | **Supply · sourcing stories** | 3 cards tracking narrative investment: Sourcing Stories (total), Stories (30d), Story Share % (of roaster posts). |
 | **Supply · brew recipes** | 3 cards tracking roaster recipe investment: Brew Recipes (count), Recipe Coverage % (of active products with ≥1 recipe), Top Method (most common across all recipe cards). |
@@ -381,135 +382,186 @@ of the fields turns out to genuinely help the inquiry flow, they'd
 land inline on the inquiry modal rather than back on the public
 profile.
 
-### 2.18 B2B metrics expansion + clickable cards drilling into a daily chart *(partial — drill-down shipped, new metrics pending)*
+### 2.18 B2B metrics expansion + clickable cards drilling into a daily chart *(shipped — 8 of 11 metrics, 3 deferred on schema-history grounds)*
 
-**Drill-down UX shipped.** Every `<Card>` in `TractionDashboard` is
-now a Pressable that opens `MetricSeriesModal`: Canela title +
-one-line definition (from the `E` map), current value + prior-period
-delta, full daily line chart (ggplot-style via the existing
-`LineChart` component). Backend dispatcher at
-`GET /api/stats/series?key={key}&range=30d` (admin-gated). 13
-series wired at ship: `daily_signups`, `dau`, `daily_posts`,
-`total_posts`, `total_comments`, `total_reposts`, `total_clicks`,
-`total_stamps`, `total_follows`, `inquiries_total`, `inquiries_30d`,
-`sourcing_stories_total`, `brew_methods_total`. Cards without a
-backing series hit a graceful "Daily history not yet captured"
-state.
+**Drill-down UX (prior pass, still in place).** Every `<Card>` in
+`TractionDashboard` is a Pressable that opens `MetricSeriesModal`:
+Canela title + one-line definition (from the `E` map), current
+value, full daily line chart (`LineChart` via SVG). Backend
+dispatcher at `GET /api/stats/series?key={key}&range=30d`
+(admin-gated). Cards without a backing series hit a graceful
+"Daily history not yet captured" state.
 
-**Still parked: the new B2B metrics.** Each needs its own SQL
-rollup + an `_SERIES_DEFS` entry + a `seriesKey` prop on the
-Card. Backlog below.
+**This pass — 8 new B2B metrics + 4 ranked tables.** The Supply
+tab now reads as a real B2B dashboard, not just an inquiry-volume
+screen. Cards (with drill-down where the daily series makes sense):
 
-**Missing metrics to add.** The current Supply tab covers
-inquiry volume + wholesale-flag coverage + sourcing stories + brew
-recipes. Missing pieces a real B2B dashboard should surface:
+- **Inquiries (7d)** — leading-edge velocity vs the 30d card.
+  `seriesKey="inquiries_7d"`.
+- **Median Response Time** (`median_response_hours`) — median
+  hours from a café opening an inquiry to the first message back
+  from a roaster account, last 30d. SQLite has no MEDIAN; rows
+  come back as per-inquiry hours and Python takes the middle one.
+  Renders `—` when no responses recorded yet.
+- **Avg Thread Depth** (`avg_thread_depth`) — `AVG(c)` over
+  `(SELECT COUNT(*) c FROM inquiry_messages GROUP BY inquiry_id)`.
+  Distinguishes drive-by interest from real procurement
+  conversations.
+- **Returning Cafés** (`returning_cafes`) — cafés that have come
+  back to the *same* roaster for a 2nd-or-later inquiry. Best
+  proxy for "this sourcing relationship is sticking."
+- **Inquiry Messages** + **Messages (30d)** — total inquiry-thread
+  message volume with daily drill-down series. Leading indicator
+  before a thread converts to a formal order (Phase 2).
 
-- **Time-to-first-response** (median hours, 30d rolling) — measures
-  roaster responsiveness on inquiry threads. Low number = warm
-  market; high = friction.
-- **Inquiry thread depth** — avg messages per thread. Distinguishes
-  drive-by clicks from real conversations.
-- **Inquiry re-open rate** — % of archived threads that came back
-  to Open. Signals that archiving is premature, or that repeat
-  conversations happen on the same lead.
-- **Cafés returning for a 2nd inquiry** to the *same* roaster —
-  best proxy for "this sourcing relationship is sticking."
-- **Inquiry velocity** — new inquiries per week, trendline. Pairs
-  with the existing Inquiries (30d) card.
-- **Most-inquired-about beans** (top-N table) — product-level
-  demand signal. Equivalent to the existing "Top clicked products"
-  table but for wholesale interest.
-- **Most-responded-to roasters** — roaster leaderboard by response
-  rate + volume. Identifies high-conversion roasters worth
-  highlighting.
-- **Avg order size mentions** — if the café sets an inquiry note
-  with quantity, parse it into a numeric field. Optional, nice-to-
-  have, needs a minor schema tweak.
-- **Wholesale flag churn** — how often roasters toggle
-  `wholesale_available` on/off per week. High churn = seasonal
-  supply; low churn = stable offerings.
-- **Inquiry geo distribution** — cafés inquiring by city,
-  roasters receiving by city. Ties into the "network" chart work
-  the admin tab already started.
-- **Messages-per-day trend** — total inquiry message volume across
-  the platform, daily series. Leading indicator before a thread
-  converts to a formal order (Phase 2).
+Plus 4 ranked tables in a new `PlotCarousel` at the bottom of the
+Supply tab (same swipe pattern as Loyalty / Network / Commerce):
 
-**Out of scope for this item:** per-user / per-roaster cohort
-filtering, exportable CSV, alerts. Those are follow-ons once the
-new metrics land.
+- **Most-inquired beans** — top 5 by inquiry count, joined to
+  `products` + `roaster_products` so beans authored by either
+  table show up. Sub-line is the roaster name.
+- **Most-responsive roasters** — top 5 by response rate, weighted
+  by volume. `HAVING COUNT(*) >= 3` filter dodges the
+  "1 of 1 = 100%" noise.
+- **Cafés inquiring by city** + **Roasters receiving by city** —
+  geo distribution leaderboards. Foundation for the Goa-vs-
+  Bangalore-vs-other heatmap once enough volume lands.
 
-### 2.19 Confirm-before-delete sweep (every delete button)
+**Pre-existing series-defs typo fixed.** The original §2.18 work
+wired `inquiries_total` and `inquiries_30d` series defs against
+`opened_at` — the column is actually `created_at`, so both
+drill-downs were silently returning empty until now. Both keys
+now use `created_at`; series renders correctly.
 
-The roaster bean delete now asks first (see §2.9). Standing rule
-going forward: **every destructive action opens a confirmation
-sheet before firing.** Audit pass needed on the full list of
-delete affordances:
+**Deferred metrics (3 of 11 — need new schema, out of scope for
+this pass):**
 
-- Café menu item trash (per-row delete in the menu table) — no
-  confirm today.
-- Post delete (PostCard `…` menu → Delete) — check; at least some
-  surfaces skip the confirm.
-- Comment delete — check.
-- Shelf entry remove (CoffeeCard shelf bin from the user's own
-  shelf) — no confirm today.
-- Tasting note delete — check.
-- Café loyalty disable (trash button next to stamp meta) — currently
-  toggles off, no confirm; low-stakes but inconsistent.
-- Roaster / café profile image removal — check.
-- Admin account deletion (once §2.16 lands) — requires a much
-  stronger confirm flow (type-to-confirm username).
+- **Inquiry re-open rate** — needs a `wholesale_inquiry_status_history`
+  table (or equivalent column journal) so we can count archived →
+  open transitions. The current schema overwrites status without
+  history.
+- **Avg order size mentions** — needs a regex pass over inquiry
+  notes to extract numeric quantities, plus probably a structured
+  `quantity_kg` column for the inquiry modal so the data isn't
+  parsed every read.
+- **Wholesale flag churn** — needs `products_wholesale_history` (or
+  reuse a generic audit log). Without a change-log we can't measure
+  toggle frequency.
 
-Reusable `<ConfirmModal>` component (same shell as the bean-delete
-sheet already landed on the roaster page) with props `{ title,
-body, confirmLabel = "Delete", destructive = true, onConfirm,
-onClose }`. Every call site switches to it in one pass.
+These three should land in a follow-on pass that introduces the
+schema additions; once the history tables exist, the SQL is
+straightforward and slots into the same `_SERIES_DEFS` /
+`renderSupply` pattern as the 8 metrics that landed here.
 
-### 2.20 Cross-business follower notifications (wholesale flag, etc.)
+**Backend code:** `services/admin_stats.py` `_supply()` extended
+with the 8 new computations (lines clearly labelled `§2.18
+expansion`); `_SERIES_DEFS` extended with `inquiries_7d`,
+`inquiry_messages_total`, `inquiry_messages_30d`. Frontend code:
+`crema-app/src/components/admin/TractionDashboard.tsx`
+`renderSupply()` extended with 6 new cards + a new `PlotCarousel`
+slide for each ranked table; `E` map extended with one-line
+definitions for every new metric.
 
-Follow edges already cross business lines: a café can follow a
-roaster, a roaster can follow a café, etc. Today **catalog
-notifications** only fire on a roaster's own-catalog changes
-(add/remove product) to their followers. Missing fanouts to build:
+### 2.19 Confirm-before-delete sweep (every delete button) *(shipped)*
 
-- **Wholesale flag flipped on.** When a roaster toggles
-  `wholesale_available` on an existing bean (once §2.9's roaster
-  edit mode lands), fire a `wholesale_available` notification to
-  every **business** follower (café or roaster accounts). Lands in
-  the recipient's Business tab with a deep-link to the product.
-  Consumers don't get this — the signal is B2B-only.
-- **Menu item change → business followers.** When a café updates
-  its menu, its **business** followers (other cafés / roasters)
-  see the change in their Business tab, while consumer followers
-  keep seeing it in Activity.
-- **Sourcing story published.** Roaster publishes a
-  `sourcing_story` → business followers get a Business-tab
-  notification; consumers see it in Activity.
-- **Café loyalty program changes.** Big reward swap or seasonal
-  reopen → business followers.
+The shared `<ConfirmDeleteModal>` primitive
+(`src/components/primitives/ConfirmDeleteModal.tsx`) now backs every
+destructive action across the app. Same shell as §2.9's bean-delete
+sheet but lifted to a single component so title / body / confirmLabel
+are the only knobs and the visual is identical everywhere
+(blur backdrop, Canela title, two-button footer in the site's
+floating-modal language).
 
-General rule: **if the action is about *what a business offers*,
-the notification is B2B, fanned out to business followers via the
-Business tab.** If it's social (like / comment / follow), it goes
-to Activity. This completes the §2.4 tab split — right now the
-Business tab only sees a narrow subset of events.
+Per-surface state at the close of this sweep:
 
-Mechanics:
-- Extend `BUSINESS_TYPES` in `useNotifications.ts` with
-  `wholesale_available`, `menu_updated_business`, `sourcing_story`,
-  `loyalty_changed`.
-- Service hook `notify_business_followers(entity_slug, event,
-  payload)` that looks up follow edges where the follower has
-  `account_type IN ('roaster', 'cafe')` and creates rows in
-  `notifications`.
-- Wire from the existing fanout points (product update hook,
-  menu item hooks, roaster_posts on_create for sourcing_story,
-  café_profiles on_update for loyalty).
+- **Roaster bean delete** — was the original §2.9 inline `Modal`
+  with custom `confirmCard` styles; migrated to the primitive,
+  dead styles dropped. Body falls back to the primitive's
+  recycle-bin recovery copy when the bean's `coffee_name` isn't on
+  hand at click time, otherwise the bean name is interpolated.
+- **Café loyalty disable** (trash next to stamp meta) — the trash
+  used to fire `onStampsEnabledChange(false)` directly; now opens
+  a "Turn off loyalty?" confirm with a body that explains in-flight
+  stamps stay preserved while the program is paused.
+- **Roaster post delete**, **profile post delete**, **profile shelf
+  entry remove**, **café menu item delete**, **feed post delete** —
+  already wrapped in the primitive in earlier passes; verified during
+  the audit, no changes needed.
+- **Café posts feed post delete**, **comment delete**, **tasting note
+  delete**, **profile image removal** — no live delete UI exists for
+  these surfaces today (PostCard on cafe page omits `onDelete`,
+  `CommentThread` has no delete button, `TastingNoteDisplay` is not
+  mounted in any screen, profile image is replace-only). Nothing to
+  wrap; if any of these gain a delete affordance later the primitive
+  is one line away.
+- **Admin account deletion** — out of scope; that flow needs the
+  type-to-confirm-username pattern, separate from this sweep.
 
-Downstream roadmap note: once this ships, the B2B metrics (§2.18)
-benefit from a new "Business notification engagement" card — how
-often business-tab recipients click through to the source entity.
-Good signal for wholesale-offer visibility.
+### 2.20 Cross-business follower notifications (wholesale flag, etc.) *(shipped)*
+
+Four new notification types now fan to business followers (`account_type
+IN ('roaster','cafe')`) only — the existing `notify_followers_catalog`
+helper still hits everyone, the new helpers narrow the audience:
+
+- **`wholesale_available`** — fires from `products` registry hooks
+  (on_create + on_update) and from the hand-rolled
+  `POST/PUT /api/roasters/{slug}/products` endpoints in
+  `routes/specific.py`. Subject = bean name; deep-link =
+  roaster profile. Skips the fanout when the flag isn't currently
+  set, so flipping wholesale OFF doesn't notify anyone. Verified
+  end-to-end: a wholesale-flagged bean creation by `nada` fanned to
+  3 roaster + 1 café follower; 5 consumer followers were correctly
+  skipped.
+- **`sourcing_story`** — fires from `roaster_posts` on_create when
+  `post_type='sourcing_story'`. The hook is a no-op for every other
+  post_type so it can sit alongside `notify_repost` without an
+  extra registry branch. Carries `post_id` so the dropdown opens
+  the post in `PostModal` rather than routing to the roaster
+  profile (special-cased in the renderer's `goToSource`).
+- **`menu_updated_business`** — fires alongside the existing
+  `notify_menu_updated` on `cafe_menu_items` on_update. The
+  existing hook fans to all followers (lands in Business via
+  `BUSINESS_TYPES` for businesses, Activity for consumers); the
+  new hook adds the B2B-flavored copy ("tweaked a menu item") so
+  procurement readers can scan it differently. Yes, business
+  followers receive both notifications on the same trigger — the
+  alternative (split the existing `notify_menu_updated` audience)
+  was deferred because it ripples into `product_added` /
+  `product_removed` semantics too. Tradeoff accepted.
+- **`loyalty_changed`** — fires from `cafe_profiles` on_update
+  alongside `sync_cafe_logo_to_user`. Skipped when
+  `stamps_enabled=0` so disable events don't notify. Over-fires
+  on profile saves that don't actually touch loyalty fields
+  (logo change, hours change, etc.) — proper fix is field-diff
+  tracking in the registry engine, deferred.
+
+**Frontend.** `useNotifications.ts` `NotificationType` union and
+`BUSINESS_TYPES` set extended with all four. `NotificationsDropdown.tsx`
+gets matching `NOTIF_MESSAGES` entries; `goToSource` routes
+`sourcing_story` to PostModal via `post_id`, others fall through to
+the existing `target_slug` handler that routes to the entity profile.
+
+**Service helpers.** Two new functions in `services/notifications.py`:
+`_business_follower_user_ids(db, slug)` runs the JOIN'd follow lookup;
+`_fanout_to_business_followers(db, slug, kind, change, subject, actor,
+*, post_id=None)` wraps the loop + dedupe-by-actor + commit so each
+new hook is ~10 lines.
+
+**Caveats documented for the follow-on pass:**
+- `wholesale_available` and `loyalty_changed` over-fire on saves that
+  don't change the relevant field. Field-diff tracking in the registry
+  engine would let the hooks fire only on the meaningful transition.
+- The double-notify on menu updates (consumer's `menu_updated` fan
+  reaches business followers too, alongside `menu_updated_business`)
+  is the cost of not splitting the existing hook's audience. If the
+  Business tab gets noisy, the fix is to split `notify_menu_updated`
+  into `_consumer` and `_business` variants and move the catalog
+  types out of `BUSINESS_TYPES`.
+
+Downstream roadmap note: §2.18 now has a natural follow-on "Business
+notification engagement" card — how often business-tab recipients
+click through to the source entity. Good signal for wholesale-offer
+visibility once enough fanout volume lands.
 
 ### 2.21 Page-transition loader *(shipped)*
 

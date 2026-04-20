@@ -542,6 +542,16 @@ def create_roaster_product(slug: str, body: dict, user=Depends(get_current_user)
             "slug": slug, "kind": "roaster", "change": "product_added",
             "subject": body.get("coffee_name") or "a new coffee",
         })
+        # §2.20 — additional Business-tab fanout when the new bean is
+        # offered for wholesale. The registry hook on `products` only
+        # fires for the unified products table; this path writes to
+        # `roaster_products`, so the hook is invoked manually here.
+        if body.get("wholesale_available"):
+            run_hook("notify_wholesale_available", db, current_user=user, item={
+                "roaster_slug": slug,
+                "coffee_name": body.get("coffee_name"),
+                "wholesale_available": 1,
+            })
         return ok(dict(row), resource="roaster_products")
     finally:
         db.close()
@@ -592,6 +602,17 @@ def update_roaster_product(slug: str, product_id: int, body: dict,
             "SELECT * FROM roaster_products WHERE id = ? AND roaster_slug = ?",
             (product_id, slug),
         ).fetchone()
+        # §2.20 — fire the wholesale_available fanout when the saved row
+        # carries the flag. Like the create path above, this is a manual
+        # invocation because the registry hook only fires on `products`,
+        # not the roaster-managed `roaster_products` table.
+        if row and int(row["wholesale_available"] or 0) == 1:
+            from services.notifications import run_hook
+            run_hook("notify_wholesale_available", db, current_user=user, item={
+                "roaster_slug": slug,
+                "coffee_name": row["coffee_name"],
+                "wholesale_available": 1,
+            })
         return ok(dict(row), resource="roaster_products")
     finally:
         db.close()

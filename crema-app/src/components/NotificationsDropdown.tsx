@@ -45,6 +45,12 @@ const NOTIF_MESSAGES: Record<string, string> = {
   inquiry_reply: "replied on an inquiry",
   stamp_awarded: "awarded you a reward",
   direct_message: "sent you a message",
+  // §2.20 — cross-business follower fanout. Subjects (the bean name,
+  // drink, café name) are interpolated by the row renderer.
+  wholesale_available: "is offering a coffee wholesale",
+  menu_updated_business: "tweaked a menu item",
+  sourcing_story: "shared a sourcing story",
+  loyalty_changed: "updated their loyalty program",
 };
 
 // target_slug format: "roaster:<slug>" or "cafe:<slug>"
@@ -139,6 +145,12 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread }
     onClose();
     if (n.type === "follow") {
       router.push(`/user/${n.actor_username}`);
+      return;
+    }
+    // §2.20 — sourcing_story carries both target_slug and post_id;
+    // the post is the more useful destination so PostModal wins.
+    if (n.type === "sourcing_story" && n.post_id) {
+      openPostModal({ postId: n.post_id, mode: "view" });
       return;
     }
     // Catalog-change notifications → roaster / café profile

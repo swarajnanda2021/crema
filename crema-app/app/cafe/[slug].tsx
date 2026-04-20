@@ -1177,6 +1177,10 @@ function BioTab({
   //   • Editing owner: always shown — either the full stats sentence
   //     (enabled) or an "Enable loyalty" affordance (disabled).
   const loyaltyOn = isEditing ? editStampsEnabled : cafe.stamps_enabled === 1;
+  // §2.19 — disabling the program is recoverable on the same screen
+  // (re-enable pill appears immediately) but in-flight stamps go cold
+  // for the duration, so we still gate it behind a confirm.
+  const [confirmDisableLoyalty, setConfirmDisableLoyalty] = useState(false);
   return (
     <View style={s.tabContent}>
       {loyaltyOn && (
@@ -1212,7 +1216,7 @@ function BioTab({
           )}
           {isOwner && isEditing && (
             <Pressable
-              onPress={() => onStampsEnabledChange(false)}
+              onPress={() => setConfirmDisableLoyalty(true)}
               style={s.loyaltyDisableBtn}
               hitSlop={8}
               accessibilityLabel="Disable loyalty program"
@@ -1224,6 +1228,14 @@ function BioTab({
           )}
         </View>
       )}
+      <ConfirmDeleteModal
+        visible={confirmDisableLoyalty}
+        title="Turn off loyalty?"
+        body="Customers won't be able to collect stamps until you turn the program back on. Existing stamp progress is preserved."
+        confirmLabel="Turn off"
+        onConfirm={() => onStampsEnabledChange(false)}
+        onClose={() => setConfirmDisableLoyalty(false)}
+      />
       {isEditing && !loyaltyOn && (
         <Pressable
           onPress={() => onStampsEnabledChange(true)}

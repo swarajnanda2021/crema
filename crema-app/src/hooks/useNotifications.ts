@@ -20,6 +20,11 @@ export type NotificationType =
   | "menu_added"
   | "menu_removed"
   | "menu_updated"
+  // ── Business (§2.20 cross-business follower fanout) ───────────────
+  | "wholesale_available"
+  | "menu_updated_business"
+  | "sourcing_story"
+  | "loyalty_changed"
   // ── Business (wholesale thread + loyalty) ─────────────────────────
   | "wholesale_inquiry"
   | "inquiry_reply"
@@ -38,6 +43,13 @@ const BUSINESS_TYPES: ReadonlySet<string> = new Set<string>([
   "wholesale_inquiry",
   "inquiry_reply",
   "stamp_awarded",
+  // §2.20 cross-business types — only fanned to business followers on
+  // the backend, but classified here too so the Business tab counts
+  // them correctly.
+  "wholesale_available",
+  "menu_updated_business",
+  "sourcing_story",
+  "loyalty_changed",
 ]);
 
 export function isBusinessNotification(type: string): boolean {

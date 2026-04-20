@@ -468,6 +468,27 @@ const E = {
     "% of active products with at least one roaster-submitted recipe card.",
   topBrewMethod:
     "Most common method across all recipe cards (espresso, pour_over, aeropress, etc.).",
+  // §2.18 expansion — deeper B2B signal layer
+  inquiries7d:
+    "Wholesale inquiries opened in the last 7 days. Pairs with the 30-day card as a leading-edge view of inquiry velocity.",
+  medianResponseHours:
+    "Median hours from a café opening an inquiry to the first message back from the roaster. Median (not mean) shrugs off the long tail of never-responded threads. Lower is better; a warm market sits in single digits.",
+  avgThreadDepth:
+    "Average messages per inquiry thread across the platform. Distinguishes drive-by 'we should chat' inquiries from real procurement conversations. 4+ messages usually means a deal is forming.",
+  returningCafes:
+    "Cafés that have come back to the same roaster for a second-or-later inquiry. Best proxy for 'this sourcing relationship is sticking' — a single inquiry could be drive-by; two means real intent.",
+  inquiryMessagesTotal:
+    "Total messages exchanged across all wholesale-inquiry threads. Lifetime; pairs with avg_thread_depth as a denominator-side check.",
+  inquiryMessages30d:
+    "Inquiry-thread messages exchanged in the last 30 days. Leading indicator before a thread converts to a formal order (Phase 2).",
+  topInquiredBeans:
+    "Top 5 beans by inquiry count. Equivalent to the engagement tab's top-clicked-products table but for wholesale interest — what the cafés are actually asking about, not just clicking.",
+  topResponsiveRoasters:
+    "Top 5 roasters by inquiry response rate, weighted by volume. Filtered to roasters with 3+ inquiries to dodge the '1-of-1 = 100%' noise. The leaderboard for who's worth highlighting on the consumer side.",
+  inquiryCafeCities:
+    "Cities sending the most wholesale inquiries. Network density signal — emerging Goa-vs-Bangalore-vs-other geographies.",
+  inquiryRoasterCities:
+    "Cities receiving the most wholesale inquiries. Pairs with cafe-cities as the supply side of the same map.",
 };
 
 function renderEngagement(stats: any, basis: any) {
@@ -781,8 +802,14 @@ function renderSupply(stats: any, basis: any) {
           <Card basis={basis} label="Business Share" value={`${sup.business_share_pct ?? 0}%`} hint="B2B vs social" info={E.businessShare} />
           <Card basis={basis} label="Inquiries Total" value={sup.inquiries_total ?? 0} info={E.inquiriesTotal} seriesKey="inquiries_total" />
           <Card basis={basis} label="Inquiries (30d)" value={sup.inquiries_30d ?? 0} info={E.inquiries30d} seriesKey="inquiries_30d" />
+          <Card basis={basis} label="Inquiries (7d)" value={sup.inquiries_7d ?? 0} hint="velocity" info={E.inquiries7d} seriesKey="inquiries_7d" />
           <Card basis={basis} label="Inquiries Open" value={sup.inquiries_open ?? 0} info={E.inquiriesOpen} />
           <Card basis={basis} label="Inquiry Response Rate" value={`${sup.inquiry_response_rate_pct ?? 0}%`} hint="responded or archived" info={E.inquiryResponseRate} />
+          <Card basis={basis} label="Median Response Time" value={sup.median_response_hours ? `${sup.median_response_hours}h` : "—"} hint="30d, hours to first reply" info={E.medianResponseHours} />
+          <Card basis={basis} label="Avg Thread Depth" value={sup.avg_thread_depth ?? 0} hint="messages per inquiry" info={E.avgThreadDepth} />
+          <Card basis={basis} label="Returning Cafés" value={sup.returning_cafes ?? 0} hint="2+ inquiries to same roaster" info={E.returningCafes} />
+          <Card basis={basis} label="Inquiry Messages" value={sup.inquiry_messages_total ?? 0} info={E.inquiryMessagesTotal} seriesKey="inquiry_messages_total" />
+          <Card basis={basis} label="Messages (30d)" value={sup.inquiry_messages_30d ?? 0} info={E.inquiryMessages30d} seriesKey="inquiry_messages_30d" />
           <Card basis={basis} label="Cafés Inquiring" value={sup.inquiry_cafes_participating ?? 0} info={E.inquiryCafes} />
           <Card basis={basis} label="Roasters Receiving" value={sup.inquiry_roasters_receiving ?? 0} info={E.inquiryRoasters} />
           <Card basis={basis} label="Wholesale Available" value={sup.wholesale_available_total ?? 0} info={E.wholesaleAvailable} />
@@ -796,6 +823,59 @@ function renderSupply(stats: any, basis: any) {
           <Card basis={basis} label="Top Method" value={sup.top_brew_method || "—"} info={E.topBrewMethod} />
         </>,
       )}
+      {/* §2.18 expansion — ranked B2B tables. Same PlotCarousel
+         pattern as the Loyalty / Network / Commerce tabs use. */}
+      <Text style={s.sectionHead}>Plots</Text>
+      <PlotCarousel
+        slides={[
+          <MetricTable
+            key="top-inquired-beans"
+            title="Most-inquired beans"
+            valueHeader="Inquiries"
+            info={E.topInquiredBeans}
+            rows={(sup.top_inquired_beans || []).map((r: any) => ({
+              label: r.label,
+              sub: r.sub,
+              value: r.value,
+            }))}
+            maxHeight={360}
+          />,
+          <MetricTable
+            key="top-responsive-roasters"
+            title="Most-responsive roasters"
+            valueHeader="Response %"
+            info={E.topResponsiveRoasters}
+            rows={(sup.top_responsive_roasters || []).map((r: any) => ({
+              label: r.label,
+              sub: r.sub,
+              value: r.value,
+            }))}
+            maxHeight={360}
+          />,
+          <MetricTable
+            key="inquiry-cafe-cities"
+            title="Cafés inquiring by city"
+            valueHeader="Inquiries"
+            info={E.inquiryCafeCities}
+            rows={(sup.inquiry_cafe_cities || []).map((r: any) => ({
+              label: r.label,
+              value: r.value,
+            }))}
+            maxHeight={360}
+          />,
+          <MetricTable
+            key="inquiry-roaster-cities"
+            title="Roasters receiving by city"
+            valueHeader="Inquiries"
+            info={E.inquiryRoasterCities}
+            rows={(sup.inquiry_roaster_cities || []).map((r: any) => ({
+              label: r.label,
+              value: r.value,
+            }))}
+            maxHeight={360}
+          />,
+        ]}
+      />
     </View>
   );
 }

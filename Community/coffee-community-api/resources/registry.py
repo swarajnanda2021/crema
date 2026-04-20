@@ -100,7 +100,10 @@ RESOURCES = {
         ],
         "order": "published_at DESC",
         "limit": 20,
-        "hooks": {"on_create": ["notify_repost"]},
+        # notify_repost handles repost authors; notify_sourcing_story is a
+        # no-op for any post_type other than 'sourcing_story' so it can sit
+        # alongside without an extra branch in the registry.
+        "hooks": {"on_create": ["notify_repost", "notify_sourcing_story"]},
     },
 
     # ── Post Likes (toggle) ──────────────────────────────────────────────
@@ -331,6 +334,14 @@ RESOURCES = {
             {"name": "roaster_city", "sql": "(SELECT rp.city FROM roaster_profiles rp WHERE rp.roaster_slug = t.roaster_slug)"},
             {"name": "roaster_state", "sql": "(SELECT rp.state FROM roaster_profiles rp WHERE rp.roaster_slug = t.roaster_slug)"},
         ],
+        # §2.20 — fan a wholesale_available notification to business
+        # followers whenever a wholesale-flagged product is created or
+        # saved. Roaster-side writes that go through the hand-rolled
+        # routes/specific.py endpoints fire the same hook explicitly.
+        "hooks": {
+            "on_create": ["notify_wholesale_available"],
+            "on_update": ["notify_wholesale_available"],
+        },
     },
 
     # ── Roaster Profiles ─────────────────────────────────────────────────
@@ -424,7 +435,9 @@ RESOURCES = {
         ],
         # When the café owner changes the logo, mirror it onto their
         # user.avatar_url so the navbar avatar reflects the new image.
-        "hooks": {"on_update": ["sync_cafe_logo_to_user"]},
+        # notify_loyalty_changed (§2.20) is a no-op when stamps_enabled=0
+        # so it can sit alongside without gating logic in the registry.
+        "hooks": {"on_update": ["sync_cafe_logo_to_user", "notify_loyalty_changed"]},
         "order": "name ASC",
         "limit": 100,
     },
@@ -455,9 +468,14 @@ RESOURCES = {
         "owner": "cafe_slug",
         "owner_user_field": "cafe_slug",
         # Menu changes fan out to the café's followers as notifications.
+        # `notify_menu_updated_business` (§2.20) is the B2B-flavored
+        # parallel: same trigger, but only goes to followers whose
+        # account_type is roaster/cafe and lands as `menu_updated_business`
+        # so the Business tab can read it as procurement signal rather
+        # than activity.
         "hooks": {
             "on_create": ["notify_menu_added"],
-            "on_update": ["notify_menu_updated"],
+            "on_update": ["notify_menu_updated", "notify_menu_updated_business"],
             "on_delete": ["notify_menu_removed"],
         },
         "order": "drink_order ASC, id ASC",

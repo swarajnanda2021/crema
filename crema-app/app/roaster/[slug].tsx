@@ -945,41 +945,24 @@ export default function RoasterDetailPage() {
             </View>
           </Modal>
 
-          {/* §2.9 — confirm-before-delete. The bin on CoffeeCard now
-             opens this sheet instead of removing immediately. */}
-          <Modal
+          {/* §2.9 / §2.19 — confirm-before-delete via the shared
+             primitive so every destructive sheet on the site reads
+             the same. The bin on CoffeeCard sets `confirmingDelete`
+             which opens this sheet; the deleted product lands in the
+             recycle bin (§2.25) so the body advertises that path. */}
+          <ConfirmDeleteModal
             visible={!!confirmingDelete}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setConfirmingDelete(null)}
-          >
-            <View style={s.composerOverlayWrap}>
-              <Pressable style={s.composerOverlayBg} onPress={() => setConfirmingDelete(null)} />
-              <View style={s.confirmCard}>
-                <Text style={s.confirmTitle}>Remove this bean?</Text>
-                <Text style={s.confirmBody}>
-                  {confirmingDelete?.coffee_name
-                    ? `"${confirmingDelete.coffee_name}" will come off your catalog. You can always add it back later.`
-                    : "This coffee will come off your catalog. You can always add it back later."}
-                </Text>
-                <View style={s.confirmActions}>
-                  <Pressable onPress={() => setConfirmingDelete(null)} style={s.confirmCancel}>
-                    <Text style={s.confirmCancelText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={async () => {
-                      const id = confirmingDelete?.product_id ?? confirmingDelete?.id;
-                      setConfirmingDelete(null);
-                      if (id) await handleDeleteProduct(id);
-                    }}
-                    style={s.confirmDelete}
-                  >
-                    <Text style={s.confirmDeleteText}>Remove</Text>
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          </Modal>
+            title="Remove this bean?"
+            body={confirmingDelete?.coffee_name
+              ? `"${confirmingDelete.coffee_name}" will come off your catalog. You can recover it from the recycle bin in your profile.`
+              : undefined}
+            confirmLabel="Remove"
+            onConfirm={async () => {
+              const id = confirmingDelete?.product_id ?? confirmingDelete?.id;
+              if (id) await handleDeleteProduct(id);
+            }}
+            onClose={() => setConfirmingDelete(null)}
+          />
 
           {/* §2.9 — edit an existing bean. EditableCoffeeCard pre-filled
              from the product row; save PUTs via handleUpdateProduct. */}
@@ -1062,41 +1045,6 @@ const s = StyleSheet.create({
     borderRadius: t.radius.lg, overflow: "hidden", zIndex: 1,
     maxHeight: "90%",
   } as any,
-
-  // §2.9 — confirm-delete sheet. Compact two-button card in the same
-  // floating-modal language as the rest of the site.
-  confirmCard: {
-    width: "90%", maxWidth: 420, backgroundColor: t.color.bg,
-    borderRadius: t.radius.lg, padding: 24, zIndex: 1,
-  } as any,
-  confirmTitle: {
-    fontFamily: t.font.display, fontSize: 22,
-    color: t.color["text.primary"], lineHeight: 28,
-  },
-  confirmBody: {
-    fontFamily: t.font["body.regular"], fontSize: 13,
-    color: t.color["text.secondary"],
-    marginTop: 8, lineHeight: 19,
-  },
-  confirmActions: {
-    flexDirection: "row", justifyContent: "flex-end",
-    gap: 10, marginTop: 20,
-  } as any,
-  confirmCancel: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6,
-  } as any,
-  confirmCancelText: {
-    fontFamily: t.font["body.semibold"], fontSize: 13,
-    color: t.color["text.primary"],
-  },
-  confirmDelete: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6,
-    backgroundColor: "#B5393C",
-  } as any,
-  confirmDeleteText: {
-    fontFamily: t.font["body.semibold"], fontSize: 13,
-    color: "#FAF8F0",
-  },
 
   pageContainer: { flexDirection: "row", overflow: "hidden" } as any,
 
