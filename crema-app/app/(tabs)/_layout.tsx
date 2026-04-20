@@ -1,61 +1,29 @@
-import { View, Platform, StyleSheet } from "react-native";
+import { View } from "react-native";
 import { Tabs } from "expo-router";
-import { Coffee, User, ShoppingBag } from "lucide-react-native";
-import { t } from "../../src/tokens/useTokens";
-import Navbar from "../../src/components/Navbar";
+import SiteHeader from "../../src/components/SiteHeader";
 
-export default function TabLayout() {
-  const isWeb = Platform.OS === "web";
-
+/**
+ * (tabs) group layout — thin shell.
+ *
+ * Renders the top `SiteHeader` (mobile or web variant) and hands
+ * routing to an Expo Router `Tabs` whose own tab bar is hidden on
+ * every form factor. The visible bottom bar is the sitewide
+ * `MobileFooter` mounted at the root layout — that way the bar
+ * stays painted when users drill into non-(tabs) routes
+ * (coffee / roaster / cafe / user / search / notifications /
+ * account). On wide web the `Navbar` handles nav, so the footer
+ * stays hidden there.
+ */
+export default function TabsLayout() {
   return (
     <View style={{ flex: 1 }}>
-      {/* Top navbar on web */}
-      {isWeb && <Navbar />}
-
+      <SiteHeader />
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: t.color["text.primary"],
-          tabBarInactiveTintColor: t.color["text.muted"],
-          tabBarLabelStyle: {
-            fontFamily: t.font["body.semibold"],
-            fontSize: 11,
-            letterSpacing: 0.3,
-          },
-          tabBarStyle: isWeb
-            ? { display: "none" } // Hide bottom tabs on web — use top navbar
-            : {
-                backgroundColor: t.color["card.front"],
-                borderTopColor: t.color["border.light"],
-                borderTopWidth: 1,
-                height: 60,
-                paddingBottom: 8,
-                paddingTop: 6,
-              },
+          tabBarStyle: { display: "none" },
         }}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: "Feed",
-            tabBarIcon: ({ color, size }) => <Coffee size={size - 2} color={color} strokeWidth={2} />,
-          }}
-        />
-        <Tabs.Screen
-          name="profile"
-          options={{
-            title: "My Shelf",
-            tabBarIcon: ({ color, size }) => <User size={size - 2} color={color} strokeWidth={2} />,
-          }}
-        />
-        <Tabs.Screen
-          name="browse"
-          options={{
-            title: "Discover",
-            tabBarIcon: ({ color, size }) => <ShoppingBag size={size - 2} color={color} strokeWidth={2} />,
-          }}
-        />
-      </Tabs>
+      />
     </View>
   );
 }

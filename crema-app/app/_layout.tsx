@@ -4,15 +4,33 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import "react-native-reanimated";
 import "../global.css";
 
+import { View } from "react-native";
+import { usePathname } from "expo-router";
 import { AuthProvider, useAuth } from "../src/hooks/useAuth";
 import { CoffeeDataProvider } from "../src/hooks/useCoffeeData";
 import { t } from "../src/tokens/useTokens";
+import { listen } from "../src/utils/events";
+import { useBreakpoint } from "../src/hooks/useBreakpoint";
 import PostModal from "../src/components/shell/PostModal";
 import AuthModal from "../src/components/AuthModal";
 import NavigationLoader from "../src/components/NavigationLoader";
+import MobileFooter from "../src/components/MobileFooter";
+
+/** Sticky bottom tab bar on every mobile screen. Hidden on /auth
+ *  (full-page sign-in shouldn't compete with nav) and on wide web
+ *  (Navbar handles nav there). Sits inside the same flex column as
+ *  the Stack so the two never overlap. */
+function ConditionalMobileFooter() {
+  const { isMobile } = useBreakpoint();
+  const pathname = usePathname();
+  if (!isMobile) return null;
+  if (pathname?.startsWith("/auth")) return null;
+  return <MobileFooter />;
+}
 
 export { ErrorBoundary } from "expo-router";
 
@@ -23,12 +41,7 @@ function GlobalPostModal() {
   const { user } = useAuth();
   const [data, setData] = useState<any>(null);
 
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") return;
-    const handler = (e: any) => setData(e.detail);
-    window.addEventListener("crema:open-post", handler);
-    return () => window.removeEventListener("crema:open-post", handler);
-  }, []);
+  useEffect(() => listen("crema:open-post", (detail) => setData(detail)), []);
 
   return (
     <PostModal
@@ -83,9 +96,11 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <AuthProvider>
-      <CoffeeDataProvider>
-        <AuthGate>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <AuthProvider>
+        <CoffeeDataProvider>
+          <AuthGate>
+          <View style={{ flex: 1 }}>
           <Stack
             screenOptions={{
               headerShown: false,
@@ -130,7 +145,44 @@ export default function RootLayout() {
                 headerShown: false,
               }}
             />
+            {/* Mobile-only destinations behind the MobileHeader
+               search + bell icons. Native stack renders a back
+               button for free via headerShown:true. On web wide
+               these URLs exist but the Navbar's floating dropdowns
+               are preferred — nothing there navigates here. */}
+            <Stack.Screen
+              name="search"
+              options={{
+                headerShown: true,
+                title: "Search",
+                headerTintColor: t.color["accent.cta"],
+                headerStyle: { backgroundColor: t.color.bg },
+                headerShadowVisible: false,
+              }}
+            />
+            <Stack.Screen
+              name="notifications"
+              options={{
+                headerShown: true,
+                title: "Notifications",
+                headerTintColor: t.color["accent.cta"],
+                headerStyle: { backgroundColor: t.color.bg },
+                headerShadowVisible: false,
+              }}
+            />
+            <Stack.Screen
+              name="account"
+              options={{
+                headerShown: true,
+                title: "Account",
+                headerTintColor: t.color["accent.cta"],
+                headerStyle: { backgroundColor: t.color.bg },
+                headerShadowVisible: false,
+              } as any}
+            />
           </Stack>
+          <ConditionalMobileFooter />
+          </View>
           <StatusBar style="light" />
           <GlobalPostModal />
           {/* Sitewide floating auth modal — opened from ProfileDropdown's
@@ -141,7 +193,8 @@ export default function RootLayout() {
               change, so the partial-render flicker doesn't show. */}
           <NavigationLoader />
         </AuthGate>
-      </CoffeeDataProvider>
-    </AuthProvider>
+        </CoffeeDataProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

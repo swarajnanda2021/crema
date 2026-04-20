@@ -13,11 +13,13 @@ import {
   View, Text, TextInput, Pressable, ScrollView, Modal,
   StyleSheet, Animated, ActivityIndicator, Platform,
 } from "react-native";
-import { Repeat2, X } from "lucide-react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Repeat2, X, ArrowLeft } from "lucide-react-native";
 
 import { apiFetchRaw } from "../../api/client";
 import ComposePost from "../ComposePost";
 import { t } from "../../tokens/useTokens";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { CroppedAvatar, timeAgo } from "../primitives";
 import CommentThread from "../primitives/CommentThread";
 import PostCard from "../domain/PostCard";
@@ -38,6 +40,7 @@ export default function PostModal({
   visible, postId, post: postProp, mode = "view",
   highlightCommentId, onClose, user,
 }: PostModalProps) {
+  const { isMobile } = useBreakpoint();
   const [post, setPost] = useState<Post | null>(postProp || null);
   const [loading, setLoading] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
@@ -91,20 +94,38 @@ export default function PostModal({
 
   const showComments = internalMode !== "repost";
 
+  // Mobile: the modal renders as a full viewport Stack-style page
+  // (SafeAreaView fills the screen, card goes edge-to-edge, no
+  // backdrop, header shows a left-aligned back arrow instead of an
+  // X). Web wide keeps the centered floating card so the feed stays
+  // visible behind it.
+  //
+  // NOTE: still overlays the sticky SiteHeader + MobileFooter. A
+  // follow-up task on the roadmap replaces this with right-slide
+  // (Search / Notifications) and left-slide (hamburger) panels that
+  // sit between the two sticky chromes instead of covering them.
+  const Wrapper: any = isMobile ? SafeAreaView : View;
+  const wrapperProps: any = isMobile ? { edges: ["top"], style: s.fullScreenWrap } : { style: s.overlayWrap };
+
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      {/* Overlay: background Pressable + card as sibling so clicks on card don't bubble to close handler */}
-      <View style={s.overlayWrap}>
-        <Pressable style={s.overlayBg} onPress={onClose} />
-        <View style={s.card}>
-          {/* Header */}
-          <View style={s.header}>
+    <Modal visible transparent={!isMobile} animationType="fade" onRequestClose={onClose}>
+      <Wrapper {...wrapperProps}>
+        {!isMobile && <Pressable style={s.overlayBg} onPress={onClose} />}
+        <View style={[s.card, isMobile && s.cardFullScreen]}>
+          <View style={[s.header, isMobile && s.headerMobile]}>
+            {isMobile && (
+              <Pressable onPress={onClose} hitSlop={10} style={s.backBtn} accessibilityLabel="Back">
+                <ArrowLeft size={22} color={t.color["text.primary"]} strokeWidth={2} />
+              </Pressable>
+            )}
             <Text style={s.headerTitle}>
               {internalMode === "repost" ? "Repost" : "Post"}
             </Text>
-            <Pressable onPress={onClose} hitSlop={8}>
-              <X size={18} color={t.color["text.primary"]} />
-            </Pressable>
+            {!isMobile && (
+              <Pressable onPress={onClose} hitSlop={8}>
+                <X size={18} color={t.color["text.primary"]} />
+              </Pressable>
+            )}
           </View>
 
           <ScrollView ref={scrollRef} style={s.scrollBody} showsVerticalScrollIndicator={false}>
@@ -220,7 +241,7 @@ export default function PostModal({
             )}
           </ScrollView>
         </View>
-      </View>
+      </Wrapper>
 
       {/* Edit post sub-modal */}
       {editingPost && (
@@ -264,6 +285,22 @@ const s = StyleSheet.create({
     overflow: "hidden",
     zIndex: 1,
   } as any,
+  // Mobile: the "card" becomes the whole screen. No rounding, no max,
+  // no backdrop — the SafeAreaView wrapper fills the viewport and the
+  // back arrow in the header handles dismissal.
+  fullScreenWrap: { flex: 1, backgroundColor: t.color.bg } as any,
+  cardFullScreen: {
+    width: "100%" as any,
+    height: "100%" as any,
+    maxWidth: undefined,
+    maxHeight: undefined,
+    borderRadius: 0,
+  } as any,
+  headerMobile: {
+    justifyContent: "flex-start",
+    gap: t.spacing.md,
+  } as any,
+  backBtn: { padding: t.spacing["2xs"] } as any,
   editModal: { width: "90%", maxWidth: 680, backgroundColor: "#FAF8F0", borderRadius: 12, overflow: "hidden", maxHeight: "85%", zIndex: 1 } as any,
   header: {
     flexDirection: "row",

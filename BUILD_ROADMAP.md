@@ -393,6 +393,36 @@ Between §2.31-2.39 and LAUNCH_TODO §3.5, everything a TestFlight
 build needs is in one of two places. No hidden "oh we also need
 X" landmines.
 
+### 2.40 Mobile — session 1 handoff (branch `feat/mobile-readiness`)
+
+Session 1 shipped the foundation: `useBreakpoint` primitive, a centered-Crema `MobileHeader` (per Figma 63:4710), Home/Discover/Messages/Profile bottom tabs with the profile-avatar icon, a sticky `MobileFooter` rendered at the root layout so it persists across every mobile screen (except /auth), `SiteHeader` wired into the detail pages (user / cafe / roaster), and real content ported into Search / Messages / Notifications / Account via a `fullScreen` prop on the existing dropdowns. Expo Go now reaches the backend (LAN-IP resolution via `expo-constants`) and keychain reads no longer crash (AFTER_FIRST_UNLOCK). A cross-platform `emit` / `listen` event bus (`src/utils/events.ts`) fixed Comment / Repost on native. The followers modal no longer "follows everyone" (backend `/followers` now returns `user_id`) and long names truncate at 25 chars. `SwipeableRow` lands in the Messages inbox — WhatsApp-style swipe on native, right-click / double-tap on web, with three actions (Archive wired to the existing wholesale-inquiry endpoint; Mute + Delete stub with "Coming soon"). The design-language directive ("every new UI runs the token-only checklist + mirrors the nearest existing screen") is now canonical in `CRUD_UTOPIA.md` and persistent cross-session memory.
+
+What session 2 has to finish:
+
+| # | Item | Notes |
+|---|------|-------|
+| 2.40.1 | **Search / Notifications → right-slide panel (75-80%)** | Currently they're root-level Stack screens rendered fullscreen. Replace with a panel that slides in from the right edge and occupies the space **between** `SiteHeader` and `MobileFooter` so the Crema chrome stays visible. Share the animation primitive with the filter drawer (§2.34). Trigger stays the same (MobileHeader search glass + bell). |
+| 2.40.2 | **Hamburger → left-slide panel (~75% width)** | Same treatment, left edge, 75% reveal so the underlying feed peeks on the right. Hosts the current `ProfileDropdown` body (account header, Edit / Manage / Sign out, account switcher, Add another account). Must also sit between `SiteHeader` and `MobileFooter`. |
+| 2.40.3 | **Compose / PostModal / PopularityModal — stop covering sticky chrome** | Today these use RN `<Modal>` which paints over `SiteHeader` and `MobileFooter`. Same mid-panel treatment as 2.40.1-2 (slide from bottom or fade into the mid-band) so the sticky chrome stays painted. Dismiss on route change. Reuse one primitive for all three. |
+| 2.40.4 | **Hamburger actions: Add another account** | Tapping "Add another account" doesn't fire the auth modal on mobile. `ProfileDropdown.handleAddAccount` emits `crema:open-auth-modal` on web, routes to `/auth?addAccount=1` on native — the native path currently races the panel dismissal. |
+| 2.40.5 | **Hamburger actions: Edit profile discard bug** | Entering edit mode from the hamburger → Edit profile, then tapping Discard, leaves the profile in a broken state (stale edit state / UI doesn't reset). Reproduce on `/profile` via the `crema:edit-profile` event path. |
+| 2.40.6 | **Profile "Post" button → shared composer** | The "Writing a note" prompt at the top of the Profile Posts tab currently isn't wired to the sitewide composer on either platform. Migrate it to open `ComposePost` the same way the feed FAB does so there's one entry point. |
+| 2.40.7 | **Register (tabs) with ≠4 tab counts** | Pages whose bottom strip isn't Home/Discover/Messages/Profile (e.g. café POS, roaster analytics) currently render a mismatched set on narrow. Factor the footer set per screen type. Paired with the **Looking For** hide from session 1 — same category. |
+| 2.40.8 | **DM archive / mute / delete backend** | SwipeableRow already exposes the three actions on mobile + web. Only wholesale-inquiry archive is wired (existing `/wholesale-inquiries/{id}/respond`). Needs a matching set of endpoints for direct_threads (archive flag, muted_at, soft delete) + a DM-side archive action for wholesale threads the café initiates. |
+
+Plus the pre-existing block:
+
+| # | Item | Session |
+|---|------|---------|
+| 2.33 | CoffeeCard landscape variant for phones (Figma 109:9154) | 2 |
+| 2.34 | FilterDrawer (right-edge slide-in) — note the slide primitive is shared with 2.40.1 | 2 |
+| 2.35 | Café menu card-stack fallback on narrow screens | 2 |
+| 2.36 | PanResponder swap for hero + avatar drag (cafe / roaster / profile / EditableCoffeeCard) | 2 |
+| 2.37 | Hit-slop 44×44 audit + accessibilityLabel sweep | 2 |
+| 2.38 | Modal → bottom-sheet pattern (largely subsumed by 2.40.3) | 2 |
+| 2.39 | EAS Build + app.json polish | Last |
+| 2.32 remainder | Migrate the remaining 6 `useWindowDimensions()` call-sites to `useBreakpoint` | 2, parallel |
+
 ### Launch blockers — everything non-mobile
 
 Everything below this point in §2 is either shipped (historical)

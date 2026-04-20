@@ -7,6 +7,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
+import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { Image } from "expo-image";
 import { Search, X, ArrowRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
@@ -22,6 +23,7 @@ export default function BrowsePage() {
   const { products, roasters, roastLevels, processes } = useCoffeeData();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
+  const { isMobile } = useBreakpoint();
   const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
   const [query, setQuery] = useState("");
   const [popularity, setPopularity] = useState<Record<string, number>>({});
@@ -89,13 +91,17 @@ export default function BrowsePage() {
 
   return (
     <View style={s.container}>
-      {/* Sub-tabs */}
+      {/* Sub-tabs. On mobile we drop the LOOKING FOR prefix — the
+         3 category labels (BEANS / ROASTERS / CAFÉS) use the full
+         row so all three fit on a 375-px viewport. */}
       <View style={s.tabBar}>
         <View style={s.tabBarInner}>
-          <View style={[s.tabBarLeft, { width: sidebarW }]}>
-            <Text style={s.lookingForLabel}>LOOKING FOR</Text>
-          </View>
-          <View style={s.tabBarRight}>
+          {!isMobile && (
+            <View style={[s.tabBarLeft, { width: sidebarW }]}>
+              <Text style={s.lookingForLabel}>LOOKING FOR</Text>
+            </View>
+          )}
+          <View style={[s.tabBarRight, isMobile && s.tabBarRightMobile]}>
             <TabButton label="BEANS" active={activeTab === "beans"} onPress={() => setActiveTab("beans")} />
             <TabButton label="ROASTERS" active={activeTab === "roasters"} onPress={() => setActiveTab("roasters")} />
             <TabButton label="CAFÉS" active={activeTab === "cafes"} onPress={() => setActiveTab("cafes")} />
@@ -104,7 +110,7 @@ export default function BrowsePage() {
       </View>
 
       {activeTab === "beans" ? (
-        <View style={s.browseLayout}>
+        <View style={[s.browseLayout, isMobile && s.browseLayoutMobile]}>
           {isDesktop && (
             <ScrollView
               style={[s.sidebar, { width: sidebarW, minWidth: sidebarW, maxWidth: sidebarW }]}
@@ -545,6 +551,10 @@ const s = StyleSheet.create({
   tabBarInner: { flexDirection: "row", alignItems: "stretch", paddingLeft: "6.25%" as any, paddingRight: "6.25%" as any, width: "100%" as any, height: "100%" as any },
   tabBarLeft: { width: 195, flexShrink: 0, justifyContent: "center" } as any,
   tabBarRight: { flex: 1, flexDirection: "row", alignItems: "stretch", paddingLeft: 16, gap: 48 } as any,
+  // Mobile: no LOOKING FOR label, so tabBarRight drops its left pad
+  // and uses space-between to spread BEANS / ROASTERS / CAFÉS across
+  // the full viewport width.
+  tabBarRightMobile: { paddingLeft: 0, gap: 0, justifyContent: "space-between" } as any,
   lookingForLabel: {
     fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.primary"],
     textTransform: "uppercase", alignSelf: "center",
@@ -556,6 +566,10 @@ const s = StyleSheet.create({
 
   // Browse layout
   browseLayout: { flex: 1, flexDirection: "row", paddingLeft: "6.25%" as any, paddingRight: "6.25%" as any, paddingTop: 63 } as any,
+  // Mobile: collapse the 63-px top pad entirely. The stickySearchWrap
+  // below already brings its own paddingTop (12), so anything added
+  // here just doubles up the gap above the search field.
+  browseLayoutMobile: { paddingTop: 0, paddingLeft: 0 as any, paddingRight: 0 as any } as any,
 
   // Vertical divider
   verticalDivider: { width: 1, backgroundColor: "rgba(215,209,196,0.5)" } as any,

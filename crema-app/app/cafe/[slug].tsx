@@ -18,7 +18,7 @@ import { t } from "../../src/tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { openExternal } from "../../src/utils/openExternal";
 import { useAuth } from "../../src/hooks/useAuth";
-import Navbar from "../../src/components/Navbar";
+import SiteHeader from "../../src/components/SiteHeader";
 import ScannerModal from "../../src/components/ScannerModal";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 import PostPromptModal from "../../src/components/PostPromptModal";
@@ -408,7 +408,7 @@ export default function CafeDetailPage() {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
-        <Navbar />
+        <SiteHeader />
         <View style={s.loadingWrap}>
           <CremaLogo width={180} height={38} />
         </View>
@@ -422,7 +422,7 @@ export default function CafeDetailPage() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <Navbar />
+      <SiteHeader />
 
       {isOwner && isEditing && (
         <View style={s.editBanner}>

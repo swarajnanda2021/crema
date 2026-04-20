@@ -145,8 +145,12 @@ def followers_list(slug: str):
     db = get_db()
     try:
         count = db.execute("SELECT COUNT(*) as c FROM follows WHERE roaster_slug = ?", (slug,)).fetchone()["c"]
+        # `u.id AS user_id` is load-bearing: the Crema client builds
+        # the follow-toggle slug as `user_{user_id}` for user follows.
+        # Without this, clients fell back to `user_undefined` and a
+        # single follow mutated the state of every user-row at once.
         rows = db.execute(
-            "SELECT u.username, u.display_name, u.avatar_url, u.location, u.account_type, u.roaster_slug "
+            "SELECT u.id AS user_id, u.username, u.display_name, u.avatar_url, u.location, u.account_type, u.roaster_slug "
             "FROM follows f JOIN users u ON f.follower_user_id = u.id WHERE f.roaster_slug = ?",
             (slug,),
         ).fetchall()

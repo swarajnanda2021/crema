@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { View, Text, Pressable, Modal, ScrollView, StyleSheet, Platform } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { X, MapPin, PenLine } from "lucide-react-native";
+import { X, ArrowLeft, MapPin, PenLine } from "lucide-react-native";
 import { t } from "../tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import PostCard from "./domain/PostCard";
 import ComposePost from "./ComposePost";
 import { openPostModal } from "./primitives";
@@ -32,6 +34,7 @@ export default function PopularityModal({
 }: Props) {
   const router = useRouter();
   const { user } = useAuth();
+  const { isMobile } = useBreakpoint();
   const [users, setUsers] = useState<any[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,11 +93,16 @@ export default function PopularityModal({
     }
   };
 
+  const Wrapper: any = isMobile ? SafeAreaView : View;
+  const wrapperProps: any = isMobile
+    ? { edges: ["top"], style: s.fullScreenWrap }
+    : { style: s.overlayWrap };
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={s.overlayWrap}>
-        <Pressable style={s.overlayBg} onPress={onClose} />
-        <View style={s.card}>
+    <Modal visible={visible} transparent={!isMobile} animationType="fade" onRequestClose={onClose}>
+      <Wrapper {...wrapperProps}>
+        {!isMobile && <Pressable style={s.overlayBg} onPress={onClose} />}
+        <View style={[s.card, isMobile && s.cardFullScreen]}>
           {/* Header — count now lives here (moved off the CoffeeCard
              social dot which became number-free). */}
           <View style={s.header}>
@@ -192,7 +200,7 @@ export default function PopularityModal({
             )}
           </ScrollView>
         </View>
-      </View>
+      </Wrapper>
 
       {/* Tasting-note composer sub-modal. Renders the shared
          ComposePost with `prefillTastingNote` so the Add-Card →
@@ -239,6 +247,12 @@ const s = StyleSheet.create({
   card: {
     width: "90%", maxWidth: 680, backgroundColor: t.color.bg,
     borderRadius: t.radius.lg, overflow: "hidden", maxHeight: "85%", zIndex: 1,
+  } as any,
+  // Mobile: edge-to-edge takeover, no backdrop.
+  fullScreenWrap: { flex: 1, backgroundColor: t.color.bg } as any,
+  cardFullScreen: {
+    width: "100%" as any, height: "100%" as any,
+    maxWidth: undefined, maxHeight: undefined, borderRadius: 0,
   } as any,
   header: {
     flexDirection: "row",

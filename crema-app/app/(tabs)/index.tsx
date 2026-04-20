@@ -13,6 +13,7 @@ import { View, Text, Pressable, ScrollView, RefreshControl, StyleSheet, Modal } 
 import { Plus } from "lucide-react-native";
 
 import { useAuth } from "../../src/hooks/useAuth";
+import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { apiFetchRaw } from "../../src/api/client";
 import { useResource } from "../../src/resources/useResource";
@@ -27,6 +28,7 @@ const FEED_PER_PAGE = 5;
 export default function FeedPage() {
   const { user } = useAuth();
   const { productMap } = useCoffeeData();
+  const { isMobile } = useBreakpoint();
   const [visibleCount, setVisibleCount] = useState(FEED_PER_PAGE);
   const [refreshing, setRefreshing] = useState(false);
   const [showCompose, setShowCompose] = useState(false);
@@ -135,9 +137,9 @@ export default function FeedPage() {
         animationType="fade"
         onRequestClose={() => setShowCompose(false)}
       >
-        <View style={s.editOverlayWrap}>
-          <Pressable style={s.editOverlayBg} onPress={() => setShowCompose(false)} />
-          <View style={s.editModal}>
+        <View style={[s.editOverlayWrap, isMobile && s.editOverlayWrapFull]}>
+          {!isMobile && <Pressable style={s.editOverlayBg} onPress={() => setShowCompose(false)} />}
+          <View style={[s.editModal, isMobile && s.editModalFull]}>
             <ComposePost
               onSubmit={async (data) => {
                 await handleCreatePost(data);
@@ -207,8 +209,14 @@ const s = StyleSheet.create({
   },
   divider: { height: 1, backgroundColor: t.color.divider },
   editOverlayWrap: { flex: 1, justifyContent: "center", alignItems: "center" } as any,
+  editOverlayWrapFull: { backgroundColor: t.color.bg } as any,
   editOverlayBg: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" } as any,
   editModal: { width: "90%", maxWidth: 680, backgroundColor: "#FAF8F0", borderRadius: 12, overflow: "hidden", maxHeight: "85%", zIndex: 1 } as any,
+  // Mobile: edge-to-edge composer. No radius, no max, no backdrop.
+  editModalFull: {
+    width: "100%" as any, height: "100%" as any,
+    maxWidth: undefined, maxHeight: undefined, borderRadius: 0,
+  } as any,
   fab: {
     position: "absolute", bottom: 28, right: 28,
     width: t.size["fab.size"], height: t.size["fab.size"], borderRadius: t.size["fab.size"] / 2,

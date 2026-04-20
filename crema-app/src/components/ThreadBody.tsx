@@ -402,7 +402,9 @@ export default function ThreadBody({ kind, id, onBack, onClose }: Props) {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#FFFFFF" } as any,
+  // Same cream bg as the MessagesDropdown list view and the rest of
+  // the site, so swapping into a thread feels continuous.
+  root: { flex: 1, backgroundColor: t.color.bg } as any,
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -536,6 +538,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 9,
     borderTopWidth: 1, borderTopColor: "#EDE8E1",
   } as any,
+  // 3× the original height (was 30 min / 80 max) — gives the draft
+  // composer room to breathe and matches the feel of the feed's
+  // ComposePost box rather than a cramped chat input.
   input: {
     flex: 1,
     fontFamily: t.font["body.regular"], fontSize: 12,
@@ -543,8 +548,8 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(53,17,1,0.04)",
     borderWidth: 1, borderColor: "rgba(53,17,1,0.1)",
     borderRadius: 8,
-    paddingHorizontal: 9, paddingVertical: 6,
-    maxHeight: 80, minHeight: 30,
+    paddingHorizontal: 9, paddingVertical: 8,
+    maxHeight: 240, minHeight: 90,
     textAlignVertical: "top",
   } as any,
   sendBtn: {

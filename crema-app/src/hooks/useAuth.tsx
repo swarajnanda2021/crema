@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { apiFetchRaw, setToken } from "../api/client";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
+import { emit } from "../utils/events";
 
 interface User {
   id: number;
@@ -183,9 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // window.location.assign hard-reload takes over, and the new
     // page's NavigationLoader holds the curtain until authLoading
     // settles there.
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("crema:loading-start"));
-    }
+    emit("crema:loading-start");
 
     const username = user?.username;
     // If there's a next saved account on the device, slip into it
@@ -261,9 +260,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // loader before any async work so the current page can't
     // briefly render with the incoming account's token but the
     // outgoing account's props.
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("crema:loading-start"));
-    }
+    emit("crema:loading-start");
     await setToken(token);
     const meRes = await apiFetchRaw<any>("/auth/me");
     const me = meRes?.data ?? meRes;

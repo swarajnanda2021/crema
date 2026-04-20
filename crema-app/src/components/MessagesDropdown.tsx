@@ -24,13 +24,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  View, Text, Pressable, ScrollView, StyleSheet, Platform, ActivityIndicator,
+  View, Text, Pressable, ScrollView, StyleSheet, Platform, ActivityIndicator, Alert,
 } from "react-native";
+import { Plus, Archive, BellOff, Trash2 } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
+import { apiFetchRaw } from "../api/client";
 import { CroppedAvatar, timeAgo } from "./primitives";
 import { useInquiryInbox, InboxRow } from "../hooks/useInquiryInbox";
 import { useAuth } from "../hooks/useAuth";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import ThreadBody, { ThreadKind } from "./ThreadBody";
+import NewMessagePicker from "./NewMessagePicker";
+import SwipeableRow, { SwipeAction } from "./SwipeableRow";
 
 interface Props {
   visible: boolean;
@@ -39,6 +44,8 @@ interface Props {
    *  this descriptor (used by NotificationsDropdown → wholesale_inquiry
    *  / inquiry_reply / direct_message taps). */
   initialThread?: { kind: ThreadKind; id: number } | null;
+  /** Full-viewport mode for the mobile Messages tab screen. */
+  fullScreen?: boolean;
 }
 
 // Normalise an InboxRow into the uniform shape the list row expects.
@@ -93,12 +100,61 @@ function threadTab(row: InboxRow): InboxTab {
   return "non_business";
 }
 
-export default function MessagesDropdown({ visible, onClose, initialThread }: Props) {
+export default function MessagesDropdown({ visible, onClose, initialThread, fullScreen }: Props) {
   const { user } = useAuth();
   const { threads, totalUnread, loading, error, refresh, markRead } = useInquiryInbox(visible);
+  const { isMobile } = useBreakpoint();
   const [activeThread, setActiveThread] = useState<{ kind: ThreadKind; id: number } | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const cardRef = useRef<any>(null);
+
+  /** Build the Archive / Mute / Delete action set for a given inbox
+   *  row. Archive for wholesale_inquiry hits the existing
+   *  respond-with-status endpoint (roasters only); everything else
+   *  surfaces a "Coming soon" alert until the DM-side backend lands. */
+  const buildActions = (row: InboxRow): SwipeAction[] => {
+    const commingSoon = (feature: string) =>
+      Alert.alert("Coming soon", `${feature} isn't wired up yet for this thread.`);
+    const ICON = t.color.bg;
+    return [
+      {
+        key: "archive",
+        label: "Archive",
+        background: t.color["text.primary"],
+        icon: <Archive size={18} color={ICON} strokeWidth={2} />,
+        onPress: async () => {
+          if (row.kind === "wholesale_inquiry" && user?.account_type === "roaster") {
+            try {
+              await apiFetchRaw(`/wholesale-inquiries/${row.inquiry_id}/respond`, {
+                method: "POST",
+                body: JSON.stringify({ status: "archived" }),
+              });
+              refresh();
+            } catch (e) {
+              Alert.alert("Archive failed", String(e));
+            }
+          } else {
+            commingSoon("Archive");
+          }
+        },
+      },
+      {
+        key: "mute",
+        label: "Mute",
+        background: "#A09580",
+        icon: <BellOff size={18} color={ICON} strokeWidth={2} />,
+        onPress: () => commingSoon("Mute"),
+      },
+      {
+        key: "delete",
+        label: "Delete",
+        background: "#B5393C",
+        icon: <Trash2 size={18} color={ICON} strokeWidth={2} />,
+        onPress: () => commingSoon("Delete"),
+      },
+    ];
+  };
 
   // Tab routing (business users only). Default to Business on open —
   // that's the wholesale-lead feed they'll check most often.
@@ -128,7 +184,7 @@ export default function MessagesDropdown({ visible, onClose, initialThread }: Pr
   // opening click doesn't immediately close. Ignores clicks inside
   // the card or on the navbar (to keep icon-toggle working).
   useEffect(() => {
-    if (!visible || Platform.OS !== "web") return;
+    if (!visible || Platform.OS !== "web" || fullScreen) return;
     let armed = false;
     const armTimer = setTimeout(() => { armed = true; }, 150);
     const handler = (e: MouseEvent) => {
@@ -167,16 +223,21 @@ export default function MessagesDropdown({ visible, onClose, initialThread }: Pr
     refresh();
   };
 
-  const cardPositionStyle = Platform.OS === "web"
-    ? { position: "fixed" as any, top: 72, right: 90, zIndex: 9999 }
-    : { position: "absolute" as any, top: 8, right: 40, zIndex: 9999 };
+  const cardPositionStyle = fullScreen
+    ? { flex: 1, width: "100%" as any }
+    : Platform.OS === "web"
+      ? { position: "fixed" as any, top: 72, right: 90, zIndex: 9999 }
+      : { position: "absolute" as any, top: 8, right: 40, zIndex: 9999 };
 
-  const sizeStyle = activeThread ? s.cardThread : s.cardList;
+  const sizeStyle = fullScreen ? null : activeThread ? s.cardThread : s.cardList;
+  const cardOverrides = fullScreen
+    ? { width: "100%" as any, height: "100%" as any, maxHeight: undefined, borderRadius: 0, shadowOpacity: 0, elevation: 0, backgroundColor: t.color.bg }
+    : null;
 
   return (
     <View
       ref={cardRef}
-      style={[s.card, cardPositionStyle, sizeStyle, !ready && { opacity: 0 }]}
+      style={[s.card, cardPositionStyle, sizeStyle, cardOverrides, !ready && !fullScreen && { opacity: 0 }]}
       pointerEvents="box-none"
     >
       {activeThread ? (
@@ -185,6 +246,14 @@ export default function MessagesDropdown({ visible, onClose, initialThread }: Pr
           id={activeThread.id}
           onBack={backToList}
           onClose={onClose}
+        />
+      ) : pickerOpen ? (
+        <NewMessagePicker
+          onClose={() => setPickerOpen(false)}
+          onPick={(threadId) => {
+            setPickerOpen(false);
+            setActiveThread({ kind: "direct_message", id: threadId });
+          }}
         />
       ) : (
         <>
@@ -252,10 +321,12 @@ export default function MessagesDropdown({ visible, onClose, initialThread }: Pr
                 return (
                   <View key={`${row.kind}:${pres.id}`}>
                     {idx > 0 && <View style={s.itemDivider} />}
+                    <SwipeableRow actions={buildActions(row)}>
                     <Pressable
                       onPress={() => handleRow(row)}
                       style={({ pressed }: any) => [
                         s.item,
+                        isMobile && s.itemTall,
                         pres.unread > 0 && s.itemUnread,
                         pressed && s.itemHover,
                       ]}
@@ -266,10 +337,10 @@ export default function MessagesDropdown({ visible, onClose, initialThread }: Pr
                           cropX={pres.cropX ?? undefined}
                           cropY={pres.cropY ?? undefined}
                           zoom={pres.zoom ?? undefined}
-                          size={32}
+                          size={isMobile ? 44 : 32}
                         />
                       ) : (
-                        <View style={s.avatarFb}>
+                        <View style={[s.avatarFb, isMobile && s.avatarFbTall]}>
                           <Text style={s.avatarLetter}>{(pres.name || "?")[0].toUpperCase()}</Text>
                         </View>
                       )}
@@ -294,11 +365,25 @@ export default function MessagesDropdown({ visible, onClose, initialThread }: Pr
                         </View>
                       )}
                     </Pressable>
+                    </SwipeableRow>
                   </View>
                 );
               });
             })()}
           </ScrollView>
+          {/* Compose new message — same visual language as the
+             feed's FAB (same size, same offset from bottom-right,
+             same dark fill, same drop shadow). Users already know
+             this "+" shape from the feed; reusing it here means
+             zero relearning. */}
+          <Pressable
+            onPress={() => setPickerOpen(true)}
+            style={s.newFab}
+            accessibilityLabel="New message"
+            accessibilityRole="button"
+          >
+            <Plus size={22} color={t.color["text.on-dark"]} strokeWidth={2.5} />
+          </Pressable>
         </>
       )}
     </View>
@@ -331,6 +416,26 @@ const s = StyleSheet.create({
   } as any,
   headerTitle: { fontFamily: t.font["body.semibold"], fontSize: 15, color: "#351101" },
   headerUnread: { fontFamily: t.font["body.medium"], fontSize: 10.5, color: "#D798DA" },
+  // Compose-new-message FAB — cloned verbatim from the feed's FAB
+  // (see (tabs)/index.tsx s.fab) so users learn one "+" shape for
+  // "start a new thing" across the app.
+  newFab: {
+    position: "absolute",
+    bottom: 28,
+    right: 28,
+    width: t.size["fab.size"],
+    height: t.size["fab.size"],
+    borderRadius: t.size["fab.size"] / 2,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: t.color["text.primary"],
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 10,
+  } as any,
   divider: { height: 1, backgroundColor: "#EDE8E1", marginHorizontal: 12 },
 
   // Tab strip (business users, §2.15). Small enough to fit three
@@ -385,6 +490,12 @@ const s = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 14, paddingVertical: 9,
   } as any,
+  // Mobile: ~1.5× the resting height — bigger paddingVertical +
+  // bigger avatar so the row reads as a clearly thumb-sized target.
+  // Row height ≈ 44 (avatar) + 2 × 16 (padding) ≈ 76 px, up from
+  // the ≈50 px desktop row.
+  itemTall: { paddingVertical: 16, gap: 12 } as any,
+  avatarFbTall: { width: 44, height: 44, borderRadius: 22 } as any,
   itemUnread: { backgroundColor: "rgba(215,152,218,0.06)" },
   itemHover: { backgroundColor: "rgba(215,152,218,0.12)" },
   itemDivider: { height: 1, backgroundColor: "rgba(237,232,225,0.5)", marginHorizontal: 14 },

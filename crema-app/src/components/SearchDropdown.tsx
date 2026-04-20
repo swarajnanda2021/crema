@@ -35,6 +35,12 @@ import { CroppedAvatar } from "./primitives";
 interface Props {
   visible: boolean;
   onClose: () => void;
+  /** When true, the dropdown renders as a full-viewport screen
+   *  instead of a floating card — used by the mobile /search
+   *  Stack screen. Removes the positioning + shadow + fixed width,
+   *  skips the outside-click dismissal (no "outside" on a full
+   *  screen), and fills its parent. */
+  fullScreen?: boolean;
 }
 
 interface UserHit {
@@ -52,7 +58,7 @@ interface UserHit {
 // real floating modal — the extra vertical space made 5 feel tight.
 const SECTION_LIMIT = 8;
 
-export default function SearchDropdown({ visible, onClose }: Props) {
+export default function SearchDropdown({ visible, onClose, fullScreen }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [ready, setReady] = useState(false);
@@ -127,9 +133,10 @@ export default function SearchDropdown({ visible, onClose }: Props) {
 
   // Outside-click dismissal (web). Same pattern as the other
   // navbar dropdowns. Armed after 150ms so the opening click
-  // doesn't instantly close the panel.
+  // doesn't instantly close the panel. Skipped in full-screen
+  // mode (no "outside" on a Stack screen).
   useEffect(() => {
-    if (!visible || Platform.OS !== "web") return;
+    if (!visible || Platform.OS !== "web" || fullScreen) return;
     let armed = false;
     const armTimer = setTimeout(() => { armed = true; }, 150);
     const handler = (e: MouseEvent) => {
@@ -170,14 +177,19 @@ export default function SearchDropdown({ visible, onClose }: Props) {
   // The earlier "See all results for X" affordance was dropped
   // because it kicked to /browse?q=... which didn't actually
   // filter — the dropdown IS the search surface now.
-  const cardPositionStyle = Platform.OS === "web"
-    ? { position: "fixed" as any, top: 72, right: 90, zIndex: 9999 }
-    : { position: "absolute" as any, top: 8, right: 40, zIndex: 9999 };
+  const cardPositionStyle = fullScreen
+    ? { flex: 1, width: "100%" as any }
+    : Platform.OS === "web"
+      ? { position: "fixed" as any, top: 72, right: 90, zIndex: 9999 }
+      : { position: "absolute" as any, top: 8, right: 40, zIndex: 9999 };
+  const cardOverrides = fullScreen
+    ? { width: "100%" as any, maxHeight: undefined, borderRadius: 0, shadowOpacity: 0, elevation: 0, backgroundColor: t.color.bg }
+    : null;
 
   return (
     <View
       ref={cardRef}
-      style={[s.card, cardPositionStyle, !ready && { opacity: 0 }]}
+      style={[s.card, cardPositionStyle, cardOverrides, !ready && !fullScreen && { opacity: 0 }]}
       pointerEvents="box-none"
     >
       {/* Styled input. Replaces the raw browser-default focus ring

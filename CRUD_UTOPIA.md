@@ -57,6 +57,26 @@ Before writing any code, walk through this:
 
 If you're tempted to add something that doesn't fit any of these — stop. The pattern exists for a reason. Either you're solving the wrong problem, or you need to extend one of the declaration systems instead of bypassing them.
 
+## Design-language directive (non-negotiable)
+
+Every new screen or component must pass through this checklist before it lands. Rule 4 says "every visual value lives in tokens" — this is what "every" means in practice:
+
+- **Colors:** `t.color.*` only. No hex inline anywhere outside `design-tokens.json` (even subtle shades).
+- **Fonts:** `t.font.*` only. `CanelaText_Regular` is the display font; `Inter_*` the body family. No web-font-stack strings, no inline family names.
+- **Font sizes:** **pick from `t.size.font.*`** — do not invent numbers. The ladder is `xs 10 · sm 11 · base 13 · md 14 · lg 16 · xl 18 · 2xl 24 · display 32 · price 20`. If the design calls for something that doesn't exist, extend the ladder in `design-tokens.json`, don't inline the number.
+- **Spacing:** `t.spacing.*` for padding / margin / gap — `2xs 2 · xs 4 · sm 8 · md 12 · lg 16 · xl 20 · 2xl 24 · 3xl 32 · 4xl 40 · 5xl 64`. Again, extend the scale if you need a new value; never inline `padding: 14`.
+- **Radius:** `t.radius.*`. Same rule.
+- **Shadow:** `shadow("card")` / `shadow("card.hover")` — the helper in `useTokens.ts`. Don't compose `shadowOffset` / `shadowOpacity` inline.
+- **Icons:** `lucide-react-native` only (matches what Navbar / tabs / composers already use). Icon sizes from `t.size.icon.*`. No custom SVGs for concepts lucide already covers.
+
+**Before you write a new screen:** open the nearest existing screen of the same type (feed / detail / form / empty-state) and mirror its structural moves — how the header is spaced, what the first row looks like, where body copy sits. If your new screen lays out fundamentally differently from its peers, stop and justify.
+
+**Empty states** specifically: match the feed's "Nothing here yet." language — `t.font["body.regular"]` at `t.size["font.md"]` in `t.color["text.muted"]`, centered on `t.color.bg`. No big icons, no bespoke illustrations, no headings; the Stack header / tab label already names the surface.
+
+**Mobile-vs-wide branches** must go through `useBreakpoint().isMobile`. Never branch on `Platform.OS === "web"` for visual decisions — a narrow web browser counts as mobile too.
+
+The grep test (above) applies here: if a new screen breaks any of these rules, `grep` for the offending pattern (`fontSize: \d+`, `#[0-9a-fA-F]{3,6}`, `padding: \d+` outside style-token definitions) across the codebase and you should find one violation, not many. If it's already one of many, that's tech debt — flag it, don't compound it.
+
 ## Why This Exists
 
 The backend went from 1,416 lines in `main.py` to 57 lines because resources are declared once and generated many times. The frontend has zero duplicate shelf-color constants because tokens are declared once and consumed everywhere. This is not an accident — it's the architecture.

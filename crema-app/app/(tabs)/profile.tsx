@@ -16,6 +16,7 @@ import { Plus, Check, X, PenLine, Camera, Coffee } from "lucide-react-native";
 import Svg, { Path, Circle } from "react-native-svg";
 
 import { useAuth } from "../../src/hooks/useAuth";
+import { listen } from "../../src/utils/events";
 import { useShelves } from "../../src/hooks/useShelves";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useCafes } from "../../src/hooks/useCafes";
@@ -215,13 +216,9 @@ export default function ProfilePage() {
     if (edit === "1") setIsEditing(true);
   }, [edit]);
 
-  // Listen for edit trigger from ProfileDropdown (custom event, works even on same-route)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handler = () => setIsEditing(true);
-    window.addEventListener("crema:edit-profile", handler);
-    return () => window.removeEventListener("crema:edit-profile", handler);
-  }, []);
+  // Listen for edit trigger from ProfileDropdown (works even on same-route,
+  // cross-platform via the events helper).
+  useEffect(() => listen("crema:edit-profile", () => setIsEditing(true)), []);
   const [saving, setSaving] = useState(false);
   const [editName, setEditName] = useState("");
   const [editBio, setEditBio] = useState("");
@@ -560,7 +557,7 @@ export default function ProfilePage() {
             maxLength={40}
           />
         ) : (
-          <Text style={s.displayName} numberOfLines={1}>{user.display_name}</Text>
+          <Text style={[s.displayName, isNarrow && s.displayNameNarrow]}>{user.display_name}</Text>
         )}
 
         {/* Bio (Figma 116:776 — Inter Regular 12px, #684F44).
@@ -1038,9 +1035,11 @@ export default function ProfilePage() {
                                 <Text style={s.followerAvatarLetter}>{(f.display_name || "?")[0].toUpperCase()}</Text>
                               </View>
                             )}
-                            <View>
-                              <Text style={s.followerName}>{f.display_name}</Text>
-                              {f.location ? <Text style={s.followerLocation}>{f.location}</Text> : null}
+                            <View style={{ flexShrink: 1 }}>
+                              <Text style={s.followerName} numberOfLines={1}>
+                                {(f.display_name?.length || 0) > 25 ? f.display_name.slice(0, 25) + "…" : f.display_name}
+                              </Text>
+                              {f.location ? <Text style={s.followerLocation} numberOfLines={1}>{f.location}</Text> : null}
                             </View>
                           </Pressable>
                           {!isMe && (
@@ -1176,7 +1175,11 @@ const s = StyleSheet.create({
     overflow: "hidden",
     position: "relative",
   } as any,
-  avatarWrapNarrow: { width: "60%", maxWidth: 300 },
+  // `alignSelf: "center"` explicitly overrides the load-bearing
+  // `flex-start` above so that on narrow (single-column) hero the
+  // avatar sits under the centered name — not hugging the left
+  // edge. Matches the symmetry of /user/[username] on mobile.
+  avatarWrapNarrow: { width: "60%", maxWidth: 300, alignSelf: "center" },
   avatarImgZoomWrap: { width: "100%", height: "100%" } as any,
   avatarImg: { width: "100%", height: "100%" } as any,
   avatarFallback: {
@@ -1221,12 +1224,20 @@ const s = StyleSheet.create({
   // Info column (Figma 202:2831 — 291x330.7)
   infoCol: { flex: 1, justifyContent: "center" } as any,
   infoColNarrow: { alignItems: "center" } as any,
-  // Name (Figma 116:777 — Canela Text Regular 56.804px, lineHeight 66, #351101)
+  // Name (Figma 116:777 — Canela Text Regular 56.804px, lineHeight 66, #351101).
+  // `numberOfLines` deliberately omitted so long names wrap to a
+  // second line instead of getting cut off mid-word.
   displayName: {
     fontFamily: t.font.display,
     fontSize: 56.8,
-    color: "#351101",
+    color: t.color["text.primary"],
     lineHeight: 66,
+  },
+  // Mobile: halve the display name — 56px is oppressive on a 375px
+  // viewport. `font.display` (32) is the nearest ladder value.
+  displayNameNarrow: {
+    fontSize: t.size["font.display"],
+    lineHeight: 38,
   },
   // Bio (Figma 116:776 — Inter Regular 12px, lineHeight 18, #684F44)
   bio: {

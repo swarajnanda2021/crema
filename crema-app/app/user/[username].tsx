@@ -25,7 +25,7 @@ import { t, SHELF_LABELS } from "../../src/tokens/useTokens";
 import PostCard from "../../src/components/domain/PostCard";
 import { openPostModal } from "../../src/components/primitives";
 import CoffeeCard from "../../src/components/CoffeeCard";
-import Navbar from "../../src/components/Navbar";
+import SiteHeader from "../../src/components/SiteHeader";
 import StampBookList from "../../src/components/StampBookList";
 
 type ProfileTab = "posts" | "shelf" | "stamps" | "following";
@@ -254,10 +254,10 @@ export default function UserProfilePage() {
   }));
 
   if (loading) {
-    return (<><Stack.Screen options={{ headerShown: false }} /><Navbar /><View style={s.loadingWrap}><ActivityIndicator size="large" color={t.color["text.primary"]} /></View></>);
+    return (<><Stack.Screen options={{ headerShown: false }} /><SiteHeader /><View style={s.loadingWrap}><ActivityIndicator size="large" color={t.color["text.primary"]} /></View></>);
   }
   if (!profileUser) {
-    return (<><Stack.Screen options={{ headerShown: false }} /><Navbar /><View style={s.loadingWrap}><Text style={s.loadingText}>User not found</Text></View></>);
+    return (<><Stack.Screen options={{ headerShown: false }} /><SiteHeader /><View style={s.loadingWrap}><Text style={s.loadingText}>User not found</Text></View></>);
   }
 
   const u = profileUser;
@@ -488,7 +488,7 @@ export default function UserProfilePage() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <Navbar />
+      <SiteHeader />
       <View style={s.container}>
         <ScrollView
           style={s.scroll}
@@ -545,9 +545,11 @@ export default function UserProfilePage() {
                                 <Text style={s.followerAvatarLetter}>{(f.display_name || "?")[0].toUpperCase()}</Text>
                               </View>
                             )}
-                            <View>
-                              <Text style={s.followerName}>{f.display_name}</Text>
-                              {f.location ? <Text style={s.followerLocation}>{f.location}</Text> : null}
+                            <View style={{ flexShrink: 1 }}>
+                              <Text style={s.followerName} numberOfLines={1}>
+                                {(f.display_name?.length || 0) > 25 ? f.display_name.slice(0, 25) + "…" : f.display_name}
+                              </Text>
+                              {f.location ? <Text style={s.followerLocation} numberOfLines={1}>{f.location}</Text> : null}
                             </View>
                           </Pressable>
                           {!isMe && authUser && (

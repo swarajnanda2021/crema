@@ -26,7 +26,7 @@ import { useAuth } from "../../src/hooks/useAuth";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t } from "../../src/tokens/useTokens";
 import CoffeeCard from "../../src/components/CoffeeCard";
-import Navbar from "../../src/components/Navbar";
+import SiteHeader from "../../src/components/SiteHeader";
 import PostCard from "../../src/components/domain/PostCard";
 import BusinessAnalytics from "../../src/components/analytics/BusinessAnalytics";
 import CremaLogo from "../../src/components/CremaLogo";
@@ -532,7 +532,7 @@ export default function RoasterDetailPage() {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
-        <Navbar />
+        <SiteHeader />
         <View style={s.notFound}>
           {hydrating
             ? <CremaLogo width={180} height={38} />
@@ -545,7 +545,7 @@ export default function RoasterDetailPage() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <Navbar />
+      <SiteHeader />
 
       {/* Edit banner */}
       {isOwner && isEditing && (
@@ -833,7 +833,9 @@ export default function RoasterDetailPage() {
                                 </View>
                               )}
                               <View style={s.followerInfo}>
-                                <Text style={s.followerName} numberOfLines={1}>{f.display_name}</Text>
+                                <Text style={s.followerName} numberOfLines={1}>
+                                  {(f.display_name?.length || 0) > 25 ? f.display_name.slice(0, 25) + "…" : f.display_name}
+                                </Text>
                                 {f.location && (
                                   <View style={s.followerLocationRow}>
                                     <MapPin size={12} color={t.color.accent} strokeWidth={2} />

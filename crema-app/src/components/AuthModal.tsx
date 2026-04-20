@@ -23,6 +23,7 @@ import {
 import { X } from "lucide-react-native";
 
 import { t } from "../tokens/useTokens";
+import { listen } from "../utils/events";
 import { useAuth } from "../hooks/useAuth";
 import CremaLogo from "./CremaLogo";
 
@@ -31,12 +32,7 @@ type Track = "user" | "business";
 export default function AuthModal() {
   const [visible, setVisible] = useState(false);
 
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") return;
-    const handler = () => setVisible(true);
-    window.addEventListener("crema:open-auth-modal", handler);
-    return () => window.removeEventListener("crema:open-auth-modal", handler);
-  }, []);
+  useEffect(() => listen("crema:open-auth-modal", () => setVisible(true)), []);
 
   if (!visible) return null;
   return <AuthModalContent visible={visible} onClose={() => setVisible(false)} />;

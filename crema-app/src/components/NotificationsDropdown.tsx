@@ -27,6 +27,8 @@ interface Props {
    *  (wholesale_inquiry, inquiry_reply, direct_message). The caller
    *  (Navbar) opens the Messages dropdown at the right thread. */
   onOpenThread?: (kind: "wholesale_inquiry" | "direct_message", id: number) => void;
+  /** Full-viewport mode for the mobile /notifications Stack screen. */
+  fullScreen?: boolean;
 }
 
 const NOTIF_MESSAGES: Record<string, string> = {
@@ -61,7 +63,7 @@ function parseTarget(target_slug: string | null): { kind: string; slug: string }
   return { kind: target_slug.slice(0, idx), slug: target_slug.slice(idx + 1) };
 }
 
-export default function NotificationsDropdown({ visible, onClose, onOpenThread }: Props) {
+export default function NotificationsDropdown({ visible, onClose, onOpenThread, fullScreen }: Props) {
   const router = useRouter();
   const { user } = useAuth();
   const { notifications, loading, fetchNotifications, markAllRead, markRead, unreadCount } = useNotifications(true);
@@ -77,7 +79,7 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread }
   // Outside-click dismissal on web — mirrors MessagesDropdown so the
   // whole site stays interactive while notifications are open.
   useEffect(() => {
-    if (!visible || Platform.OS !== "web") return;
+    if (!visible || Platform.OS !== "web" || fullScreen) return;
     let armed = false;
     const armTimer = setTimeout(() => { armed = true; }, 150);
     const handler = (e: MouseEvent) => {
@@ -169,9 +171,14 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread }
     });
   };
 
-  const cardFixedStyle = Platform.OS === "web"
-    ? { position: "fixed" as any, top: 72, right: 90, zIndex: 9999 }
-    : { position: "absolute" as any, top: 8, right: 40, zIndex: 9999 };
+  const cardFixedStyle = fullScreen
+    ? { flex: 1, width: "100%" as any }
+    : Platform.OS === "web"
+      ? { position: "fixed" as any, top: 72, right: 90, zIndex: 9999 }
+      : { position: "absolute" as any, top: 8, right: 40, zIndex: 9999 };
+  const cardOverrides = fullScreen
+    ? { width: "100%" as any, maxHeight: undefined, borderRadius: 0, shadowOpacity: 0, elevation: 0, backgroundColor: t.color.bg }
+    : null;
 
   return (
     <>
@@ -182,7 +189,7 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread }
          whenever any navbar popover was open. */}
 
       {/* Card */}
-      <View ref={cardRef} style={[s.card, cardFixedStyle]}>
+      <View ref={cardRef} style={[s.card, cardFixedStyle, cardOverrides]}>
         {/* Header */}
         <View style={s.header}>
           <Text style={s.headerTitle}>Notifications</Text>

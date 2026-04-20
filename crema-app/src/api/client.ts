@@ -11,25 +11,37 @@
  */
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import Constants from "expo-constants";
 
 // ── Base URL ────────────────────────────────────────────────────
-// Override with EXPO_PUBLIC_API_URL env var for production / physical devices.
+// Override with EXPO_PUBLIC_API_URL env var for production.
+// On physical devices via Expo Go we auto-resolve to the dev machine's
+// LAN IP from Expo's debuggerHost — localhost is the phone itself.
 function getBaseUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
   if (envUrl) return envUrl;
 
   if (Platform.OS === "web") {
-    // Web: same host as the page, port 8000
     if (typeof window !== "undefined") {
       return `http://${window.location.hostname}:8000/api`;
     }
     return "http://localhost:8000/api";
   }
+
+  // Native: pull LAN IP from the Expo dev server. Works for Expo Go on
+  // a physical iPhone / Android over the same wifi. Falls back to
+  // simulator defaults if hostUri isn't present (e.g. standalone build).
+  const hostUri =
+    (Constants.expoGoConfig as any)?.debuggerHost ??
+    (Constants.expoConfig as any)?.hostUri ??
+    (Constants as any).manifest?.debuggerHost ??
+    (Constants as any).manifest?.hostUri;
+  const hostIp = typeof hostUri === "string" ? hostUri.split(":")[0] : null;
+  if (hostIp) return `http://${hostIp}:8000/api`;
+
   if (Platform.OS === "android") {
-    // Android emulator: 10.0.2.2 maps to host machine's localhost
     return "http://10.0.2.2:8000/api";
   }
-  // iOS simulator: localhost works directly
   return "http://localhost:8000/api";
 }
 
@@ -38,13 +50,28 @@ const BASE_URL = getBaseUrl();
 // ── Token Storage ───────────────────────────────────────────────
 const TOKEN_KEY = "coffee_session_token";
 
+// AFTER_FIRST_UNLOCK lets the keychain item be read in more app states
+// than the default WHEN_UNLOCKED — avoids "User interaction is not
+// allowed" failures when Expo Go backgrounds / resumes or when the app
+// cold-starts before the OS has fully transitioned out of a lock state.
+const KEYCHAIN_OPTS: SecureStore.SecureStoreOptions = {
+  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+};
+
 async function getToken(): Promise<string | null> {
   if (Platform.OS === "web") {
     return typeof localStorage !== "undefined"
       ? localStorage.getItem(TOKEN_KEY)
       : null;
   }
-  return SecureStore.getItemAsync(TOKEN_KEY);
+  try {
+    return await SecureStore.getItemAsync(TOKEN_KEY, KEYCHAIN_OPTS);
+  } catch {
+    // Keychain temporarily unavailable (device locked, app state
+    // transition). Treat as "no token" rather than crash — the user
+    // can re-auth if needed.
+    return null;
+  }
 }
 
 export async function setToken(token: string | null): Promise<void> {
@@ -56,9 +83,9 @@ export async function setToken(token: string | null): Promise<void> {
     return;
   }
   if (token) {
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
+    await SecureStore.setItemAsync(TOKEN_KEY, token, KEYCHAIN_OPTS);
   } else {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await SecureStore.deleteItemAsync(TOKEN_KEY, KEYCHAIN_OPTS);
   }
 }
 

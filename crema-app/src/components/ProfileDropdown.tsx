@@ -12,6 +12,7 @@ import { Settings, PenLine, LogOut, UserPlus, QrCode, Trash2 } from "lucide-reac
 import { t, cardShadow } from "../tokens/useTokens";
 import { resolveUploadUrl } from "../api/client";
 import { useAuth, SavedAccount } from "../hooks/useAuth";
+import { emit } from "../utils/events";
 import { CroppedAvatar } from "./primitives";
 import QRModal from "./QRModal";
 import RecycleBinModal from "./RecycleBinModal";
@@ -19,9 +20,11 @@ import RecycleBinModal from "./RecycleBinModal";
 interface Props {
   visible: boolean;
   onClose: () => void;
+  /** Full-viewport mode for the mobile /account Stack screen. */
+  fullScreen?: boolean;
 }
 
-export default function ProfileDropdown({ visible, onClose }: Props) {
+export default function ProfileDropdown({ visible, onClose, fullScreen }: Props) {
   const { user, logout, switchAccount, getSavedAccounts, removeSavedAccount } = useAuth();
   const router = useRouter();
   const [switching, setSwitching] = useState(false);
@@ -35,7 +38,7 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
   // close the panel. Ignores clicks inside the card or on the navbar
   // (toggle-off logic on the avatar button still works).
   useEffect(() => {
-    if (!visible || Platform.OS !== "web") return;
+    if (!visible || Platform.OS !== "web" || fullScreen) return;
     let armed = false;
     const armTimer = setTimeout(() => { armed = true; }, 150);
     const handler = (e: MouseEvent) => {
@@ -88,11 +91,7 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
       // Navigate to profile page, then signal edit mode via custom event
       // (Expo Router tabs don't re-render params on same-route push)
       router.push("/profile");
-      setTimeout(() => {
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("crema:edit-profile"));
-        }
-      }, 100);
+      setTimeout(() => emit("crema:edit-profile"), 100);
     }
   };
 
@@ -124,16 +123,21 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
     onClose();
     // Open the sitewide floating AuthModal instead of navigating away —
     // users keep their current page and can add a second account inline.
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("crema:open-auth-modal"));
+    if (Platform.OS === "web") {
+      emit("crema:open-auth-modal");
     } else {
       router.push("/auth?addAccount=1");
     }
   };
 
-  const cardFixedStyle = Platform.OS === "web"
-    ? { position: "fixed" as any, top: 72, right: 90, zIndex: 9999 }
-    : { position: "absolute" as any, top: 8, right: 0, zIndex: 9999 };
+  const cardFixedStyle = fullScreen
+    ? { flex: 1, width: "100%" as any }
+    : Platform.OS === "web"
+      ? { position: "fixed" as any, top: 72, right: 90, zIndex: 9999 }
+      : { position: "absolute" as any, top: 8, right: 0, zIndex: 9999 };
+  const cardOverrides = fullScreen
+    ? { minWidth: undefined, maxWidth: undefined, width: "100%" as any, borderRadius: 0, shadowOpacity: 0, elevation: 0, backgroundColor: t.color.bg }
+    : null;
 
   return (
     <>
@@ -141,7 +145,7 @@ export default function ProfileDropdown({ visible, onClose }: Props) {
          listener above (web) or the avatar icon toggle (native). */}
 
       {/* Dropdown card */}
-      <View ref={cardRef} style={[s.card, cardFixedStyle]}>
+      <View ref={cardRef} style={[s.card, cardFixedStyle, cardOverrides]}>
         {/* ── Current account header — clickable, goes to profile ── */}
         <Pressable onPress={handleManage} style={({ pressed }) => [s.accountHeader, pressed && s.menuItemPressed]}>
           {user.avatar_url ? (

@@ -26,9 +26,10 @@ import { useEffect, useRef, useState } from "react";
 import { View, StyleSheet, Platform, Animated, Easing } from "react-native";
 import { usePathname } from "expo-router";
 
-import { NAVBAR_HEIGHT, t } from "../tokens/useTokens";
+import { t } from "../tokens/useTokens";
+import { listen } from "../utils/events";
 import CremaLogo from "./CremaLogo";
-import Navbar from "./Navbar";
+import SiteHeader from "./SiteHeader";
 import { useAuth } from "../hooks/useAuth";
 
 const MIN_DISPLAY_MS = 320;
@@ -83,18 +84,15 @@ export default function NavigationLoader() {
   // for two custom events on web. Native ships without event
   // pickup; pages there rely purely on the min-time default.
   useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") return;
-    const onStart = () => { explicitHoldRef.current += 1; showOverlay(); };
-    const onEnd = () => {
+    const offStart = listen("crema:loading-start", () => {
+      explicitHoldRef.current += 1;
+      showOverlay();
+    });
+    const offEnd = listen("crema:loading-end", () => {
       explicitHoldRef.current = Math.max(0, explicitHoldRef.current - 1);
       scheduleHide();
-    };
-    window.addEventListener("crema:loading-start", onStart);
-    window.addEventListener("crema:loading-end", onEnd);
-    return () => {
-      window.removeEventListener("crema:loading-start", onStart);
-      window.removeEventListener("crema:loading-end", onEnd);
-    };
+    });
+    return () => { offStart(); offEnd(); };
   }, []);
 
   // Pulse animation for the wordmark — ~1.1s cycle, slightly
@@ -139,7 +137,7 @@ export default function NavigationLoader() {
     <>
       {!onAuth && (
         <View style={s.navbarLayer} pointerEvents="auto">
-          <Navbar />
+          <SiteHeader />
         </View>
       )}
       <View style={s.overlay} pointerEvents="auto">
@@ -165,13 +163,15 @@ const s = StyleSheet.create({
     right: 0,
     zIndex: 9600,
   } as any,
-  // Pinned below the navbar. Uses `position: "fixed"` on web so the
-  // overlay stays put while the page underneath is paging in.
+  // Full-viewport curtain. SiteHeader (zIndex 9600) sits on top so
+  // the mobile + web chrome stays visible while the page under the
+  // curtain pages in. Using top:0 (vs. NAVBAR_HEIGHT) avoids a gap
+  // on mobile where the header is 48px + safe-area inset, not 72px.
   overlay: {
     ...(Platform.OS === "web"
       ? ({ position: "fixed" as any } as any)
       : ({ position: "absolute" as any } as any)),
-    top: NAVBAR_HEIGHT,
+    top: 0,
     left: 0,
     right: 0,
     bottom: 0,
