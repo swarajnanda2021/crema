@@ -127,43 +127,45 @@ Ordered by the Phase 1 roadmap in `NORTH_STAR.md`. Each item references
 the relevant section there. For deployment/infra prerequisites see
 `LAUNCH_TODO.md`.
 
-### Runway to F&F launch — what's actually left
+### Runway to launch — what's actually left
 
-Most of section 2 is already shipped (every entry tagged
-*(shipped)* lives here for historical context — useful when grepping
-for which file owns a feature, less useful as a planning surface).
-What still blocks shipping Crema to ~10–30 friends-and-family users:
+Strategy shift: iOS is needed **before** public launch, not after.
+The F&F web deploy in LAUNCH_TODO Parts 1-2 can still happen first
+as a sanity check on the backend / infra, but the "real" launch
+surface is an Expo-built iOS app (Android falls out of the same
+codebase). What's left across the repo:
 
-| Item | Status | Blocking F&F? | Effort |
-|------|--------|---------------|--------|
-| §2.13 OAuth backends + JWT + password reset + email verify | UI shipped, backends parked | Partly (password reset is in LAUNCH §3.5; OAuth is nice-to-have) | 1–2 days each provider |
-| §2.18 deferred metrics (re-open rate, avg order size, wholesale flag churn) | 8 of 11 shipped, 3 need new schema | No — admin-only, post-launch | ½ day after schema lands |
-| §2.28 Scraper resurrection + sold-out preservation | Not started | **Yes** — without sold-out preservation, every scraper run quietly orphans tasting notes / shelf entries | 1–2 days |
-| §2.29 In-place product editor (replace floating modal) | V2 polish | No — current modal works | ½ day |
-| §2.30 Launch blockers | See `LAUNCH_TODO.md` | **Yes** — the F&F deploy itself | See below |
+| Item | Status | Blocks launch? | Effort |
+|------|--------|----------------|--------|
+| §2.28 Scraper resurrection + sold-out preservation | Not started | **Yes** — every scraper run orphans notes / shelf entries today | 1-2 days |
+| Mobile (iOS/Android) readiness (§2.31-2.39) | Not started | **Yes** — design is desktop-first | ~6-8 days (Expo Go for most; EAS at the end) |
+| LAUNCH_TODO.md §3.5 App Store pack (unparked) | Not started | **Yes** — password reset, account deletion (Apple-required), privacy policy, nutrition label | ~2-3 days |
+| LAUNCH_TODO.md Part 1 (code prep: env lockdown, Dockerfile, error boundary) | Not started | Yes for web F&F deploy; optional if skipping straight to iOS | ~1 day |
+| LAUNCH_TODO.md Part 2 (Fly deploy: domain, DNS, cert, smoke test) | Not started | Yes for web; not for iOS-only launch | ~45 min (yours) |
+| §2.13 OAuth backends | UI shipped, backends parked | No — email+password auth is fine for launch; OAuth is a nice-to-have | 1-2 days per provider |
+| §2.18 deferred metrics (re-open rate, avg order size, wholesale flag churn) | 8 of 11 shipped | No — admin-only, post-launch | ½ day after schema |
+| §2.29 In-place product editor | V2 polish | No — current modal works | ½ day |
 
-The actual launch path, in order:
+Sequenced path to launch:
 
-1. **Ship §2.28 sold-out preservation** before any scraper run lands
-   in production. Otherwise the moment a roaster cycles a lot, every
-   tasting note that referenced it becomes an orphaned row pointing
-   at a deleted product. This is the only §2 item that's strictly
-   blocking — everything else can land post-F&F.
-2. **Run LAUNCH_TODO Part 1** — secrets sweep, env lockdown,
-   Dockerfile, error boundary, docker-compose. ~1 day, no
-   credentials needed; once done the repo is `fly deploy`-ready.
-3. **Run LAUNCH_TODO Part 2** — register cremabrews.com, Fly.io
-   account, `fly launch` / volume / secrets / deploy / certs / DNS /
-   smoke test / snapshot / invite friends. ~45 min sitting at the
-   keyboard; needs your card and DNS access.
-4. **Park everything else.** §2.13 OAuth, §2.18 deferred metrics,
-   §2.29 in-place editor, all of LAUNCH_TODO Part 3 — these wait
-   until F&F users are actually using the thing and we have signal
-   on what to fix next.
+1. **Ship §2.28 sold-out preservation** first — unrelated to mobile
+   but catastrophic if left unfixed (every scraper run silently
+   orphans tasting notes). 1-2 days.
+2. **Work the mobile-readiness block §2.31-2.39** in order, testing
+   each on physical iPhone via Expo Go. The first 7 items are pure
+   JS / gesture work — Expo Go handles them. ~5-6 days.
+3. **In parallel from day 1, work LAUNCH_TODO §3.5** — password
+   reset + account deletion + privacy policy. These are independent
+   of the design work and land on the backend. ~2-3 days.
+4. **§2.39 (EAS + permissions + icons) + TestFlight invite.** Only
+   at this point do we need signed binaries. ~1 day.
+5. **Web F&F deploy (LAUNCH Part 1 + 2)** — can happen before or
+   after iOS depending on whether you want the backend battle-tested
+   against real traffic first. Optional; not strictly required.
 
-**Total work to F&F live:** ~2-3 focused days for §2.28 + LAUNCH
-Part 1, plus ~45 min of your time for Part 2. Everything in §2 below
-is either shipped or post-launch.
+**Total work to an iOS TestFlight build for friends & family:**
+roughly **~10-12 focused days**. Everything else in §2 below is
+either shipped or post-launch polish.
 
 ### 2.1 "Interested" button *(shipped — see §1.2 "Interested" wholesale handshake)*
 
@@ -817,6 +819,259 @@ but the PUT endpoint `/roasters/{slug}/products/{product_id}`
 (added alongside this note) now exists so the tick button actually
 saves — without it the button silently 404'd via the resource
 catch-all.
+
+### Mobile (iOS / Android) readiness — pre-launch sweep
+
+Expo + React Native Web means every page mechanically builds for iOS
+and Android — but every layout was drawn for a 1280-px-wide laptop
+and doesn't bend well to 390 px. This block is the design /
+native-interaction sweep to make the app *feel* native on a phone.
+
+Apple deployment prerequisites (password reset, account deletion,
+privacy policy, data export, App Store nutrition label, EAS setup)
+live in [LAUNCH_TODO.md §3.5](LAUNCH_TODO.md) — those are infra +
+legal + submission items, not product work, so they stay there.
+**§3.5 is now unparked:** iOS ships before public launch, not after.
+
+Rough order: #2.31 is the foundation everything else sits on,
+#2.32 is a shared primitive that makes the surface-level items
+trivial, then each surface in turn. Estimated total ~6-8 focused
+days to a TestFlight-ready build.
+
+**Dev loop: Expo Go, not TestFlight.** The fast iteration path is
+`npx expo start` → scan the QR code with the Expo Go app on an
+iPhone / Android → live reload on the physical device over the LAN.
+No build, no provisioning profile, no Apple review — each code save
+lands on the device in seconds. Every item in this block (§2.31
+through §2.37) is pure JS / layout / gesture work that Expo Go
+supports natively; no new native modules are introduced until
+§2.39. TestFlight only gets exercised at the end, when §2.39 ships
+and we need Apple-signed builds for external testers.
+
+Caveat: Expo Go runs the stock set of Expo modules. If §2.39 adds
+`expo-notifications` (push) or anything else not in the stock
+bundle, those specific features need an EAS dev client build to
+exercise on device. Everything else — safe areas, bottom tabs,
+landscape cards, filter drawer, menu card-stack, pan-responder
+drag, hit slops, bottom sheets — works in Expo Go as-is.
+
+### 2.31 Safe areas + bottom-tab navbar mobile variant
+
+`react-native-safe-area-context` is already installed but never
+wrapped around the root — the 72-px navbar will sit under the iPhone
+notch / Dynamic Island on first launch. Wrap `app/_layout.tsx` in
+`<SafeAreaProvider>` + `<SafeAreaView>` and thread the top inset
+into the navbar.
+
+Second half of this item is the mobile-paradigm flip: web + wide
+screens keep the existing horizontal `Navbar` (HOME · logo · DISCOVER
+· messages · notifications · avatar). Below the mobile breakpoint,
+switch to a **bottom tab bar** via Expo Router's built-in `Tabs`
+layout so the primary navigation sits where the thumb actually is.
+The search glass + notifications + messages icons become header-right
+buttons on the individual screens; the avatar lives on the profile
+tab. No new routing — Expo Router `app/(tabs)/*` already implies
+tab-shaped navigation, it's just not being rendered as tabs yet on
+native.
+
+### 2.32 Responsive breakpoint primitive
+
+Today every layout file that cares about width makes its own
+`useWindowDimensions()` call and rolls its own threshold (600 in the
+café page, 1024 in browse, 1100/720 in TractionDashboard). Add a
+shared hook + constants file so every call-site reads the same
+truth:
+
+```ts
+// src/hooks/useBreakpoint.ts
+export const BP = { mobile: 600, tablet: 900, wide: 1100 };
+export function useBreakpoint() {
+  const { width } = useWindowDimensions();
+  return {
+    width,
+    isMobile: width < BP.mobile,
+    isTablet: width >= BP.mobile && width < BP.wide,
+    isWide: width >= BP.wide,
+  };
+}
+```
+
+Every subsequent item (2.33-2.37) flips on `isMobile`. One grep
+target, one truth.
+
+### 2.33 Coffee card — landscape variant for phones
+
+Figma spec: [109:9154 — Crema Beans Mobile](https://www.figma.com/design/QIT6HorllZ7wbeULQ4iLAt/Crema-%E2%80%93-Initial-UI?node-id=109-9154)
+
+The existing `CoffeeCard` (`src/components/CoffeeCard.tsx`) is
+240 × 372 portrait. In mobile grids it shrinks to ~180 × 280 and
+the image becomes unreadable. Below `isMobile`, flip to landscape:
+
+- **Layout:** 360 × 251 row, 50/50 split. Left = product image
+  (180 × 251, `rounded-left` only). Right = info panel (190 × 251,
+  `t.color["card.info"]` bg, `rounded-right` only).
+- **Right-panel text stack** (all left-aligned, divider lines
+  between meta rows): Canela 19 bean name → Inter 11.5 "By {roaster}"
+  → hairline → Inter 11.5 "{Arabica/Robusta} Beans" → hairline →
+  "{process} • {roast} Roast" → hairline → tasting notes →
+  Canela 18 price "₹{n}" + Inter 12.5 "/ {weight}g".
+- **Button anchors** — same relative positions as the portrait card,
+  just re-mapped to the new frame:
+  - Top-left of image: "liked by friends" pill (user icon + count).
+  - Top-right of image: heart / like disc (27 × 27).
+  - Bottom-left of image: share disc (36 × 36).
+  - Bottom-right of card (floating over info panel): cart / shop
+    disc (31 × 31 with `t.color.accent` bg circle).
+- **Owner overrides** (§2.9 edit/delete language) stack top-right
+  over the info panel, same way they stack top-right on the
+  portrait card today.
+- **Wholesale badge + sold-out tag** (§2.2 / §2.28) land at the same
+  relative anchors they use on portrait — top-right of the image for
+  wholesale, across the bottom of the image for sold-out.
+- **Feed shelf carousel** (profile shelf, "Also on shelf") keeps
+  horizontal scroll; the landscape card's taller-than-wide aspect
+  flips to shorter-than-wide so four cards can stack vertically in
+  a typical viewport without overwhelming.
+
+Key files: `src/components/CoffeeCard.tsx`, `src/components/CoffeeLabel.tsx`
+(if we share typography), the feed + profile + browse + popularity
+modal call-sites all consume this one component so the flip is a
+single-component change.
+
+### 2.34 Filter sheet — right-edge slide-in drawer
+
+Figma spec: [109:9372 — Filter](https://www.figma.com/design/QIT6HorllZ7wbeULQ4iLAt/Crema-%E2%80%93-Initial-UI?node-id=109-9372)
+
+Today `app/(tabs)/browse.tsx` keeps the filter sidebar inline on
+narrow screens, eating ~40% of the viewport. On mobile, hide the
+sidebar entirely and expose a "Filters" button in the search-bar
+row that slides in a full-height panel from the right edge:
+
+- **Panel:** 100% height, ~85-90% width (overlay the 10% strip of
+  the underlying browse list on the left so the user sees they're
+  still in context). Bg `t.color.bg`, left edge gets the site's
+  soft shadow.
+- **Animation:** slide `translateX` from `100%` to `0` in
+  `~240ms ease-out` (reuse the existing slide easing from
+  `useSearchBarAutoHide` → `CoffeeCard` slide-in for consistency).
+  Backdrop is the same blur overlay we use for every other modal
+  on this site so the language feels native.
+- **Header:** "Filter" (Inter SemiBold 24) left, circular X close
+  button right (dark-fill disc, cream icon).
+- **Sections, top-down:**
+  - **Sort By** — 4 radios: Featured / Newest / Price Low-High /
+    Price High-Low. Only one active at a time.
+  - hairline divider
+  - **Roasters** — checkbox list, scrollable inside the drawer.
+    Source list = every distinct `roaster_slug` in the catalog;
+    sort alphabetically.
+  - hairline divider
+  - **Process** — checkboxes for the standard process taxonomy
+    (Anaerobic / Honey / Natural / Semi-Washed / Washed). Source
+    = the `dictionary` endpoint's `process` set, falling back to
+    a hard-coded five if the endpoint hasn't shipped yet.
+  - (Next pass: roast-level, origin, wholesale-only, price range.)
+- **Footer** pinned to the bottom, outside the scroll area:
+  - **Reset (n)** pill — cream bg, dark border, dark text. `n` is
+    the count of active filters so the user knows there's something
+    to reset. Disabled state when no filter is on.
+  - **Apply** pill — dark fill, cream text. Closes the drawer and
+    refreshes the list.
+- **State:** lift filter state (sort, selected roasters, selected
+  processes) into `browse.tsx`. The sidebar (wide screens) and the
+  drawer (mobile) both bind to the same state object so switching
+  viewports mid-session doesn't reset filters.
+- **Tap-outside / swipe-right dismiss:** backdrop closes the panel;
+  on native, also add a swipe-right edge gesture so the drawer
+  closes with a thumb flick.
+
+Key files: `app/(tabs)/browse.tsx`, new `src/components/FilterDrawer.tsx`.
+
+### 2.35 Café menu — card-stack fallback on narrow screens
+
+The §2.10 / §2.24 tabular menu (7 fixed-width columns) overflows on
+any phone. Below `isMobile`, render each drink as a vertical card
+instead — drink name (Canela) at top, roaster row with ExternalLink
+icon next, a row of meta pills for (Roast · Process · Hot · Iced),
+tasting notes underneath, owner actions (pencil + trash) top-right.
+Columns collapse into labeled rows. The table layout stays for
+tablet+ (`winW >= BP.mobile`).
+
+The add-row, add-roaster-to-drink, and per-item edit modals are all
+already floating modals so they carry over unchanged.
+
+### 2.36 Hero + avatar drag → PanResponder (touch-compatible)
+
+`app/roaster/[slug].tsx`, `app/cafe/[slug].tsx`, and
+`app/(tabs)/profile.tsx` all use `onMouseDown` / `onWheel` for the
+drag-to-reposition + pinch-to-zoom affordances on the hero and
+avatar — **broken on touch entirely**. Swap to React Native
+`PanResponder` or `react-native-gesture-handler`; the state shape
+(`cropX` / `cropY` / `zoom`) is already platform-agnostic, it's
+only the input events that are web-only today.
+
+Same applies to the scanner + image-upload crop UIs if those carry
+any mouse-only handlers.
+
+### 2.37 Hit-slop + tap-target audit (44 × 44 minimum)
+
+Only ~27 files use `hitSlop` today. Apple HIG wants 44 × 44 pt
+effective tap targets. Sweep every icon-only `<Pressable>`: add
+`hitSlop={8}` (or larger) so the touch region hits 44 × 44 even
+when the icon itself is 16-24 px. Prime offenders — navbar icons,
+PostMenu three-dot, every table-row trash/pencil, the QR close
+button, the stamp-increment button on the café scanner.
+
+Same pass: add `accessibilityLabel` + `accessibilityRole="button"`
+to every icon pressable so VoiceOver readers can name what they're
+tapping (coverage is <10% today).
+
+### 2.38 Modal → bottom-sheet pattern on mobile
+
+Every floating modal today (ConfirmDeleteModal, MilkOptionsModal,
+EditMenuItemModal, ComposePost, AuthModal, PostPromptModal, etc.)
+is a centered overlay that works but feels alien on iOS. Wrap the
+modal primitive so `isMobile` flips them into a bottom sheet:
+slides up from the bottom edge, rounded top corners only, drag
+handle at top for swipe-down dismiss. Web + tablet keep the
+existing centered pattern.
+
+This is polish — blocks no submission — but it's the single change
+that most makes the app read as "native iOS" rather than "web app
+in a WebView."
+
+### 2.39 EAS Build + app.json polish
+
+This is the *last* item, run only after §2.31-2.38 have been
+iterated on via Expo Go (see the Dev loop note at the top of this
+block). Before EAS lands, day-to-day work is:
+
+```
+cd crema-app && npx expo start
+# → scan QR with Expo Go → live reload on phone
+```
+
+EAS only matters once we need signed binaries for TestFlight or
+push-notification testing. Ship pipeline to get there:
+- `eas.json` with `development`, `preview`, `production` build
+  profiles.
+- `app.json` permission strings — `NSCameraUsageDescription` (QR
+  scan), `NSPhotoLibraryUsageDescription` (image picker), any
+  others EAS flags during build.
+- App icons — audit `assets/images/icon.png`,
+  `adaptive-icon.png`, `splash-icon.png`. Generate the full Apple
+  icon set (20pt through 1024pt for App Store) from the crema
+  SVG. Ship a proper splash, not a minimal logo-on-cream.
+- Deep link config in `app.json` `scheme` + Expo Router's
+  `+not-found` fallback so app-store reviewers testing a shared
+  link land somewhere.
+- Push notifications plugin (`expo-notifications`) + the token
+  round-trip to backend (a later pass can wire actual fan-out
+  from our existing notifications table).
+
+Between §2.31-2.39 and LAUNCH_TODO §3.5, everything a TestFlight
+build needs is in one of two places. No hidden "oh we also need
+X" landmines.
 
 ### 2.30 Launch blockers (from LAUNCH_TODO.md)
 

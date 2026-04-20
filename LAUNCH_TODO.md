@@ -237,7 +237,21 @@ scale.
   `/auth/request-reset` (~5/IP/5min).
 - Email verification (needs email provider — Resend free 100/day).
 
-## 3.5 App Store pack (trigger: App Store submission)
+## 3.5 App Store pack (trigger: App Store submission) — **UNPARKED**
+
+The §3.1 trigger for this section fired when the decision was made
+that iOS ships **before** public launch, not after. All items below
+are now pre-launch blockers, not post-launch polish. Pair with the
+design / native-interaction work tracked in
+[BUILD_ROADMAP.md "Mobile (iOS / Android) readiness" block
+(§2.31-2.39)](BUILD_ROADMAP.md) — that block covers the product
+side; this bucket covers the submission / legal / auth side.
+
+Dev-loop note: the build-out phase runs against Expo Go (physical
+device, QR scan, live reload — no signed binary needed). EAS builds
+are only required at the end of this bucket, once everything below
+is ready and the first TestFlight invite goes out.
+
 - Password reset flow (`POST /auth/request-reset`,
   `POST /auth/reset-password`, 30-min token TTL).
 - Account deletion (`DELETE /auth/me` with password re-entry).
@@ -248,7 +262,8 @@ scale.
 - Apple Developer Program ($99/yr), Google Play Console ($25
   one-off), Expo EAS for builds.
 - Contact us / feedback widget.
-- Accessibility pass (aria-labels, focus rings, alt text).
+- Accessibility pass (aria-labels, focus rings, alt text — pairs
+  with BUILD_ROADMAP §2.37 hit-slop / accessibilityLabel sweep).
 
 ## 3.6 Legal pack (trigger: real money moves through Crema)
 - Real Privacy Policy + ToS (lawyer review, ~$200-500 one-off).
