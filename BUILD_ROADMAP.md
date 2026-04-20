@@ -684,7 +684,51 @@ Component lives at `src/components/analytics/BusinessAnalytics.tsx`
 and reuses the admin `LineChart` + `InfoButton` / `InfoModal`
 primitives; no new schema, no new design tokens.
 
-### 2.28 Launch blockers (from LAUNCH_TODO.md)
+### 2.28 Scraper resurrection + sold-out preservation
+
+The product catalog is populated by a scraper that crawls roaster
+websites — see `specs/SCRAPER_SPEC.md`. Two things need to happen
+before the next seeding run:
+
+- **Sold-out preservation.** When a scraped product disappears from
+  the roaster's site (sold out, seasonal cycle, reformulated) we
+  currently delete the row, which orphans every tasting note, shelf
+  entry, and inquiry that referenced it. Instead: soft-delete via a
+  `status = 'sold_out'` (or `archived`) column + an `is_visible`
+  flag so:
+  - The CoffeeCard still renders for anyone who has it on a shelf
+    or a tasting note referencing it, visually tagged "sold out"
+    and with the Buy button disabled.
+  - It's hidden from Discover / Browse / search by default.
+  - When the scraper sees it come back online, the flag flips
+    back to available — no duplicate row.
+  This keeps the graph dense (NORTH_STAR §4) instead of quietly
+  shredding historical references every time a roaster swaps a lot.
+
+- **Scraper fidelity.** Spot-checks show the current scraper
+  mis-parses a handful of fields — roast level sometimes blank even
+  when the source page has it, tasting-notes sometimes captured as
+  the whole paragraph instead of the tokenized tags, occasional
+  price miss on products with size variants. The `specs/SCRAPER_SPEC.md`
+  pipeline needs a pass to stabilize these parsers + add a diff-review
+  step before writes land in `products`. Separate discussion — raise
+  when actively working on it.
+
+### 2.29 Roaster product editor: migrate off the floating modal
+
+The §2.9 pencil-on-owner-card currently opens a floating modal
+hosting `EditableCoffeeCard`. That's the pattern the site has
+leaned into too hard — every edit flow is a modal. The in-place
+alternative (the card flips to editing mode where it sits, same
+language `EditableCoffeeCard` already uses for creation) is less
+friction and more honest: the edit happens exactly where the user
+was looking. Tracked here as a V2; for Phase 1 the modal stays,
+but the PUT endpoint `/roasters/{slug}/products/{product_id}`
+(added alongside this note) now exists so the tick button actually
+saves — without it the button silently 404'd via the resource
+catch-all.
+
+### 2.30 Launch blockers (from LAUNCH_TODO.md)
 
 Before any of the above ships to real users:
 - Password reset flow

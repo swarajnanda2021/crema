@@ -197,10 +197,12 @@ export default function ThreadBody({ kind, id, onBack, onClose }: Props) {
     };
   }, [thread, isWholesale, user]);
 
+  // §2.8 — roaster-side wholesale_note + wholesale_minimum_kg were
+  // dropped from the schema (negotiation moved inline onto the
+  // thread). Don't include them in the context check even if legacy
+  // rows still have values, so they never render in the drawer.
   const hasContext = isWholesale && (
     !!thread?.note ||
-    !!thread?.wholesale_note ||
-    (thread?.wholesale_minimum_kg != null) ||
     (thread?.cafe_monthly_volume_kg != null) ||
     (thread?.cafe_open_to_new_roasters === 1) ||
     !!thread?.cafe_procurement_note
@@ -309,20 +311,9 @@ export default function ThreadBody({ kind, id, onBack, onClose }: Props) {
                     )}
                   </View>
                 )}
-                {(thread.wholesale_note || thread.wholesale_minimum_kg != null) && (
-                  <View style={s.contextCol}>
-                    <View style={s.contextLabelRow}>
-                      <Package size={10} color="#351101" strokeWidth={1.8} />
-                      <Text style={s.contextLabel}>From the roaster</Text>
-                    </View>
-                    {thread.wholesale_minimum_kg != null && (
-                      <Text style={s.contextValue}>min {thread.wholesale_minimum_kg} kg</Text>
-                    )}
-                    {thread.wholesale_note && (
-                      <Text style={s.contextNote} numberOfLines={4}>{thread.wholesale_note}</Text>
-                    )}
-                  </View>
-                )}
+                {/* §2.8 — roaster-side wholesale_note + min-kg removed.
+                   The only Phase 1 signal is the flag. Negotiation
+                   happens inline in the chat below. */}
               </View>
               {thread.note && (
                 <View style={s.initialNote}>

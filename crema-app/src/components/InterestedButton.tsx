@@ -149,26 +149,11 @@ export default function InterestedButton({
               <>
                 <Text style={s.title}>Interested in {targetLabel}</Text>
 
-                {/* Roaster-side context — only renders when the roaster
-                    actually filled in a minimum or a note. Sits above
-                    the café's response input so the café sees what
-                    they're replying to. */}
-                {hasRoasterNote && (
-                  <View style={s.roasterCard}>
-                    <View style={s.roasterHeader}>
-                      <Package size={13} color="#351101" strokeWidth={1.7} />
-                      <Text style={s.roasterHeaderText}>
-                        From {roaster_name || "the roaster"}
-                      </Text>
-                      {wholesale_minimum_kg != null && wholesale_minimum_kg > 0 && (
-                        <Text style={s.roasterMin}>· min {wholesale_minimum_kg}kg</Text>
-                      )}
-                    </View>
-                    {wholesale_note && (
-                      <Text style={s.roasterNote}>{wholesale_note}</Text>
-                    )}
-                  </View>
-                )}
+                {/* §2.8 — the min-kg + note fields were dropped from
+                   the product schema because negotiation happens
+                   inline on the inquiry thread (Phase 2). Don't
+                   render legacy values; Phase 1's wholesale handshake
+                   is just "available" / "not available". */}
 
                 <Text style={s.body}>
                   Send a quick note to {roaster_name || "the roaster"}. Your

@@ -536,10 +536,13 @@ const s = StyleSheet.create({
     borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(215,209,196,0.5)",
     backgroundColor: t.color.bg, height: 80, justifyContent: "center",
   },
-  // `alignItems: "stretch"` so the tab buttons span the full tabBar
-  // height — lets the tabUnderline's `bottom: -1` ride the parent's
-  // borderBottom line (roaster profile pattern).
-  tabBarInner: { flexDirection: "row", alignItems: "stretch", paddingLeft: "6.25%" as any, paddingRight: "6.25%" as any, width: "100%" as any },
+  // `height: "100%"` + `alignItems: "stretch"` so the tab buttons
+  // span the full tabBar height — this is what lets the
+  // tabUnderline's `bottom: -1` ride the parent's borderBottom line
+  // instead of hugging the text baseline. Without the explicit
+  // height, tabBarInner collapses to content height (~17px) and the
+  // underline sits just below the word.
+  tabBarInner: { flexDirection: "row", alignItems: "stretch", paddingLeft: "6.25%" as any, paddingRight: "6.25%" as any, width: "100%" as any, height: "100%" as any },
   tabBarLeft: { width: 195, flexShrink: 0, justifyContent: "center" } as any,
   tabBarRight: { flex: 1, flexDirection: "row", alignItems: "stretch", paddingLeft: 16, gap: 48 } as any,
   lookingForLabel: {

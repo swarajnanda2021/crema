@@ -547,6 +547,56 @@ def create_roaster_product(slug: str, body: dict, user=Depends(get_current_user)
         db.close()
 
 
+@router.put("/roasters/{slug}/products/{product_id}")
+def update_roaster_product(slug: str, product_id: int, body: dict,
+                            user=Depends(get_current_user)):
+    """Roaster-owner UPDATE for an existing bean in their own catalog.
+    Matches the POST/DELETE pair on the same path prefix. Frontend's
+    `EditableCoffeeCard` (opened via pencil on an owned product) PUTs
+    the full card payload here — without this route the tick save
+    button silently 404'd via the resource catch-all."""
+    from fastapi import HTTPException
+    if user.get("roaster_slug") != slug:
+        raise HTTPException(403, "Not your roaster")
+
+    # Only accept columns that actually exist on roaster_products.
+    # Guards against a stray frontend field nuking the row on insert.
+    ALLOWED = {
+        "coffee_name", "roast_level", "tasting_notes", "origin", "process",
+        "varietal", "altitude_masl", "flavor_notes", "price_inr",
+        "weight_grams", "product_url", "image_url", "image_crop_y",
+        "bean_type", "description_raw", "wholesale_available",
+        "wholesale_minimum_kg", "wholesale_note",
+    }
+    updates = {k: v for k, v in (body or {}).items() if k in ALLOWED}
+    if not updates:
+        raise HTTPException(400, "No editable fields in body")
+
+    db = get_db()
+    try:
+        existing = db.execute(
+            "SELECT id FROM roaster_products WHERE id = ? AND roaster_slug = ?",
+            (product_id, slug),
+        ).fetchone()
+        if not existing:
+            raise HTTPException(404, "Product not found")
+        cols = list(updates.keys())
+        set_clause = ", ".join(f"{c} = ?" for c in cols)
+        params = [updates[c] for c in cols] + [product_id, slug]
+        db.execute(
+            f"UPDATE roaster_products SET {set_clause} WHERE id = ? AND roaster_slug = ?",
+            tuple(params),
+        )
+        db.commit()
+        row = db.execute(
+            "SELECT * FROM roaster_products WHERE id = ? AND roaster_slug = ?",
+            (product_id, slug),
+        ).fetchone()
+        return ok(dict(row), resource="roaster_products")
+    finally:
+        db.close()
+
+
 @router.delete("/roasters/{slug}/products/{product_id}")
 def delete_roaster_product(slug: str, product_id: int, user=Depends(get_current_user)):
     from fastapi import HTTPException
@@ -1218,7 +1268,7 @@ def _require_inquiry_party(db, inquiry_id: int, user):
     if not user:
         raise HTTPException(401, "Authentication required")
     row = db.execute(
-        "SELECT id, cafe_slug, roaster_slug FROM wholesale_inquiries WHERE id = ?",
+        "SELECT id, cafe_slug, roaster_slug, status FROM wholesale_inquiries WHERE id = ?",
         (inquiry_id,),
     ).fetchone()
     if not row:
@@ -1286,10 +1336,26 @@ def post_inquiry_message(inquiry_id: int, body: dict,
         )
         mid = cur.lastrowid
         # Touch the parent inquiry so updated_at reflects last activity.
-        db.execute(
-            "UPDATE wholesale_inquiries SET updated_at = ? WHERE id = ?",
-            (now, inquiry_id),
-        )
+        # ALSO — if the roaster is the one replying AND the inquiry is
+        # still marked 'open', flip the status to 'responded' so the
+        # café sees the state change + the analytics "Open inquiries"
+        # count decrements immediately. Roasters shouldn't have to
+        # manually click Mark-replied after replying in the thread.
+        auto_responded = False
+        if (
+            user.get("account_type") == "roaster"
+            and row.get("status") == "open"
+        ):
+            db.execute(
+                "UPDATE wholesale_inquiries SET status = 'responded', updated_at = ? WHERE id = ?",
+                (now, inquiry_id),
+            )
+            auto_responded = True
+        else:
+            db.execute(
+                "UPDATE wholesale_inquiries SET updated_at = ? WHERE id = ?",
+                (now, inquiry_id),
+            )
 
         # Fan-out notification to the other party. If the sender is a
         # café, recipients are every roaster-account user on that slug.
