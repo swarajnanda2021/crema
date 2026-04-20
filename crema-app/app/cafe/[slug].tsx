@@ -736,7 +736,7 @@ export default function CafeDetailPage() {
               )}
               {activeTab === "menu" && (
                 <MenuTab
-                  cafe_slug={slug}
+                  cafe={cafe!}
                   menu={menu}
                   isOwner={isOwner}
                   isEditing={isEditing}
@@ -917,7 +917,7 @@ export default function CafeDetailPage() {
             )}
             {activeTab === "menu" && (
               <MenuTab
-                cafe_slug={slug}
+                cafe={cafe!}
                 menu={menu}
                 isOwner={isOwner}
                 isEditing={isEditing}
@@ -1266,17 +1266,22 @@ function BioTab({
 // ── Menu Tab ───────────────────────────────────────────────────────────────
 
 function MenuTab({
-  cafe_slug, menu, isOwner, isEditing, onChange, onCatalogChange,
+  cafe, menu, isOwner, isEditing, onChange, onCatalogChange,
 }: {
-  cafe_slug: string;
+  /** Full café row — needed for milk_options_json on the alt-milks
+   *  sentence and for cafe_slug on every write. */
+  cafe: Cafe;
   menu: CafeMenuItem[];
   isOwner: boolean;
   isEditing: boolean;
   onChange: () => void;
   onCatalogChange?: (change: "added" | "updated" | "removed", subject: string) => void;
 }) {
+  const cafe_slug = cafe.cafe_slug;
   const router = useRouter();
   const [menuItemToDelete, setMenuItemToDelete] = useState<CafeMenuItem | null>(null);
+  const [editingItem, setEditingItem] = useState<CafeMenuItem | null>(null);
+  const [milkOptionsOpen, setMilkOptionsOpen] = useState(false);
 
   // Group by drink_name so multi-bean drinks stack as carousel slides
   const grouped = useMemo(() => {
@@ -1347,14 +1352,28 @@ function MenuTab({
 
   return (
     <View style={s.tabContent}>
+      {/* Alt-milks sentence at the very top — owner-editable in edit
+         mode. Cafés that haven't set anything see a placeholder
+         "Add alternative milks" affordance only in edit mode; for
+         public viewers the row is hidden when no options are set. */}
+      <MilkOptionsRow
+        cafe={cafe}
+        isOwner={isOwner}
+        isEditing={isEditing}
+        onEdit={() => setMilkOptionsOpen(true)}
+      />
+
       {/* §2.10 (v2) — true tabular menu. Each drink is one block with
          a horizontal divider between blocks. Within a block every
-         roaster is its own row with five vertically-aligned columns:
+         roaster is its own row with vertically-aligned columns:
          **Drink** (only on the first row of the block) | **Roaster**
-         (clickable) | **Roast** | **Tasting Notes** | **Actions**.
-         An "Add roaster" row sits at the end of each block in edit
-         mode so a café can layer another supplier under the same
-         drink without opening the full Add-drink form. */}
+         (clickable) | **Roast** | **Hot ₹** | **Iced ₹** | **Tasting
+         Notes** | **Actions**. The price column was split (one
+         number per cup type) per user feedback that "iced" needed
+         its own surcharge column. An "Add roaster" row sits at the
+         end of each block in edit mode so a café can layer another
+         supplier under the same drink without opening the full
+         Add-drink form. */}
       <View style={s.menuTable}>
         {/* §2.24a — column header row. Same column widths as the data
            rows so everything aligns. Uppercase + letter-spaced + muted
@@ -1369,8 +1388,11 @@ function MenuTab({
           <View style={s.menuColRoast}>
             <Text style={s.menuHeaderCell}>Roast</Text>
           </View>
-          <View style={s.menuColPrice}>
-            <Text style={s.menuHeaderCell}>Price</Text>
+          <View style={s.menuColPriceHot}>
+            <Text style={s.menuHeaderCell}>Hot</Text>
+          </View>
+          <View style={s.menuColPriceIced}>
+            <Text style={s.menuHeaderCell}>Iced</Text>
           </View>
           <View style={s.menuColNotes}>
             <Text style={s.menuHeaderCell}>Tasting Notes</Text>
@@ -1393,11 +1415,14 @@ function MenuTab({
                 || item.manual_roaster_name
                 || item.manual_bean_name
                 || "\u2014";
-              // Price — prefers the menu item's own field, falls back
-              // to the joined catalog product price (not all menu
-              // items carry an explicit price today; §2.10b tracks a
-              // scraper follow-up for the rest).
-              const price = (item as any).price_inr ?? (item as any).product?.price_inr ?? null;
+              // Hot price — prefers the menu item's own field, falls
+              // back to the joined catalog product price (not all
+              // menu items carry an explicit price today; §2.10b
+              // tracks a scraper follow-up for the rest). Iced has
+              // no fallback since the catalog doesn't know iced
+              // pricing.
+              const priceHot = item.price_inr ?? (item as any).product?.price_inr ?? null;
+              const priceIced = item.price_iced_inr ?? null;
               return (
                 <View key={item.id ?? `${drinkName}-${beanIdx}`} style={s.menuRow}>
                   {/* Col 1 — Drink name (first row only) */}
@@ -1431,26 +1456,42 @@ function MenuTab({
                     </Text>
                   </View>
 
-                  {/* Col 4 — Price */}
-                  <View style={s.menuColPrice}>
+                  {/* Col 4 — Hot price */}
+                  <View style={s.menuColPriceHot}>
                     <Text style={s.menuCellText} numberOfLines={1}>
-                      {price != null ? `\u20B9 ${price}` : "\u2014"}
+                      {priceHot != null ? `\u20B9 ${priceHot}` : "\u2014"}
                     </Text>
                   </View>
 
-                  {/* Col 5 — Tasting notes (`notes` in the schema) */}
+                  {/* Col 5 — Iced price (added per user feedback). Most
+                     café drinks aren't served iced; null renders as a
+                     neutral em-dash rather than ₹0 to keep the column
+                     truthful instead of pretending every drink is
+                     available cold. */}
+                  <View style={s.menuColPriceIced}>
+                    <Text style={s.menuCellText} numberOfLines={1}>
+                      {priceIced != null ? `\u20B9 ${priceIced}` : "\u2014"}
+                    </Text>
+                  </View>
+
+                  {/* Col 6 — Tasting notes (`notes` in the schema) */}
                   <View style={s.menuColNotes}>
                     <Text style={s.menuCellMuted} numberOfLines={2}>
                       {item.notes || "\u2014"}
                     </Text>
                   </View>
 
-                  {/* Col 6 — Actions (delete, only in edit mode) */}
+                  {/* Col 7 — Actions: edit + delete (owner-edit-mode only) */}
                   <View style={s.menuColActions}>
                     {isOwner && isEditing && item.id != null && (
-                      <Pressable onPress={() => setMenuItemToDelete(item)} hitSlop={8} style={s.menuRowAction}>
-                        <Trash2 size={14} color={t.color["text.secondary"]} />
-                      </Pressable>
+                      <>
+                        <Pressable onPress={() => setEditingItem(item)} hitSlop={8} style={s.menuRowAction}>
+                          <PenLine size={14} color={t.color["text.secondary"]} />
+                        </Pressable>
+                        <Pressable onPress={() => setMenuItemToDelete(item)} hitSlop={8} style={s.menuRowAction}>
+                          <Trash2 size={14} color={t.color["text.secondary"]} />
+                        </Pressable>
+                      </>
                     )}
                   </View>
                 </View>
@@ -1476,6 +1517,14 @@ function MenuTab({
         <AddMenuItemForm cafe_slug={cafe_slug} onAdded={onChange} />
       )}
 
+      {/* Allergen disclaimer — small, italic, muted. Sits at the
+         bottom of the menu so the lawyer-y bit doesn't dominate the
+         visual but is unmissable for anyone scanning prices. */}
+      <Text style={s.menuAllergenNote}>
+        *Ask your barista about allergens, dietary restrictions, and
+        ingredient substitutions before ordering.
+      </Text>
+
       <ConfirmDeleteModal
         visible={!!menuItemToDelete}
         title="Remove from menu?"
@@ -1484,6 +1533,23 @@ function MenuTab({
           if (menuItemToDelete?.id != null) await handleDelete(menuItemToDelete.id);
         }}
         onClose={() => setMenuItemToDelete(null)}
+      />
+
+      <EditMenuItemModal
+        visible={!!editingItem}
+        item={editingItem}
+        onSave={async (body) => {
+          if (editingItem?.id != null) await handleUpdate(editingItem.id, body);
+        }}
+        onClose={() => setEditingItem(null)}
+      />
+
+      <MilkOptionsModal
+        visible={milkOptionsOpen}
+        cafeSlug={cafe_slug}
+        initial={cafe.milk_options_json || []}
+        onSaved={onChange}
+        onClose={() => setMilkOptionsOpen(false)}
       />
     </View>
   );
@@ -1501,21 +1567,23 @@ function AddRoasterToDrinkRow({
   const [open, setOpen] = useState(false);
   const [roasterName, setRoasterName] = useState("");
   const [roast, setRoast] = useState("");
-  const [priceInput, setPriceInput] = useState("");
+  const [priceHot, setPriceHot] = useState("");
+  const [priceIced, setPriceIced] = useState("");
   const [notes, setNotes] = useState("");
 
   const reset = () => {
-    setRoasterName(""); setRoast(""); setPriceInput(""); setNotes(""); setOpen(false);
+    setRoasterName(""); setRoast(""); setPriceHot(""); setPriceIced(""); setNotes(""); setOpen(false);
   };
 
   const save = async () => {
-    if (!roasterName.trim() && !roast.trim() && !priceInput.trim() && !notes.trim()) {
+    if (!roasterName.trim() && !roast.trim() && !priceHot.trim() && !priceIced.trim() && !notes.trim()) {
       setOpen(false); return;
     }
     await onSubmit({
       manual_roaster_name: roasterName.trim() || null,
       roast_level: roast.trim() || null,
-      price_inr: priceInput ? parseInt(priceInput, 10) : null,
+      price_inr: priceHot ? parseInt(priceHot, 10) : null,
+      price_iced_inr: priceIced ? parseInt(priceIced, 10) : null,
       notes: notes.trim() || null,
     } as any);
     reset();
@@ -1556,13 +1624,21 @@ function AddRoasterToDrinkRow({
           style={s.menuInlineInput}
         />
       </View>
-      <View style={s.menuColPrice}>
-        {/* Price is captured as a plain number input so it merges
-           into the same column as the displayed `\u20B9 ###`. */}
+      <View style={s.menuColPriceHot}>
         <TextInput
-          value={priceInput}
-          onChangeText={(v) => setPriceInput(v.replace(/[^0-9]/g, ""))}
-          placeholder="\u20B9"
+          value={priceHot}
+          onChangeText={(v) => setPriceHot(v.replace(/[^0-9]/g, ""))}
+          placeholder="Hot \u20B9"
+          placeholderTextColor={t.color["text.muted"]}
+          keyboardType="numeric"
+          style={s.menuInlineInput}
+        />
+      </View>
+      <View style={s.menuColPriceIced}>
+        <TextInput
+          value={priceIced}
+          onChangeText={(v) => setPriceIced(v.replace(/[^0-9]/g, ""))}
+          placeholder="Iced \u20B9"
           placeholderTextColor={t.color["text.muted"]}
           keyboardType="numeric"
           style={s.menuInlineInput}
@@ -1901,6 +1977,9 @@ function AddMenuItemForm({ cafe_slug, onAdded }: { cafe_slug: string; onAdded: (
   const [roastLevel, setRoastLevel] = useState("");
   const [process, setProcess] = useState("");
   const [hideRoaster, setHideRoaster] = useState(false);
+  const [priceHot, setPriceHot] = useState("");
+  const [priceIced, setPriceIced] = useState("");
+  const [notes, setNotes] = useState("");
 
   // Load roaster catalog when the picker opens
   useEffect(() => {
@@ -1938,6 +2017,9 @@ function AddMenuItemForm({ cafe_slug, onAdded }: { cafe_slug: string; onAdded: (
           roast_level: roastLevel.trim() || null,
           process: process.trim() || null,
           hide_roaster: hideRoaster ? 1 : 0,
+          price_inr: priceHot ? parseInt(priceHot, 10) : null,
+          price_iced_inr: priceIced ? parseInt(priceIced, 10) : null,
+          notes: notes.trim() || null,
         }),
       });
       setDrinkName("");
@@ -1946,6 +2028,9 @@ function AddMenuItemForm({ cafe_slug, onAdded }: { cafe_slug: string; onAdded: (
       setRoastLevel("");
       setProcess("");
       setHideRoaster(false);
+      setPriceHot("");
+      setPriceIced("");
+      setNotes("");
       setOpen(false);
       onAdded();
     } catch (e) { console.warn("Menu add failed:", e); }
@@ -1981,6 +2066,31 @@ function AddMenuItemForm({ cafe_slug, onAdded }: { cafe_slug: string; onAdded: (
         <TextInput style={[s.addMenuInput, { flex: 1 }]} value={roastLevel} onChangeText={setRoastLevel} placeholder="Roast" placeholderTextColor={t.color["text.muted"]} />
         <TextInput style={[s.addMenuInput, { flex: 1 }]} value={process} onChangeText={setProcess} placeholder="Process" placeholderTextColor={t.color["text.muted"]} />
       </View>
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        <TextInput
+          style={[s.addMenuInput, { flex: 1 }]}
+          value={priceHot}
+          onChangeText={(v) => setPriceHot(v.replace(/[^0-9]/g, ""))}
+          placeholder="Hot ₹"
+          placeholderTextColor={t.color["text.muted"]}
+          keyboardType="numeric"
+        />
+        <TextInput
+          style={[s.addMenuInput, { flex: 1 }]}
+          value={priceIced}
+          onChangeText={(v) => setPriceIced(v.replace(/[^0-9]/g, ""))}
+          placeholder="Iced ₹"
+          placeholderTextColor={t.color["text.muted"]}
+          keyboardType="numeric"
+        />
+      </View>
+      <TextInput
+        style={s.addMenuInput}
+        value={notes}
+        onChangeText={setNotes}
+        placeholder="Tasting notes (optional)"
+        placeholderTextColor={t.color["text.muted"]}
+      />
       <Pressable onPress={() => setHideRoaster(!hideRoaster)} style={s.checkRow}>
         <View style={[s.checkbox, hideRoaster && s.checkboxChecked]}>
           {hideRoaster && <Text style={s.checkmark}>{"\u2713"}</Text>}
@@ -2029,6 +2139,317 @@ function AddMenuItemForm({ cafe_slug, onAdded }: { cafe_slug: string; onAdded: (
         </View>
       )}
     </View>
+  );
+}
+
+// ── Alt-milk options + edit modals ─────────────────────────────────────────
+
+/** Sentence at the top of the menu summarizing alt milks + surcharges.
+ *  Public viewers see nothing when no options are set; owners-in-edit
+ *  see an "Add alternative milks +" affordance instead. */
+function MilkOptionsRow({
+  cafe, isOwner, isEditing, onEdit,
+}: {
+  cafe: Cafe;
+  isOwner: boolean;
+  isEditing: boolean;
+  onEdit: () => void;
+}) {
+  const opts = (cafe.milk_options_json || []) as Array<{ name: string; surcharge_inr: number }>;
+  const hasAny = opts.length > 0;
+  const showEditAffordance = isOwner && isEditing;
+
+  if (!hasAny && !showEditAffordance) return null;
+
+  return (
+    <View style={s.milkRow}>
+      {hasAny ? (
+        <Text style={s.milkText}>
+          <Text style={s.milkLeader}>Serves </Text>
+          {opts.map((o, i) => (
+            <Text key={`${o.name}-${i}`}>
+              {i > 0 ? ", " : ""}
+              <Text style={s.milkName}>{o.name}</Text>
+              {o.surcharge_inr > 0 ? (
+                <Text style={s.milkSurcharge}> (extra ₹{o.surcharge_inr})</Text>
+              ) : null}
+            </Text>
+          ))}
+          <Text>.</Text>
+        </Text>
+      ) : (
+        <Text style={s.milkPlaceholder}>No alternative milks listed yet.</Text>
+      )}
+      {showEditAffordance && (
+        <Pressable onPress={onEdit} hitSlop={6} style={s.milkEditBtn}>
+          <PenLine size={12} color={t.color.accent} />
+          <Text style={s.milkEditText}>{hasAny ? "Edit" : "Add"}</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+/** Floating modal — list editor for alt-milk options. Each row is
+ *  a name + surcharge pair with a delete button; "+ Add option" at
+ *  the bottom appends a blank row. Saves via PUT /cafe_profiles/{slug}
+ *  with just the milk_options_json field. */
+function MilkOptionsModal({
+  visible, cafeSlug, initial, onSaved, onClose,
+}: {
+  visible: boolean;
+  cafeSlug: string;
+  initial: Array<{ name: string; surcharge_inr: number }>;
+  onSaved: () => void;
+  onClose: () => void;
+}) {
+  const [opts, setOpts] = useState(initial);
+  const [saving, setSaving] = useState(false);
+
+  // Reset form state every time the modal opens (so cancel-then-reopen
+  // doesn't preserve a half-edited list).
+  useEffect(() => {
+    if (visible) setOpts(initial);
+  }, [visible, initial]);
+
+  const updateRow = (i: number, patch: Partial<{ name: string; surcharge_inr: number }>) => {
+    setOpts((prev) => prev.map((o, j) => (j === i ? { ...o, ...patch } : o)));
+  };
+
+  const removeRow = (i: number) => {
+    setOpts((prev) => prev.filter((_, j) => j !== i));
+  };
+
+  const addRow = () => {
+    setOpts((prev) => [...prev, { name: "", surcharge_inr: 0 }]);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const cleaned = opts
+        .map((o) => ({ name: (o.name || "").trim(), surcharge_inr: Number(o.surcharge_inr) || 0 }))
+        .filter((o) => o.name.length > 0);
+      await apiFetchRaw(`/cafe_profiles/${cafeSlug}`, {
+        method: "PUT",
+        body: JSON.stringify({ milk_options_json: cleaned }),
+      });
+      onSaved();
+      onClose();
+    } catch (e) {
+      console.warn("Milk options save failed:", e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={s.composerOverlayWrap}>
+        <Pressable style={s.composerOverlayBg} onPress={onClose} />
+        <View style={s.milkModalCard}>
+          <Text style={s.milkModalTitle}>Alternative milks</Text>
+          <Text style={s.milkModalHint}>
+            Listed at the top of the menu so customers don't have to ask.
+            Leave the surcharge at 0 if there's no extra charge.
+          </Text>
+
+          <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ gap: 8 }}>
+            {opts.map((o, i) => (
+              <View key={i} style={s.milkRowEdit}>
+                <TextInput
+                  style={[s.addMenuInput, { flex: 2 }]}
+                  value={o.name}
+                  onChangeText={(v) => updateRow(i, { name: v })}
+                  placeholder="e.g. Oat"
+                  placeholderTextColor={t.color["text.muted"]}
+                />
+                <TextInput
+                  style={[s.addMenuInput, { flex: 1 }]}
+                  value={String(o.surcharge_inr || "")}
+                  onChangeText={(v) => updateRow(i, { surcharge_inr: parseInt(v.replace(/[^0-9]/g, ""), 10) || 0 })}
+                  placeholder="₹"
+                  placeholderTextColor={t.color["text.muted"]}
+                  keyboardType="numeric"
+                />
+                <Pressable onPress={() => removeRow(i)} hitSlop={6} style={s.milkRowDelete}>
+                  <Trash2 size={14} color={t.color["text.secondary"]} />
+                </Pressable>
+              </View>
+            ))}
+          </ScrollView>
+
+          <Pressable onPress={addRow} style={s.milkAddRow}>
+            <Plus size={14} color={t.color.accent} />
+            <Text style={s.milkAddRowText}>Add option</Text>
+          </Pressable>
+
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+            <Pressable onPress={onClose} style={s.modalCancelBtn}>
+              <Text style={s.modalCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable onPress={save} disabled={saving} style={s.saveBtn}>
+              <Text style={s.saveText}>{saving ? "Saving…" : "Save"}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/** Floating modal — full edit form for an existing menu item. Mirrors
+ *  the AddMenuItemForm field layout with one extra row for hot+iced
+ *  prices. PUT /cafe_menu_items/{id} on save via the parent's
+ *  handleUpdate (so the catalog-change notification still fires). */
+function EditMenuItemModal({
+  visible, item, onSave, onClose,
+}: {
+  visible: boolean;
+  item: CafeMenuItem | null;
+  onSave: (body: Partial<CafeMenuItem>) => void | Promise<void>;
+  onClose: () => void;
+}) {
+  const [drinkName, setDrinkName] = useState("");
+  const [manualBeanName, setManualBeanName] = useState("");
+  const [manualRoasterName, setManualRoasterName] = useState("");
+  const [roastLevel, setRoastLevel] = useState("");
+  const [process, setProcess] = useState("");
+  const [notes, setNotes] = useState("");
+  const [priceHot, setPriceHot] = useState("");
+  const [priceIced, setPriceIced] = useState("");
+  const [hideRoaster, setHideRoaster] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Hydrate from the row each time the modal opens or the row changes.
+  useEffect(() => {
+    if (!visible || !item) return;
+    setDrinkName(item.drink_name || "");
+    setManualBeanName(item.manual_bean_name || "");
+    setManualRoasterName(item.manual_roaster_name || "");
+    setRoastLevel(item.roast_level || "");
+    setProcess(item.process || "");
+    setNotes(item.notes || "");
+    setPriceHot(item.price_inr != null ? String(item.price_inr) : "");
+    setPriceIced(item.price_iced_inr != null ? String(item.price_iced_inr) : "");
+    setHideRoaster(item.hide_roaster === 1);
+  }, [visible, item]);
+
+  const save = async () => {
+    if (!drinkName.trim()) return;
+    setSaving(true);
+    try {
+      await onSave({
+        drink_name: drinkName.trim(),
+        manual_bean_name: manualBeanName.trim() || null,
+        manual_roaster_name: manualRoasterName.trim() || null,
+        roast_level: roastLevel.trim() || null,
+        process: process.trim() || null,
+        notes: notes.trim() || null,
+        price_inr: priceHot ? parseInt(priceHot, 10) : null,
+        price_iced_inr: priceIced ? parseInt(priceIced, 10) : null,
+        hide_roaster: hideRoaster ? 1 : 0,
+      } as any);
+      onClose();
+    } catch (e) {
+      console.warn("Menu item save failed:", e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!visible || !item) return null;
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={s.composerOverlayWrap}>
+        <Pressable style={s.composerOverlayBg} onPress={onClose} />
+        <View style={s.milkModalCard}>
+          <Text style={s.milkModalTitle}>Edit menu item</Text>
+          <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: 8 }}>
+            <TextInput
+              style={s.addMenuInput}
+              value={drinkName}
+              onChangeText={setDrinkName}
+              placeholder="Drink name"
+              placeholderTextColor={t.color["text.muted"]}
+            />
+            <TextInput
+              style={s.addMenuInput}
+              value={manualBeanName}
+              onChangeText={setManualBeanName}
+              placeholder="Bean name (optional)"
+              placeholderTextColor={t.color["text.muted"]}
+            />
+            <TextInput
+              style={s.addMenuInput}
+              value={manualRoasterName}
+              onChangeText={setManualRoasterName}
+              placeholder="Roaster name (optional, free-text)"
+              placeholderTextColor={t.color["text.muted"]}
+            />
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TextInput
+                style={[s.addMenuInput, { flex: 1 }]}
+                value={roastLevel}
+                onChangeText={setRoastLevel}
+                placeholder="Roast"
+                placeholderTextColor={t.color["text.muted"]}
+              />
+              <TextInput
+                style={[s.addMenuInput, { flex: 1 }]}
+                value={process}
+                onChangeText={setProcess}
+                placeholder="Process"
+                placeholderTextColor={t.color["text.muted"]}
+              />
+            </View>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TextInput
+                style={[s.addMenuInput, { flex: 1 }]}
+                value={priceHot}
+                onChangeText={(v) => setPriceHot(v.replace(/[^0-9]/g, ""))}
+                placeholder="Hot ₹"
+                placeholderTextColor={t.color["text.muted"]}
+                keyboardType="numeric"
+              />
+              <TextInput
+                style={[s.addMenuInput, { flex: 1 }]}
+                value={priceIced}
+                onChangeText={(v) => setPriceIced(v.replace(/[^0-9]/g, ""))}
+                placeholder="Iced ₹"
+                placeholderTextColor={t.color["text.muted"]}
+                keyboardType="numeric"
+              />
+            </View>
+            <TextInput
+              style={s.addMenuInput}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Tasting notes"
+              placeholderTextColor={t.color["text.muted"]}
+            />
+            <Pressable onPress={() => setHideRoaster(!hideRoaster)} style={s.checkRow}>
+              <View style={[s.checkbox, hideRoaster && s.checkboxChecked]}>
+                {hideRoaster && <Text style={s.checkmark}>{"\u2713"}</Text>}
+              </View>
+              <Text style={s.checkLabel}>Hide roaster credit (safeguard sourcing)</Text>
+            </Pressable>
+          </ScrollView>
+
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+            <Pressable onPress={onClose} style={s.modalCancelBtn}>
+              <Text style={s.modalCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable onPress={save} disabled={saving} style={s.saveBtn}>
+              <Text style={s.saveText}>{saving ? "Saving…" : "Save"}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -2722,9 +3143,17 @@ const s = StyleSheet.create({
   menuColDrink: { width: 110, paddingRight: 12 } as any,
   menuColRoaster: { flex: 1.2, paddingRight: 12, minWidth: 0 } as any,
   menuColRoast: { width: 100, paddingRight: 12 } as any,
+  // Original `menuColPrice` (80px) lives on as Hot; Iced got its own
+  // adjacent column, both at 60px so the two-column split is no wider
+  // than the previous single-column layout (80 → 60+60 = 120, +40px).
+  // Notes column flex absorbs the difference.
   menuColPrice: { width: 80, paddingRight: 12 } as any,
+  menuColPriceHot: { width: 60, paddingRight: 8 } as any,
+  menuColPriceIced: { width: 60, paddingRight: 12 } as any,
   menuColNotes: { flex: 1.6, paddingRight: 12, minWidth: 0 } as any,
-  menuColActions: { width: 50, alignItems: "flex-end" } as any,
+  // Two icons (edit + delete) need more room than the old single-icon
+  // 50px — bumped to 60 + flexDirection row.
+  menuColActions: { width: 60, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4 } as any,
 
   // Drink label uses the same Inter body face as the hours table —
   // not Canela. Keeps the table reading as a plain list of facts,
@@ -2772,6 +3201,84 @@ const s = StyleSheet.create({
     backgroundColor: t.color["card.info"],
     borderRadius: 4,
     ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
+  } as any,
+
+  // ── Alt-milks sentence + edit modal ────────────────────────────────
+  // Sits above the menu table. Reads as a normal sentence; the edit
+  // affordance (pencil + "Edit") only renders for owner-in-edit-mode.
+  milkRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingVertical: 10, paddingHorizontal: 4,
+    borderBottomWidth: 1, borderColor: t.color["border.light"],
+    marginBottom: 12,
+  } as any,
+  milkText: {
+    flex: 1,
+    fontFamily: t.font["body.regular"], fontSize: 13,
+    color: t.color["text.secondary"], lineHeight: 19,
+  } as any,
+  milkLeader: { color: t.color["text.muted"] },
+  milkName: { fontFamily: t.font["body.medium"], color: t.color["text.primary"] },
+  milkSurcharge: { color: t.color["text.muted"] },
+  milkPlaceholder: {
+    flex: 1,
+    fontFamily: t.font["body.regular"], fontSize: 13,
+    color: t.color["text.muted"], fontStyle: "italic",
+  } as any,
+  milkEditBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingVertical: 4, paddingHorizontal: 8,
+  } as any,
+  milkEditText: {
+    fontFamily: t.font["body.medium"], fontSize: 12,
+    color: t.color.accent,
+  },
+  milkRowEdit: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+  } as any,
+  milkRowDelete: {
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: t.color["card.info"],
+  } as any,
+  milkAddRow: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingVertical: 8, alignSelf: "flex-start",
+  } as any,
+  milkAddRowText: {
+    fontFamily: t.font["body.medium"], fontSize: 12,
+    color: t.color.accent,
+  },
+  // Modal cancel button — `discardText` was designed for the dark edit
+  // banner (cream-on-dark) so it disappears on the modal's cream
+  // background. Mirrors the ConfirmDeleteModal primitive's cancel
+  // style instead so both modals match the rest of the site's
+  // floating-modal language.
+  modalCancelBtn: { paddingHorizontal: 14, paddingVertical: 8, alignItems: "center" } as any,
+  modalCancelText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.muted"] },
+  // Floating modal card — same language as composerCard but narrower.
+  // Used by both MilkOptionsModal and EditMenuItemModal.
+  milkModalCard: {
+    width: "92%", maxWidth: 480, backgroundColor: t.color.bg,
+    borderRadius: t.radius.lg, padding: 24, zIndex: 1, maxHeight: "85%",
+  } as any,
+  milkModalTitle: {
+    fontFamily: t.font.display, fontSize: 22,
+    color: t.color["text.primary"], marginBottom: 6,
+  },
+  milkModalHint: {
+    fontFamily: t.font["body.regular"], fontSize: 12,
+    color: t.color["text.muted"], lineHeight: 17,
+    marginBottom: 14,
+  },
+
+  // Allergen disclaimer footer — sits below the add-drink form so the
+  // legal-y bit doesn't dominate the visual but is unmissable for
+  // anyone scanning prices.
+  menuAllergenNote: {
+    fontFamily: t.font["body.regular"], fontSize: 11,
+    color: t.color["text.muted"], fontStyle: "italic",
+    marginTop: 16, paddingHorizontal: 4, lineHeight: 16,
   } as any,
   menuInlineCancel: {
     fontFamily: t.font["body.medium"], fontSize: 11,

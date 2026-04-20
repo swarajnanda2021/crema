@@ -419,6 +419,11 @@ RESOURCES = {
             "monthly_volume_kg": {"type": "int"},
             "open_to_new_roasters": {"type": "int", "default": 0},
             "procurement_note": {"type": "str"},
+            # Alt-milk surcharges. Array of { name, surcharge_inr }. The
+            # café page renders this as a sentence at the top of the menu
+            # ("Serves Oat ₹30, Almond ₹40, Soy, Coconut") and provides
+            # an owner-edit modal in edit mode.
+            "milk_options_json": {"type": "json"},
             "created_at": {"type": "str", "ro": True, "auto": "now"},
             "updated_at": {"type": "str", "ro": True, "auto": "now"},
         },
@@ -459,6 +464,11 @@ RESOURCES = {
             "process": {"type": "str"},
             "notes": {"type": "str"},
             "hide_roaster": {"type": "int", "default": 0},
+            # Per-cup pricing — `price_inr` is the hot-cup price, the
+            # iced variant is captured separately so the menu table can
+            # render two adjacent columns.
+            "price_inr": {"type": "int"},
+            "price_iced_inr": {"type": "int"},
             "created_at": {"type": "str", "ro": True, "auto": "now"},
         },
         "parent": "cafe_profiles",

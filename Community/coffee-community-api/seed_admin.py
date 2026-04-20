@@ -52,20 +52,79 @@ def _now() -> str:
     return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _render_crema_logo_png(path: str) -> None:
-    """Render the Crema wordmark SVG (from src/components/CremaLogo.tsx) as a
-    square PNG at `path`. Uses Pillow if available, otherwise writes a
-    minimal placeholder and warns.
+# Avatar image is rasterized from the canonical `crema-app/assets/images/crema-logo.svg`
+# and padded onto a brown square so the FULL wordmark survives the avatar
+# component's MIN=1.2 zoom cushion. Earlier revisions of this seeder used
+# Pillow + a system font to "rewrite" the wordmark — that produced a
+# misshapen substitute that didn't match the actual brand mark, AND the
+# rendered text bled to the canvas edges so the avatar's circular crop ate
+# the leading "c" and trailing "a" (only "rema" / "cr" survived). Going
+# straight from the SVG sidesteps both problems.
 
-    The rendered image is sized for avatar use (512×512) with the logo
-    horizontally centered on the cream bg and the purple color token."""
+# Repo-relative path to the source SVG. Computed at import time so the
+# seeder works whether you run it from this directory or from the repo
+# root.
+LOGO_SVG = os.path.normpath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "..", "..", "crema-app", "assets", "images", "crema-logo.svg",
+))
+
+# Brown to match the existing roaster.panel / dark hero language so the
+# padded letterbox blends with the surrounding brown banner on the
+# admin profile.
+COLOR_BROWN = (49, 19, 4)
+LOGO_RASTER_WIDTH = 1400  # SVG is 142 wide; render at 10× for crisp output
+LOGO_CANVAS_SIZE = 2400   # square. Avatar component scales the source by
+                          # MIN_OVER=1.2 then crops to the container's
+                          # rectangle, so only ~83% of the source is ever
+                          # visible. With LOGO_RASTER_WIDTH=1400 the logo
+                          # spans 58% of the 2400-px canvas, leaving 21%
+                          # brown padding on each side — comfortably more
+                          # than the avatar component's 8.5%-per-side
+                          # crop, so the wordmark survives intact.
+
+
+def _rasterize_svg(svg_path: str, width: int) -> bytes | None:
+    """Rasterize `svg_path` to PNG bytes at `width` pixels. Tries
+    `rsvg-convert` first (no Python deps), then `cairosvg`. Returns None
+    if neither is available so the caller can fall back."""
+    import subprocess
+
+    # rsvg-convert is part of librsvg — installed on macOS via
+    # `brew install librsvg` and on most Linux distros via the librsvg2
+    # package. Prefer it because it doesn't require a Python module.
+    try:
+        result = subprocess.run(
+            ["rsvg-convert", "-w", str(width), svg_path],
+            check=True, capture_output=True,
+        )
+        return result.stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    # Python fallback — `pip install cairosvg`.
+    try:
+        import cairosvg  # type: ignore
+        return cairosvg.svg2png(url=svg_path, output_width=width)
+    except ImportError:
+        return None
+
+
+def _render_crema_logo_png(path: str) -> None:
+    """Render the canonical CremaLogo SVG as a padded square PNG at
+    `path`. Idempotent — exits early if the file already exists.
+
+    Pipeline: rasterize SVG via rsvg-convert / cairosvg → paste onto a
+    brown square canvas → save as PNG. Falls back to the legacy Pillow
+    text rendering only if both rasterizers are unavailable."""
     if os.path.exists(path):
         return  # already seeded
+
     try:
-        from PIL import Image, ImageDraw  # type: ignore
+        from PIL import Image  # type: ignore
+        from io import BytesIO
     except ImportError:
         print("  ! Pillow not installed — writing 1x1 placeholder PNG.")
-        # Minimal 1x1 PNG so the static route resolves
         with open(path, "wb") as f:
             f.write(
                 b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00"
@@ -75,15 +134,39 @@ def _render_crema_logo_png(path: str) -> None:
             )
         return
 
+    if not os.path.exists(LOGO_SVG):
+        print(f"  ! SVG not found at {LOGO_SVG} — falling back to text render.")
+        _render_crema_logo_png_text_fallback(path)
+        return
+
+    raster_bytes = _rasterize_svg(LOGO_SVG, LOGO_RASTER_WIDTH)
+    if raster_bytes is None:
+        print("  ! No SVG rasterizer found (install librsvg or cairosvg) — "
+              "falling back to text render.")
+        _render_crema_logo_png_text_fallback(path)
+        return
+
+    src = Image.open(BytesIO(raster_bytes)).convert("RGBA")
+    canvas = Image.new("RGBA", (LOGO_CANVAS_SIZE, LOGO_CANVAS_SIZE), (*COLOR_BROWN, 255))
+    ox = (LOGO_CANVAS_SIZE - src.width) // 2
+    oy = (LOGO_CANVAS_SIZE - src.height) // 2
+    canvas.paste(src, (ox, oy), src)
+    canvas.convert("RGB").save(path, "PNG", optimize=True)
+    print(f"  + rasterized SVG → {path}")
+
+
+def _render_crema_logo_png_text_fallback(path: str) -> None:
+    """Last-resort: re-render the wordmark via Pillow + a system font.
+    Shape won't match the brand mark exactly but at least produces
+    something readable. Only invoked when the SVG isn't available AND
+    neither rsvg-convert nor cairosvg is installed."""
+    from PIL import Image, ImageDraw, ImageFont  # type: ignore
+
     SIZE = 512
     img = Image.new("RGB", (SIZE, SIZE), COLOR_BG)
     draw = ImageDraw.Draw(img)
-
-    # Try to find a bundled font; fall back to PIL's default.
-    from PIL import ImageFont  # type: ignore
     font = None
     for candidate in [
-        # Some platforms have Helvetica bold
         "/Library/Fonts/Helvetica.ttc",
         "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
         "/System/Library/Fonts/Helvetica.ttc",
@@ -91,7 +174,7 @@ def _render_crema_logo_png(path: str) -> None:
     ]:
         if os.path.exists(candidate):
             try:
-                font = ImageFont.truetype(candidate, 220)
+                font = ImageFont.truetype(candidate, 200)
                 break
             except Exception:
                 continue
@@ -106,7 +189,7 @@ def _render_crema_logo_png(path: str) -> None:
     ty = (SIZE - th) // 2 - bbox[1]
     draw.text((tx, ty), text, fill=COLOR_ACCENT, font=font)
     img.save(path, "PNG")
-    print(f"  + rendered avatar → {path}")
+    print(f"  + rendered text-fallback avatar → {path}")
 
 
 def _ensure_crema_user(db) -> None:

@@ -563,6 +563,21 @@ _MIGRATIONS = [
     )""",
     "CREATE INDEX IF NOT EXISTS idx_trash_owner ON trash(owner_user_id, deleted_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_trash_entity ON trash(entity_type, entity_id)",
+    # ── Café menu pricing — hot + iced split + alt-milk surcharges ──────
+    # Until now `cafe_menu_items` had no pricing column at all; the menu
+    # table fell back to the joined catalog product price (which is the
+    # roaster's retail bag price, not what the café charges per cup).
+    # `price_inr` holds the hot-cup price; `price_iced_inr` is the iced
+    # variant where applicable (null = not served iced). Both nullable
+    # so cafés can leave them blank rather than guess.
+    "ALTER TABLE cafe_menu_items ADD COLUMN price_inr INTEGER",
+    "ALTER TABLE cafe_menu_items ADD COLUMN price_iced_inr INTEGER",
+    # Alternative milks served by the café + per-option surcharge.
+    # JSON array of { name, surcharge_inr } so the order is preserved
+    # (cafés care that "Oat" comes before "Soy" in the displayed
+    # sentence). Nullable; an empty list and NULL both render as
+    # "no alt milks listed yet".
+    "ALTER TABLE cafe_profiles ADD COLUMN milk_options_json TEXT",
 ]
 
 

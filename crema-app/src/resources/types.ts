@@ -267,6 +267,9 @@ export interface Cafe {
   monthly_volume_kg: number | null;
   open_to_new_roasters: number;
   procurement_note: string | null;
+  /** Alt-milk options the café serves with per-cup surcharges. Rendered
+   *  as a sentence at the top of the menu. */
+  milk_options_json: MilkOption[] | null;
   stamps_given?: number;
   love_count?: number;
   rewards_redeemed?: number;
@@ -288,7 +291,21 @@ export interface CafeMenuItem {
   process: string | null;
   notes: string | null;
   hide_roaster: number;
+  /** Per-cup hot price in INR. Null = not priced (column shows —). */
+  price_inr: number | null;
+  /** Iced variant price in INR. Null = not served iced (column shows —). */
+  price_iced_inr: number | null;
   created_at: string;
+}
+
+/** One alt-milk option a café serves. Stored as a JSON array on
+ *  `cafe_profiles.milk_options_json`. Order is preserved (cafés care
+ *  that "Oat" comes before "Soy" in the displayed sentence). */
+export interface MilkOption {
+  name: string;
+  /** Extra ₹ per cup. 0 means "no surcharge" — still rendered, just
+   *  without the parenthesized price. */
+  surcharge_inr: number;
 }
 
 // CafeBarista type removed — feature cut.
