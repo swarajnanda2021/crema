@@ -619,12 +619,44 @@ def init_db():
         _migrate_shelf_categories(conn)
     except Exception as e:
         print(f"Shelf migration note: {e}")
+    # Heal stale inquiry statuses: anything where a roaster has
+    # already replied but status is still 'open'. Idempotent; covers
+    # rows that pre-date the auto-respond-on-reply fix (§2.30) and
+    # any future mass-load where the message arrived before the
+    # status-flip logic did.
+    try:
+        _heal_inquiry_statuses(conn)
+    except Exception as e:
+        print(f"Inquiry heal note: {e}")
     # Seed pilot cafés (idempotent)
     try:
         _seed_pilot_cafes(conn)
     except Exception as e:
         print(f"Café seed note: {e}")
     conn.close()
+
+
+def _heal_inquiry_statuses(conn):
+    """Every inquiry where a roaster-account user has posted ≥1
+    message but the status is still 'open' becomes 'responded'. Runs
+    at boot and is idempotent."""
+    cur = conn.execute(
+        """
+        UPDATE wholesale_inquiries
+           SET status = 'responded',
+               updated_at = COALESCE(updated_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+         WHERE status = 'open'
+           AND EXISTS (
+               SELECT 1 FROM inquiry_messages im
+               JOIN users u ON u.id = im.user_id
+              WHERE im.inquiry_id = wholesale_inquiries.id
+                AND u.account_type = 'roaster'
+           )
+        """
+    )
+    if cur.rowcount:
+        print(f"Inquiry heal: flipped {cur.rowcount} rows open→responded")
+    conn.commit()
 
 
 def _seed_pilot_cafes(conn):
