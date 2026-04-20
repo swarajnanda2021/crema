@@ -127,6 +127,44 @@ Ordered by the Phase 1 roadmap in `NORTH_STAR.md`. Each item references
 the relevant section there. For deployment/infra prerequisites see
 `LAUNCH_TODO.md`.
 
+### Runway to F&F launch — what's actually left
+
+Most of section 2 is already shipped (every entry tagged
+*(shipped)* lives here for historical context — useful when grepping
+for which file owns a feature, less useful as a planning surface).
+What still blocks shipping Crema to ~10–30 friends-and-family users:
+
+| Item | Status | Blocking F&F? | Effort |
+|------|--------|---------------|--------|
+| §2.13 OAuth backends + JWT + password reset + email verify | UI shipped, backends parked | Partly (password reset is in LAUNCH §3.5; OAuth is nice-to-have) | 1–2 days each provider |
+| §2.18 deferred metrics (re-open rate, avg order size, wholesale flag churn) | 8 of 11 shipped, 3 need new schema | No — admin-only, post-launch | ½ day after schema lands |
+| §2.28 Scraper resurrection + sold-out preservation | Not started | **Yes** — without sold-out preservation, every scraper run quietly orphans tasting notes / shelf entries | 1–2 days |
+| §2.29 In-place product editor (replace floating modal) | V2 polish | No — current modal works | ½ day |
+| §2.30 Launch blockers | See `LAUNCH_TODO.md` | **Yes** — the F&F deploy itself | See below |
+
+The actual launch path, in order:
+
+1. **Ship §2.28 sold-out preservation** before any scraper run lands
+   in production. Otherwise the moment a roaster cycles a lot, every
+   tasting note that referenced it becomes an orphaned row pointing
+   at a deleted product. This is the only §2 item that's strictly
+   blocking — everything else can land post-F&F.
+2. **Run LAUNCH_TODO Part 1** — secrets sweep, env lockdown,
+   Dockerfile, error boundary, docker-compose. ~1 day, no
+   credentials needed; once done the repo is `fly deploy`-ready.
+3. **Run LAUNCH_TODO Part 2** — register cremabrews.com, Fly.io
+   account, `fly launch` / volume / secrets / deploy / certs / DNS /
+   smoke test / snapshot / invite friends. ~45 min sitting at the
+   keyboard; needs your card and DNS access.
+4. **Park everything else.** §2.13 OAuth, §2.18 deferred metrics,
+   §2.29 in-place editor, all of LAUNCH_TODO Part 3 — these wait
+   until F&F users are actually using the thing and we have signal
+   on what to fix next.
+
+**Total work to F&F live:** ~2-3 focused days for §2.28 + LAUNCH
+Part 1, plus ~45 min of your time for Part 2. Everything in §2 below
+is either shipped or post-launch.
+
 ### 2.1 "Interested" button *(shipped — see §1.2 "Interested" wholesale handshake)*
 
 The flagship Phase 1 B2B feature landed end-to-end: `wholesale_inquiries`
