@@ -1164,11 +1164,14 @@ function TabRow({
   children: React.ReactNode;
 }) {
   if (isMobile) {
+    // Layout props (flexDirection / alignItems / gap) MUST live in
+    // contentContainerStyle, not on the outer style. `s.tabs`
+    // carries alignItems:"stretch" and would throw on native.
     return (
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={[s.tabs, s.tabsMobileOuter]}
+        style={s.tabsMobileOuter}
         contentContainerStyle={s.tabsMobileInner}
       >
         {children}
@@ -3026,14 +3029,15 @@ const s = StyleSheet.create({
   // POSTS / ANALYTICS) where the roaster only has 2-3.
   tabs: { flexDirection: "row", alignItems: "stretch", gap: 48, height: 80, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)" },
   // Mobile: match Discover tab bar (Figma 63:5927) — 60 tall,
-  // 24 gap, 32 horizontal padding. Outer = the ScrollView itself
-  // (fixed height, no vertical growth); Inner = the flex row the
-  // children sit in so stretch + gap + padding behave the same as
-  // a plain View.
+  // 24 gap, 32 horizontal padding. Outer = sizing + border on the
+  // ScrollView; Inner = the flex row the children sit in so
+  // alignItems + gap + padding behave the same as on a plain View.
   tabsMobileOuter: {
     height: (t.size as any)["tabbar.mobile.height"],
     flexGrow: 0,
     flexShrink: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(215,209,196,0.5)",
   } as any,
   tabsMobileInner: {
     flexDirection: "row",

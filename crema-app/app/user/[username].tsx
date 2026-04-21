@@ -408,12 +408,15 @@ export default function UserProfilePage() {
   ));
 
   // Mobile: horizontal ScrollView lets users swipe past tabs that
-  // overflow the viewport. Wide web keeps the flat row.
+  // overflow the viewport. Wide web keeps the flat row. Layout
+  // props (flexDirection / alignItems / gap) live in
+  // contentContainerStyle — putting them on the outer ScrollView
+  // style throws on native.
   const tabBar = isMobile ? (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      style={[s.tabBar, s.tabBarMobile]}
+      style={s.tabBarMobileOuter}
       contentContainerStyle={s.tabBarMobileInner}
     >
       {tabChildren}
@@ -650,11 +653,20 @@ const s = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)",
   } as any,
   // Mobile: match the Discover tab bar (Figma 63:5927) — 60 tall,
-  // 24 gap, 32 left/right padding. Outer ScrollView flex props.
-  tabBarMobile: {
+  // 24 gap, 32 left/right padding. Outer = visual + sizing on the
+  // ScrollView frame; Inner = the flex row children sit in.
+  tabBarMobileOuter: {
     height: (t.size as any)["tabbar.mobile.height"],
     flexGrow: 0,
     flexShrink: 0,
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 860,
+    backgroundColor: t.color.bg,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(215,209,196,0.5)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(215,209,196,0.5)",
   } as any,
   tabBarMobileInner: {
     flexDirection: "row",

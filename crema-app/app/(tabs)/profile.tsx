@@ -781,7 +781,7 @@ export default function ProfilePage() {
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      style={[s.tabBar, s.tabBarMobile]}
+      style={s.tabBarMobileOuter}
       contentContainerStyle={s.tabBarMobileInner}
     >
       {tabChildren}
@@ -1356,12 +1356,22 @@ const s = StyleSheet.create({
   // Mobile: match the Discover tab bar (Figma 63:5927) exactly —
   // 60-px tall, 24-px (t.spacing["2xl"]) gap between labels,
   // 32-px left padding so the active underline lines up with the
-  // hero image's left edge. `flexGrow: 0` on the outer ScrollView
-  // keeps the bar from greedily claiming vertical space.
-  tabBarMobile: {
+  // hero image's left edge. RN's ScrollView only accepts
+  // sizing/visual properties on its outer `style`; layout props
+  // like flexDirection / alignItems / gap MUST live in
+  // `contentContainerStyle`, so we split the bar into two styles.
+  tabBarMobileOuter: {
     height: (t.size as any)["tabbar.mobile.height"],
     flexGrow: 0,
     flexShrink: 0,
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 860,
+    backgroundColor: "#FAF8F0",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(215,209,196,0.5)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(215,209,196,0.5)",
   } as any,
   tabBarMobileInner: {
     flexDirection: "row",

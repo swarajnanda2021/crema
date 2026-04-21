@@ -763,10 +763,13 @@ export default function RoasterDetailPage() {
                 </>
               );
               return isMobile ? (
+                // Layout props stay in contentContainerStyle — the
+                // outer `s.rightTabBar` carries alignItems:"stretch"
+                // + gap which RN rejects on a ScrollView's style.
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  style={[s.rightTabBar, s.rightTabBarMobileOuter]}
+                  style={s.rightTabBarMobileOuter}
                   contentContainerStyle={s.rightTabBarMobileInner}
                 >
                   {tabs}
@@ -1166,14 +1169,15 @@ const s = StyleSheet.create({
     height: 80, paddingLeft: 56, gap: 100, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)",
   } as any,
   // Mobile: match Discover tab bar (Figma 63:5927) — 60 tall,
-  // 24 gap, 32 left/right padding. Outer = ScrollView frame (no
-  // vertical growth); Inner = the flex row.
+  // 24 gap, 32 left/right padding. Outer = sizing + bg + border on
+  // the ScrollView; Inner = the flex row that holds the tabs.
   rightTabBarMobileOuter: {
     height: (t.size as any)["tabbar.mobile.height"],
     flexGrow: 0,
     flexShrink: 0,
-    paddingLeft: 0,
-    gap: 0,
+    backgroundColor: t.color.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(215,209,196,0.5)",
   } as any,
   rightTabBarMobileInner: {
     flexDirection: "row",
