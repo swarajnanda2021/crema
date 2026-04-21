@@ -192,6 +192,28 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
       style={[s.card, cardPositionStyle, cardOverrides, !ready && !fullScreen && { opacity: 0 }]}
       pointerEvents="box-none"
     >
+      {/* FullScreen gets a titled panel header with an explicit
+         close disc — the floating-card variant (web wide) relies on
+         outside-click dismissal, which doesn't apply inside a
+         slide-panel. */}
+      {fullScreen && (
+        <>
+          <View style={s.panelHeader}>
+            <Text style={s.panelTitle}>Search</Text>
+            <Pressable
+              onPress={onClose}
+              hitSlop={10}
+              accessibilityLabel="Close"
+              accessibilityRole="button"
+              style={s.panelCloseBtn}
+            >
+              <X size={18} color={t.color["text.primary"]} strokeWidth={1.75} />
+            </Pressable>
+          </View>
+          <View style={s.divider} />
+        </>
+      )}
+
       {/* Styled input. Replaces the raw browser-default focus ring
          with the cream-field look used in the rest of the site. */}
       <View style={s.inputWrap}>
@@ -349,6 +371,27 @@ const s = StyleSheet.create({
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 8 },
     elevation: 12,
+  } as any,
+
+  panelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: t.spacing.lg,
+    paddingVertical: t.spacing.md,
+  } as any,
+  panelTitle: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.lg"],
+    color: t.color["text.primary"],
+  } as any,
+  panelCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: t.color["card.info"],
+    alignItems: "center",
+    justifyContent: "center",
   } as any,
 
   inputWrap: {

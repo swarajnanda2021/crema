@@ -8,18 +8,16 @@
  * On iOS/Swift: SwiftUI List with PostCardView, same data from same API.
  */
 
-import { useState, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, RefreshControl, StyleSheet, Modal } from "react-native";
+import { useState, useCallback, useEffect } from "react";
+import { View, Text, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
 import { Plus } from "lucide-react-native";
 
 import { useAuth } from "../../src/hooks/useAuth";
-import { useBreakpoint } from "../../src/hooks/useBreakpoint";
-import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { apiFetchRaw } from "../../src/api/client";
+import { listen } from "../../src/utils/events";
 import { useResource } from "../../src/resources/useResource";
-import { openPostModal, ConfirmDeleteModal } from "../../src/components/primitives";
+import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
 import PostCard from "../../src/components/domain/PostCard";
-import ComposePost from "../../src/components/ComposePost";
 import { t } from "../../src/tokens/useTokens";
 import type { Post } from "../../src/resources/types";
 
@@ -27,12 +25,8 @@ const FEED_PER_PAGE = 5;
 
 export default function FeedPage() {
   const { user } = useAuth();
-  const { productMap } = useCoffeeData();
-  const { isMobile } = useBreakpoint();
   const [visibleCount, setVisibleCount] = useState(FEED_PER_PAGE);
   const [refreshing, setRefreshing] = useState(false);
-  const [showCompose, setShowCompose] = useState(false);
-  const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [postToDelete, setPostToDelete] = useState<Post | null>(null);
 
   // Generic resource hook — fetches all posts sorted by published_at DESC
@@ -47,28 +41,9 @@ export default function FeedPage() {
     setRefreshing(false);
   }, [refetch]);
 
-  const handleEditPost = useCallback(async (postId: number, data: any) => {
-    await apiFetchRaw(`/posts/${postId}`, { method: "PUT", body: JSON.stringify(data) });
-    setEditingPost(null);
-    refetch();
-  }, [refetch]);
-
-  const handleCreatePost = useCallback(async (data: any) => {
-    try {
-      await apiFetchRaw("/posts", {
-        method: "POST",
-        body: JSON.stringify({
-          ...data,
-          post_type: data.post_type || "note",
-          location: data.location || null,
-        }),
-      });
-      setShowCompose(false);
-      refetch();
-    } catch (e: any) {
-      console.warn("Post error:", e.message);
-    }
-  }, [refetch]);
+  // Reload after GlobalComposePost submits — either a new post or an
+  // edit of an existing one.
+  useEffect(() => listen("crema:posts-updated", () => refetch()), [refetch]);
 
   if (loading && items.length === 0) {
     return (
@@ -110,7 +85,14 @@ export default function FeedPage() {
                 onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
                 onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
-                onEdit={(p) => setEditingPost(p)}
+                onEdit={(p) => openComposePost({
+                  editPostId: p.id,
+                  initialData: {
+                    body: p.teaser || (p as any).body,
+                    images: (p as any).images || [],
+                    location: p.location || "",
+                  },
+                })}
                 onDelete={(p) => setPostToDelete(p)}
               />
               {idx < Math.min(items.length, visibleCount) - 1 && <View style={s.divider} />}
@@ -119,58 +101,20 @@ export default function FeedPage() {
         )}
       </ScrollView>
 
-      {/* FAB — always visible when the user is logged in (pre-move: the
-          FAB hid itself when the inline composer was expanded). Now the
-          composer is a floating modal so the FAB stays put; the modal's
-          own close button handles dismiss. */}
+      {/* FAB — routes to the sitewide composer (GlobalComposePost at
+          root layout) via the `openComposePost` helper. On mobile the
+          composer renders in the mid-band between MobileHeader and
+          MobileFooter; on web wide it stays a centered floating card.
+          (§2.40.3 / §2.40.6) */}
       {user && (
-        <Pressable onPress={() => setShowCompose(true)} style={s.fab}>
+        <Pressable onPress={() => openComposePost()} style={s.fab}>
           <Plus size={22} color={t.color["text.on-dark"]} strokeWidth={2.5} />
         </Pressable>
       )}
 
-      {/* Compose modal — same floating overlay pattern as PostModal so the
-          composer feels consistent with the rest of the site. */}
-      <Modal
-        visible={showCompose}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowCompose(false)}
-      >
-        <View style={[s.editOverlayWrap, isMobile && s.editOverlayWrapFull]}>
-          {!isMobile && <Pressable style={s.editOverlayBg} onPress={() => setShowCompose(false)} />}
-          <View style={[s.editModal, isMobile && s.editModalFull]}>
-            <ComposePost
-              onSubmit={async (data) => {
-                await handleCreatePost(data);
-                setShowCompose(false);
-              }}
-              onCancel={() => setShowCompose(false)}
-              loading={false}
-              products={productMap ? Array.from(productMap.values()) : []}
-              user={user}
-            />
-          </View>
-        </View>
-      </Modal>
-
-      {/* Edit post modal */}
-      <Modal visible={!!editingPost} transparent animationType="fade" onRequestClose={() => setEditingPost(null)}>
-        <View style={s.editOverlayWrap}>
-          <Pressable style={s.editOverlayBg} onPress={() => setEditingPost(null)} />
-          <View style={s.editModal}>
-            {editingPost && (
-              <ComposePost
-                onSubmit={async (data) => { await handleEditPost(editingPost.id, data); }}
-                onCancel={() => setEditingPost(null)}
-                user={user}
-                products={productMap ? Array.from(productMap.values()) : []}
-                initialData={{ body: editingPost.teaser || (editingPost as any).body, images: (editingPost as any).images || [], location: editingPost.location || "" }}
-              />
-            )}
-          </View>
-        </View>
-      </Modal>
+      {/* Edit post routing is handled inline on the PostCard's edit
+          tap — see the `onEdit` prop below. GlobalComposePost is
+          re-used with `initialData` + `editPostId`. No local modal. */}
 
       {/* Confirm before deleting. The post lands in the recycle bin
          (§2.25) on delete — mention that in the body so the user

@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { View, Text, Pressable, Modal, ScrollView, StyleSheet, Platform } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { X, ArrowLeft, MapPin, PenLine } from "lucide-react-native";
+import { X, MapPin, PenLine } from "lucide-react-native";
 import { t } from "../tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
@@ -27,6 +27,8 @@ interface Props {
   onClose: () => void;
 }
 
+const MOBILE_HEADER_HEIGHT = (t.size as any)["navbar.mobile.height"];
+
 export default function PopularityModal({
   visible, productId, coffeeName,
   roasterName, roastLevel, process: productProcess, productUrl,
@@ -35,6 +37,7 @@ export default function PopularityModal({
   const router = useRouter();
   const { user } = useAuth();
   const { isMobile } = useBreakpoint();
+  const insets = useSafeAreaInsets();
   const [users, setUsers] = useState<any[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,16 +96,11 @@ export default function PopularityModal({
     }
   };
 
-  const Wrapper: any = isMobile ? SafeAreaView : View;
-  const wrapperProps: any = isMobile
-    ? { edges: ["top"], style: s.fullScreenWrap }
-    : { style: s.overlayWrap };
+  if (!visible) return null;
 
-  return (
-    <Modal visible={visible} transparent={!isMobile} animationType="fade" onRequestClose={onClose}>
-      <Wrapper {...wrapperProps}>
-        {!isMobile && <Pressable style={s.overlayBg} onPress={onClose} />}
-        <View style={[s.card, isMobile && s.cardFullScreen]}>
+  // Card body shared between mobile (mid-band) and web (centered).
+  const cardBody = (
+    <View style={[s.card, isMobile && s.cardMidBand]}>
           {/* Header — count now lives here (moved off the CoffeeCard
              social dot which became number-free). */}
           <View style={s.header}>
@@ -199,36 +197,80 @@ export default function PopularityModal({
               </>
             )}
           </ScrollView>
-        </View>
-      </Wrapper>
+    </View>
+  );
 
-      {/* Tasting-note composer sub-modal. Renders the shared
-         ComposePost with `prefillTastingNote` so the Add-Card →
-         Tasting Note sub-flow is already open on this coffee. */}
-      {writing && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setWriting(false)}>
-          <View style={s.composeOverlay}>
-            <Pressable style={s.composeBg} onPress={() => setWriting(false)} />
-            <View style={s.composeCard}>
-              <ComposePost
-                onSubmit={handleCreatePost}
-                onCancel={() => setWriting(false)}
-                loading={posting}
-                user={user}
-                products={[]}
-                prefillTastingNote={{
-                  product_id: productId,
-                  coffee_name: coffeeName,
-                  roaster_name: roasterName,
-                  roast_level: roastLevel,
-                  process: productProcess,
-                  product_url: productUrl,
-                }}
-              />
-            </View>
+  const composeSub = writing ? (
+    isMobile ? (
+      <View style={[s.mobileHost, { top: insets.top + MOBILE_HEADER_HEIGHT, bottom: 0 }]}>
+        <View style={s.composeCardMobile}>
+          <ComposePost
+            onSubmit={handleCreatePost}
+            onCancel={() => setWriting(false)}
+            loading={posting}
+            user={user}
+            products={[]}
+            prefillTastingNote={{
+              product_id: productId,
+              coffee_name: coffeeName,
+              roaster_name: roasterName,
+              roast_level: roastLevel,
+              process: productProcess,
+              product_url: productUrl,
+            }}
+          />
+        </View>
+      </View>
+    ) : (
+      <Modal visible transparent animationType="fade" onRequestClose={() => setWriting(false)}>
+        <View style={s.composeOverlay}>
+          <Pressable style={s.composeBg} onPress={() => setWriting(false)} />
+          <View style={s.composeCard}>
+            <ComposePost
+              onSubmit={handleCreatePost}
+              onCancel={() => setWriting(false)}
+              loading={posting}
+              user={user}
+              products={[]}
+              prefillTastingNote={{
+                product_id: productId,
+                coffee_name: coffeeName,
+                roaster_name: roasterName,
+                roast_level: roastLevel,
+                process: productProcess,
+                product_url: productUrl,
+              }}
+            />
           </View>
-        </Modal>
-      )}
+        </View>
+      </Modal>
+    )
+  ) : null;
+
+  // Mobile: render as an absolute-positioned mid-band view so the
+  // MobileHeader + MobileFooter chrome stays painted. Requires the
+  // parent mount point (GlobalPopularityModal) to sit inside the
+  // relative wrapper at root layout, so `bottom: 0` hits the top
+  // edge of MobileFooter.
+  if (isMobile) {
+    return (
+      <>
+        <View style={[s.mobileHost, { top: insets.top + MOBILE_HEADER_HEIGHT, bottom: 0 }]}>
+          {cardBody}
+        </View>
+        {composeSub}
+      </>
+    );
+  }
+
+  // Web wide: centered-card floating overlay.
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={s.overlayWrap}>
+        <Pressable style={s.overlayBg} onPress={onClose} />
+        {cardBody}
+      </View>
+      {composeSub}
     </Modal>
   );
 }
@@ -248,12 +290,21 @@ const s = StyleSheet.create({
     width: "90%", maxWidth: 680, backgroundColor: t.color.bg,
     borderRadius: t.radius.lg, overflow: "hidden", maxHeight: "85%", zIndex: 1,
   } as any,
-  // Mobile: edge-to-edge takeover, no backdrop.
-  fullScreenWrap: { flex: 1, backgroundColor: t.color.bg } as any,
-  cardFullScreen: {
+  // Mobile: absolute-positioned mid-band host (below MobileHeader,
+  // above MobileFooter). Parent mount point must be inside the root
+  // relative wrapper so `bottom: 0` = top of MobileFooter.
+  mobileHost: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    backgroundColor: t.color.bg,
+    ...(Platform.OS === "web" ? { zIndex: 40 } : { elevation: 12 }),
+  } as any,
+  cardMidBand: {
     width: "100%" as any, height: "100%" as any,
     maxWidth: undefined, maxHeight: undefined, borderRadius: 0,
   } as any,
+  composeCardMobile: { flex: 1, backgroundColor: t.color.bg, overflow: "hidden" } as any,
   header: {
     flexDirection: "row",
     alignItems: "center",

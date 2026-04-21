@@ -26,7 +26,7 @@ import { t, SHELF_LABELS } from "../../src/tokens/useTokens";
 type ShelfKey = "open_bags" | "on_the_list";
 
 import PostCard from "../../src/components/domain/PostCard";
-import { openPostModal, ConfirmDeleteModal } from "../../src/components/primitives";
+import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
@@ -202,9 +202,8 @@ export default function ProfilePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [popularity, setPopularity] = useState<Record<string, number>>({});
 
-  // Compose
-  const [showCompose, setShowCompose] = useState(false);
-  const [editingPost, setEditingPost] = useState<any>(null);
+  // Edit + delete confirm state — compose now goes through
+  // GlobalComposePost at root layout.
   const [postToDelete, setPostToDelete] = useState<any>(null);
   const [shelfEntryToRemove, setShelfEntryToRemove] = useState<number | null>(null);
 
@@ -355,6 +354,8 @@ export default function ProfilePage() {
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  // Re-fetch after the sitewide composer submits a profile post.
+  useEffect(() => listen("crema:profile-posts-updated", () => loadData()), [loadData]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -367,11 +368,7 @@ export default function ProfilePage() {
     catch (e: any) { console.warn("Pin toggle error:", e.message); }
   }, [loadData]);
 
-  const handleEditPost = useCallback(async (postId: number, data: any) => {
-    await apiFetchRaw(`/posts/${postId}`, { method: "PUT", body: JSON.stringify(data) });
-    setEditingPost(null);
-    await loadData();
-  }, [loadData]);
+  // Edit post routes through GlobalComposePost now — no local handler.
 
   // ── Save profile (in-place edit) ───────────────────────────────────────
   const handleSaveProfile = async () => {
@@ -407,15 +404,9 @@ export default function ProfilePage() {
     }
   };
 
-  // ── Compose handlers ──────────────────────────────────────────────────
-  const handlePostSubmit = async (data: any) => {
-    await apiFetchRaw("/roaster-posts", {
-      method: "POST",
-      body: JSON.stringify({ ...data, roaster_slug: `user_${user?.id}` }),
-    });
-    setShowCompose(false);
-    loadData();
-  };
+  // Compose + edit now route through the sitewide GlobalComposePost
+  // at root layout via the `openComposePost` event helper — no local
+  // compose state or submit handler. (§2.40.3 / §2.40.6)
 
   // ── Follow toggle in following list ────────────────────────────────────
   const handleUnfollow = async (slug: string) => {
@@ -700,7 +691,36 @@ export default function ProfilePage() {
         <Text style={s.editBannerLabel}>Editing profile</Text>
       </View>
       <View style={s.editBannerRight}>
-        <Pressable onPress={() => { setIsEditing(false); if (typeof window !== "undefined") window.history.replaceState({}, "", window.location.pathname); }} style={s.editBannerDiscard}>
+        <Pressable
+          onPress={() => {
+            // Reset every edit field back to the user's current value
+            // so re-entering edit later starts from a clean slate.
+            // The in-form state (editName / editBio / etc.) persists
+            // between sessions otherwise and can cause the next edit
+            // to seem "stuck" on stale values after a discard.
+            // (§2.40.5)
+            if (user) {
+              setEditName(user.display_name || "");
+              setEditBio(user.bio || "");
+              setEditDrink(user.favorite_drink || "");
+              setEditCafe(user.favorite_cafe || "");
+              setEditFavCafeSlug(user.favorite_cafe_slug || null);
+              setEditPref(user.coffee_preference || "");
+              setEditBrew(user.brewing_style || "");
+              setEditLocation(user.location || "");
+              setEditAvatar(user.avatar_url || "");
+              setEditCropX(user.avatar_crop_x ?? 50);
+              setEditCropY(user.avatar_crop_y ?? 50);
+              setEditZoom(user.avatar_zoom ?? 1);
+            }
+            setIsEditing(false);
+            // Clear the `?edit=1` param properly through the router so
+            // Expo Router's cached search param doesn't linger and
+            // re-trigger edit mode on a later mount.
+            router.replace("/profile");
+          }}
+          style={s.editBannerDiscard}
+        >
           <Text style={s.editBannerDiscardText}>Discard</Text>
         </Pressable>
         <Pressable onPress={handleSaveProfile} style={s.editBannerSave} disabled={saving}>
@@ -766,13 +786,7 @@ export default function ProfilePage() {
   if (activeTab === "posts") {
     tabContent = (
       <View style={s.tabContent}>
-        {showCompose && (
-          <View style={s.composeWrap}>
-            <ComposePost onSubmit={handlePostSubmit} onCancel={() => setShowCompose(false)} user={user} products={Array.from(productMap?.values() || [])} />
-            <View style={s.postDivider} />
-          </View>
-        )}
-        {posts.length === 0 && !showCompose ? (
+        {posts.length === 0 ? (
           <View style={g.empty}>
             <Text style={g.emptyText}>No posts yet.</Text>
             <Text style={g.emptySubtext}>Share your first coffee moment with the + button.</Text>
@@ -785,7 +799,14 @@ export default function ProfilePage() {
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
                 onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
                 isOwner={user?.id === post.user_id}
-                onEdit={(p) => setEditingPost(p)}
+                onEdit={(p) => openComposePost({
+                  editPostId: p.id,
+                  initialData: {
+                    body: p.teaser || (p as any).body,
+                    images: (p as any).images || [],
+                    location: p.location || "",
+                  },
+                })}
                 onPin={(p) => handlePinToggle(p.id)}
                 onDelete={(p) => setPostToDelete(p)}
               />
@@ -882,9 +903,20 @@ export default function ProfilePage() {
         {tabContent}
       </ScrollView>
 
-      {/* FAB — only on posts tab, not in edit mode */}
-      {activeTab === "posts" && !showCompose && !isEditing && (
-        <Pressable onPress={() => setShowCompose(true)} style={s.fab}>
+      {/* FAB — only on posts tab, not in edit mode. Routes to the
+          sitewide composer so the mid-band layout is consistent
+          with the Home feed. Posts on a user's own profile go to
+          `/roaster-posts` with a `user_<id>` slug — legacy shared
+          table for every owned post type. (§2.40.3 / §2.40.6) */}
+      {activeTab === "posts" && !isEditing && (
+        <Pressable
+          onPress={() => openComposePost({
+            endpoint: "/roaster-posts",
+            extraData: { roaster_slug: `user_${user?.id}` },
+            refetchEventName: "crema:profile-posts-updated",
+          })}
+          style={s.fab}
+        >
           <Plus size={22} color="#FAF8F0" strokeWidth={2.5} />
         </Pressable>
       )}
@@ -1059,23 +1091,9 @@ export default function ProfilePage() {
         </Modal>
       )}
 
-      {/* Edit post modal */}
-      <Modal visible={!!editingPost} transparent animationType="fade" onRequestClose={() => setEditingPost(null)}>
-        <View style={s.editPostOverlayWrap}>
-          <Pressable style={s.editPostOverlayBg} onPress={() => setEditingPost(null)} />
-          <View style={s.editPostModal}>
-            {editingPost && (
-              <ComposePost
-                onSubmit={async (data) => { await handleEditPost(editingPost.id, data); }}
-                onCancel={() => setEditingPost(null)}
-                user={user}
-                products={Array.from(productMap?.values() || [])}
-                initialData={{ body: editingPost.teaser || editingPost.body, images: editingPost.images || [], location: editingPost.location || "" }}
-              />
-            )}
-          </View>
-        </View>
-      </Modal>
+      {/* Edit post routes to the sitewide composer (GlobalComposePost)
+          via the `openComposePost` helper — same mid-band treatment
+          as the Home FAB so chrome stays painted on mobile. */}
 
       <ConfirmDeleteModal
         visible={!!postToDelete}

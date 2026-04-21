@@ -25,6 +25,7 @@
     "tag.text": "#5D4E42",
     "unavailable": "#B0A89F",
     "overlay": "rgba(104,79,68,0.6)",
+    "overlay.panel": "rgba(53,17,1,0.35)",
     "flash": "rgba(215,152,218,0.25)",
     "shadow": "#351101",
     "roaster.panel": "#2a0d00",

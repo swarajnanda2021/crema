@@ -15,7 +15,7 @@ import { trackClick } from "../api/client";
 import { useShare } from "../hooks/useShare";
 import { useShelves } from "../hooks/useShelves";
 import { useAuth } from "../hooks/useAuth";
-import PopularityModal from "./PopularityModal";
+import { openPopularityModal } from "./primitives";
 import InterestedButton from "./InterestedButton";
 
 interface CoffeeCardProps {
@@ -42,7 +42,6 @@ const SHELF_KEYS: ShelfKey[] = ["open_bags", "on_the_list"];
 const BTN_SIZE = 31;
 
 export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 240, height: cardH = 372, shelfMode, isOwner = true, currentShelf, onMoveShelf, onRemove, onAddToShelf, onEdit }: CoffeeCardProps) {
-  const [showPopularity, setShowPopularity] = useState(false);
   const [showShelfPicker, setShowShelfPicker] = useState(false);
   const [showWholesaleInquiry, setShowWholesaleInquiry] = useState(false);
   const [shelvedAs, setShelvedAs] = useState<ShelfKey | null>(currentShelf || null);
@@ -133,7 +132,14 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
       {!(shelfMode && !isOwner && !isBusinessViewer && onAddToShelf)
         && userCount != null && userCount > 0 && (
           <Pressable
-            onPress={() => setShowPopularity(true)}
+            onPress={() => openPopularityModal({
+              productId: coffee.product_id,
+              coffeeName: coffee.coffee_name,
+              roasterName: coffee.roaster_name,
+              roastLevel: coffee.roast_level,
+              process: coffee.process,
+              productUrl: coffee.product_url,
+            })}
             style={s.socialCircle}
             accessibilityLabel={`${userCount} people have this on a shelf`}
           >
@@ -208,16 +214,10 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
         </View>
       </View>
 
-      <PopularityModal
-        visible={showPopularity}
-        productId={coffee.product_id}
-        coffeeName={coffee.coffee_name}
-        roasterName={coffee.roaster_name}
-        roastLevel={coffee.roast_level}
-        process={coffee.process}
-        productUrl={coffee.product_url}
-        onClose={() => setShowPopularity(false)}
-      />
+      {/* PopularityModal is no longer mounted here; we emit
+         `crema:open-popularity` via the helper above and the sitewide
+         GlobalPopularityModal at root layout handles presentation
+         (mid-band on mobile, centered card on web). (§2.40.3) */}
 
       {/* Controlled wholesale inquiry modal — opens when a café viewer
          taps the Package chip on the card. Renders nothing for non-café

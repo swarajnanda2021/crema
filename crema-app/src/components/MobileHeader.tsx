@@ -2,18 +2,16 @@
  * MobileHeader — native + narrow-web top chrome (per Figma 63:4710).
  *
  * Layout: Crema wordmark centered (tappable, routes to feed), with
- * search + bell icons on the right. No left-side chrome — back
- * buttons come from react-navigation's Stack on detail screens.
+ * search + bell icons on the right, hamburger on the left. No Stack
+ * back button — each icon TOGGLES a slide-in panel hosted by the
+ * root-level `MobileOverlays` component (§2.40.1-2). The panels sit
+ * between this header and the `MobileFooter` so the Crema chrome
+ * stays painted while a panel is open — re-tapping the icon closes
+ * the same panel.
  *
  * The SafeAreaView paints the burnt-brown bg through the iPhone
  * notch / Dynamic Island and pushes the 48px row below the top
  * inset. Web (insets.top = 0) just renders the 48px row.
- *
- * Icons navigate to standalone Stack screens (/search,
- * /notifications) rather than dropdowns — dropdowns remain the web
- * wide experience triggered from Navbar.tsx; on mobile they'd be
- * cramped and feel un-native. The Stack header gives us a free back
- * button on each destination.
  */
 import { View, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
@@ -23,6 +21,7 @@ import { Search, Bell, Menu } from "lucide-react-native";
 import { t } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
+import { emit } from "../utils/events";
 import CremaLogo from "./CremaLogo";
 
 const MOBILE_HEADER_HEIGHT = (t.size as any)["navbar.mobile.height"];
@@ -39,13 +38,13 @@ export default function MobileHeader() {
       style={s.safe}
     >
       <View style={s.header}>
-        {/* Left side — hamburger opens the /account screen (profile
-           switcher, edit, sign out). Equal-width to the right flank
-           so the logo sits optically centered. */}
+        {/* Left side — hamburger toggles the left-slide Account panel
+           (profile switcher, edit, sign out). Equal-width to the right
+           flank so the logo sits optically centered. */}
         <View style={[s.side, s.sideLeft]}>
           {user && (
             <Pressable
-              onPress={() => router.push("/account")}
+              onPress={() => emit("crema:toggle-account-panel")}
               style={s.iconBtn}
               hitSlop={10}
               accessibilityLabel="Account menu"
@@ -69,11 +68,11 @@ export default function MobileHeader() {
           <CremaLogo width={105} height={21.6} />
         </Pressable>
 
-        {/* Right side — search + bell. Both push Stack screens so the
-           destination has a native back button. */}
+        {/* Right side — search + bell. Both TOGGLE slide-in panels
+           hosted by MobileOverlays; re-tapping closes the same panel. */}
         <View style={s.side}>
           <Pressable
-            onPress={() => router.push("/search")}
+            onPress={() => emit("crema:toggle-search-panel")}
             style={s.iconBtn}
             hitSlop={10}
             accessibilityLabel="Search"
@@ -84,7 +83,7 @@ export default function MobileHeader() {
 
           {user && (
             <Pressable
-              onPress={() => router.push("/notifications")}
+              onPress={() => emit("crema:toggle-notifications-panel")}
               style={s.iconBtn}
               hitSlop={10}
               accessibilityLabel="Notifications"

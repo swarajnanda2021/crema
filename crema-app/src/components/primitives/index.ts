@@ -19,3 +19,38 @@ export { default as ConfirmDeleteModal } from "./ConfirmDeleteModal";
 export function openPostModal(opts: { postId?: number; post?: any; mode?: string; highlightCommentId?: number }) {
   emit("crema:open-post", opts);
 }
+
+/** Fire the sitewide PopularityModal — CoffeeCard's social dot is
+ * the sole caller. Mounted at root layout inside the chrome-aware
+ * mid-band wrapper so on mobile the MobileHeader + MobileFooter
+ * stay painted while the modal is open. (§2.40.3) */
+export function openPopularityModal(opts: {
+  productId: string;
+  coffeeName: string;
+  roasterName?: string;
+  roastLevel?: string;
+  process?: string;
+  productUrl?: string;
+}) {
+  emit("crema:open-popularity", opts);
+}
+
+/** Fire the sitewide feed composer — the Home FAB + Profile "Post"
+ * prompt + Roaster/Café-profile FABs all route through here so there
+ * is a single composer surface sitewide. Mounted at root layout
+ * inside the chrome-aware mid-band wrapper. (§2.40.3 / §2.40.6)
+ *
+ * `endpoint` lets the caller override the POST target — defaults to
+ * `/posts` (regular feed), but the roaster / café / user-profile
+ * flows set `/roaster-posts` + `/cafe-posts` + their own slug
+ * via `extraData` so the same composer UI funnels into the right
+ * table on submit. */
+export function openComposePost(opts?: {
+  initialData?: { body?: string; images?: any[]; location?: string };
+  editPostId?: number;
+  endpoint?: string;
+  extraData?: Record<string, any>;
+  refetchEventName?: string;
+}) {
+  emit("crema:open-compose", opts || {});
+}

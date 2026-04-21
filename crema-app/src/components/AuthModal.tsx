@@ -20,12 +20,16 @@ import { useEffect, useState } from "react";
 import {
   Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
 
 import { t } from "../tokens/useTokens";
 import { listen } from "../utils/events";
 import { useAuth } from "../hooks/useAuth";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import CremaLogo from "./CremaLogo";
+
+const MOBILE_HEADER_HEIGHT = (t.size as any)["navbar.mobile.height"];
 
 type Track = "user" | "business";
 
@@ -42,6 +46,8 @@ function AuthModalContent({
   visible, onClose,
 }: { visible: boolean; onClose: () => void }) {
   const { login, register } = useAuth();
+  const { isMobile } = useBreakpoint();
+  const insets = useSafeAreaInsets();
   const [isLogin, setIsLogin] = useState(true);
   const [track, setTrack] = useState<Track>("user");
   const [username, setUsername] = useState("");
@@ -81,16 +87,13 @@ function AuthModalContent({
     setError(`${provider[0].toUpperCase() + provider.slice(1)} sign-in is coming soon.`);
   };
 
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
-      <View style={s.overlayWrap}>
-        <Pressable style={s.overlayBg} onPress={close} />
-        <View style={[s.card, { backgroundColor: bgColor }]}>
-          {/* Close button in the corner — absolute so it doesn't
-             throw off the hero's centering. */}
-          <Pressable onPress={close} hitSlop={8} style={s.closeBtn}>
-            <X size={20} color={fgColor} />
-          </Pressable>
+  const cardBody = (
+    <View style={[s.card, isMobile && s.cardMidBand, { backgroundColor: bgColor }]}>
+      {/* Close button in the corner — absolute so it doesn't
+         throw off the hero's centering. */}
+      <Pressable onPress={close} hitSlop={8} style={s.closeBtn}>
+        <X size={20} color={fgColor} />
+      </Pressable>
 
           <ScrollView
             contentContainerStyle={s.scrollContent}
@@ -197,8 +200,24 @@ function AuthModalContent({
                 </>
               )}
             </View>
-          </ScrollView>
-        </View>
+      </ScrollView>
+    </View>
+  );
+
+  // Mobile: mid-band absolute (chrome preserved). Web wide: centered
+  // floating overlay via RN Modal.
+  if (isMobile) {
+    return (
+      <View style={[s.mobileHost, { top: insets.top + MOBILE_HEADER_HEIGHT, bottom: 0 }]}>
+        {cardBody}
+      </View>
+    );
+  }
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
+      <View style={s.overlayWrap}>
+        <Pressable style={s.overlayBg} onPress={close} />
+        {cardBody}
       </View>
     </Modal>
   );
@@ -222,6 +241,22 @@ const s = StyleSheet.create({
     maxHeight: "90%",
     overflow: "hidden",
     zIndex: 1,
+  } as any,
+  // Mobile: mid-band absolute host. GlobalPostModal-style: parent is
+  // the root relative wrapper so `bottom: 0` = top of MobileFooter.
+  mobileHost: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    backgroundColor: t.color.bg,
+    ...(Platform.OS === "web" ? { zIndex: 40 } : { elevation: 12 }),
+  } as any,
+  cardMidBand: {
+    width: "100%" as any,
+    height: "100%" as any,
+    maxWidth: undefined,
+    maxHeight: undefined,
+    borderRadius: 0,
   } as any,
   closeBtn: {
     position: "absolute",

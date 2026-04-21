@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, Platform, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
+import { X } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
 import { CroppedAvatar, openPostModal } from "./primitives";
 import { timeAgo } from "./primitives";
@@ -193,11 +194,24 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread, 
         {/* Header */}
         <View style={s.header}>
           <Text style={s.headerTitle}>Notifications</Text>
-          {unreadCount > 0 && (
-            <Pressable onPress={markAllRead}>
-              <Text style={s.markRead}>Mark all read</Text>
-            </Pressable>
-          )}
+          <View style={s.headerActions}>
+            {unreadCount > 0 && (
+              <Pressable onPress={markAllRead} hitSlop={6}>
+                <Text style={s.markRead}>Mark all read</Text>
+              </Pressable>
+            )}
+            {fullScreen && (
+              <Pressable
+                onPress={onClose}
+                hitSlop={10}
+                accessibilityLabel="Close"
+                accessibilityRole="button"
+                style={s.closeBtn}
+              >
+                <X size={18} color={t.color["text.primary"]} strokeWidth={1.75} />
+              </Pressable>
+            )}
+          </View>
         </View>
 
         <View style={s.divider} />
@@ -312,7 +326,16 @@ const s = StyleSheet.create({
     paddingVertical: 10,
   },
   headerTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: "#351101" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: t.spacing.md } as any,
   markRead: { fontFamily: t.font["body.medium"], fontSize: 12, color: "#D798DA" },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: t.color["card.info"],
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
   divider: { height: 1, backgroundColor: "#EDE8E1", marginHorizontal: 12 },
   list: { maxHeight: 400 },
   empty: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#A09580", textAlign: "center", paddingVertical: 32 },

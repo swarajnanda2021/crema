@@ -8,7 +8,7 @@ import { useState, useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { Settings, PenLine, LogOut, UserPlus, QrCode, Trash2 } from "lucide-react-native";
+import { Settings, PenLine, LogOut, UserPlus, QrCode, Trash2, X } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
 import { resolveUploadUrl } from "../api/client";
 import { useAuth, SavedAccount } from "../hooks/useAuth";
@@ -88,10 +88,14 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
     } else if (user.account_type === "cafe" && user.cafe_slug) {
       router.push(`/cafe/${user.cafe_slug}?edit=1` as any);
     } else {
-      // Navigate to profile page, then signal edit mode via custom event
-      // (Expo Router tabs don't re-render params on same-route push)
+      // Navigate to profile page, then signal edit mode via custom
+      // event (Expo Router tabs don't re-render params on same-route
+      // push). Delay generously — the account panel's exit animation
+      // runs ~220ms; we want the event to arrive AFTER the panel's
+      // backdrop + slide are fully gone so the edit banner doesn't
+      // animate in on top of the dying panel. (§2.40.5)
       router.push("/profile");
-      setTimeout(() => emit("crema:edit-profile"), 100);
+      setTimeout(() => emit("crema:edit-profile"), 280);
     }
   };
 
@@ -146,6 +150,28 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
 
       {/* Dropdown card */}
       <View ref={cardRef} style={[s.card, cardFixedStyle, cardOverrides]}>
+        {/* FullScreen panel gets a "Account" title bar with an X
+           close — mirrors SearchDropdown / NotificationsDropdown so
+           every mobile slide-panel has a consistent dismiss
+           affordance on top of the backdrop tap. */}
+        {fullScreen && (
+          <>
+            <View style={s.panelHeader}>
+              <Text style={s.panelTitle}>Account</Text>
+              <Pressable
+                onPress={onClose}
+                hitSlop={10}
+                accessibilityLabel="Close"
+                accessibilityRole="button"
+                style={s.panelCloseBtn}
+              >
+                <X size={18} color={t.color["text.primary"]} strokeWidth={1.75} />
+              </Pressable>
+            </View>
+            <View style={s.divider} />
+          </>
+        )}
+
         {/* ── Current account header — clickable, goes to profile ── */}
         <Pressable onPress={handleManage} style={({ pressed }) => [s.accountHeader, pressed && s.menuItemPressed]}>
           {user.avatar_url ? (
@@ -282,6 +308,28 @@ const s = StyleSheet.create({
     shadowRadius: 24,
     elevation: 12,
   },
+
+  // ── Panel title bar (fullScreen only)
+  panelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: t.spacing.lg,
+    paddingVertical: t.spacing.md,
+  } as any,
+  panelTitle: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.lg"],
+    color: t.color["text.primary"],
+  } as any,
+  panelCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: t.color["card.info"],
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
 
   // ── Current account header
   accountHeader: {
