@@ -96,20 +96,27 @@ export default function MobileFooter() {
 
   const hidden = getChromeHiddenAnim();
   const footerTotalH = 71 + insets.bottom;
-  // Two-layer collapse: the OUTER wrapper clips everything —
-  // including the bar's upward drop-shadow — so when hidden=1 the
-  // strip leaves zero residue in the flex column. The inner `bar`
-  // keeps its original shadow / bg / padding so nothing changes
-  // visually when fully shown.
+  // Two-layer collapse: the OUTER wrapper clips everything so the
+  // strip shrinks out of the flex column. Parallel opacity fade
+  // masks the last 2–6 px of residue caused by iOS shadows + Android
+  // elevation, which bypass the parent's overflow:hidden and would
+  // otherwise leave a faint cream stripe at full-hide.
   const heightAnim = hidden.interpolate({
     inputRange: [0, 1],
     outputRange: [footerTotalH, 0],
+  });
+  // Fade hard in the last 20% of the collapse — stays crisp while
+  // visible, then drops to 0 right as the height pinches shut.
+  const opacityAnim = hidden.interpolate({
+    inputRange: [0, 0.8, 1],
+    outputRange: [1, 1, 0],
   });
 
   return (
     <Animated.View
       style={{
         height: heightAnim,
+        opacity: opacityAnim,
         overflow: "hidden",
       }}
     >

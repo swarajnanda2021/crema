@@ -17,6 +17,7 @@ import Svg, { Path } from "react-native-svg";
 import { t } from "../../src/tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { openExternal } from "../../src/utils/openExternal";
+import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import SiteHeader from "../../src/components/SiteHeader";
@@ -776,7 +777,12 @@ export default function CafeDetailPage() {
         </View>
       ) : (
         // Narrow layout: single scroll, left panel stacked above right panel
-        <ScrollView style={{ flex: 1, backgroundColor: t.color.bg }} contentContainerStyle={{ paddingBottom: 60 }}>
+        <ScrollView
+          style={{ flex: 1, backgroundColor: t.color.bg }}
+          contentContainerStyle={{ paddingBottom: 60 }}
+          onScroll={onChromeScroll}
+          scrollEventThrottle={16}
+        >
           <View style={s.leftPanel}>
             <Pressable onPress={() => router.back()} style={s.backBtn}>
               <ArrowLeft size={16} color={t.color["text.on-dark"]} />

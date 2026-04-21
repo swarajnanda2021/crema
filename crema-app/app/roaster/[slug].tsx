@@ -24,6 +24,7 @@ import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
+import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t } from "../../src/tokens/useTokens";
 import CoffeeCard from "../../src/components/CoffeeCard";
@@ -1033,7 +1034,12 @@ export default function RoasterDetailPage() {
 function ResponsiveWrapper({ isWide, children }: { isWide: boolean; children: React.ReactNode }) {
   if (isWide) return <>{children}</>;
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: t.color.bg }} contentContainerStyle={{ paddingBottom: 60 }}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: t.color.bg }}
+      contentContainerStyle={{ paddingBottom: 60 }}
+      onScroll={onChromeScroll}
+      scrollEventThrottle={16}
+    >
       {children}
     </ScrollView>
   );

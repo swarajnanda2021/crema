@@ -15,6 +15,7 @@ import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useCafes } from "../../src/hooks/useCafes";
 import { useSearchBarAutoHide } from "../../src/hooks/useSearchBarAutoHide";
+import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { t, cardShadow } from "../../src/tokens/useTokens";
 import CoffeeList from "../../src/components/CoffeeList";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
@@ -217,7 +218,7 @@ export default function BrowsePage() {
             <CoffeeList
               coffees={filtered}
               popularity={popularity}
-              onScroll={handleBeansScroll}
+              onScroll={(e) => { onChromeScroll(e); handleBeansScroll(e); }}
               ListHeaderComponent={
                 hasActiveFilters ? (
                   <View style={s.listHeader}>
@@ -540,8 +541,8 @@ function RoastersList() {
         <ScrollView
           style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={50}
+          onScroll={(e) => { onChromeScroll(e); handleScroll(e); }}
+          scrollEventThrottle={16}
           onLayout={(e) => setContainerW(e.nativeEvent.layout.width)}
           contentContainerStyle={{ paddingBottom: 100 }}
         >
@@ -672,8 +673,8 @@ function CafesList() {
         <ScrollView
           style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={50}
+          onScroll={(e) => { onChromeScroll(e); handleScroll(e); }}
+          scrollEventThrottle={16}
           onLayout={(e) => setContainerW(e.nativeEvent.layout.width)}
           contentContainerStyle={{ paddingBottom: 100 }}
         >

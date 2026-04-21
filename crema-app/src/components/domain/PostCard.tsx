@@ -41,6 +41,10 @@ interface PostCardProps {
   onEdit?: (post: Post) => void;
   onPin?: (post: Post) => void;
   onDelete?: (post: Post) => void;
+  /** Feed rows on mobile replace the ActionBar with swipe gestures
+   *  (§2.40.11). Set this true on mobile feed call-sites so the
+   *  bar is omitted; PostModal + non-feed surfaces keep it. */
+  hideActionBar?: boolean;
 }
 
 // X-style mobile sizing.
@@ -53,6 +57,7 @@ const NESTED_AVATAR_MOBILE = Math.round(t.size["avatar.xs"] * 1.5);
 
 export default function PostCard({
   post, user, isOwner, onComment, onRepost, onViewOriginal, onEdit, onPin, onDelete,
+  hideActionBar,
 }: PostCardProps) {
   const router = useRouter();
   const { isMobile } = useBreakpoint();
@@ -225,7 +230,7 @@ export default function PostCard({
     </View>
   );
 
-  const actionBarEl = (
+  const actionBarEl = hideActionBar ? null : (
     <ActionBar
       postId={post.id}
       likeCount={post.like_count}

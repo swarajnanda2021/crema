@@ -17,8 +17,10 @@ import { apiFetchRaw } from "../../src/api/client";
 import { listen } from "../../src/utils/events";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { useResource } from "../../src/resources/useResource";
+import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
 import PostCard from "../../src/components/domain/PostCard";
+import SwipeToCommit from "../../src/components/mobile/SwipeToCommit";
 import { t } from "../../src/tokens/useTokens";
 import type { Post } from "../../src/resources/types";
 
@@ -26,6 +28,7 @@ const FEED_PER_PAGE = 5;
 
 export default function FeedPage() {
   const { user } = useAuth();
+  const { isMobile } = useBreakpoint();
   const [visibleCount, setVisibleCount] = useState(FEED_PER_PAGE);
   const [refreshing, setRefreshing] = useState(false);
   const [postToDelete, setPostToDelete] = useState<Post | null>(null);
@@ -80,12 +83,13 @@ export default function FeedPage() {
         {items.length === 0 ? (
           <Text style={s.empty}>Nothing in the feed yet. Taste some coffees!</Text>
         ) : (
-          items.slice(0, visibleCount).map((post, idx) => (
-            <View key={`post-${post.id}-${idx}`}>
+          items.slice(0, visibleCount).map((post, idx) => {
+            const card = (
               <PostCard
                 post={post}
                 user={user}
                 isOwner={user?.id === post.user_id}
+                hideActionBar={isMobile}
                 onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
                 onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
@@ -99,9 +103,32 @@ export default function FeedPage() {
                 })}
                 onDelete={(p) => setPostToDelete(p)}
               />
-              {idx < Math.min(items.length, visibleCount) - 1 && <View style={s.divider} />}
-            </View>
-          ))
+            );
+            return (
+              <View key={`post-${post.id}-${idx}`}>
+                {isMobile ? (
+                  <SwipeToCommit
+                    onSwipeLike={async () => {
+                      // Fire the toggle endpoint directly; refetch so the
+                      // feed's post state reflects the new like count.
+                      // ActionBar is hidden on mobile feed rows, so the
+                      // round-trip is the sole source of truth.
+                      try {
+                        await apiFetchRaw(`/post_likes/${post.id}/toggle`, { method: "POST" });
+                        refetch();
+                      } catch {
+                        /* swallow — the swipe is best-effort */
+                      }
+                    }}
+                    onSwipeComment={() => openPostModal({ post, mode: "comment" })}
+                  >
+                    {card}
+                  </SwipeToCommit>
+                ) : card}
+                {idx < Math.min(items.length, visibleCount) - 1 && <View style={s.divider} />}
+              </View>
+            );
+          })
         )}
       </ScrollView>
 

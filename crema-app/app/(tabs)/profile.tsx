@@ -21,6 +21,7 @@ import { useShelves } from "../../src/hooks/useShelves";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useCafes } from "../../src/hooks/useCafes";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
+import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t, SHELF_LABELS } from "../../src/tokens/useTokens";
 
@@ -898,6 +899,7 @@ export default function ProfilePage() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#351101" />}
         showsVerticalScrollIndicator={false}
         onScroll={(e) => {
+          onChromeScroll(e);
           const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
           if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 300) {
             if (activeTab === "posts" && visiblePostCount < posts.length) {
@@ -905,7 +907,7 @@ export default function ProfilePage() {
             }
           }
         }}
-        scrollEventThrottle={400}
+        scrollEventThrottle={16}
       >
         {!isEditing && heroContent}
         {isEditing && heroContent}

@@ -33,6 +33,7 @@ import { CroppedAvatar, timeAgo } from "./primitives";
 import { useInquiryInbox, InboxRow } from "../hooks/useInquiryInbox";
 import { useAuth } from "../hooks/useAuth";
 import { useBreakpoint } from "../hooks/useBreakpoint";
+import { onChromeScroll } from "../utils/chromeScroll";
 import ThreadBody, { ThreadKind } from "./ThreadBody";
 import NewMessagePicker from "./NewMessagePicker";
 import SwipeableRow, { SwipeAction } from "./SwipeableRow";
@@ -289,7 +290,12 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
             </>
           )}
 
-          <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={s.list}
+            showsVerticalScrollIndicator={false}
+            onScroll={fullScreen ? onChromeScroll : undefined}
+            scrollEventThrottle={fullScreen ? 16 : undefined}
+          >
             {(() => {
               // Filter once per render; cheap enough for small inboxes.
               const visibleThreads = isBusiness ? threads.filter((r) => threadTab(r) === tab) : threads;
