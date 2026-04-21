@@ -53,7 +53,7 @@ export default function ActionBar({
   }, [shareUrl]);
 
   return (
-    <View style={s.bar}>
+    <View style={[s.bar, isMobile && s.barMobile]}>
       <Toggle
         resource="post_likes"
         targetId={postId}
@@ -92,6 +92,10 @@ export default function ActionBar({
 
 const s = StyleSheet.create({
   bar: { flexDirection: "row", alignItems: "center", gap: 20, paddingHorizontal: 20, paddingTop: 12 } as any,
+  // Mobile: PostCard already indents the action row with the rest
+  // of the X-style content column, so the bar drops its own
+  // horizontal padding. Wider gap matches the bigger icons.
+  barMobile: { paddingHorizontal: 0, paddingTop: 10, gap: 24 } as any,
   btn: { flexDirection: "row", alignItems: "center", gap: 6 } as any,
   count: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
   copiedText: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color.accent },
