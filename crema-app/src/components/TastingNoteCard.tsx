@@ -105,10 +105,12 @@ export default function TastingNoteCard({
   const trackW = TRACK_W * s;
   const scores = [acidity, body, sweetness, aftertaste];
 
+  // Canela lining + proportional numerals — OpenType feature string
+  // on web, RN fontVariant prop on native.
   const lining =
     Platform.OS === "web"
       ? ({ fontFeatureSettings: "'lnum', 'pnum'" } as any)
-      : {};
+      : ({ fontVariant: ["lining-nums", "proportional-nums"] } as any);
 
   const metaParts = [
     process ? `${process} Process` : null,

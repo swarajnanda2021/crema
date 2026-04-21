@@ -6,9 +6,15 @@ import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { t } from "../tokens/useTokens";
 
+// Canela lining + proportional numerals. On web we set the OpenType
+// features directly; on native iOS/Android the equivalent is the
+// RN `fontVariant` style prop (prior to this the native path had no
+// override at all — prices rendered with the font's default numeral
+// set, which for Canela is old-style and reads wrong alongside
+// price labels).
 const canelaNumeral = Platform.OS === "web"
-  ? { fontFeatureSettings: "'lnum', 'pnum'" } as any
-  : {};
+  ? ({ fontFeatureSettings: "'lnum', 'pnum'" } as any)
+  : ({ fontVariant: ["lining-nums", "proportional-nums"] } as any);
 
 interface CoffeeLabelProps {
   coffee_name: string;

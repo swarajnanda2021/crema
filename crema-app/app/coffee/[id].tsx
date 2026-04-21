@@ -18,8 +18,8 @@ import type { BrewMethod } from "../../src/resources/types";
 
 /** Canela lining numerals */
 const canelaNumeral = Platform.OS === "web"
-  ? { fontFeatureSettings: "'lnum' 1, 'pnum' 1" } as any
-  : {};
+  ? ({ fontFeatureSettings: "'lnum' 1, 'pnum' 1" } as any)
+  : ({ fontVariant: ["lining-nums", "proportional-nums"] } as any);
 
 export default function CoffeeDetailPage() {
   const { id } = useLocalSearchParams<{ id: string }>();

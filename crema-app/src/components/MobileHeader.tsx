@@ -61,15 +61,17 @@ export default function MobileHeader() {
   const insets = useSafeAreaInsets();
   const hidden = getChromeHiddenAnim();
   const fullHeight = MOBILE_HEADER_HEIGHT + insets.top;
-  // Animate the WRAPPER HEIGHT (not just transform) so the flex
-  // column reflows when chrome hides — otherwise the 63-px slot
-  // lingers on top of the feed. Pair it with a translateY of the
-  // inner bar so the hide feels like a slide-up instead of a
-  // crunch. Height drives the layout; translateY polishes the
-  // motion.
+  // Collapse only the NAVBAR portion (63 px) — the safe-area top
+  // inset stays painted in navbar.bg so on notched iPhones the
+  // Dynamic Island / camera cutout keeps its dark backdrop and
+  // the page content below never rises into that zone. Before
+  // this, the wrapper collapsed to 0 and the Browse sub-tab row
+  // (BEANS / ROASTERS / CAFÉS) drifted up under the Island at
+  // the instant chrome hid. The collapse still frees 63 px for
+  // the feed — we just refuse to yield the status-bar strip.
   const heightAnim = hidden.interpolate({
     inputRange: [0, 1],
-    outputRange: [fullHeight, 0],
+    outputRange: [fullHeight, insets.top],
   });
 
   return (

@@ -1053,7 +1053,8 @@ function ResponsiveWrapper({ isWide, children }: { isWide: boolean; children: Re
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const liningNumerals = Platform.OS === "web"
-  ? { fontFeatureSettings: "'lnum', 'pnum'" } as any : {};
+  ? ({ fontFeatureSettings: "'lnum', 'pnum'" } as any)
+  : ({ fontVariant: ["lining-nums", "proportional-nums"] } as any);
 
 const s = StyleSheet.create({
   notFound: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: t.color.bg },

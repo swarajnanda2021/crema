@@ -205,7 +205,14 @@ export default function BrowsePage() {
             {/* Scroll-aware search bar. On mobile the filter icon
                 lives INSIDE the tab bar (§Figma 63:5934) — the
                 search row is input-only. */}
-            <View style={[s.searchBarWrap, searchBarHidden && s.searchBarWrapHidden] as any}>
+            {/* Search bar. On mobile the MobileHeader + chrome-scroll
+                already hides out of the way — running BOTH hide
+                animations in parallel caused jitter (setState reflow
+                on every scroll event fighting the chrome anim), so
+                we skip the state-based collapse here on mobile and
+                leave the search row sticky. Web wide still runs the
+                §2.16 useSearchBarAutoHide pattern. */}
+            <View style={[s.searchBarWrap, !isMobile && searchBarHidden && s.searchBarWrapHidden] as any}>
               <View style={s.stickySearchWrap}>
                 <View style={s.searchBar}>
                   <Search size={16} color={t.color["text.muted"]} />
@@ -218,7 +225,7 @@ export default function BrowsePage() {
             <CoffeeList
               coffees={filtered}
               popularity={popularity}
-              onScroll={(e) => { onChromeScroll(e); handleBeansScroll(e); }}
+              onScroll={(e) => { onChromeScroll(e); if (!isMobile) handleBeansScroll(e); }}
               ListHeaderComponent={
                 hasActiveFilters ? (
                   <View style={s.listHeader}>
@@ -450,6 +457,7 @@ function RoasterCard({
 function RoastersList() {
   const { roasters, products } = useCoffeeData();
   const { width } = useWindowDimensions();
+  const { isMobile } = useBreakpoint();
   const isDesktop = width >= 1024;
   const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
   const [roasterQuery, setRoasterQuery] = useState("");
@@ -503,7 +511,7 @@ function RoastersList() {
   };
 
   return (
-    <View style={s.browseLayout}>
+    <View style={[s.browseLayout, isMobile && s.browseLayoutMobile]}>
       {/* City filter sidebar */}
       {isDesktop && (
         <ScrollView
@@ -528,7 +536,7 @@ function RoastersList() {
       {isDesktop && <View style={s.verticalDivider} />}
 
       <View style={{ flex: 1, minWidth: 0 }}>
-        <View style={[s.searchBarWrap, searchBarHidden && s.searchBarWrapHidden] as any}>
+        <View style={[s.searchBarWrap, !isMobile && searchBarHidden && s.searchBarWrapHidden] as any}>
           <View style={s.stickySearchWrap}>
             <View style={s.searchBar}>
               <Search size={16} color={t.color["text.muted"]} />
@@ -541,7 +549,7 @@ function RoastersList() {
         <ScrollView
           style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
-          onScroll={(e) => { onChromeScroll(e); handleScroll(e); }}
+          onScroll={(e) => { onChromeScroll(e); if (!isMobile) handleScroll(e); }}
           scrollEventThrottle={16}
           onLayout={(e) => setContainerW(e.nativeEvent.layout.width)}
           contentContainerStyle={{ paddingBottom: 100 }}
@@ -591,6 +599,7 @@ function CafeCard({
 function CafesList() {
   const { cafes, popularity, loading } = useCafes();
   const { width } = useWindowDimensions();
+  const { isMobile } = useBreakpoint();
   const isDesktop = width >= 1024;
   const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
   const [cafeQuery, setCafeQuery] = useState("");
@@ -634,7 +643,7 @@ function CafesList() {
   };
 
   return (
-    <View style={s.browseLayout}>
+    <View style={[s.browseLayout, isMobile && s.browseLayoutMobile]}>
       {isDesktop && (
         <ScrollView
           style={[s.sidebar, { width: sidebarW, minWidth: sidebarW, maxWidth: sidebarW }]}
@@ -660,7 +669,7 @@ function CafesList() {
       {isDesktop && <View style={s.verticalDivider} />}
 
       <View style={{ flex: 1, minWidth: 0 }}>
-        <View style={[s.searchBarWrap, searchBarHidden && s.searchBarWrapHidden] as any}>
+        <View style={[s.searchBarWrap, !isMobile && searchBarHidden && s.searchBarWrapHidden] as any}>
           <View style={s.stickySearchWrap}>
             <View style={s.searchBar}>
               <Search size={16} color={t.color["text.muted"]} />
@@ -673,7 +682,7 @@ function CafesList() {
         <ScrollView
           style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
-          onScroll={(e) => { onChromeScroll(e); handleScroll(e); }}
+          onScroll={(e) => { onChromeScroll(e); if (!isMobile) handleScroll(e); }}
           scrollEventThrottle={16}
           onLayout={(e) => setContainerW(e.nativeEvent.layout.width)}
           contentContainerStyle={{ paddingBottom: 100 }}

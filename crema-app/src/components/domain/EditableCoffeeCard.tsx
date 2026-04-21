@@ -23,8 +23,8 @@ import { CartIcon } from "../icons/FigmaIcons";
 const IMAGE_RATIO = 160 / 372;
 
 const liningNumerals = Platform.OS === "web"
-  ? { fontFeatureSettings: "'lnum', 'pnum'" } as any
-  : {};
+  ? ({ fontFeatureSettings: "'lnum', 'pnum'" } as any)
+  : ({ fontVariant: ["lining-nums", "proportional-nums"] } as any);
 
 interface EditableCoffeeCardProps {
   roasterName: string;
