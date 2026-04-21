@@ -140,13 +140,30 @@ export default function PostModal({
                   <View style={s.repostPreview}>
                     <View style={s.repostPreviewHeader}>
                       {user?.avatar_url ? (
-                        <CroppedAvatar url={user.avatar_url} cropX={user.avatar_crop_x} cropY={user.avatar_crop_y} zoom={user.avatar_zoom} size={30} />
+                        <CroppedAvatar
+                          url={user.avatar_url}
+                          cropX={user.avatar_crop_x}
+                          cropY={user.avatar_crop_y}
+                          zoom={user.avatar_zoom}
+                          size={isMobile ? 60 : 30}
+                        />
                       ) : (
-                        <View style={s.repostAvatarFb}><Text style={s.repostAvatarLetter}>{(user?.display_name || "?")[0].toUpperCase()}</Text></View>
+                        <View style={[
+                          s.repostAvatarFb,
+                          isMobile && { width: 60, height: 60, borderRadius: 30 },
+                        ]}>
+                          <Text style={[s.repostAvatarLetter, isMobile && { fontSize: 22 }]}>
+                            {(user?.display_name || "?")[0].toUpperCase()}
+                          </Text>
+                        </View>
                       )}
                       <View>
-                        <Text style={s.repostPreviewName}>{user?.display_name}</Text>
-                        <Text style={s.repostPreviewSubtitle}>Reposting</Text>
+                        <Text style={[s.repostPreviewName, isMobile && { fontSize: 17.7 }]}>
+                          {user?.display_name}
+                        </Text>
+                        <Text style={[s.repostPreviewSubtitle, isMobile && { fontSize: 15, marginTop: 4 }]}>
+                          Reposting
+                        </Text>
                       </View>
                     </View>
 
@@ -164,14 +181,31 @@ export default function PostModal({
                     <View style={s.repostNestedCard}>
                       <View style={s.repostNestedHeader}>
                         {post.author?.avatar_url ? (
-                          <CroppedAvatar url={post.author.avatar_url} cropX={post.author.avatar_crop_x} cropY={post.author.avatar_crop_y} zoom={post.author.avatar_zoom} size={20} />
+                          <CroppedAvatar
+                            url={post.author.avatar_url}
+                            cropX={post.author.avatar_crop_x}
+                            cropY={post.author.avatar_crop_y}
+                            zoom={post.author.avatar_zoom}
+                            size={isMobile ? 40 : 20}
+                          />
                         ) : (
-                          <View style={[s.repostAvatarFb, { width: 20, height: 20, borderRadius: 10 }]}>
-                            <Text style={[s.repostAvatarLetter, { fontSize: 8 }]}>{(post.author?.display_name || "?")[0].toUpperCase()}</Text>
+                          <View style={[
+                            s.repostAvatarFb,
+                            isMobile
+                              ? { width: 40, height: 40, borderRadius: 20 }
+                              : { width: 20, height: 20, borderRadius: 10 },
+                          ]}>
+                            <Text style={[s.repostAvatarLetter, { fontSize: isMobile ? 14 : 8 }]}>
+                              {(post.author?.display_name || "?")[0].toUpperCase()}
+                            </Text>
                           </View>
                         )}
-                        <Text style={s.repostNestedAuthor} numberOfLines={1}>{post.author?.display_name}</Text>
-                        <Text style={s.repostNestedTime}>{timeAgo(post.published_at)}</Text>
+                        <Text style={[s.repostNestedAuthor, isMobile && { fontSize: 16.5 }]} numberOfLines={1}>
+                          {post.author?.display_name}
+                        </Text>
+                        <Text style={[s.repostNestedTime, isMobile && { fontSize: 15 }]}>
+                          {timeAgo(post.published_at)}
+                        </Text>
                       </View>
                       <Text style={s.repostNestedTeaser} numberOfLines={3}>{post.teaser}</Text>
                       {post.images?.length > 0 && (

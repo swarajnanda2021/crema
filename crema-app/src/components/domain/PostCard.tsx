@@ -18,6 +18,7 @@ import PostGallery from "../PostGallery";
 import PostMenu from "../PostMenu";
 import { resolveUploadUrl } from "../../api/client";
 import { t } from "../../tokens/useTokens";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { PostLocationPinIcon } from "../icons/FigmaIcons";
 import type { Post } from "../../resources/types";
 
@@ -37,11 +38,17 @@ export default function PostCard({
   post, user, isOwner, onComment, onRepost, onViewOriginal, onEdit, onPin, onDelete,
 }: PostCardProps) {
   const router = useRouter();
+  const { isMobile } = useBreakpoint();
   const isPinned = !!post.is_pinned;
   const isArticle = post.post_type === "article";
   const isRepost = post.post_type === "repost";
   const isSourcingStory = post.post_type === "sourcing_story";
   const [storyExpanded, setStoryExpanded] = useState(false);
+
+  // Mobile scale — per spec: avatar thumbnail 2x, author name +
+  // subtitle + timestamp +50%, icons +50%. Web unchanged.
+  const feedAvatarSize = isMobile ? t.size["avatar.feed"] * 2 : t.size["avatar.feed"];
+  const repostAvatarSize = isMobile ? t.size["avatar.xs"] * 2 : t.size["avatar.xs"];
 
   const subtitleText = isPinned ? "Pinned"
     : post.post_type === "tasting_note" ? "Posted a tasting note"
@@ -75,19 +82,24 @@ export default function PostCard({
               cropX={author.avatar_crop_x}
               cropY={author.avatar_crop_y}
               zoom={author.avatar_zoom}
-              size={t.size["avatar.feed"]}
+              size={feedAvatarSize}
             />
           ) : (
-            <View style={s.avatarFb}>
-              <Text style={s.avatarLetter}>{(author.display_name || "?")[0].toUpperCase()}</Text>
+            <View style={[
+              s.avatarFb,
+              isMobile && { width: feedAvatarSize, height: feedAvatarSize, borderRadius: feedAvatarSize / 2 },
+            ]}>
+              <Text style={[s.avatarLetter, isMobile && s.avatarLetterMobile]}>
+                {(author.display_name || "?")[0].toUpperCase()}
+              </Text>
             </View>
           )}
           <View style={{ flex: 1 }}>
             <View style={s.metaRow}>
-              <Text style={s.authorName}>{author.display_name}</Text>
-              <Text style={s.metaTime}>{timeAgo(post.published_at)}</Text>
+              <Text style={[s.authorName, isMobile && s.authorNameMobile]}>{author.display_name}</Text>
+              <Text style={[s.metaTime, isMobile && s.metaTimeMobile]}>{timeAgo(post.published_at)}</Text>
             </View>
-            <Text style={s.metaSubtitle}>{subtitleText}</Text>
+            <Text style={[s.metaSubtitle, isMobile && s.metaSubtitleMobile]}>{subtitleText}</Text>
           </View>
         </Pressable>
         {isOwner && (
@@ -156,20 +168,23 @@ export default function PostCard({
                   cropX={post.original_post.author.avatar_crop_x}
                   cropY={post.original_post.author.avatar_crop_y}
                   zoom={post.original_post.author.avatar_zoom}
-                  size={t.size["avatar.xs"]}
+                  size={repostAvatarSize}
                 />
               ) : (
-                <View style={s.repostAvatarFb}>
-                  <Text style={s.repostAvatarLetter}>
+                <View style={[
+                  s.repostAvatarFb,
+                  isMobile && { width: repostAvatarSize, height: repostAvatarSize, borderRadius: repostAvatarSize / 2 },
+                ]}>
+                  <Text style={[s.repostAvatarLetter, isMobile && s.repostAvatarLetterMobile]}>
                     {(post.original_post.author?.display_name || "?")[0].toUpperCase()}
                   </Text>
                 </View>
               )}
-              <Text style={s.repostAuthor} numberOfLines={1}>
+              <Text style={[s.repostAuthor, isMobile && s.repostAuthorMobile]} numberOfLines={1}>
                 {post.original_post.author?.display_name}
               </Text>
             </Pressable>
-            <Text style={s.repostTime}>{timeAgo(post.original_post.published_at)}</Text>
+            <Text style={[s.repostTime, isMobile && s.repostTimeMobile]}>{timeAgo(post.original_post.published_at)}</Text>
           </View>
           <Text style={s.repostTeaser} numberOfLines={3}>{post.original_post.teaser}</Text>
           {(post.original_post.images?.length > 0 || post.original_post.cover_image_url) && (
@@ -235,6 +250,13 @@ const s = StyleSheet.create({
   metaTime: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.muted"] },
   metaDot: { color: t.color["text.muted"], fontSize: 10 },
   metaSubtitle: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.secondary"], marginTop: 2 },
+  // Mobile overrides — avatar thumbnail doubles (applied inline via
+  // `feedAvatarSize`), text rows +50%. Web stays on the original
+  // values above.
+  authorNameMobile: { fontSize: 17.7 } as any,
+  metaTimeMobile: { fontSize: 15 } as any,
+  metaSubtitleMobile: { fontSize: 15, marginTop: 4 } as any,
+  avatarLetterMobile: { fontSize: 22 } as any,
   bodyWrap: { paddingHorizontal: 20 },
   body: { fontFamily: t.font["body.regular"], fontSize: 16.8, color: t.color["text.primary"], lineHeight: 23.5, marginBottom: 10 },
   locationRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, marginBottom: 14 } as any,
@@ -248,6 +270,9 @@ const s = StyleSheet.create({
   repostAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 8, color: t.color["text.on-dark"] },
   repostAuthor: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.primary"] },
   repostTime: { fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["text.muted"] },
+  repostAuthorMobile: { fontSize: 16.5 } as any,
+  repostTimeMobile: { fontSize: 15 } as any,
+  repostAvatarLetterMobile: { fontSize: 12 } as any,
   repostTeaser: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.secondary"], lineHeight: 18 },
 
   // Article thumbnail
