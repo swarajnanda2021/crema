@@ -806,6 +806,7 @@ export default function ProfilePage() {
           posts.slice(0, visiblePostCount).map((post: any, idx: number) => (
             <View key={`post-${post.id}-${idx}`}>
               <PostCard post={post} user={user}
+                onOpen={(p) => openPostModal({ post: p, mode: "view" })}
                 onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
                 onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}

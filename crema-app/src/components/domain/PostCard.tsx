@@ -45,6 +45,12 @@ interface PostCardProps {
    *  (§2.40.11). Set this true on mobile feed call-sites so the
    *  bar is omitted; PostModal + non-feed surfaces keep it. */
   hideActionBar?: boolean;
+  /** Mobile-only tap-to-open. With the ActionBar hidden on mobile,
+   *  the card itself becomes the affordance: tap anywhere that isn't
+   *  the avatar / name / repost-inner claims → open the PostModal
+   *  in view mode. Web wide ignores this — its ActionBar carries
+   *  explicit comment / like / repost buttons. */
+  onOpen?: (post: Post) => void;
 }
 
 // X-style mobile sizing.
@@ -57,7 +63,7 @@ const NESTED_AVATAR_MOBILE = Math.round(t.size["avatar.xs"] * 1.5);
 
 export default function PostCard({
   post, user, isOwner, onComment, onRepost, onViewOriginal, onEdit, onPin, onDelete,
-  hideActionBar,
+  hideActionBar, onOpen,
 }: PostCardProps) {
   const router = useRouter();
   const { isMobile } = useBreakpoint();
@@ -122,7 +128,14 @@ export default function PostCard({
     </>
   );
 
-  const bodyEl = (
+  // On mobile with onOpen wired, the outer card Pressable catches
+  // the tap — drop the inner Pressable so the touch falls through.
+  // On web the body still wraps a Pressable for article / link posts
+  // whose primary action is "open the external URL".
+  const mobileTapToOpen = isMobile && !!onOpen;
+  const bodyEl = mobileTapToOpen ? (
+    <Text style={[s.body, s.bodyMobile]}>{post.teaser}</Text>
+  ) : (
     <Pressable onPress={isRepost ? undefined : handleOpen}>
       <Text style={[s.body, isMobile && s.bodyMobile]}>{post.teaser}</Text>
     </Pressable>
@@ -211,8 +224,12 @@ export default function PostCard({
     </Pressable>
   ) : null;
 
+  // Mobile tap-to-open: article + gallery route taps to the modal
+  // instead of the external URL. The link is reachable inside the
+  // modal. Web wide keeps the direct external-URL affordance.
+  const mediaTapHandler = mobileTapToOpen ? () => onOpen!(post) : handleOpen;
   const articleOrGalleryEl = isArticle && post.cover_image_url ? (
-    <Pressable onPress={handleOpen} style={isMobile ? s.articleWrapMobile : s.articleWrap}>
+    <Pressable onPress={mediaTapHandler} style={isMobile ? s.articleWrapMobile : s.articleWrap}>
       <Image source={{ uri: resolveUploadUrl(post.cover_image_url) }} style={s.articleImg} contentFit="cover" />
       <View style={s.articleOverlay}>
         {post.title && <Text style={s.articleTitle} numberOfLines={2}>{post.title}</Text>}
@@ -225,7 +242,7 @@ export default function PostCard({
     <View style={isMobile ? s.galleryWrapMobile : s.galleryWrap}>
       <PostGallery
         images={post.images || (post.cover_image_url ? [post.cover_image_url] : [])}
-        onPress={handleOpen}
+        onPress={mediaTapHandler}
       />
     </View>
   );
@@ -246,8 +263,17 @@ export default function PostCard({
   // ── Mobile: X-style indent ───────────────────────────────────────
 
   if (isMobile) {
+    // Tap-to-open: on mobile the card itself is the affordance to
+    // reach the PostModal. Nested Pressables (avatar → author, name
+    // block → author, repost inner → original, story toggle, media)
+    // claim touches in their regions first; the outer Pressable only
+    // fires when the user tapped empty space or the body text.
+    const CardContainer: any = mobileTapToOpen ? Pressable : View;
+    const containerProps = mobileTapToOpen
+      ? { onPress: () => onOpen!(post), style: s.cardMobile }
+      : { style: s.cardMobile };
     return (
-      <View style={s.cardMobile}>
+      <CardContainer {...containerProps}>
         <View style={s.cardRowMobile}>
           {/* Avatar column — tap routes to author. */}
           <Pressable onPress={goToAuthor} style={s.avatarColMobile}>
@@ -278,7 +304,7 @@ export default function PostCard({
             {actionBarEl}
           </View>
         </View>
-      </View>
+      </CardContainer>
     );
   }
 

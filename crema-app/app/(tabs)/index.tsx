@@ -90,6 +90,7 @@ export default function FeedPage() {
                 user={user}
                 isOwner={user?.id === post.user_id}
                 hideActionBar={isMobile}
+                onOpen={(p) => openPostModal({ post: p, mode: "view" })}
                 onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
                 onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}

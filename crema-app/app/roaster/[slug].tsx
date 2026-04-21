@@ -787,6 +787,7 @@ export default function RoasterDetailPage() {
                   <View key={post.id}>
                     <PostCard
                       post={post} user={user} isOwner={isOwner}
+                      onOpen={(p) => openPostModal({ post: p, mode: "view" })}
                       onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                       onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
                       onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}

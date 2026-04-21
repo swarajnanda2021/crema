@@ -2508,6 +2508,7 @@ function PostsTab({ posts, onRefresh }: { posts: any[]; onRefresh: () => void })
         <PostCard
           key={p.id}
           post={p}
+          onOpen={(post) => openPostModal({ postId: post.id, mode: "view" })}
           onComment={(post) => openPostModal({ postId: post.id, mode: "comment" })}
           onRepost={(post) => openPostModal({ postId: post.id, mode: "repost" })}
         />
