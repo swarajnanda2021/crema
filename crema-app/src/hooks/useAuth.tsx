@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { apiFetchRaw, setToken } from "../api/client";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
+import { router } from "expo-router";
 import { emit } from "../utils/events";
 
 interface User {
@@ -306,16 +307,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .sort((a, b) => (typePriority[a.account_type || "user"] ?? 9)
         - (typePriority[b.account_type || "user"] ?? 9))[0];
 
-    if (next && Platform.OS === "web" && typeof window !== "undefined") {
+    if (next) {
       await setToken(next.token);
       try {
         const meRes = await apiFetchRaw<any>("/auth/me");
         const me = meRes?.data ?? meRes;
         upsertAccount(me, next.token);
         if (username) removeAccount(username);
-        // Hard-navigate. Page reload replaces React state entirely
-        // so we don't need setUser() / setToken() cleanup here.
-        window.location.assign(entityHomeFor(me));
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          // Hard-navigate. Page reload replaces React state entirely
+          // so we don't need setUser() / setToken() cleanup here.
+          window.location.assign(entityHomeFor(me));
+        } else {
+          // Native: push the provider state + route to the new
+          // identity's entity home. Without the router.replace we
+          // would linger on the previous account's page; without
+          // the `loading-end` the NavigationLoader curtain would
+          // stay up forever.
+          setUser(me);
+          router.replace(entityHomeFor(me) as any);
+          emit("crema:loading-end");
+        }
         return;
       } catch {
         // Stale next-account token — wipe it and fall through to
@@ -325,14 +337,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // No next account (or the next token was stale) — drop the
-    // current session cleanly and hard-reload. The landing page
-    // triggers AuthGate's unauthenticated redirect to /auth.
+    // current session cleanly. Web hard-reloads into "/" which
+    // AuthGate redirects to /auth; native router.replaces directly
+    // and the provider state drop ensures the feed doesn't flash
+    // on the way out.
     await setToken(null);
     setUser(null);
     if (username) removeAccount(username);
 
     if (Platform.OS === "web" && typeof window !== "undefined") {
       window.location.assign("/");
+    } else {
+      router.replace("/auth");
+      emit("crema:loading-end");
     }
   }, [user]);
 
@@ -355,23 +372,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // briefly render with the incoming account's token but the
     // outgoing account's props.
     emit("crema:loading-start");
-    await setToken(token);
-    const meRes = await apiFetchRaw<any>("/auth/me");
-    const me = meRes?.data ?? meRes;
-    setUser(me);
-    upsertAccount(me, token);
-    // Hard navigate on web so every hook / component remounts with the
-    // new identity. Cached data (feed, caf\u00e9 / roaster pages, owner
-    // affordances, navbar avatar) all re-read from the new session
-    // token without any bespoke invalidation.
-    // On native, callers are expected to router.replace to the home
-    // tab — the provider state change is enough since there's no
-    // persistent URL state to blow away.
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      const target = entityHomeFor(me);
-      window.location.assign(target);
+    try {
+      await setToken(token);
+      const meRes = await apiFetchRaw<any>("/auth/me");
+      const me = meRes?.data ?? meRes;
+      setUser(me);
+      upsertAccount(me, token);
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        // Hard navigate on web so every hook / component remounts
+        // under the new identity. The post-reload NavigationLoader
+        // restarts from scratch; no matching `loading-end` needed.
+        window.location.assign(entityHomeFor(me));
+      } else {
+        // Native: push the user to the new identity's entity home
+        // (profile / roaster / café). Without this we'd stay on
+        // the previous account's page. Then emit `loading-end` so
+        // the NavigationLoader curtain hides — previously this was
+        // missing and the curtain hung indefinitely.
+        router.replace(entityHomeFor(me) as any);
+        emit("crema:loading-end");
+      }
+      return me;
+    } catch (e) {
+      // Never let an exception leave the loader curtain stuck up.
+      emit("crema:loading-end");
+      throw e;
     }
-    return me;
   }, []);
 
   const getSavedAccounts = useCallback((): SavedAccount[] => {
