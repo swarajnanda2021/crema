@@ -37,8 +37,14 @@ interface AuthContextValue {
   user: User | null;
   backendAvailable: boolean;
   loading: boolean;
-  login: (username: string, password: string) => Promise<User>;
-  register: (username: string, displayName: string, password: string) => Promise<User>;
+  /** `expectedIsBusiness` is the UI track the user is signing in
+   *  through — "For you" passes false, "For business" passes true.
+   *  If the returned account's type doesn't match the track, the
+   *  call throws BEFORE any session state is mutated (no token,
+   *  no saved-account swap), so an accidental cross-track login
+   *  can't evict the other account from the saved pool. */
+  login: (username: string, password: string, expectedIsBusiness?: boolean) => Promise<User>;
+  register: (username: string, displayName: string, password: string, expectedIsBusiness?: boolean) => Promise<User>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<User>;
   switchAccount: (token: string) => Promise<User>;
@@ -59,19 +65,76 @@ async function getStoredToken(): Promise<string | null> {
   return SecureStore.getItemAsync("coffee_session_token");
 }
 
-// ── Multi-account helpers (web localStorage) ─────────────────────────────────
+// ── Multi-account helpers (web localStorage + native SecureStore) ───────────
+
+// In-memory cache — keeps reads synchronous on both platforms. On
+// native, app boot hydrates this from SecureStore; on web, it's
+// hydrated lazily by the first `readSavedAccounts` call.
+let _savedCache: SavedAccount[] | null = null;
+let _hydrationPromise: Promise<void> | null = null;
+
+/** Hydrate the in-memory cache from persistent storage. Web is sync
+ *  (reads localStorage directly); native awaits SecureStore. Safe to
+ *  call repeatedly — only the first call hits storage. */
+async function hydrateSavedAccounts(): Promise<void> {
+  if (_savedCache !== null) return;
+  if (_hydrationPromise) return _hydrationPromise;
+  _hydrationPromise = (async () => {
+    try {
+      if (Platform.OS === "web") {
+        if (typeof localStorage !== "undefined") {
+          const raw = localStorage.getItem(ACCOUNTS_KEY);
+          _savedCache = raw ? JSON.parse(raw) : [];
+        } else {
+          _savedCache = [];
+        }
+      } else {
+        // SecureStore items cap at ~2 KB on iOS. A JSON blob of up to
+        // ~3 accounts (~1.2 KB) fits comfortably — one user, one
+        // roaster, one café + their tokens.
+        const raw = await SecureStore.getItemAsync(ACCOUNTS_KEY);
+        _savedCache = raw ? JSON.parse(raw) : [];
+      }
+    } catch {
+      _savedCache = [];
+    } finally {
+      _hydrationPromise = null;
+    }
+  })();
+  return _hydrationPromise;
+}
 
 function readSavedAccounts(): SavedAccount[] {
-  if (Platform.OS !== "web" || typeof localStorage === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(ACCOUNTS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+  // Lazy-hydrate on web (sync access to localStorage). On native the
+  // cache is expected to be primed by AuthProvider's boot effect —
+  // until that resolves we return an empty list.
+  if (_savedCache === null) {
+    if (Platform.OS === "web") {
+      hydrateSavedAccounts();
+    } else {
+      // Kick off the hydrate; won't help this call but primes future
+      // reads. Safe to fire-and-forget.
+      void hydrateSavedAccounts();
+      return [];
+    }
+  }
+  return _savedCache ?? [];
 }
 
 function writeSavedAccounts(accounts: SavedAccount[]) {
-  if (Platform.OS !== "web" || typeof localStorage === "undefined") return;
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+  _savedCache = accounts;
+  if (Platform.OS === "web") {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+    }
+    return;
+  }
+  // Native: fire-and-forget. The in-memory cache is authoritative
+  // for the current session; SecureStore just makes it survive a
+  // restart. Failures here are logged but don't surface to the user.
+  SecureStore.setItemAsync(ACCOUNTS_KEY, JSON.stringify(accounts)).catch(
+    (e) => console.warn("Failed to persist saved accounts:", e?.message),
+  );
 }
 
 function upsertAccount(user: User, token: string) {
@@ -100,6 +163,25 @@ function removeAccount(username: string) {
   writeSavedAccounts(accounts);
 }
 
+/** Reject an auth call whose account type doesn't match the
+ *  user-facing track (For you / For business). Throws BEFORE any
+ *  session state mutates so a cross-track login can't evict the
+ *  currently-saved account of the other type. */
+function assertTrackMatch(user: User, expectedIsBusiness?: boolean) {
+  if (expectedIsBusiness === undefined) return;
+  const type = user.account_type || "user";
+  const userIsBusiness = type === "roaster" || type === "cafe";
+  if (userIsBusiness === expectedIsBusiness) return;
+  if (expectedIsBusiness) {
+    throw new Error(
+      "This is a consumer account. Switch to 'For you' to sign in.",
+    );
+  }
+  throw new Error(
+    `This is a ${type} (business) account. Switch to 'For business' to sign in.`,
+  );
+}
+
 /** Where to land a user after a hard-reload switch. Roasters and cafés
  * go to their entity profile so the owner affordances (edit banner,
  * menu controls, scan button) light up immediately; regular users
@@ -126,6 +208,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
+        // Prime the saved-accounts cache FIRST. On native this
+        // reads SecureStore async; without it, `readSavedAccounts`
+        // returns [] on every sync call and multi-account switching
+        // silently breaks.
+        await hydrateSavedAccounts();
+
         await apiFetchRaw("/dictionary/brew-methods");
         setBackendAvailable(true);
 
@@ -144,12 +232,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const login = useCallback(async (username: string, password: string) => {
+  const login = useCallback(async (username: string, password: string, expectedIsBusiness?: boolean) => {
     const raw = await apiFetchRaw<any>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     });
     const res = raw?.data ?? raw;
+    // Track guard — reject a mismatch BEFORE any session state
+    // mutates. Otherwise a roaster signing in via "For you" would
+    // evict the currently-saved user account before we realized it
+    // was the wrong track.
+    assertTrackMatch(res.user, expectedIsBusiness);
     await setToken(res.token);
     setUser(res.user);
     upsertAccount(res.user, res.token);
@@ -161,12 +254,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return res.user;
   }, []);
 
-  const register = useCallback(async (username: string, displayName: string, password: string) => {
+  const register = useCallback(async (username: string, displayName: string, password: string, expectedIsBusiness?: boolean) => {
     const raw = await apiFetchRaw<any>("/auth/register", {
       method: "POST",
       body: JSON.stringify({ username, display_name: displayName, password }),
     });
     const res = raw?.data ?? raw;
+    assertTrackMatch(res.user, expectedIsBusiness);
     await setToken(res.token);
     setUser(res.user);
     upsertAccount(res.user, res.token);

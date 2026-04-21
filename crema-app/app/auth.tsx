@@ -56,9 +56,9 @@ export default function AuthPage() {
     setLoading(true);
     try {
       if (isLogin) {
-        await login(username, password);
+        await login(username, password, isBusiness);
       } else {
-        await register(username, displayName || username, password);
+        await register(username, displayName || username, password, isBusiness);
       }
       router.replace("/");
     } catch (e: any) {

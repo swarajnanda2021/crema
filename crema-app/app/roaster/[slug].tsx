@@ -23,6 +23,7 @@ import { Plus, X, PenLine, Camera, MapPin, Check } from "lucide-react-native";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { useAuth } from "../../src/hooks/useAuth";
+import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t } from "../../src/tokens/useTokens";
 import CoffeeCard from "../../src/components/CoffeeCard";
@@ -175,6 +176,7 @@ export default function RoasterDetailPage() {
   const { getProfile, refreshProfiles, loading: profileLoading } = useRoasterProfiles();
   const { height: winH, width: winW } = useWindowDimensions();
   const isWide = winW >= 800;
+  const { isMobile } = useBreakpoint();
 
   // Roaster lookup
   const productRoaster = roasters.find((r: any) => r.slug === slug);
@@ -736,28 +738,43 @@ export default function RoasterDetailPage() {
               )}
             </View>
 
-            {/* Tab bar */}
-            <View style={s.rightTabBar}>
-              {!postsLoading && allPosts.length > 0 && (
-                <Pressable onPress={() => setActiveTab("posts")} style={s.rightTab}>
-                  <Text style={[s.rightTabText, activeTab === "posts" && s.rightTabTextActive]}>POSTS</Text>
-                  {activeTab === "posts" && <View style={s.rightTabUnderline} />}
-                </Pressable>
-              )}
-              <Pressable onPress={() => setActiveTab("beans")} style={s.rightTab}>
-                <Text style={[s.rightTabText, activeTab === "beans" && s.rightTabTextActive]}>BEANS</Text>
-                {activeTab === "beans" && <View style={s.rightTabUnderline} />}
-              </Pressable>
-              {/* Analytics tab — owner-only. The page layout is
-                 identical to the others (right-panel tab bar +
-                 conditionally-rendered content below). */}
-              {isOwner && (
-                <Pressable onPress={() => setActiveTab("analytics")} style={s.rightTab}>
-                  <Text style={[s.rightTabText, activeTab === "analytics" && s.rightTabTextActive]}>ANALYTICS</Text>
-                  {activeTab === "analytics" && <View style={s.rightTabUnderline} />}
-                </Pressable>
-              )}
-            </View>
+            {/* Tab bar — wraps in a horizontal ScrollView on mobile
+               so POSTS / BEANS / ANALYTICS can scroll past the
+               viewport when the full labels overflow. */}
+            {(() => {
+              const tabs = (
+                <>
+                  {!postsLoading && allPosts.length > 0 && (
+                    <Pressable onPress={() => setActiveTab("posts")} style={s.rightTab}>
+                      <Text style={[s.rightTabText, activeTab === "posts" && s.rightTabTextActive]}>POSTS</Text>
+                      {activeTab === "posts" && <View style={s.rightTabUnderline} />}
+                    </Pressable>
+                  )}
+                  <Pressable onPress={() => setActiveTab("beans")} style={s.rightTab}>
+                    <Text style={[s.rightTabText, activeTab === "beans" && s.rightTabTextActive]}>BEANS</Text>
+                    {activeTab === "beans" && <View style={s.rightTabUnderline} />}
+                  </Pressable>
+                  {isOwner && (
+                    <Pressable onPress={() => setActiveTab("analytics")} style={s.rightTab}>
+                      <Text style={[s.rightTabText, activeTab === "analytics" && s.rightTabTextActive]}>ANALYTICS</Text>
+                      {activeTab === "analytics" && <View style={s.rightTabUnderline} />}
+                    </Pressable>
+                  )}
+                </>
+              );
+              return isMobile ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={[s.rightTabBar, s.rightTabBarMobileOuter]}
+                  contentContainerStyle={s.rightTabBarMobileInner}
+                >
+                  {tabs}
+                </ScrollView>
+              ) : (
+                <View style={s.rightTabBar}>{tabs}</View>
+              );
+            })()}
 
             {/* POSTS TAB */}
             {activeTab === "posts" && (
@@ -1147,6 +1164,23 @@ const s = StyleSheet.create({
   rightTabBar: {
     flexDirection: "row", alignItems: "stretch", backgroundColor: t.color.bg,
     height: 80, paddingLeft: 56, gap: 100, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)",
+  } as any,
+  // Mobile: match Discover tab bar (Figma 63:5927) — 60 tall,
+  // 24 gap, 32 left/right padding. Outer = ScrollView frame (no
+  // vertical growth); Inner = the flex row.
+  rightTabBarMobileOuter: {
+    height: (t.size as any)["tabbar.mobile.height"],
+    flexGrow: 0,
+    flexShrink: 0,
+    paddingLeft: 0,
+    gap: 0,
+  } as any,
+  rightTabBarMobileInner: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: t.spacing["2xl"],
+    paddingHorizontal: t.spacing["3xl"],
+    height: "100%" as any,
   } as any,
   rightTab: { justifyContent: "center", position: "relative" } as any,
   rightTabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: t.color["text.primary"] } as any,

@@ -20,6 +20,7 @@ import { listen } from "../../src/utils/events";
 import { useShelves } from "../../src/hooks/useShelves";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useCafes } from "../../src/hooks/useCafes";
+import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t, SHELF_LABELS } from "../../src/tokens/useTokens";
 
@@ -179,6 +180,7 @@ export default function ProfilePage() {
   const { edit } = useLocalSearchParams<{ edit?: string }>();
   const { width: screenW } = useWindowDimensions();
   const isNarrow = screenW < 768;
+  const { isMobile } = useBreakpoint();
 
   // Sellers (roasters / cafés) go to their entity profile page instead
   useEffect(() => {
@@ -755,29 +757,37 @@ export default function ProfilePage() {
       ? "FOLLOWING"
       : "SITE ANALYTICS";
 
-  const tabBar = (
-    <View style={s.tabBar}>
-      {visibleTabs.map((tab) => (
-        <Pressable
-          key={tab}
-          onPress={() => {
-            setActiveTab(tab);
-            setVisiblePostCount(POSTS_PER_PAGE);
-          }}
-          style={s.tab}
-        >
-          <Text
-            style={[
-              s.tabText,
-              activeTab === tab && s.tabTextActive,
-            ]}
-          >
-            {baseLabel(tab)}
-          </Text>
-          {activeTab === tab && <View style={s.tabUnderline} />}
-        </Pressable>
-      ))}
-    </View>
+  const tabChildren = visibleTabs.map((tab) => (
+    <Pressable
+      key={tab}
+      onPress={() => {
+        setActiveTab(tab);
+        setVisiblePostCount(POSTS_PER_PAGE);
+      }}
+      style={s.tab}
+    >
+      <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
+        {baseLabel(tab)}
+      </Text>
+      {activeTab === tab && <View style={s.tabUnderline} />}
+    </Pressable>
+  ));
+
+  // Mobile: tabs ride in a horizontal ScrollView so users can swipe
+  // to reach tabs that overflow the viewport (POSTS / SHELF /
+  // STAMPS / FOLLOWING / ANALYTICS — 5 wide tabs don't fit in
+  // 390 px). Wide web keeps the flat flex row.
+  const tabBar = isMobile ? (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={[s.tabBar, s.tabBarMobile]}
+      contentContainerStyle={s.tabBarMobileInner}
+    >
+      {tabChildren}
+    </ScrollView>
+  ) : (
+    <View style={s.tabBar}>{tabChildren}</View>
   );
 
   // ── Tab content ────────────────────────────────────────────────────────
@@ -1343,6 +1353,23 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(215,209,196,0.5)",
   },
+  // Mobile: match the Discover tab bar (Figma 63:5927) exactly —
+  // 60-px tall, 24-px (t.spacing["2xl"]) gap between labels,
+  // 32-px left padding so the active underline lines up with the
+  // hero image's left edge. `flexGrow: 0` on the outer ScrollView
+  // keeps the bar from greedily claiming vertical space.
+  tabBarMobile: {
+    height: (t.size as any)["tabbar.mobile.height"],
+    flexGrow: 0,
+    flexShrink: 0,
+  } as any,
+  tabBarMobileInner: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: t.spacing["2xl"],
+    paddingHorizontal: t.spacing["3xl"],
+    height: "100%" as any,
+  } as any,
   tab: { justifyContent: "center", position: "relative" } as any,
   tabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: "#A09580", letterSpacing: 0.5, textTransform: "uppercase" },
   tabTextActive: { color: "#351101" },

@@ -73,8 +73,8 @@ function AuthModalContent({
     setError("");
     setLoading(true);
     try {
-      if (isLogin) await login(username, password);
-      else await register(username, displayName || username, password);
+      if (isLogin) await login(username, password, isBusiness);
+      else await register(username, displayName || username, password, isBusiness);
       close();
     } catch (e: any) {
       setError(e?.message || "Something went wrong");

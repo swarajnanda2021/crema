@@ -125,13 +125,20 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
 
   const handleAddAccount = () => {
     onClose();
-    // Open the sitewide floating AuthModal instead of navigating away —
-    // users keep their current page and can add a second account inline.
-    if (Platform.OS === "web") {
-      emit("crema:open-auth-modal");
-    } else {
-      router.push("/auth?addAccount=1");
-    }
+    // Always open the sitewide AuthModal (cross-platform). After the
+    // session-2 rework, AuthModal renders as a mid-band absolute
+    // overlay on mobile and a centered floating card on web wide, so
+    // there's no reason to split on Platform.OS anymore. Routing to
+    // /auth?addAccount=1 on native used to race the AuthGate
+    // redirect (native has no `window.location` so the `addAccount`
+    // query param check couldn't be detected at root) and dropped
+    // the user back on the feed — that bug is gone once we stop
+    // routing. (§2.40.4)
+    //
+    // Delay past the Account panel's exit animation (220 ms) so the
+    // auth overlay animates cleanly into an empty mid-band instead
+    // of stomping on top of the dying panel.
+    setTimeout(() => emit("crema:open-auth-modal"), 260);
   };
 
   const cardFixedStyle = fullScreen

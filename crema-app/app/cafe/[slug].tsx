@@ -18,6 +18,7 @@ import { t } from "../../src/tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { openExternal } from "../../src/utils/openExternal";
 import { useAuth } from "../../src/hooks/useAuth";
+import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import SiteHeader from "../../src/components/SiteHeader";
 import ScannerModal from "../../src/components/ScannerModal";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
@@ -137,6 +138,7 @@ export default function CafeDetailPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { width: winW, height: winH } = useWindowDimensions();
+  const { isMobile } = useBreakpoint();
 
   const [cafe, setCafe] = useState<Cafe | null>(null);
   const [menu, setMenu] = useState<CafeMenuItem[]>([]);
@@ -705,7 +707,7 @@ export default function CafeDetailPage() {
             </View>
 
             <View style={s.rightInner}>
-              <View style={s.tabs}>
+              <TabRow isMobile={isMobile}>
                 {(
                   isOwner
                     ? ["bio", "menu", "posts", "analytics"] as TabKey[]
@@ -718,7 +720,7 @@ export default function CafeDetailPage() {
                     {activeTab === tab && <View style={s.tabUnderline} />}
                   </Pressable>
                 ))}
-              </View>
+              </TabRow>
 
               {activeTab === "bio" && (
                 <BioTab
@@ -891,7 +893,7 @@ export default function CafeDetailPage() {
             )}
           </View>
           <View style={s.rightInner}>
-            <View style={s.tabs}>
+            <TabRow isMobile={isMobile}>
               {(["bio", "menu", "posts"] as TabKey[]).map((tab) => (
                 <Pressable key={tab} onPress={() => setActiveTab(tab)} style={s.tabBtn}>
                   <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
@@ -900,7 +902,7 @@ export default function CafeDetailPage() {
                   {activeTab === tab && <View style={s.tabUnderline} />}
                 </Pressable>
               ))}
-            </View>
+            </TabRow>
             {activeTab === "bio" && (
               <BioTab
                 cafe={cafe}
@@ -1149,6 +1151,32 @@ const plm = StyleSheet.create({
   username: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"], marginTop: 1 } as any,
   divider: { height: 1, backgroundColor: "rgba(53,17,1,0.05)", marginHorizontal: 20 } as any,
 });
+
+// ── Shared tab row ──────────────────────────────────────────────────────────
+
+/** Swipeable tab row on mobile (§Figma-matched 60-tall strip);
+ *  flat row on wide web. Used for both the owner and non-owner
+ *  views so the tab visuals stay identical. */
+function TabRow({
+  isMobile, children,
+}: {
+  isMobile: boolean;
+  children: React.ReactNode;
+}) {
+  if (isMobile) {
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[s.tabs, s.tabsMobileOuter]}
+        contentContainerStyle={s.tabsMobileInner}
+      >
+        {children}
+      </ScrollView>
+    );
+  }
+  return <View style={s.tabs}>{children}</View>;
+}
 
 // ── Bio Tab ────────────────────────────────────────────────────────────────
 
@@ -2997,6 +3025,23 @@ const s = StyleSheet.create({
   // because the café can have up to 4 tabs (BIO / COFFEE MENU /
   // POSTS / ANALYTICS) where the roaster only has 2-3.
   tabs: { flexDirection: "row", alignItems: "stretch", gap: 48, height: 80, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)" },
+  // Mobile: match Discover tab bar (Figma 63:5927) — 60 tall,
+  // 24 gap, 32 horizontal padding. Outer = the ScrollView itself
+  // (fixed height, no vertical growth); Inner = the flex row the
+  // children sit in so stretch + gap + padding behave the same as
+  // a plain View.
+  tabsMobileOuter: {
+    height: (t.size as any)["tabbar.mobile.height"],
+    flexGrow: 0,
+    flexShrink: 0,
+  } as any,
+  tabsMobileInner: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: t.spacing["2xl"],
+    paddingHorizontal: t.spacing["3xl"],
+    height: "100%" as any,
+  } as any,
   tabBtn: { justifyContent: "center", position: "relative" } as any,
   tabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"], letterSpacing: 0.5, textTransform: "uppercase" } as any,
   tabTextActive: { color: t.color["text.primary"] },

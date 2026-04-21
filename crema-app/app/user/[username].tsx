@@ -19,6 +19,7 @@ import { useAuth } from "../../src/hooks/useAuth";
 import { useShelves } from "../../src/hooks/useShelves";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useCafeResolver } from "../../src/hooks/useCafeResolver";
+import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t, SHELF_LABELS } from "../../src/tokens/useTokens";
 
@@ -148,6 +149,7 @@ export default function UserProfilePage() {
   const router = useRouter();
   const { width: screenW } = useWindowDimensions();
   const isNarrow = screenW < 768;
+  const { isMobile } = useBreakpoint();
 
   // Avatar manual positioning state
   const [pubImgAspect, setPubImgAspect] = useState(1.5);
@@ -396,17 +398,28 @@ export default function UserProfilePage() {
 
   // ── Tab bar ──
   const tabs: ProfileTab[] = isOwn ? ["posts", "shelf", "stamps", "following"] : ["posts", "shelf", "stamps"];
-  const tabBar = (
-    <View style={s.tabBar}>
-      {tabs.map((tab) => (
-        <Pressable key={tab} onPress={() => { setActiveTab(tab); setVisiblePostCount(POSTS_PER_PAGE); }} style={s.tab}>
-          <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
-            {tab === "posts" ? "POSTS" : tab === "shelf" ? "COFFEE SHELF" : tab === "stamps" ? "STAMP BOOK" : "FOLLOWING"}
-          </Text>
-          {activeTab === tab && <View style={s.tabUnderline} />}
-        </Pressable>
-      ))}
-    </View>
+  const tabChildren = tabs.map((tab) => (
+    <Pressable key={tab} onPress={() => { setActiveTab(tab); setVisiblePostCount(POSTS_PER_PAGE); }} style={s.tab}>
+      <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
+        {tab === "posts" ? "POSTS" : tab === "shelf" ? "COFFEE SHELF" : tab === "stamps" ? "STAMP BOOK" : "FOLLOWING"}
+      </Text>
+      {activeTab === tab && <View style={s.tabUnderline} />}
+    </Pressable>
+  ));
+
+  // Mobile: horizontal ScrollView lets users swipe past tabs that
+  // overflow the viewport. Wide web keeps the flat row.
+  const tabBar = isMobile ? (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={[s.tabBar, s.tabBarMobile]}
+      contentContainerStyle={s.tabBarMobileInner}
+    >
+      {tabChildren}
+    </ScrollView>
+  ) : (
+    <View style={s.tabBar}>{tabChildren}</View>
   );
 
   // ── Tab content ──
@@ -635,6 +648,20 @@ const s = StyleSheet.create({
     width: "100%", maxWidth: 860, backgroundColor: t.color.bg, height: 80, gap: 48,
     borderTopWidth: 1, borderTopColor: "rgba(215,209,196,0.5)",
     borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)",
+  } as any,
+  // Mobile: match the Discover tab bar (Figma 63:5927) — 60 tall,
+  // 24 gap, 32 left/right padding. Outer ScrollView flex props.
+  tabBarMobile: {
+    height: (t.size as any)["tabbar.mobile.height"],
+    flexGrow: 0,
+    flexShrink: 0,
+  } as any,
+  tabBarMobileInner: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: t.spacing["2xl"],
+    paddingHorizontal: t.spacing["3xl"],
+    height: "100%" as any,
   } as any,
   tab: { justifyContent: "center", position: "relative" } as any,
   tabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"], letterSpacing: 0.5, textTransform: "uppercase" } as any,
