@@ -20,6 +20,7 @@ import { useResource } from "../../src/resources/useResource";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
 import PostCard from "../../src/components/domain/PostCard";
+import HiddenPostRow from "../../src/components/domain/HiddenPostRow";
 import SwipeToCommit from "../../src/components/mobile/SwipeToCommit";
 import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { t } from "../../src/tokens/useTokens";
@@ -34,19 +35,24 @@ export default function FeedPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [postToDelete, setPostToDelete] = useState<Post | null>(null);
   const scrollRef = useRef<ScrollView>(null);
-  // Optimistic local filter for hide — the recommender-engine
-  // backend row is fire-and-forget; the UX cue the user expects is
-  // "post gone from feed", so we filter the ID locally the moment
-  // Hide is tapped. Server returns `hidden_by_me=1` on refetch so
-  // hidden posts stay hidden across reloads too.
-  const [hiddenIds, setHiddenIds] = useState<Set<number>>(new Set());
+  // Local hide-state overrides. The map stores the viewer's
+  // current intent for a given post id: `true` = hidden,
+  // `false` = explicitly un-hidden (Undo after hide). Missing key
+  // = fall through to the server's `hidden_by_me` flag. This lets
+  // Undo win over a server-sourced hidden_by_me without a refetch.
+  const [hideOverrides, setHideOverrides] = useState<Map<number, boolean>>(new Map());
+  const isPostHidden = (p: Post) => {
+    if (hideOverrides.has(p.id)) return hideOverrides.get(p.id) === true;
+    return !!(p as any).hidden_by_me;
+  };
 
   // Generic resource hook — fetches all posts sorted by published_at DESC
   const { data: posts, loading, refetch } = useResource<Post>("posts", { limit: 40 });
 
-  // Normalize + filter hidden.
-  const allItems = Array.isArray(posts) ? posts : [];
-  const items = allItems.filter((p) => !hiddenIds.has(p.id) && !(p as any).hidden_by_me);
+  // Keep hidden posts in the list so we can render the
+  // HiddenPostRow stand-in + Undo. Only filter if we ever need
+  // to hard-remove (not today).
+  const items = Array.isArray(posts) ? posts : [];
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -101,6 +107,24 @@ export default function FeedPage() {
           <Text style={s.empty}>Nothing in the feed yet. Taste some coffees!</Text>
         ) : (
           items.slice(0, visibleCount).map((post, idx) => {
+            const hidden = isPostHidden(post);
+            // When hidden, swap the whole card for the collapsed
+            // Undo stand-in. Tapping Undo flips the override back to
+            // false and re-toggles the server (since post_hides is a
+            // toggle, the second POST deletes the row).
+            if (hidden) {
+              return (
+                <View key={`post-${post.id}-${idx}`}>
+                  <HiddenPostRow
+                    onUndo={() => {
+                      setHideOverrides((m) => new Map(m).set(post.id, false));
+                      hidePost(post.id);
+                    }}
+                  />
+                  {idx < Math.min(items.length, visibleCount) - 1 && <View style={s.divider} />}
+                </View>
+              );
+            }
             const card = (
               <PostCard
                 post={post}
@@ -120,7 +144,10 @@ export default function FeedPage() {
                   },
                 })}
                 onDelete={(p) => setPostToDelete(p)}
-                onHide={(p) => { setHiddenIds((s) => new Set(s).add(p.id)); hidePost(p.id); }}
+                onHide={(p) => {
+                  setHideOverrides((m) => new Map(m).set(p.id, true));
+                  hidePost(p.id);
+                }}
                 onReport={(p) => confirmAndReport(p.id)}
                 onDislike={(p) => dislikePost(p.id)}
               />

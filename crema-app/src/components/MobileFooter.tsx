@@ -27,6 +27,7 @@ import { t } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
 import { getChromeHiddenAnim, showChromeNow } from "../utils/chromeScroll";
 import { emit } from "../utils/events";
+import { tap as hapticTap, select as hapticSelect } from "../utils/haptics";
 import { CroppedAvatar } from "./primitives";
 
 interface TabDef {
@@ -140,9 +141,11 @@ export default function MobileFooter() {
           // for its own event. Inactive taps navigate.
           const onPress = () => {
             if (active) {
+              hapticSelect();
               emit(`crema:rescroll-${tab.label.toLowerCase()}`);
               showChromeNow();
             } else {
+              hapticTap();
               router.replace(tab.path as any);
             }
           };

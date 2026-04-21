@@ -22,6 +22,7 @@ import { useRef } from "react";
 import { Animated, PanResponder, View, StyleSheet, Platform } from "react-native";
 import { t } from "../../tokens/useTokens";
 import { HeartFilledOutlineIcon, CommentBubbleIcon } from "../icons/FigmaIcons";
+import { commit as hapticCommit, select as hapticSelect } from "../../utils/haptics";
 
 interface Props {
   onSwipeLike?: () => void;
@@ -56,28 +57,47 @@ function Native({ onSwipeLike, onSwipeComment, children }: Props) {
 
   const panResponder = useRef(
     PanResponder.create({
-      // Gesture arbitration mirrors SwipeableRow: horizontal travel
-      // must clearly dominate vertical (3×) and clear a 12 px minimum
-      // before we claim the touch from the parent ScrollView.
+      // Gesture arbitration: horizontal travel must dominate vertical
+      // (2×) and clear a 10 px minimum before we claim the touch
+      // from the parent ScrollView. Loosened from the 3× / 12 px
+      // SwipeableRow defaults — the scrubby feel was from the
+      // gesture needing too much commitment before it engaged;
+      // dropping to 2× / 10 px lets the disc respond to the first
+      // few pixels of intent. Tuned empirically; if false-positive
+      // swipes show up on a casual vertical scroll we tighten.
       onMoveShouldSetPanResponder: (_, g) => {
         const ax = Math.abs(g.dx);
         const ay = Math.abs(g.dy);
-        return ax > 12 && ax > ay * 3;
+        return ax > 10 && ax > ay * 2;
       },
       onMoveShouldSetPanResponderCapture: (_, g) => {
         const ax = Math.abs(g.dx);
         const ay = Math.abs(g.dy);
-        return ax > 16 && ax > ay * 3;
+        return ax > 12 && ax > ay * 2;
       },
       onPanResponderMove: (_, g) => {
+        const prev = (translateX as any)._value ?? 0;
         const clamped = Math.max(-MAX_DRAG, Math.min(MAX_DRAG, g.dx));
         translateX.setValue(clamped);
+        // Light selection tick the moment the swipe crosses the
+        // commit threshold, so the user feels the "you're in" point
+        // before they've released the finger. One tick per crossing
+        // in either direction (check sign flips).
+        const wasPastLike = prev <= -COMMIT_THRESHOLD;
+        const wasPastComment = prev >= COMMIT_THRESHOLD;
+        const isPastLike = clamped <= -COMMIT_THRESHOLD;
+        const isPastComment = clamped >= COMMIT_THRESHOLD;
+        if (isPastLike !== wasPastLike || isPastComment !== wasPastComment) {
+          hapticSelect();
+        }
       },
       onPanResponderRelease: (_, g) => {
         const dx = g.dx;
         if (dx < -COMMIT_THRESHOLD && onSwipeLike) {
+          hapticCommit();
           onSwipeLike();
         } else if (dx > COMMIT_THRESHOLD && onSwipeComment) {
+          hapticCommit();
           onSwipeComment();
         }
         spring(0).start();

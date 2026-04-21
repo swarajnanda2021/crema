@@ -121,7 +121,7 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
     return [
       {
         key: "archive",
-        label: "Archive",
+        label: localArchivedKeys.has(rowKey(row)) ? "Unarchive" : "Archive",
         background: t.color["text.primary"],
         icon: <Archive size={18} color={ICON} strokeWidth={2} />,
         onPress: async () => {
@@ -136,7 +136,16 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
               Alert.alert("Archive failed", String(e));
             }
           } else {
-            commingSoon("Archive");
+            // Non-business DM archive. Session-scoped until
+            // §2.40.8 lands the backend persistence; toggles the
+            // row between Inbox and Archive tabs immediately.
+            const key = rowKey(row);
+            setLocalArchivedKeys((prev) => {
+              const next = new Set(prev);
+              if (next.has(key)) next.delete(key);
+              else next.add(key);
+              return next;
+            });
           }
         },
       },
@@ -157,10 +166,22 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
     ];
   };
 
-  // Tab routing (business users only). Default to Business on open —
-  // that's the wholesale-lead feed they'll check most often.
+  // Tab routing. Business users (cafe / roaster) get the three-tab
+  // split (business / non-business / archive). Regular users get a
+  // two-tab split (inbox / archive) — same pattern, scoped to DMs
+  // only because they don't have wholesale inquiries. Until the
+  // DM-archive backend ships (§2.40.8), the non-business Archive
+  // tab reads from a local in-memory set populated by the inline
+  // Archive swipe action.
   const isBusiness = user?.account_type === "cafe" || user?.account_type === "roaster";
-  const [tab, setTab] = useState<InboxTab>("business");
+  const [tab, setTab] = useState<InboxTab>(isBusiness ? "business" : "non_business");
+  // Local archive store (non-business only — business inquiries
+  // already route through `wholesale_inquiries.status` on the
+  // server). Key format: `${kind}:${id}`. Session-scoped; the
+  // proper persistence ships with §2.40.8.
+  const [localArchivedKeys, setLocalArchivedKeys] = useState<Set<string>>(new Set());
+  const rowKey = (r: InboxRow) =>
+    r.kind === "wholesale_inquiry" ? `wholesale_inquiry:${r.inquiry_id}` : `direct_message:${r.thread_id}`;
 
   // Sync initialThread when the caller pushes one (e.g. notification
   // tap). Clearing on close is handled below.
@@ -264,31 +285,40 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
           </View>
           <View style={s.divider} />
 
-          {/* Tabs (business only). Regular users skip this strip. Each
-             tab carries its own unread count — mirrors §2.4
-             Activity/Business notification tabs. */}
-          {isBusiness && (
-            <>
-              <View style={s.tabRow}>
-                {(["business", "non_business", "archive"] as InboxTab[]).map((key) => {
-                  const active = key === tab;
-                  const label = key === "business" ? "Business"
+          {/* Tabs. Business users get 3 tabs (business inquiries /
+             non-business DMs / archive). Regular users get 2 tabs
+             (inbox / archive) so they can archive DMs too. */}
+          <>
+            <View style={s.tabRow}>
+              {(isBusiness
+                ? (["business", "non_business", "archive"] as InboxTab[])
+                : (["non_business", "archive"] as InboxTab[])
+              ).map((key) => {
+                const active = key === tab;
+                const label = isBusiness
+                  ? (key === "business" ? "Business"
                     : key === "non_business" ? "Non-business"
-                    : "Archive";
-                  const unread = threads
-                    .filter((r) => threadTab(r) === key)
-                    .reduce((n, r) => n + (r.unread_count || 0), 0);
-                  return (
-                    <Pressable key={key} onPress={() => setTab(key)} style={[s.tab, active && s.tabActive]}>
-                      <Text style={[s.tabLabel, active && s.tabLabelActive]}>{label}</Text>
-                      {unread > 0 && <Text style={s.tabUnread}>{unread}</Text>}
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <View style={s.divider} />
-            </>
-          )}
+                    : "Archive")
+                  : (key === "non_business" ? "Inbox" : "Archive");
+                // Unread tallies: for business, use the inquiry
+                // status-based bucketing. For non-business,
+                // Inbox = threads NOT in localArchivedKeys;
+                // Archive = threads IN localArchivedKeys.
+                const unread = isBusiness
+                  ? threads.filter((r) => threadTab(r) === key).reduce((n, r) => n + (r.unread_count || 0), 0)
+                  : threads
+                      .filter((r) => (key === "archive" ? localArchivedKeys.has(rowKey(r)) : !localArchivedKeys.has(rowKey(r))))
+                      .reduce((n, r) => n + (r.unread_count || 0), 0);
+                return (
+                  <Pressable key={key} onPress={() => setTab(key)} style={[s.tab, active && s.tabActive]}>
+                    <Text style={[s.tabLabel, active && s.tabLabelActive]}>{label}</Text>
+                    {unread > 0 && <Text style={s.tabUnread}>{unread}</Text>}
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={s.divider} />
+          </>
 
           <ScrollView
             style={s.list}
@@ -298,7 +328,9 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
           >
             {(() => {
               // Filter once per render; cheap enough for small inboxes.
-              const visibleThreads = isBusiness ? threads.filter((r) => threadTab(r) === tab) : threads;
+              const visibleThreads = isBusiness
+                ? threads.filter((r) => threadTab(r) === tab)
+                : threads.filter((r) => (tab === "archive" ? localArchivedKeys.has(rowKey(r)) : !localArchivedKeys.has(rowKey(r))));
               if (loading && threads.length === 0) {
                 return <ActivityIndicator size="small" color="#D798DA" style={{ paddingVertical: 24 }} />;
               }
@@ -314,7 +346,9 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
               }
               if (visibleThreads.length === 0) {
                 const emptyText = !isBusiness
-                  ? "No conversations yet. Tap the Message button on anyone's profile to start a chat."
+                  ? (tab === "archive"
+                      ? "No archived conversations yet. Swipe on a chat to archive it."
+                      : "No conversations yet. Tap the Message button on anyone's profile to start a chat.")
                   : tab === "business"
                     ? "No wholesale inquiries in this tab yet."
                     : tab === "non_business"
