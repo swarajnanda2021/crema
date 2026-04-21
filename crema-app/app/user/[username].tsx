@@ -21,6 +21,7 @@ import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useCafeResolver } from "../../src/hooks/useCafeResolver";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
+import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t, SHELF_LABELS } from "../../src/tokens/useTokens";
 
@@ -449,6 +450,9 @@ export default function UserProfilePage() {
                 onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
                 onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
+                onHide={(p) => hidePost(p.id)}
+                onReport={(p) => confirmAndReport(p.id)}
+                onDislike={(p) => dislikePost(p.id)}
               />
               {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
             </View>

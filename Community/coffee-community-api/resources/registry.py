@@ -94,6 +94,10 @@ RESOURCES = {
         ],
         "flags": [
             {"name": "liked_by_me", "table": "post_likes", "fk": "post_id", "user_col": "user_id"},
+            # Recommender-signal flags surfaced so the feed can locally
+            # filter out posts the viewer already hid / disliked.
+            {"name": "hidden_by_me", "table": "post_hides", "fk": "post_id", "user_col": "user_id"},
+            {"name": "disliked_by_me", "table": "post_dislikes", "fk": "post_id", "user_col": "user_id"},
         ],
         "embeds": [
             {"name": "original_post", "self_fk": "repost_of_id"},
@@ -116,6 +120,55 @@ RESOURCES = {
         "user_col": "user_id",
         "auth": {"toggle": "required"},
         "hooks": {"on_toggle_on": ["notify_like"]},
+    },
+
+    # ── Post Hides (toggle — recommender negative signal) ────────────────
+    # Tapping "Hide" from the three-dots menu on any non-owner post
+    # records this row. The feed filters out posts with `hidden_by_me=1`
+    # client-side on refetch (see the `posts` flag). Toggle shape means
+    # repeated taps undo — useful if the user changes their mind. No
+    # count surfaced; no notification fan-out.
+    "post_hides": {
+        "table": "post_hides",
+        "type": "toggle",
+        "parent": "posts",
+        "parent_table": "roaster_posts",
+        "fk": "post_id",
+        "user_col": "user_id",
+        "auth": {"toggle": "required"},
+    },
+
+    # ── Post Dislikes (toggle — recommender negative signal) ─────────────
+    # Silent "don't show me more like this" signal. Same shape as
+    # post_hides but the feed doesn't filter out disliked posts — it
+    # just records for future ranking. No count exposed to viewers.
+    "post_dislikes": {
+        "table": "post_dislikes",
+        "type": "toggle",
+        "parent": "posts",
+        "parent_table": "roaster_posts",
+        "fk": "post_id",
+        "user_col": "user_id",
+        "auth": {"toggle": "required"},
+    },
+
+    # ── Post Reports (create-only — moderation signal) ───────────────────
+    # Unlike hide/dislike, reports are NOT unique per (user, post) —
+    # each tap records a fresh row so moderators can count repeat
+    # reports from the same user. No update / delete from the viewer
+    # side; only the admin can triage.
+    "post_reports": {
+        "table": "post_reports",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "user_id": {"type": "int", "ro": True, "auto": "current_user"},
+            "post_id": {"type": "int", "required": True},
+            "reason": {"type": "str"},
+            "created_at": {"type": "str", "ro": True, "auto": "now"},
+        },
+        "auth": {"list": "admin", "read": "admin", "create": "required", "update": None, "delete": "admin"},
+        "owner": "user_id",
     },
 
     # ── Post Comments ────────────────────────────────────────────────────

@@ -25,7 +25,8 @@ import { Home, Compass, MessageCircle, User as UserIcon } from "lucide-react-nat
 
 import { t } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
-import { getChromeHiddenAnim } from "../utils/chromeScroll";
+import { getChromeHiddenAnim, showChromeNow } from "../utils/chromeScroll";
+import { emit } from "../utils/events";
 import { CroppedAvatar } from "./primitives";
 
 interface TabDef {
@@ -132,10 +133,23 @@ export default function MobileFooter() {
         {tabs.map((tab) => {
           const active = tab.match(pathname);
           const color = active ? t.color["text.primary"] : t.color["text.muted"];
+          // X-style re-tap behaviour: tapping the active tab scrolls
+          // its primary scroll surface to the top + reveals chrome.
+          // Home → feed scroll-to-top. Discover / Messages / Profile
+          // fall through to the same pattern; each screen can listen
+          // for its own event. Inactive taps navigate.
+          const onPress = () => {
+            if (active) {
+              emit(`crema:rescroll-${tab.label.toLowerCase()}`);
+              showChromeNow();
+            } else {
+              router.replace(tab.path as any);
+            }
+          };
           return (
             <Pressable
               key={tab.path}
-              onPress={() => router.replace(tab.path as any)}
+              onPress={onPress}
               style={s.tab}
               hitSlop={4}
               accessibilityLabel={tab.label}

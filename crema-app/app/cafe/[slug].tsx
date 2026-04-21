@@ -18,6 +18,7 @@ import { t } from "../../src/tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { openExternal } from "../../src/utils/openExternal";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
+import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import SiteHeader from "../../src/components/SiteHeader";
@@ -2511,6 +2512,9 @@ function PostsTab({ posts, onRefresh }: { posts: any[]; onRefresh: () => void })
           onOpen={(post) => openPostModal({ postId: post.id, mode: "view" })}
           onComment={(post) => openPostModal({ postId: post.id, mode: "comment" })}
           onRepost={(post) => openPostModal({ postId: post.id, mode: "repost" })}
+          onHide={(post) => hidePost(post.id)}
+          onReport={(post) => confirmAndReport(post.id)}
+          onDislike={(post) => dislikePost(post.id)}
         />
       ))}
     </View>

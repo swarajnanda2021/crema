@@ -8,7 +8,7 @@
  * On iOS/Swift: SwiftUI List with PostCardView, same data from same API.
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { View, Text, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
 import { Plus } from "lucide-react-native";
 
@@ -21,6 +21,7 @@ import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
 import PostCard from "../../src/components/domain/PostCard";
 import SwipeToCommit from "../../src/components/mobile/SwipeToCommit";
+import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { t } from "../../src/tokens/useTokens";
 import type { Post } from "../../src/resources/types";
 
@@ -32,12 +33,20 @@ export default function FeedPage() {
   const [visibleCount, setVisibleCount] = useState(FEED_PER_PAGE);
   const [refreshing, setRefreshing] = useState(false);
   const [postToDelete, setPostToDelete] = useState<Post | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  // Optimistic local filter for hide — the recommender-engine
+  // backend row is fire-and-forget; the UX cue the user expects is
+  // "post gone from feed", so we filter the ID locally the moment
+  // Hide is tapped. Server returns `hidden_by_me=1` on refetch so
+  // hidden posts stay hidden across reloads too.
+  const [hiddenIds, setHiddenIds] = useState<Set<number>>(new Set());
 
   // Generic resource hook — fetches all posts sorted by published_at DESC
   const { data: posts, loading, refetch } = useResource<Post>("posts", { limit: 40 });
 
-  // Normalize: the timeline returns envelope { data: [...], meta: {...} }
-  const items = Array.isArray(posts) ? posts : [];
+  // Normalize + filter hidden.
+  const allItems = Array.isArray(posts) ? posts : [];
+  const items = allItems.filter((p) => !hiddenIds.has(p.id) && !(p as any).hidden_by_me);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -48,6 +57,13 @@ export default function FeedPage() {
   // Reload after GlobalComposePost submits — either a new post or an
   // edit of an existing one.
   useEffect(() => listen("crema:posts-updated", () => refetch()), [refetch]);
+
+  // X-style re-tap: tapping the active Home tab while already on the
+  // feed scrolls this ScrollView to the top. MobileFooter fires
+  // `crema:rescroll-home` on the active-tap path.
+  useEffect(() => listen("crema:rescroll-home", () => {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }), []);
 
   if (loading && items.length === 0) {
     return (
@@ -60,6 +76,7 @@ export default function FeedPage() {
   return (
     <View style={s.container}>
       <ScrollView
+        ref={scrollRef}
         style={s.scroll}
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
@@ -103,6 +120,9 @@ export default function FeedPage() {
                   },
                 })}
                 onDelete={(p) => setPostToDelete(p)}
+                onHide={(p) => { setHiddenIds((s) => new Set(s).add(p.id)); hidePost(p.id); }}
+                onReport={(p) => confirmAndReport(p.id)}
+                onDislike={(p) => dislikePost(p.id)}
               />
             );
             return (

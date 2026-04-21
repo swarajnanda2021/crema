@@ -51,6 +51,11 @@ interface PostCardProps {
    *  in view mode. Web wide ignores this — its ActionBar carries
    *  explicit comment / like / repost buttons. */
   onOpen?: (post: Post) => void;
+  /** Non-owner three-dots menu handlers. Fed from `postMenuActions`
+   *  in call-sites. See the recommender-engine roadmap entry. */
+  onHide?: (post: Post) => void;
+  onReport?: (post: Post) => void;
+  onDislike?: (post: Post) => void;
 }
 
 // X-style mobile sizing.
@@ -63,7 +68,7 @@ const NESTED_AVATAR_MOBILE = Math.round(t.size["avatar.xs"] * 1.5);
 
 export default function PostCard({
   post, user, isOwner, onComment, onRepost, onViewOriginal, onEdit, onPin, onDelete,
-  hideActionBar, onOpen,
+  hideActionBar, onOpen, onHide, onReport, onDislike,
 }: PostCardProps) {
   const router = useRouter();
   const { isMobile } = useBreakpoint();
@@ -287,14 +292,15 @@ export default function PostCard({
               <Pressable onPress={goToAuthor} style={{ flex: 1 }}>
                 {nameBlock}
               </Pressable>
-              {isOwner && (
-                <PostMenu
-                  onEdit={onEdit ? () => onEdit(post) : undefined}
-                  onPin={onPin ? () => onPin(post) : undefined}
-                  onDelete={onDelete ? () => onDelete(post) : undefined}
-                  isPinned={isPinned}
-                />
-              )}
+              <PostMenu
+                onEdit={isOwner && onEdit ? () => onEdit(post) : undefined}
+                onPin={isOwner && onPin ? () => onPin(post) : undefined}
+                onDelete={isOwner && onDelete ? () => onDelete(post) : undefined}
+                isPinned={isPinned}
+                onHide={!isOwner && onHide ? () => onHide(post) : undefined}
+                onReport={!isOwner && onReport ? () => onReport(post) : undefined}
+                onDislike={!isOwner && onDislike ? () => onDislike(post) : undefined}
+              />
             </View>
             {bodyEl}
             {storyEl}
@@ -318,14 +324,15 @@ export default function PostCard({
           {authorAvatar}
           <View style={{ flex: 1 }}>{nameBlock}</View>
         </Pressable>
-        {isOwner && (
-          <PostMenu
-            onEdit={onEdit ? () => onEdit(post) : undefined}
-            onPin={onPin ? () => onPin(post) : undefined}
-            onDelete={onDelete ? () => onDelete(post) : undefined}
-            isPinned={isPinned}
-          />
-        )}
+        <PostMenu
+          onEdit={isOwner && onEdit ? () => onEdit(post) : undefined}
+          onPin={isOwner && onPin ? () => onPin(post) : undefined}
+          onDelete={isOwner && onDelete ? () => onDelete(post) : undefined}
+          isPinned={isPinned}
+          onHide={!isOwner && onHide ? () => onHide(post) : undefined}
+          onReport={!isOwner && onReport ? () => onReport(post) : undefined}
+          onDislike={!isOwner && onDislike ? () => onDislike(post) : undefined}
+        />
       </View>
       <View style={s.bodyWrap}>{bodyEl}</View>
       {storyEl}

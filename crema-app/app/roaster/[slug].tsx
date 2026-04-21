@@ -25,6 +25,7 @@ import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
+import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t } from "../../src/tokens/useTokens";
 import CoffeeCard from "../../src/components/CoffeeCard";
@@ -795,6 +796,9 @@ export default function RoasterDetailPage() {
                       onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                       onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
                       onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
+                      onHide={(p) => hidePost(p.id)}
+                      onReport={(p) => confirmAndReport(p.id)}
+                      onDislike={(p) => dislikePost(p.id)}
                       onEdit={(p) => setEditingPost(p)}
                       onPin={(p) => handlePinToggle(p.id)}
                       onDelete={(p) => setPostToDelete(p)}

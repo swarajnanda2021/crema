@@ -578,6 +578,41 @@ _MIGRATIONS = [
     # sentence). Nullable; an empty list and NULL both render as
     # "no alt milks listed yet".
     "ALTER TABLE cafe_profiles ADD COLUMN milk_options_json TEXT",
+    # ── Post recommender signals (Phase 2 engine food) ──────────────────
+    # Three per-user × per-post actions surfaced in the non-owner
+    # three-dots menu. None of them affect post counts (no "dislike_count"
+    # exposed to viewers); they record intent for a recommender that
+    # reads them as negative signals. Scoped unique per (user, post) on
+    # hide + dislike so repeated taps idempotently toggle; reports are
+    # NOT unique — each tap records a separate report row so the admin
+    # view can count pile-ons.
+    """CREATE TABLE IF NOT EXISTS post_hides (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        post_id INTEGER NOT NULL REFERENCES roaster_posts(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        UNIQUE(user_id, post_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_post_hides_user ON post_hides(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_post_hides_post ON post_hides(post_id)",
+    """CREATE TABLE IF NOT EXISTS post_dislikes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        post_id INTEGER NOT NULL REFERENCES roaster_posts(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        UNIQUE(user_id, post_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_post_dislikes_user ON post_dislikes(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_post_dislikes_post ON post_dislikes(post_id)",
+    """CREATE TABLE IF NOT EXISTS post_reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        post_id INTEGER NOT NULL REFERENCES roaster_posts(id) ON DELETE CASCADE,
+        reason TEXT,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_post_reports_post ON post_reports(post_id)",
+    "CREATE INDEX IF NOT EXISTS idx_post_reports_user ON post_reports(user_id)",
 ]
 
 
