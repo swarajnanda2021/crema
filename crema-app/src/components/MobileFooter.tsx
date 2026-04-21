@@ -18,13 +18,14 @@
  * inactive, Inter Regular 10, -0.2 tracking, drop-shadow
  * 0/-4/20 @ 3%.
  */
-import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { View, Text, Pressable, StyleSheet, Platform, Animated } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Home, Compass, MessageCircle, User as UserIcon } from "lucide-react-native";
 
 import { t } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
+import { getChromeHiddenAnim } from "../utils/chromeScroll";
 import { CroppedAvatar } from "./primitives";
 
 interface TabDef {
@@ -93,34 +94,53 @@ export default function MobileFooter() {
     },
   ];
 
+  const hidden = getChromeHiddenAnim();
+  const footerTotalH = 71 + insets.bottom;
+  // Two-layer collapse: the OUTER wrapper clips everything —
+  // including the bar's upward drop-shadow — so when hidden=1 the
+  // strip leaves zero residue in the flex column. The inner `bar`
+  // keeps its original shadow / bg / padding so nothing changes
+  // visually when fully shown.
+  const heightAnim = hidden.interpolate({
+    inputRange: [0, 1],
+    outputRange: [footerTotalH, 0],
+  });
+
   return (
-    <View
-      style={[
-        s.bar,
-        {
-          paddingBottom: insets.bottom + t.spacing.sm,
-          height: 71 + insets.bottom,
-        },
-      ]}
+    <Animated.View
+      style={{
+        height: heightAnim,
+        overflow: "hidden",
+      }}
     >
-      {tabs.map((tab) => {
-        const active = tab.match(pathname);
-        const color = active ? t.color["text.primary"] : t.color["text.muted"];
-        return (
-          <Pressable
-            key={tab.path}
-            onPress={() => router.replace(tab.path as any)}
-            style={s.tab}
-            hitSlop={4}
-            accessibilityLabel={tab.label}
-            accessibilityRole="button"
-          >
-            {tab.icon(color)}
-            <Text style={[s.label, { color }]}>{tab.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
+      <View
+        style={[
+          s.bar,
+          {
+            paddingBottom: insets.bottom + t.spacing.sm,
+            height: footerTotalH,
+          },
+        ]}
+      >
+        {tabs.map((tab) => {
+          const active = tab.match(pathname);
+          const color = active ? t.color["text.primary"] : t.color["text.muted"];
+          return (
+            <Pressable
+              key={tab.path}
+              onPress={() => router.replace(tab.path as any)}
+              style={s.tab}
+              hitSlop={4}
+              accessibilityLabel={tab.label}
+              accessibilityRole="button"
+            >
+              {tab.icon(color)}
+              <Text style={[s.label, { color }]}>{tab.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </Animated.View>
   );
 }
 

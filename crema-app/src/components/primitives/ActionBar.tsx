@@ -37,11 +37,13 @@ export default function ActionBar({
   const { isMobile } = useBreakpoint();
   const [showCopied, setShowCopied] = useState(false);
 
-  // Mobile: icons +50% (16→24 / 14→21 / 12→18), count +50%.
-  const heartSize = isMobile ? 24 : 16;
-  const commentSize = isMobile ? 21 : 14;
-  const repostSize = isMobile ? 21 : 14;
-  const shareSize = isMobile ? 18 : 12;
+  // Mobile: icon sizes match X's timeline action bar — ~20 px
+  // heart / comment / repost, ~18 px share. Counts at 14 pt to
+  // pair with the 14-pt timestamp / subtitle on the post header.
+  const heartSize = isMobile ? 20 : 16;
+  const commentSize = isMobile ? 18 : 14;
+  const repostSize = isMobile ? 18 : 14;
+  const shareSize = isMobile ? 16 : 12;
 
   const handleShare = useCallback(() => {
     const url = shareUrl || (typeof window !== "undefined" ? window.location.href : "");
@@ -61,7 +63,7 @@ export default function ActionBar({
         count={likeCount}
         iconOn={<HeartFilledOutlineIcon size={heartSize} color={t.color.accent} />}
         iconOff={<HeartOutlineIcon size={heartSize} color={t.color.accent} />}
-        countSize={isMobile ? 17.7 : 11.8}
+        countSize={isMobile ? 14 : 11.8}
       />
 
       <Pressable onPress={onComment} style={s.btn}>
@@ -99,6 +101,8 @@ const s = StyleSheet.create({
   btn: { flexDirection: "row", alignItems: "center", gap: 6 } as any,
   count: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
   copiedText: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color.accent },
-  // Mobile: count label +50% to match the icon bump.
-  countMobile: { fontSize: 17.7 } as any,
+  // Mobile: count label sized to match the post subtitle + time
+  // (14 pt), keeping the action bar visually inline with the meta
+  // rhythm above.
+  countMobile: { fontSize: 14 } as any,
 });

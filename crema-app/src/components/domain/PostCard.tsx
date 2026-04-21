@@ -188,7 +188,12 @@ export default function PostCard({
         </Pressable>
         <Text style={[s.repostTime, isMobile && s.repostTimeMobile]}>{timeAgo(post.original_post.published_at)}</Text>
       </View>
-      <Text style={[s.repostTeaser, isMobile && s.repostTeaserMobile]} numberOfLines={3}>{post.original_post.teaser}</Text>
+      <Text
+        style={[s.repostTeaser, isMobile && s.repostTeaserMobile]}
+        numberOfLines={isMobile ? undefined : 3}
+      >
+        {post.original_post.teaser}
+      </Text>
       {(post.original_post.images?.length > 0 || post.original_post.cover_image_url) && (
         <View style={{ marginTop: 8 }}>
           <PostGallery
@@ -321,17 +326,20 @@ const s = StyleSheet.create({
   metaTime: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.muted"] },
   metaSubtitle: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.secondary"], marginTop: 2 },
 
-  // Mobile text scale — matches X: name 15, subtitle + time 14. We
-  // use 17.7 / 15 to keep a 1.5× bump off the web baseline, which
-  // still reads right at the Crema stack's 16-px body text.
-  authorNameMobile: { fontSize: 17.7 } as any,
-  metaTimeMobile: { fontSize: 15 } as any,
-  metaSubtitleMobile: { fontSize: 15, marginTop: 2 } as any,
-  avatarLetterMobile: { fontSize: 18 } as any,
+  // Mobile text scale — matches X's timeline density:
+  // name 15 (semibold), subtitle + time 14 (medium/muted), body 15
+  // (regular). Same 15-pt rhythm X uses for all three; the name
+  // reads as bolder via fontFamily, subtitle/time lighter via
+  // color. Tight enough to fit 2-3 posts on a 390-px viewport
+  // with the chrome still visible.
+  authorNameMobile: { fontSize: 15, fontFamily: t.font["body.semibold"] } as any,
+  metaTimeMobile: { fontSize: 14 } as any,
+  metaSubtitleMobile: { fontSize: 14, marginTop: 1 } as any,
+  avatarLetterMobile: { fontSize: 16 } as any,
 
   bodyWrap: { paddingHorizontal: 20 },
   body: { fontFamily: t.font["body.regular"], fontSize: 16.8, color: t.color["text.primary"], lineHeight: 23.5, marginBottom: 10 },
-  bodyMobile: { fontSize: 16, lineHeight: 22, marginTop: 2, marginBottom: 8 } as any,
+  bodyMobile: { fontSize: 15, lineHeight: 20, marginTop: 4, marginBottom: 8 } as any,
 
   locationRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, marginBottom: 14 } as any,
   locationRowMobile: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10, marginTop: 2 } as any,
@@ -347,11 +355,14 @@ const s = StyleSheet.create({
   repostAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 8, color: t.color["text.on-dark"] },
   repostAuthor: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.primary"] },
   repostTime: { fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["text.muted"] },
-  repostAuthorMobile: { fontSize: 14 } as any,
-  repostTimeMobile: { fontSize: 13 } as any,
+  // Nested repost text — same 15-pt rhythm as the outer post so
+  // the quoted body reads at full weight. The wrapper still shows
+  // the full teaser (no numberOfLines truncation on mobile).
+  repostAuthorMobile: { fontSize: 15, fontFamily: t.font["body.semibold"] } as any,
+  repostTimeMobile: { fontSize: 14 } as any,
   repostAvatarLetterMobile: { fontSize: 10 } as any,
   repostTeaser: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.secondary"], lineHeight: 18 },
-  repostTeaserMobile: { fontSize: 14, lineHeight: 19 } as any,
+  repostTeaserMobile: { fontSize: 15, lineHeight: 20, color: t.color["text.primary"] } as any,
 
   // Article thumbnail
   articleWrap: { marginHorizontal: 20, marginBottom: 14, borderRadius: t.radius.md, overflow: "hidden", position: "relative", height: 200 } as any,

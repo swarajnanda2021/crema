@@ -21,15 +21,16 @@
  * this header and the `MobileFooter` so the Crema chrome stays
  * painted while a panel is open; re-tapping the icon closes.
  */
-import { View, Pressable, StyleSheet } from "react-native";
+import { View, Pressable, StyleSheet, Animated, Platform } from "react-native";
 import { useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Search, Bell } from "lucide-react-native";
 
 import { t } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
 import { emit } from "../utils/events";
+import { getChromeHiddenAnim } from "../utils/chromeScroll";
 import CremaLogo from "./CremaLogo";
 
 const MOBILE_HEADER_HEIGHT = (t.size as any)["navbar.mobile.height"];
@@ -57,13 +58,26 @@ export default function MobileHeader() {
   const router = useRouter();
   const { user } = useAuth();
   const { unreadCount } = useNotifications(!!user);
+  const insets = useSafeAreaInsets();
+  const hidden = getChromeHiddenAnim();
+  const fullHeight = MOBILE_HEADER_HEIGHT + insets.top;
+  // Animate the WRAPPER HEIGHT (not just transform) so the flex
+  // column reflows when chrome hides — otherwise the 63-px slot
+  // lingers on top of the feed. Pair it with a translateY of the
+  // inner bar so the hide feels like a slide-up instead of a
+  // crunch. Height drives the layout; translateY polishes the
+  // motion.
+  const heightAnim = hidden.interpolate({
+    inputRange: [0, 1],
+    outputRange: [fullHeight, 0],
+  });
 
   return (
-    <SafeAreaView
-      edges={["top"]}
+    <Animated.View
       {...({ dataSet: { role: "navbar" } } as any)}
-      style={s.safe}
+      style={[s.animShell, { height: heightAnim, overflow: "hidden" }]}
     >
+      <SafeAreaView edges={["top"]} style={s.safe}>
       <View style={s.header}>
         {/* Left: hamburger — toggles the Account slide panel. */}
         <View style={s.flankLeft}>
@@ -116,11 +130,16 @@ export default function MobileHeader() {
           </Pressable>
         </View>
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </Animated.View>
   );
 }
 
 const s = StyleSheet.create({
+  // Animated wrapper. Height is driven by the scroll-aware hidden
+  // animation; when collapsed, `overflow: hidden` clips the bar
+  // underneath so nothing leaks out.
+  animShell: { backgroundColor: t.color["navbar.bg"] } as any,
   safe: { backgroundColor: t.color["navbar.bg"] },
   header: {
     height: MOBILE_HEADER_HEIGHT,

@@ -15,6 +15,7 @@ import { Plus } from "lucide-react-native";
 import { useAuth } from "../../src/hooks/useAuth";
 import { apiFetchRaw } from "../../src/api/client";
 import { listen } from "../../src/utils/events";
+import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { useResource } from "../../src/resources/useResource";
 import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
 import PostCard from "../../src/components/domain/PostCard";
@@ -61,6 +62,9 @@ export default function FeedPage() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.color["accent.cta"]} />}
         onScroll={(e) => {
+          // Pipe into the sitewide chrome-hide animation so the
+          // header + footer slide away on scroll-down like X.
+          onChromeScroll(e);
           const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
           if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 300) {
             if (visibleCount < items.length) {
@@ -68,7 +72,7 @@ export default function FeedPage() {
             }
           }
         }}
-        scrollEventThrottle={400}
+        scrollEventThrottle={16}
       >
         {/* Feed items — compose is now a floating modal (see below) so the
             feed stays in place when the FAB is tapped instead of getting
