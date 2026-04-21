@@ -97,10 +97,14 @@ export default function BrowsePage() {
 
   return (
     <View style={s.container}>
-      {/* Sub-tabs. On mobile we drop the LOOKING FOR prefix — the
-         3 category labels (BEANS / ROASTERS / CAFÉS) use the full
-         row so all three fit on a 375-px viewport. */}
-      <View style={s.tabBar}>
+      {/* Sub-tabs. Mobile layout mirrors Figma 63:4890 exactly:
+         60-px tall cream strip, BEANS + ROASTERS + CAFÉS
+         left-aligned with a 26-px gap between them, and a
+         FadersHorizontal filter icon pinned to the right INSIDE
+         the same row. The filter icon toggles the §2.34
+         FilterDrawer. The wide-web layout keeps the old
+         LOOKING FOR prefix + evenly-spaced tabs. */}
+      <View style={[s.tabBar, isMobile && s.tabBarMobile]}>
         <View style={s.tabBarInner}>
           {!isMobile && (
             <View style={[s.tabBarLeft, { width: sidebarW }]}>
@@ -111,6 +115,18 @@ export default function BrowsePage() {
             <TabButton label="BEANS" active={activeTab === "beans"} onPress={() => setActiveTab("beans")} />
             <TabButton label="ROASTERS" active={activeTab === "roasters"} onPress={() => setActiveTab("roasters")} />
             <TabButton label="CAFÉS" active={activeTab === "cafes"} onPress={() => setActiveTab("cafes")} />
+            {isMobile && (
+              <Pressable
+                onPress={() => setFilterDrawerOpen(true)}
+                style={s.tabBarFilterBtn}
+                hitSlop={8}
+                accessibilityLabel={`Filters${hasActiveFilters ? `, ${selectedRoasters.length + selectedRoasts.length + selectedProcesses.length + (wholesaleOnly ? 1 : 0)} active` : ""}`}
+                accessibilityRole="button"
+              >
+                <SlidersHorizontal size={24} color={t.color["text.primary"]} strokeWidth={1.75} />
+                {hasActiveFilters && <View style={s.tabBarFilterDot} />}
+              </Pressable>
+            )}
           </View>
         </View>
       </View>
@@ -185,9 +201,9 @@ export default function BrowsePage() {
           {isDesktop && <View style={s.verticalDivider} />}
 
           <View style={{ flex: 1, minWidth: 0 }}>
-            {/* Scroll-aware search bar. On mobile the filter
-                sidebar is hidden; a Filters pill next to the search
-                opens the §2.34 slide-in drawer. */}
+            {/* Scroll-aware search bar. On mobile the filter icon
+                lives INSIDE the tab bar (§Figma 63:5934) — the
+                search row is input-only. */}
             <View style={[s.searchBarWrap, searchBarHidden && s.searchBarWrapHidden] as any}>
               <View style={s.stickySearchWrap}>
                 <View style={s.searchBar}>
@@ -195,20 +211,6 @@ export default function BrowsePage() {
                   <TextInput placeholder="Search" placeholderTextColor={t.color["text.muted"]} value={query} onChangeText={setQuery} style={s.searchInput} />
                   {query ? <Pressable onPress={() => setQuery("")}><X size={16} color={t.color["text.muted"]} /></Pressable> : null}
                 </View>
-                {!isDesktop && (
-                  <Pressable
-                    onPress={() => setFilterDrawerOpen(true)}
-                    style={s.filterBtn}
-                    hitSlop={6}
-                    accessibilityLabel="Open filters"
-                    accessibilityRole="button"
-                  >
-                    <SlidersHorizontal size={16} color={t.color["text.primary"]} strokeWidth={1.75} />
-                    <Text style={s.filterBtnLabel}>
-                      Filters{hasActiveFilters ? ` · ${selectedRoasters.length + selectedRoasts.length + selectedProcesses.length + (wholesaleOnly ? 1 : 0)}` : ""}
-                    </Text>
-                  </Pressable>
-                )}
               </View>
             </View>
 
@@ -710,6 +712,14 @@ const s = StyleSheet.create({
     borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(215,209,196,0.5)",
     backgroundColor: t.color.bg, height: 80, justifyContent: "center",
   },
+  // Mobile: exact Figma 63:5927 geometry — 60 px tall, cream bg,
+  // single hairline divider top + bottom (the cross-tab separator
+  // plus the navbar/search edge). Paddings are baked into
+  // `tabBarRightMobile` (paddingHorizontal 32) so the BEANS text
+  // starts at x=32 per Figma 63:4979.
+  tabBarMobile: {
+    height: (t.size as any)["tabbar.mobile.height"],
+  } as any,
   // `height: "100%"` + `alignItems: "stretch"` so the tab buttons
   // span the full tabBar height — this is what lets the
   // tabUnderline's `bottom: -1` ride the parent's borderBottom line
@@ -719,10 +729,17 @@ const s = StyleSheet.create({
   tabBarInner: { flexDirection: "row", alignItems: "stretch", paddingLeft: "6.25%" as any, paddingRight: "6.25%" as any, width: "100%" as any, height: "100%" as any },
   tabBarLeft: { width: 195, flexShrink: 0, justifyContent: "center" } as any,
   tabBarRight: { flex: 1, flexDirection: "row", alignItems: "stretch", paddingLeft: 16, gap: 48 } as any,
-  // Mobile: no LOOKING FOR label, so tabBarRight drops its left pad
-  // and uses space-between to spread BEANS / ROASTERS / CAFÉS across
-  // the full viewport width.
-  tabBarRightMobile: { paddingLeft: 0, gap: 0, justifyContent: "space-between" } as any,
+  // Mobile: BEANS / ROASTERS / CAFÉS left-aligned with a 26 px gap
+  // (Figma 63:4979→63:4981 = 58 px center-to-center minus the BEANS
+  // text width of 32 = ~26 gap); filter icon pinned to the right
+  // inside the same row. Absolute `paddingHorizontal: 32` overrides
+  // the parent's percentage paddings on `tabBarInner`.
+  tabBarRightMobile: {
+    paddingLeft: 0,
+    paddingHorizontal: t.spacing["3xl"],
+    gap: t.spacing["2xl"],
+    justifyContent: "flex-start",
+  } as any,
   lookingForLabel: {
     fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.primary"],
     textTransform: "uppercase", alignSelf: "center",
@@ -731,6 +748,24 @@ const s = StyleSheet.create({
   tabLabel: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"] },
   tabLabelActive: { fontFamily: t.font["body.semibold"], color: t.color["text.primary"] },
   tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: t.color["text.primary"] } as any,
+  // Filter icon pinned to the right of the tab row. `marginLeft:
+  // auto` pushes it to flex end regardless of how many sibling tabs
+  // render. Dot badge appears when any filter is active.
+  tabBarFilterBtn: {
+    marginLeft: "auto" as any,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  } as any,
+  tabBarFilterDot: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: t.color.accent,
+  } as any,
 
   // Browse layout
   browseLayout: { flex: 1, flexDirection: "row", paddingLeft: "6.25%" as any, paddingRight: "6.25%" as any, paddingTop: 63 } as any,
@@ -857,25 +892,6 @@ const s = StyleSheet.create({
     fontFamily: t.font["body.regular"],
     fontSize: t.size["font.sm"],
     color: t.color["text.muted"],
-  } as any,
-
-  // §2.34 Filters button (mobile only, next to the search input)
-  filterBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: t.spacing.xs,
-    paddingHorizontal: t.spacing.md,
-    paddingVertical: t.spacing.sm,
-    borderRadius: t.radius.full,
-    borderWidth: 1,
-    borderColor: t.color.border,
-    backgroundColor: t.color["card.front"],
-    marginLeft: t.spacing.sm,
-  } as any,
-  filterBtnLabel: {
-    fontFamily: t.font["body.semibold"],
-    fontSize: t.size["font.sm"],
-    color: t.color["text.primary"],
   } as any,
 
   // §2.34 Drawer body (SlidePanel's child — already absolute)
