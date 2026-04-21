@@ -1,21 +1,33 @@
 /**
  * SwipeableRow — wrap any row to expose Archive / Mute / Delete
- * (or any action set) behind the row content.
+ * (or any action set) behind the row content. (§2 migration)
  *
- * Mobile: horizontal PanResponder drags the row left, revealing the
- * action buttons that sit behind. Release past the half-way point
- * latches open; release before it springs closed.
+ * Native: horizontal swipe drags the row left, revealing action
+ * buttons that sit behind. Release past the snap threshold (or on a
+ * leftward flick) latches open; a rightward swipe / flick or tap on
+ * the foreground closes it. Built on `react-native-gesture-handler`
+ * + `react-native-reanimated` so drag tracking + release spring run
+ * entirely on the UI thread — same migration that took SwipeToCommit
+ * from "sticky" to "buttery".
  *
  * Web: right-click (contextmenu) and double-click both open a
  * compact floating menu anchored to the row. Outside-click dismiss.
  *
- * The wrapped child still receives taps normally — swipe only
- * engages when the horizontal delta exceeds a small threshold.
+ * The wrapped child still receives taps normally — on native the
+ * gesture only activates once horizontal travel clears ~12px, so
+ * scroll-down never triggers a spurious open.
  */
 import { useRef, useState, useEffect } from "react";
 import {
-  Animated, PanResponder, View, Pressable, StyleSheet, Platform, Text,
+  Pressable, StyleSheet, Platform, Text, View,
 } from "react-native";
+import { GestureDetector, Gesture } from "react-native-gesture-handler";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  runOnJS,
+} from "react-native-reanimated";
 import { t } from "../tokens/useTokens";
 
 export interface SwipeAction {
@@ -34,92 +46,137 @@ interface Props {
 }
 
 const ACTION_WIDTH = 72;
+// Minimum horizontal travel for the swipe to claim the gesture away
+// from the parent ScrollView. Matches the old PanResponder's 12px.
+const CLAIM_X = 12;
+// Maximum vertical drift before we defer to the ScrollView.
+const FAIL_Y = 16;
+// Open / close snap threshold in px.
+const SNAP = 40;
+// Flick velocity threshold (px/sec). PanResponder used 0.3 px/ms =
+// 300 px/s; gesture-handler is in px/s directly. Slightly looser
+// (400) gives the same perceived "flick enough to commit" feel.
+const FLICK = 400;
+const SPRING = { damping: 16, stiffness: 200, mass: 0.55 };
 
 export default function SwipeableRow({ actions, children }: Props) {
-  const translateX = useRef(new Animated.Value(0)).current;
-  const openRef = useRef(false);
-  // Drag-start anchor in absolute coords — survives between gesture
-  // callbacks so onMove can compute totalX = startX + g.dx without
-  // any extractOffset bookkeeping (which was drifting).
-  const startXRef = useRef(0);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
-  const rootRef = useRef<any>(null);
-  const menuRef = useRef<any>(null);
-  const reveal = actions.length * ACTION_WIDTH;
+  if (Platform.OS === "web") return <WebRow actions={actions}>{children}</WebRow>;
+  return <NativeRow actions={actions}>{children}</NativeRow>;
+}
 
-  const animateTo = (to: number) => {
-    openRef.current = to !== 0;
-    Animated.spring(translateX, {
-      toValue: to,
-      useNativeDriver: true,
-      bounciness: 4,
-      speed: 16,
-    }).start();
+function NativeRow({ actions, children }: Props) {
+  const reveal = actions.length * ACTION_WIDTH;
+  const tx = useSharedValue(0);
+  // Gesture-start anchor — translationX is relative to gesture start,
+  // so we store where the row was when the finger landed and add the
+  // delta on every update. This is the worklet equivalent of the old
+  // startXRef pattern and avoids `extractOffset` drift.
+  const savedTx = useSharedValue(0);
+  const isOpen = useSharedValue(false);
+
+  const snapTo = (to: number) => {
+    "worklet";
+    isOpen.value = to !== 0;
+    tx.value = withSpring(to, SPRING);
   };
 
-  // WhatsApp-style swipe: a small leftward gesture is enough to
-  // snap the row open (≥ 40px moved left OR a leftward flick). Once
-  // open it stays open until the user swipes right past a symmetric
-  // threshold or taps an action.
-  //
-  // Gesture arbitration vs. the parent ScrollView: we only claim
-  // the gesture when horizontal travel clearly dominates vertical
-  // (3×) and has cleared a 12px minimum. Below that we return
-  // false and the ScrollView keeps the touch, so a casual scroll
-  // never accidentally opens a row. Once we've claimed, the row
-  // is locked — vertical nudges during the same gesture stick with
-  // the swipe (ScrollView can't reclaim), which matches the user's
-  // mental model: "arm the swipe first, scroll-down after release".
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponder: (_, g) => {
-        const ax = Math.abs(g.dx);
-        const ay = Math.abs(g.dy);
-        return ax > 12 && ax > ay * 3;
-      },
-      onMoveShouldSetPanResponderCapture: (_, g) => {
-        // Only capture (intercept from ScrollView) once the swipe
-        // is clearly horizontal AND has real momentum — otherwise
-        // let the outer scroll handle the touch.
-        const ax = Math.abs(g.dx);
-        const ay = Math.abs(g.dy);
-        return ax > 16 && ax > ay * 3;
-      },
-      onPanResponderGrant: () => {
-        startXRef.current = openRef.current ? -reveal : 0;
-      },
-      onPanResponderMove: (_, g) => {
-        const next = Math.max(-reveal, Math.min(0, startXRef.current + g.dx));
-        translateX.setValue(next);
-      },
-      onPanResponderRelease: (_, g) => {
-        const final = startXRef.current + g.dx;
-        const SNAP = 40; // forgiving open / close threshold
-        const leftFlick = g.vx < -0.3;
-        const rightFlick = g.vx > 0.3;
-        if (openRef.current) {
-          // Already open: close if swiped right past the threshold or
-          // flicked right; otherwise stay latched open.
-          if (final > -reveal + SNAP || rightFlick) animateTo(0);
-          else animateTo(-reveal);
-        } else {
-          // Closed: snap open on any meaningful leftward movement.
-          if (final < -SNAP || leftFlick) animateTo(-reveal);
-          else animateTo(0);
-        }
-      },
-      onPanResponderTerminate: () => {
-        animateTo(openRef.current ? -reveal : 0);
-      },
-    }),
-  ).current;
+  // JS-side close for Pressable onPress taps on an action. Setting a
+  // shared value from JS is safe; the spring still runs on UI.
+  const closeFromJS = () => {
+    isOpen.value = false;
+    tx.value = withSpring(0, SPRING);
+  };
 
-  // Web: outside-click + Escape to dismiss the context menu.
+  const pan = Gesture.Pan()
+    .activeOffsetX([-CLAIM_X, CLAIM_X])
+    .failOffsetY([-FAIL_Y, FAIL_Y])
+    .onBegin(() => {
+      "worklet";
+      savedTx.value = tx.value;
+    })
+    .onUpdate((e) => {
+      "worklet";
+      // Clamp to [-reveal, 0]: the row only travels left, never right
+      // of the closed position.
+      const next = Math.max(-reveal, Math.min(0, savedTx.value + e.translationX));
+      tx.value = next;
+    })
+    .onEnd((e) => {
+      "worklet";
+      const final = savedTx.value + e.translationX;
+      const leftFlick = e.velocityX < -FLICK;
+      const rightFlick = e.velocityX > FLICK;
+      if (isOpen.value) {
+        // Already open: close on rightward movement past SNAP or a
+        // rightward flick; otherwise stay latched open.
+        if (final > -reveal + SNAP || rightFlick) snapTo(0);
+        else snapTo(-reveal);
+      } else {
+        // Closed: snap open on any meaningful leftward movement.
+        if (final < -SNAP || leftFlick) snapTo(-reveal);
+        else snapTo(0);
+      }
+    })
+    .onFinalize(() => {
+      "worklet";
+      // Safety net if the gesture is cancelled mid-drag (parent
+      // claims the responder): snap back to the last committed state
+      // so the row never ends up stranded in mid-swipe.
+      const target = isOpen.value ? -reveal : 0;
+      if (tx.value !== target) tx.value = withSpring(target, SPRING);
+    });
+
+  const fgStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: tx.value }],
+  }));
+
+  return (
+    <View style={s.wrap}>
+      {/* Action layer — sits behind the row and is revealed by the
+         swipe. Pressables here only receive taps when the foreground
+         is slid left (they're physically uncovered). */}
+      <View style={s.actionsLayer}>
+        {actions.map((a) => (
+          <Pressable
+            key={a.key}
+            onPress={() => { closeFromJS(); a.onPress(); }}
+            style={[
+              s.actionBtn,
+              { width: ACTION_WIDTH, backgroundColor: a.background || t.color["text.primary"] },
+            ]}
+            accessibilityLabel={a.label}
+            accessibilityRole="button"
+          >
+            {a.icon}
+            <Text style={s.actionLabel}>{a.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {/* Foreground row — what the user sees when closed. Drag gesture
+         lives here so a tap on the row still works normally (gesture
+         only activates past CLAIM_X). */}
+      <GestureDetector gesture={pan}>
+        <Animated.View style={[s.fg, fgStyle]}>
+          {children}
+        </Animated.View>
+      </GestureDetector>
+    </View>
+  );
+}
+
+/** Web path — unchanged from the pre-migration version. Right-click
+ *  / double-click opens a floating menu anchored at the cursor.
+ *  Outside-click + Escape dismiss. Kept separate from the native row
+ *  because the gesture-handler + reanimated pipeline doesn't carry
+ *  its weight for a desktop menu. */
+function WebRow({ actions, children }: Props) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const menuRef = useRef<any>(null);
+
   useEffect(() => {
-    if (!menuOpen || Platform.OS !== "web") return;
+    if (!menuOpen) return;
     const handler = (e: any) => {
       const menu = menuRef.current;
       if (menu && typeof menu.contains === "function" && menu.contains(e.target)) return;
@@ -127,8 +184,6 @@ export default function SwipeableRow({ actions, children }: Props) {
     };
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
     if (typeof document !== "undefined") {
-      // `mousedown` fires before click, so clicking an action inside
-      // the menu doesn't race with this outside-click handler.
       document.addEventListener("mousedown", handler);
       document.addEventListener("keydown", esc);
     }
@@ -142,60 +197,19 @@ export default function SwipeableRow({ actions, children }: Props) {
 
   const openMenuAt = (e: any) => {
     e?.preventDefault?.();
-    // Anchor the menu at the cursor on right-click; fallback to the
-    // double-click coordinates on desktop.
     const x = e?.clientX ?? 0;
     const y = e?.clientY ?? 0;
     setMenuPos({ x, y });
     setMenuOpen(true);
   };
 
-  const webHandlers: any = Platform.OS === "web"
-    ? { onContextMenu: openMenuAt, onDoubleClick: openMenuAt }
-    : {};
+  const webHandlers: any = { onContextMenu: openMenuAt, onDoubleClick: openMenuAt };
 
   return (
-    <View ref={rootRef} style={s.wrap} {...webHandlers}>
-      {/* Action layer — sits behind the row and is revealed by the
-         native swipe. Skipped on web since the context menu handles
-         the same actions there (and would otherwise force
-         `overflow:hidden` that clips the menu). */}
-      {Platform.OS !== "web" && (
-        <View style={s.actionsLayer}>
-          {actions.map((a) => (
-            <Pressable
-              key={a.key}
-              onPress={() => { animateTo(0); a.onPress(); }}
-              style={[
-                s.actionBtn,
-                { width: ACTION_WIDTH, backgroundColor: a.background || t.color["text.primary"] },
-              ]}
-              accessibilityLabel={a.label}
-              accessibilityRole="button"
-            >
-              {a.icon}
-              <Text style={s.actionLabel}>{a.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-
-      {/* Foreground row — what the user sees when closed. */}
-      <Animated.View
-        style={[s.fg, { transform: [{ translateX }] }]}
-        {...(Platform.OS !== "web" ? panResponder.panHandlers : {})}
-      >
-        {children}
-      </Animated.View>
-
-      {/* Web-only context menu, anchored to the cursor via
-         `position: fixed` so it can escape clipping ancestors (e.g.
-         the Messages ScrollView's overflow boundary). */}
-      {menuOpen && menuPos && Platform.OS === "web" && (
-        <View
-          ref={menuRef}
-          style={[s.webMenu, { top: menuPos.y, left: menuPos.x }]}
-        >
+    <View style={s.wrapWeb} {...webHandlers}>
+      <View style={s.fg}>{children}</View>
+      {menuOpen && menuPos && (
+        <View ref={menuRef} style={[s.webMenu, { top: menuPos.y, left: menuPos.x }]}>
           {actions.map((a) => (
             <Pressable
               key={a.key}
@@ -215,9 +229,11 @@ export default function SwipeableRow({ actions, children }: Props) {
 const s = StyleSheet.create({
   wrap: {
     position: "relative",
-    // Native: clip the action layer when the row is at rest.
-    // Web: visible so the context menu can overflow the row bounds.
-    overflow: Platform.OS === "web" ? "visible" : "hidden",
+    overflow: "hidden",
+  } as any,
+  wrapWeb: {
+    position: "relative",
+    overflow: "visible",
   } as any,
   actionsLayer: {
     position: "absolute",
@@ -240,9 +256,6 @@ const s = StyleSheet.create({
   fg: {
     backgroundColor: t.color.bg,
   } as any,
-  // Position: fixed so the menu can float above clipping ancestors
-  // (ScrollView, card, etc.). Anchored to cursor via inline `top` /
-  // `left`.
   webMenu: {
     position: "fixed" as any,
     minWidth: 160,

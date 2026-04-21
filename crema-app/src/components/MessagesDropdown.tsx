@@ -29,7 +29,7 @@ import {
 import { Plus, Archive, BellOff, Trash2 } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
 import { apiFetchRaw } from "../api/client";
-import { CroppedAvatar, timeAgo } from "./primitives";
+import { CroppedAvatar, timeAgo, HapticPressable } from "./primitives";
 import { useInquiryInbox, InboxRow } from "../hooks/useInquiryInbox";
 import { useAuth } from "../hooks/useAuth";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -310,10 +310,10 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
                       .filter((r) => (key === "archive" ? localArchivedKeys.has(rowKey(r)) : !localArchivedKeys.has(rowKey(r))))
                       .reduce((n, r) => n + (r.unread_count || 0), 0);
                 return (
-                  <Pressable key={key} onPress={() => setTab(key)} style={[s.tab, active && s.tabActive]}>
+                  <HapticPressable haptic="select" key={key} onPress={() => setTab(key)} style={[s.tab, active && s.tabActive]}>
                     <Text style={[s.tabLabel, active && s.tabLabelActive]}>{label}</Text>
                     {unread > 0 && <Text style={s.tabUnread}>{unread}</Text>}
-                  </Pressable>
+                  </HapticPressable>
                 );
               })}
             </View>
@@ -321,7 +321,8 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
           </>
 
           <ScrollView
-            style={s.list}
+            style={[s.list, fullScreen && s.listFullScreen]}
+            contentContainerStyle={fullScreen ? s.listContentFullScreen : undefined}
             showsVerticalScrollIndicator={false}
             onScroll={fullScreen ? onChromeScroll : undefined}
             scrollEventThrottle={fullScreen ? 16 : undefined}
@@ -508,6 +509,16 @@ const s = StyleSheet.create({
     overflow: "hidden",
   } as any,
   list: { maxHeight: 380 } as any,
+  // FullScreen mode (the mobile Messages tab): the dropdown card's
+  // 380-px cap cuts the inbox list off around the 5th thread. Strip
+  // the cap and flex the list into whatever room the mid-band gives
+  // us between MobileHeader and MobileFooter. The `contentContainer`
+  // paddingBottom keeps the final row from tucking under the
+  // MobileFooter when chrome is fully expanded — `onChromeScroll`
+  // collapses the footer as the user scrolls down, but a static
+  // cushion here guarantees the bottom row is tappable at rest too.
+  listFullScreen: { flex: 1, maxHeight: undefined } as any,
+  listContentFullScreen: { paddingBottom: t.spacing["4xl"] } as any,
 
   empty: {
     fontFamily: t.font["body.regular"], fontSize: 11.5,

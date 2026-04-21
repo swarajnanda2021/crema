@@ -117,7 +117,12 @@ export default function MobileHeader() {
               accessibilityLabel="Notifications"
               accessibilityRole="button"
             >
-              <Bell size={22} color={t.color["navbar.text"]} strokeWidth={1.5} />
+              {/* Bell + Search sized to visually match the hamburger:
+                 24-pt glyph with a 2-px stroke reads as a landscape
+                 25×16 stack (the hamburger is 3 bars of the same
+                 2-px weight). Prior 1.5/1.75 stroke + 22-pt bell
+                 was optically lighter. */}
+              <Bell size={24} color={t.color["navbar.text"]} strokeWidth={2} />
               {unreadCount > 0 && <View style={s.badge} />}
             </Pressable>
           )}
@@ -128,7 +133,7 @@ export default function MobileHeader() {
             accessibilityLabel="Search"
             accessibilityRole="button"
           >
-            <Search size={24} color={t.color["navbar.text"]} strokeWidth={1.75} />
+            <Search size={24} color={t.color["navbar.text"]} strokeWidth={2} />
           </Pressable>
         </View>
       </View>

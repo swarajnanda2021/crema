@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Platform, StyleSheet, Pressable } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, initialWindowMetrics, useSafeAreaInsets } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import "../global.css";
 
@@ -16,6 +17,7 @@ import { t } from "../src/tokens/useTokens";
 import { listen, emit } from "../src/utils/events";
 import { useBreakpoint } from "../src/hooks/useBreakpoint";
 import PostModal from "../src/components/shell/PostModal";
+import Toast from "../src/components/shell/Toast";
 import AuthModal from "../src/components/AuthModal";
 import PopularityModal from "../src/components/PopularityModal";
 import ComposePost from "../src/components/ComposePost";
@@ -239,6 +241,7 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <AuthProvider>
         <CoffeeDataProvider>
@@ -347,6 +350,11 @@ export default function RootLayout() {
           <MobileOverlays />
           </View>
           <ConditionalMobileFooter />
+          {/* Sitewide status toast — sibling OUTSIDE the relative
+              wrapper so its top offset is screen-absolute and it can
+              paint above MobileHeader + the relative band.
+              Triggered via `showToast("Liked")` etc. */}
+          <Toast />
           </View>
           <StatusBar style="light" />
           {/* Page-transition overlay. Paints the content area below the
@@ -357,5 +365,6 @@ export default function RootLayout() {
         </CoffeeDataProvider>
       </AuthProvider>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

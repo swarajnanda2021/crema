@@ -10,6 +10,8 @@ import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Animat
 import { Send, X, MessageCircle } from "lucide-react-native";
 import CroppedAvatar from "./Avatar";
 import Toggle from "./Toggle";
+import HapticPressable from "./HapticPressable";
+import { showToast } from "../shell/Toast";
 import { timeAgo } from "./TimeAgo";
 import { useResource } from "../../resources/useResource";
 import { t } from "../../tokens/useTokens";
@@ -29,10 +31,16 @@ interface CommentThreadProps {
   user?: any;
   /** Comment ID to highlight (from notification) */
   highlightCommentId?: number;
+  /** Focus the comment input on mount (pops the keyboard). Used when
+   *  the caller opens the thread specifically to reply — e.g. the
+   *  mobile feed's swipe-right shortcut lands here in mode="comment"
+   *  and expects the keyboard up immediately. */
+  autoFocusInput?: boolean;
 }
 
 export default function CommentThread({
   resource, likeResource, parentResource, parentId, user, highlightCommentId,
+  autoFocusInput,
 }: CommentThreadProps) {
   const { data: comments, loading, refetch, create } = useResource<Comment>(resource, {
     parent: { resource: parentResource, id: parentId },
@@ -43,6 +51,16 @@ export default function CommentThread({
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<{ id: number; username: string } | null>(null);
   const flashAnims = useRef<Record<number, Animated.Value>>({}).current;
+  const inputRef = useRef<TextInput>(null);
+
+  // If the caller asked for auto-focus, pop the keyboard as soon as
+  // the thread mounts. A small delay lets the parent modal finish its
+  // open animation — focusing mid-transition is ignored on iOS.
+  useEffect(() => {
+    if (!autoFocusInput) return;
+    const id = setTimeout(() => inputRef.current?.focus(), 260);
+    return () => clearTimeout(id);
+  }, [autoFocusInput]);
 
   // Highlight specific comment on mount
   useEffect(() => {
@@ -62,6 +80,7 @@ export default function CommentThread({
       await create(body);
       setCommentText("");
       setReplyTo(null);
+      showToast(replyTo ? "Replied" : "Commented");
     } catch (e) { console.warn("Comment submit failed:", e); } finally {
       setSending(false);
     }
@@ -121,13 +140,14 @@ export default function CommentThread({
                 />
               )}
               {user && (
-                <Pressable
+                <HapticPressable
+                  haptic="select"
                   onPress={() => setReplyTo({ id: c.id, username: c.user?.display_name || "user" })}
                   style={s.actionBtn}
                 >
                   <MessageCircle size={12} color={t.color["text.muted"]} />
                   <Text style={s.actionText}>Reply</Text>
-                </Pressable>
+                </HapticPressable>
               )}
             </View>
           </View>
@@ -164,6 +184,7 @@ export default function CommentThread({
       {user && (
         <View style={s.input}>
           <TextInput
+            ref={inputRef}
             value={commentText}
             onChangeText={setCommentText}
             placeholder={replyTo ? `Reply to ${replyTo.username}...` : "Write a comment..."}
@@ -171,9 +192,9 @@ export default function CommentThread({
             style={s.inputField}
             onSubmitEditing={handleSubmit}
           />
-          <Pressable onPress={handleSubmit} disabled={sending || !commentText.trim()}>
+          <HapticPressable haptic="commit" onPress={handleSubmit} disabled={sending || !commentText.trim()}>
             <Send size={18} color={commentText.trim() ? t.color.accent : t.color.border} />
-          </Pressable>
+          </HapticPressable>
         </View>
       )}
     </View>

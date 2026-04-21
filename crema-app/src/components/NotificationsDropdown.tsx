@@ -11,7 +11,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet, Platform, ActivityIndica
 import { useRouter } from "expo-router";
 import { X } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
-import { CroppedAvatar, openPostModal } from "./primitives";
+import { CroppedAvatar, openPostModal, HapticPressable } from "./primitives";
 import { timeAgo } from "./primitives";
 import {
   useNotifications,
@@ -196,12 +196,13 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread, 
           <Text style={s.headerTitle}>Notifications</Text>
           <View style={s.headerActions}>
             {unreadCount > 0 && (
-              <Pressable onPress={markAllRead} hitSlop={6}>
+              <HapticPressable haptic="select" onPress={markAllRead} hitSlop={6}>
                 <Text style={s.markRead}>Mark all read</Text>
-              </Pressable>
+              </HapticPressable>
             )}
             {fullScreen && (
-              <Pressable
+              <HapticPressable
+                haptic="tap"
                 onPress={onClose}
                 hitSlop={10}
                 accessibilityLabel="Close"
@@ -209,7 +210,7 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread, 
                 style={s.closeBtn}
               >
                 <X size={18} color={t.color["text.primary"]} strokeWidth={1.75} />
-              </Pressable>
+              </HapticPressable>
             )}
           </View>
         </View>
@@ -219,22 +220,24 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread, 
         {/* Activity / Business tabs — roaster + café accounts only */}
         {hasTabs && (
           <View style={s.tabs}>
-            <Pressable
+            <HapticPressable
+              haptic="select"
               onPress={() => setTab("activity")}
               style={[s.tabBtn, tab === "activity" && s.tabBtnActive]}
             >
               <Text style={[s.tabText, tab === "activity" && s.tabTextActive]}>
                 Activity{activityUnread > 0 ? ` · ${activityUnread}` : ""}
               </Text>
-            </Pressable>
-            <Pressable
+            </HapticPressable>
+            <HapticPressable
+              haptic="select"
               onPress={() => setTab("business")}
               style={[s.tabBtn, tab === "business" && s.tabBtnActive]}
             >
               <Text style={[s.tabText, tab === "business" && s.tabTextActive]}>
                 Business{businessUnread > 0 ? ` · ${businessUnread}` : ""}
               </Text>
-            </Pressable>
+            </HapticPressable>
           </View>
         )}
 
@@ -254,7 +257,8 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread, 
             visibleList.map((n, idx) => (
               <View key={n.id}>
                 {idx > 0 && <View style={s.itemDivider} />}
-                <Pressable
+                <HapticPressable
+                  haptic="tap"
                   onPress={() => goToSource(n)}
                   style={({ pressed }: any) => [
                     s.item,
@@ -292,7 +296,7 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread, 
                     <Text style={s.itemTime}>{timeAgo(n.created_at)}</Text>
                   </View>
                   {!n.read && <View style={s.unreadDot} />}
-                </Pressable>
+                </HapticPressable>
               </View>
             ))
           )}

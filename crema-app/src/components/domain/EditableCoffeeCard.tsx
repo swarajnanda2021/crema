@@ -19,6 +19,7 @@ import { resolveUploadUrl } from "../../api/client";
 import { t } from "../../tokens/useTokens";
 import ImageUploadModal from "../ImageUploadModal";
 import { CartIcon } from "../icons/FigmaIcons";
+import CropGestureWrap from "../shell/CropGestureWrap";
 
 const IMAGE_RATIO = 160 / 372;
 
@@ -218,7 +219,16 @@ export default function EditableCoffeeCard({
       {/* Edit form — slides in from right */}
       {mode === "editing" && (
         <Animated.View style={[s.editCard, { width, height, opacity: saveAnim, transform: [{ translateX: editSlideAnim }, { scale: saveAnim }] }]}>
-          {/* Image area */}
+          {/* Image area — CropGestureWrap handles native drag; web
+             keeps DOM onMouseDown below (§2.36). No X-axis or zoom on
+             this card; cropY is the only degree of freedom. */}
+          <CropGestureWrap
+            enabled={!!imageUrl}
+            containerW={width} containerH={imageH}
+            cropX={50} cropY={cropY} zoom={1}
+            onCrop={(_x, y) => setCropY(y)}
+            onZoom={() => {}}
+          >
           <View
             ref={imgWrapRef as any}
             style={[s.imageArea, { height: imageH },
@@ -266,6 +276,7 @@ export default function EditableCoffeeCard({
               }
             </Pressable>
           </View>
+          </CropGestureWrap>
 
           {/* Info area */}
           <View style={[s.infoArea, { minHeight: infoH, flex: 1 }]}>

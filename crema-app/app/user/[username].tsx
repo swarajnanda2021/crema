@@ -26,6 +26,8 @@ import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t, SHELF_LABELS } from "../../src/tokens/useTokens";
 
 import PostCard from "../../src/components/domain/PostCard";
+import SwipeToCommit from "../../src/components/mobile/SwipeToCommit";
+import { showToast } from "../../src/components/shell/Toast";
 import { openPostModal } from "../../src/components/primitives";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import SiteHeader from "../../src/components/SiteHeader";
@@ -443,9 +445,10 @@ export default function UserProfilePage() {
         {posts.length === 0 ? (
           <View style={g.empty}><Text style={g.emptyText}>No posts yet.</Text></View>
         ) : (
-          posts.slice(0, visiblePostCount).map((post: any, idx: number) => (
-            <View key={`post-${post.id}-${idx}`}>
+          posts.slice(0, visiblePostCount).map((post: any, idx: number) => {
+            const card = (
               <PostCard post={post} user={authUser}
+                hideActionBar={isMobile}
                 onOpen={(p) => openPostModal({ post: p, mode: "view" })}
                 onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
@@ -454,9 +457,28 @@ export default function UserProfilePage() {
                 onReport={(p) => confirmAndReport(p.id)}
                 onDislike={(p) => dislikePost(p.id)}
               />
-              {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
-            </View>
-          ))
+            );
+            return (
+              <View key={`post-${post.id}-${idx}`}>
+                {isMobile ? (
+                  <SwipeToCommit
+                    onSwipeLike={async () => {
+                      try {
+                        const res: any = await apiFetchRaw(`/post_likes/${post.id}/toggle`, { method: "POST" });
+                        const nowLiked = !!(res?.data?.toggled ?? res?.toggled);
+                        showToast(nowLiked ? "Liked" : "Unliked");
+                        loadData();
+                      } catch { /* swipe is best-effort */ }
+                    }}
+                    onSwipeComment={() => openPostModal({ post, mode: "comment" })}
+                  >
+                    {card}
+                  </SwipeToCommit>
+                ) : card}
+                {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
+              </View>
+            );
+          })
         )}
       </View>
     );

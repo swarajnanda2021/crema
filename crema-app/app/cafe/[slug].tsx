@@ -21,15 +21,16 @@ import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
+import CropGestureWrap from "../../src/components/shell/CropGestureWrap";
 import SiteHeader from "../../src/components/SiteHeader";
 import ScannerModal from "../../src/components/ScannerModal";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 import PostPromptModal from "../../src/components/PostPromptModal";
-import ComposePost from "../../src/components/ComposePost";
 import PostCard from "../../src/components/domain/PostCard";
 import BusinessAnalytics from "../../src/components/analytics/BusinessAnalytics";
 import CremaLogo from "../../src/components/CremaLogo";
-import { openPostModal, ConfirmDeleteModal } from "../../src/components/primitives";
+import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
+import { listen } from "../../src/utils/events";
 import type { Cafe, CafeMenuItem } from "../../src/resources/types";
 
 const NAVBAR_H = 72;
@@ -211,8 +212,6 @@ export default function CafeDetailPage() {
   const [postPrompt, setPostPrompt] = useState<{
     title: string; body: string; teaser: string;
   } | null>(null);
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [composerPrefill, setComposerPrefill] = useState<string>("");
 
   // Auto-open edit mode from ?edit=1 query (set by navbar dropdown)
   useEffect(() => { if (edit === "1" && isOwner) setIsEditing(true); }, [edit, isOwner]);
@@ -262,6 +261,10 @@ export default function CafeDetailPage() {
   }, [slug]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+  // Listen for the refetch event fired by the sitewide composer on
+  // successful submit (§2.40.3-follow-up). Replaces the local Modal
+  // round-trip where the composer used to live inside this file.
+  useEffect(() => listen("crema:cafe-posts-updated", () => { fetchAll(); }), [fetchAll]);
 
   // Follow status + count — mirrors the roaster page. Café slugs live on
   // the same `follows` table (uniqueness is per (user, slug) regardless
@@ -456,7 +459,16 @@ export default function CafeDetailPage() {
             </Pressable>
 
             {/* Logo — circular, drag-to-reposition + pinch-to-zoom in edit mode.
-                Same math as the user avatar / roaster hero crop. */}
+                Same math as the user avatar / roaster hero crop.
+                CropGestureWrap handles native touch; DOM mouseDown/Wheel
+                handle web (§2.36). */}
+            <CropGestureWrap
+              enabled={!!isEditing}
+              containerW={logoContW || 120} containerH={logoContH || 120}
+              cropX={editLogoCropX} cropY={editLogoCropY} zoom={editLogoZoom}
+              onCrop={(x, y) => { setEditLogoCropX(x); setEditLogoCropY(y); }}
+              onZoom={(z) => setEditLogoZoom(z)}
+            >
             <View
               ref={logoWrapRef}
               style={[
@@ -501,6 +513,7 @@ export default function CafeDetailPage() {
                 </Pressable>
               )}
             </View>
+            </CropGestureWrap>
 
             <Text style={s.cafeName}>{cafe.name}</Text>
 
@@ -604,7 +617,12 @@ export default function CafeDetailPage() {
                  Followers use the existing list endpoint; regulars
                  use /cafes/{slug}/regulars. Both open a person-list
                  modal (same pattern as roaster profile). */}
-              <View style={[s.metaItem, { gap: 16, flexDirection: "row" }]}>
+              {/* Followers + Regulars row — allow wrap so the regulars
+                 pill drops to a new line on narrow phones instead of
+                 clipping out of the panel. flexShrink on each child
+                 lets long digits ("1,234 followers") truncate cleanly
+                 before the wrap triggers. */}
+              <View style={[s.metaItem, { gap: 16, flexDirection: "row", flexWrap: "wrap" }]}>
                 <Pressable
                   onPress={async () => {
                     setShowFollowersModal(true);
@@ -614,10 +632,10 @@ export default function CafeDetailPage() {
                       setFollowersList(Array.isArray(d?.followers) ? d.followers : []);
                     } catch { setFollowersList([]); }
                   }}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
                 >
                   <UsersMetaIcon />
-                  <Text style={s.metaText}>
+                  <Text style={s.metaText} numberOfLines={1}>
                     {followerCount} {followerCount === 1 ? "follower" : "followers"}
                   </Text>
                 </Pressable>
@@ -630,10 +648,10 @@ export default function CafeDetailPage() {
                       setRegularsList(Array.isArray(d) ? d : []);
                     } catch { setRegularsList([]); }
                   }}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
                 >
                   <CafeHeartIcon />
-                  <Text style={s.metaText}>
+                  <Text style={s.metaText} numberOfLines={1}>
                     {cafe.love_count || 0} {cafe.love_count === 1 ? "regular" : "regulars"}
                   </Text>
                 </Pressable>
@@ -662,6 +680,13 @@ export default function CafeDetailPage() {
           {/* RIGHT PANEL — independent scroll so columns are flush full-height */}
           <View style={s.rightPanelWide}>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 60 }}>
+            <CropGestureWrap
+              enabled={!!isEditing}
+              containerW={heroContW || 800} containerH={heroContH || 334}
+              cropX={editHeroCropX} cropY={editHeroCropY} zoom={editHeroZoom}
+              onCrop={(x, y) => { setEditHeroCropX(x); setEditHeroCropY(y); }}
+              onZoom={(z) => setEditHeroZoom(z)}
+            >
             <View
               ref={heroWrapRef}
               style={[
@@ -707,6 +732,7 @@ export default function CafeDetailPage() {
                 </Pressable>
               )}
             </View>
+            </CropGestureWrap>
 
             <View style={s.rightInner}>
               <TabRow isMobile={isMobile}>
@@ -777,22 +803,42 @@ export default function CafeDetailPage() {
           </View>
         </View>
       ) : (
-        // Narrow layout: single scroll, left panel stacked above right panel
+        // Narrow layout (§2.35-mobile redo): X-style stack — hero
+        // banner fills the top, circular logo overlaps the bottom of
+        // the hero, then the info panel flows beneath. Back button is
+        // an absolute pill on the hero so it doesn't eat vertical
+        // space above the banner.
         <ScrollView
           style={{ flex: 1, backgroundColor: t.color.bg }}
           contentContainerStyle={{ paddingBottom: 60 }}
           onScroll={onChromeScroll}
           scrollEventThrottle={16}
         >
-          <View style={s.leftPanel}>
-            <Pressable onPress={() => router.back()} style={s.backBtn}>
-              <ArrowLeft size={16} color={t.color["text.on-dark"]} />
-              <Text style={s.backText}>Back</Text>
+          {/* Hero banner at the top — full-width cover image with
+             the circular logo overlapping its lower-left edge. */}
+          <View style={s.heroWrapMobile}>
+            {cafe.cover_image_url ? (
+              <Image source={{ uri: resolveUploadUrl(cafe.cover_image_url) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+            ) : (
+              <View style={s.heroFallback}><Coffee size={64} color={t.color["text.muted"]} /></View>
+            )}
+            <Pressable onPress={() => router.back()} style={s.backFloating} accessibilityLabel="Back" hitSlop={8}>
+              <ArrowLeft size={18} color={t.color["text.on-dark"]} strokeWidth={2} />
             </Pressable>
+          </View>
+          <View style={s.leftPanelMobile}>
+            <CropGestureWrap
+              enabled={!!isEditing}
+              containerW={logoContW || 96} containerH={logoContH || 96}
+              cropX={editLogoCropX} cropY={editLogoCropY} zoom={editLogoZoom}
+              onCrop={(x, y) => { setEditLogoCropX(x); setEditLogoCropY(y); }}
+              onZoom={(z) => setEditLogoZoom(z)}
+            >
             <View
               ref={logoWrapRef}
               style={[
                 s.logoWrap,
+                s.logoWrapOverlap,
                 isEditing && (isDraggingLogo ? ({ cursor: "grabbing" } as any) : ({ cursor: "grab" } as any)),
               ]}
               onLayout={(e) => { setLogoContW(e.nativeEvent.layout.width); setLogoContH(e.nativeEvent.layout.height); }}
@@ -826,7 +872,8 @@ export default function CafeDetailPage() {
                 </Pressable>
               )}
             </View>
-            <Text style={s.cafeName}>{cafe.name}</Text>
+            </CropGestureWrap>
+            <Text style={[s.cafeName, s.cafeNameMobile]} numberOfLines={2}>{cafe.name}</Text>
             {isEditing ? (
               <TextInput style={[s.aboutText, s.inlineEdit, { minHeight: 60 }]} value={editAbout} onChangeText={setEditAbout} multiline placeholder="Tell people about your café…" placeholderTextColor="rgba(199,186,165,0.4)" />
             ) : cafe.about_blurb ? (
@@ -851,7 +898,12 @@ export default function CafeDetailPage() {
                   <ExternalLinkIcon /><Text style={s.metaText}>Website</Text>
                 </Pressable>
               )}
-              <View style={[s.metaItem, { gap: 16, flexDirection: "row" }]}>
+              {/* Followers + Regulars row — allow wrap so the regulars
+                 pill drops to a new line on narrow phones instead of
+                 clipping out of the panel. flexShrink on each child
+                 lets long digits ("1,234 followers") truncate cleanly
+                 before the wrap triggers. */}
+              <View style={[s.metaItem, { gap: 16, flexDirection: "row", flexWrap: "wrap" }]}>
                 <Pressable
                   onPress={async () => {
                     setShowFollowersModal(true);
@@ -861,10 +913,10 @@ export default function CafeDetailPage() {
                       setFollowersList(Array.isArray(d?.followers) ? d.followers : []);
                     } catch { setFollowersList([]); }
                   }}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
                 >
                   <UsersMetaIcon />
-                  <Text style={s.metaText}>
+                  <Text style={s.metaText} numberOfLines={1}>
                     {followerCount} {followerCount === 1 ? "follower" : "followers"}
                   </Text>
                 </Pressable>
@@ -877,10 +929,10 @@ export default function CafeDetailPage() {
                       setRegularsList(Array.isArray(d) ? d : []);
                     } catch { setRegularsList([]); }
                   }}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
                 >
                   <CafeHeartIcon />
-                  <Text style={s.metaText}>
+                  <Text style={s.metaText} numberOfLines={1}>
                     {cafe.love_count || 0} {cafe.love_count === 1 ? "regular" : "regulars"}
                   </Text>
                 </Pressable>
@@ -892,19 +944,16 @@ export default function CafeDetailPage() {
               </View>
             )}
           </View>
-          <View style={s.heroWrap}>
-            {cafe.cover_image_url ? (
-              <Image source={{ uri: resolveUploadUrl(cafe.cover_image_url) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-            ) : (
-              <View style={s.heroFallback}><Coffee size={64} color={t.color["text.muted"]} /></View>
-            )}
-          </View>
           <View style={s.rightInner}>
             <TabRow isMobile={isMobile}>
-              {(["bio", "menu", "posts"] as TabKey[]).map((tab) => (
+              {(
+                isOwner
+                  ? ["bio", "menu", "posts", "analytics"] as TabKey[]
+                  : ["bio", "menu", "posts"] as TabKey[]
+              ).map((tab) => (
                 <Pressable key={tab} onPress={() => setActiveTab(tab)} style={s.tabBtn}>
                   <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
-                    {tab === "bio" ? "BIO" : tab === "menu" ? "COFFEE MENU" : "POSTS"}
+                    {TAB_LABEL[tab]}
                   </Text>
                   {activeTab === tab && <View style={s.tabUnderline} />}
                 </Pressable>
@@ -1011,58 +1060,33 @@ export default function CafeDetailPage() {
         title={postPrompt?.title || ""}
         body={postPrompt?.body || ""}
         onConfirm={() => {
-          setComposerPrefill(postPrompt?.teaser || "");
-          setComposerOpen(true);
+          openComposePost({
+            endpoint: "/roaster-posts",
+            extraData: { cafe_slug: slug, roaster_slug: `user_${user?.id}` },
+            refetchEventName: "crema:cafe-posts-updated",
+            initialData: { body: postPrompt?.teaser || "", images: [], location: "" },
+          });
           setPostPrompt(null);
         }}
         onClose={() => setPostPrompt(null)}
       />
 
-      {/* FAB — owner, posts tab. Same floating composer the roaster
-          profile + feed use, so café owners get a standalone "write a
-          post" entry point instead of only the menu-mutation-triggered
-          PostPromptModal. */}
+      {/* FAB — owner, posts tab. Routes to the sitewide composer via
+          `openComposePost` (§2.40.3-follow-up); the global mount in
+          root `_layout.tsx` renders the composer in the mid-band on
+          mobile / centered overlay on web wide. */}
       {isOwner && !isEditing && activeTab === "posts" && (
-        <Pressable onPress={() => { setComposerPrefill(""); setComposerOpen(true); }} style={s.fab}>
+        <Pressable
+          onPress={() => openComposePost({
+            endpoint: "/roaster-posts",
+            extraData: { cafe_slug: slug, roaster_slug: `user_${user?.id}` },
+            refetchEventName: "crema:cafe-posts-updated",
+          })}
+          style={s.fab}
+        >
           <Plus size={22} color={t.color["text.on-dark"]} strokeWidth={2.5} />
         </Pressable>
       )}
-
-      {/* Composer modal, pre-filled with the post-prompt teaser when
-          launched from a catalog change, empty when opened from the FAB.
-          Reuses the site's floating overlay pattern (same as the feed
-          composer). */}
-      <Modal
-        visible={composerOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setComposerOpen(false)}
-      >
-        <View style={s.composerOverlayWrap}>
-          <Pressable style={s.composerOverlayBg} onPress={() => setComposerOpen(false)} />
-          <View style={s.composerCard}>
-            <ComposePost
-              onSubmit={async (data) => {
-                try {
-                  // Posts published from a café owner are auto-tagged to
-                  // their own café so followers see the update land under
-                  // the café's feed.
-                  await apiFetchRaw("/roaster-posts", {
-                    method: "POST",
-                    body: JSON.stringify({ ...data, cafe_slug: slug, roaster_slug: `user_${user?.id}` }),
-                  });
-                  setComposerOpen(false);
-                  fetchAll();
-                } catch (e) { console.warn("Post create failed:", e); }
-              }}
-              onCancel={() => setComposerOpen(false)}
-              user={user}
-              products={[]}
-              initialData={{ body: composerPrefill, images: [], location: "" }}
-            />
-          </View>
-        </View>
-      </Modal>
 
       {/* Followers + Regulars list modals — tappable from the meta
          row in the left info column. Clicking a row navigates to
@@ -1317,6 +1341,7 @@ function MenuTab({
 }) {
   const cafe_slug = cafe.cafe_slug;
   const router = useRouter();
+  const { isMobile } = useBreakpoint();
   const [menuItemToDelete, setMenuItemToDelete] = useState<CafeMenuItem | null>(null);
   const [editingItem, setEditingItem] = useState<CafeMenuItem | null>(null);
   const [milkOptionsOpen, setMilkOptionsOpen] = useState(false);
@@ -1413,6 +1438,94 @@ function MenuTab({
          supplier under the same drink without opening the full
          Add-drink form. */}
       <View style={s.menuTable}>
+      {/* §2.35 — narrow screens can't hold the 7-column grid without
+         squeeze. Keep the same thin-line list aesthetic as the
+         opening-hours block above (menu is a list-of-facts, not a
+         stack of cards): drink name as a section header, each bean a
+         two-line row — roaster + prices on the top line, roast +
+         tasting notes muted below. `hoursRow`-style 1-px divider
+         between rows. Wide web keeps the 7-column grid verbatim. */}
+      {isMobile ? (
+        grouped.map(([drinkName, items], drinkIdx) => (
+          <View key={drinkName} style={s.menuMobileGroup}>
+            {drinkIdx > 0 && <View style={s.menuMobileGroupDivider} />}
+            <Text style={s.menuMobileDrinkHeading} numberOfLines={1}>{drinkName}</Text>
+            {items.map((item, beanIdx) => {
+              const slug = item.roaster_slug;
+              const derivedFromSlug = slug
+                ? String(slug).replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
+                : null;
+              const roasterLabel = (item as any).roaster_name
+                || derivedFromSlug
+                || item.manual_roaster_name
+                || item.manual_bean_name
+                || "\u2014";
+              const priceHot = item.price_inr ?? (item as any).product?.price_inr ?? null;
+              const priceIced = item.price_iced_inr ?? null;
+              // Compact right-edge price: collapse to "₹X / ₹Y" when
+              // both are set, just "₹X" when one is, em-dash when
+              // neither. Mirrors the hours-row aesthetic where the
+              // right column is a single concise value.
+              let priceLabel = "\u2014";
+              if (priceHot != null && priceIced != null) priceLabel = `\u20B9${priceHot} / \u20B9${priceIced}`;
+              else if (priceHot != null) priceLabel = `\u20B9${priceHot}`;
+              else if (priceIced != null) priceLabel = `\u20B9${priceIced}`;
+              // Second-line meta: roast level + notes, em-dash joined.
+              // Falsy segments drop out so the line stays honest.
+              const subparts: string[] = [];
+              if (item.roast_level) subparts.push(item.roast_level);
+              if (item.notes) subparts.push(item.notes);
+              return (
+                <View
+                  key={item.id ?? `${drinkName}-${beanIdx}`}
+                  style={[s.menuMobileRow, beanIdx > 0 && s.menuMobileRowInner]}
+                >
+                  <View style={s.menuMobileTopLine}>
+                    {slug ? (
+                      <Pressable
+                        onPress={() => router.push(`/roaster/${slug}` as any)}
+                        style={s.menuMobileRoasterPressable}
+                        accessibilityLabel={`Visit ${roasterLabel}`}
+                        hitSlop={6}
+                      >
+                        <Text style={s.menuMobileRoasterText} numberOfLines={1}>{roasterLabel}</Text>
+                        <ExternalLink size={11} color={t.color.accent} strokeWidth={1.8} />
+                      </Pressable>
+                    ) : (
+                      <Text style={s.menuMobileRoasterText} numberOfLines={1}>{roasterLabel}</Text>
+                    )}
+                    <Text style={s.menuMobilePrice} numberOfLines={1}>{priceLabel}</Text>
+                    {isOwner && isEditing && item.id != null && (
+                      <View style={s.menuMobileActions}>
+                        <Pressable onPress={() => setEditingItem(item)} hitSlop={10} style={s.menuRowAction} accessibilityLabel="Edit menu item">
+                          <PenLine size={14} color={t.color["text.secondary"]} />
+                        </Pressable>
+                        <Pressable onPress={() => setMenuItemToDelete(item)} hitSlop={10} style={s.menuRowAction} accessibilityLabel="Delete menu item">
+                          <Trash2 size={14} color={t.color["text.secondary"]} />
+                        </Pressable>
+                      </View>
+                    )}
+                  </View>
+                  {subparts.length > 0 && (
+                    <Text style={s.menuMobileSubline} numberOfLines={2}>
+                      {subparts.join("  \u00B7  ")}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+            {isOwner && isEditing && (
+              <View style={s.menuMobileAddRoasterWrap}>
+                <AddRoasterToDrinkRow
+                  drinkName={drinkName}
+                  onSubmit={(body) => handleAddBean(drinkName, body)}
+                />
+              </View>
+            )}
+          </View>
+        ))
+      ) : (
+        <>
         {/* §2.24a — column header row. Same column widths as the data
            rows so everything aligns. Uppercase + letter-spaced + muted
            so it reads as metadata, not another drink row. */}
@@ -1448,7 +1561,7 @@ function MenuTab({
               // Display roaster name with priority: joined name,
               // derived from slug, manual name, or manual bean name
               // as a last resort when no roaster was picked.
-              const roasterLabel = item.roaster_name
+              const roasterLabel = (item as any).roaster_name
                 || derivedFromSlug
                 || item.manual_roaster_name
                 || item.manual_bean_name
@@ -1547,6 +1660,8 @@ function MenuTab({
             )}
           </View>
         ))}
+        </>
+      )}
       </View>
 
       {/* "Add drink" is available to owners any time; this is the
@@ -2841,6 +2956,21 @@ const s = StyleSheet.create({
     paddingHorizontal: 24, paddingVertical: 24,
     backgroundColor: t.color["roaster.panel"],
   },
+  // Mobile-only variant (§2.35 redo): same dark panel, but no longer
+  // leads the page — sits directly below the hero banner with a
+  // negative top inset so the circular logo overlaps the hero's
+  // lower edge (X-style "merged" hero+avatar). Back button moves out
+  // of this panel onto the hero itself (see `backFloating`).
+  // Panel sits directly under the hero with no top padding — the
+  // logo's negative margin pulls it up by half its height so the
+  // circle straddles the hero/panel seam (half on the hero, half on
+  // the panel). Bottom + side padding stay conventional.
+  leftPanelMobile: {
+    paddingHorizontal: t.spacing.lg,
+    paddingBottom: t.spacing.xl,
+    paddingTop: 0,
+    backgroundColor: t.color["roaster.panel"],
+  } as any,
   // Match roaster profile widths/padding exactly. Width + horizontal padding on outer View
   // (so percentage is relative to viewport like roaster), inner ScrollView fills with vertical padding.
   leftPanelWide: {
@@ -2882,6 +3012,30 @@ const s = StyleSheet.create({
   // tab-bar region read as "thicker" because it widened the empty
   // cream area above the tab text, making the text sit south of
   // visual center).
+  // Mobile hero: shorter band (X-style banner: ~160 px), cover fills,
+  // back button floats top-left as a circular pill.
+  heroWrapMobile: {
+    width: "100%",
+    height: 168,
+    backgroundColor: t.color["card.info"],
+    overflow: "hidden",
+  } as any,
+  backFloating: {
+    position: "absolute", top: t.spacing.md, left: t.spacing.md,
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center", justifyContent: "center",
+  } as any,
+  // Logo overlap: 96-px circle pulled up by its half height + a
+  // crema-cream ring so it reads as a medallion perched on the
+  // hero's lower edge. Matches the mental model of the X app's
+  // avatar-over-banner composition.
+  logoWrapOverlap: {
+    marginTop: -48,
+    marginBottom: t.spacing.sm,
+    borderWidth: 4,
+    borderColor: t.color.bg,
+  } as any,
   heroWrap: {
     width: "100%",
     height: 280,
@@ -2940,6 +3094,12 @@ const s = StyleSheet.create({
   },
   backText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color.divider },
 
+  // Mobile override: 48 pt wraps to 2 lines on a phone and dominates
+  // the bio section. 28 pt reads like a page-title and keeps the info
+  // density at X-app levels.
+  cafeNameMobile: {
+    fontSize: 28, lineHeight: 32, marginTop: 0, marginBottom: 6,
+  } as any,
   cafeName: {
     fontFamily: t.font.display, fontSize: 48, color: t.color["text.on-dark"],
     lineHeight: 54, marginTop: 4, marginBottom: 12,
@@ -3050,11 +3210,16 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(215,209,196,0.5)",
   } as any,
+  // Inner padding kept narrow because on the narrow cafe layout the
+  // TabRow already sits inside `rightInner` (padH:24). Matching user-
+  // profile's flush-to-edge feel, we only need a small local offset
+  // for the first-tab underline breathing room. Wide web rebuilds
+  // the 32-style gutter via `tabs` above.
   tabsMobileInner: {
     flexDirection: "row",
     alignItems: "stretch",
     gap: t.spacing["2xl"],
-    paddingHorizontal: t.spacing["3xl"],
+    paddingHorizontal: t.spacing["2xs"],
     height: "100%" as any,
   } as any,
   tabBtn: { justifyContent: "center", position: "relative" } as any,
@@ -3243,6 +3408,63 @@ const s = StyleSheet.create({
   menuRowAction: {
     padding: 4,
     alignItems: "center", justifyContent: "center",
+  } as any,
+
+  // §2.35 redo — mobile menu matches the hoursBlock / hoursRow
+  // aesthetic: list of facts, thin 1-px dividers, no card chrome. Each
+  // drink is a section with its name above, and each bean inside it
+  // is a row with roaster + price on the top line and roast + notes
+  // muted below.
+  menuMobileGroup: { paddingVertical: 4 } as any,
+  // A 1-px border between drink groups, identical weight to the
+  // hoursRow dividers. Applied to all but the first group.
+  menuMobileGroupDivider: {
+    height: 1, backgroundColor: t.color["border.light"],
+    marginVertical: 10,
+  } as any,
+  menuMobileDrinkHeading: {
+    fontFamily: t.font["body.semibold"], fontSize: 13,
+    color: t.color["text.primary"],
+    marginBottom: 4,
+  } as any,
+  // A bean row — padded like hoursRow so the vertical rhythm matches.
+  // The inner (2nd+) rows within a drink group get a thin top border
+  // so stacked beans read as siblings, not blobs.
+  menuMobileRow: {
+    paddingVertical: 6,
+  } as any,
+  menuMobileRowInner: {
+    borderTopWidth: 1, borderTopColor: t.color["border.light"],
+  } as any,
+  menuMobileTopLine: {
+    flexDirection: "row", alignItems: "center",
+    gap: 8,
+  } as any,
+  menuMobileRoasterPressable: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    flexShrink: 1,
+  } as any,
+  menuMobileRoasterText: {
+    fontFamily: t.font["body.medium"], fontSize: 13,
+    color: t.color["text.primary"],
+    flexShrink: 1,
+  } as any,
+  menuMobilePrice: {
+    fontFamily: t.font["body.regular"], fontSize: 13,
+    color: t.color["text.secondary"],
+    marginLeft: "auto" as any,
+  } as any,
+  menuMobileActions: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+  } as any,
+  menuMobileSubline: {
+    fontFamily: t.font["body.regular"], fontSize: 12,
+    color: t.color["text.muted"],
+    lineHeight: 16,
+    marginTop: 2,
+  } as any,
+  menuMobileAddRoasterWrap: {
+    marginTop: 6,
   } as any,
 
   // Inline "add roaster" expand-in-place form inside a drink block.

@@ -217,15 +217,44 @@ export default function PostCard({
       >
         {post.original_post.teaser}
       </Text>
-      {(post.original_post.images?.length > 0 || post.original_post.cover_image_url) && (
-        <View style={{ marginTop: 8 }}>
-          <PostGallery
-            images={post.original_post.images?.length > 0
-              ? post.original_post.images
-              : [post.original_post.cover_image_url!]}
-          />
-        </View>
-      )}
+      {(() => {
+        // If the reposted post is an ARTICLE, render the article card
+        // (cover image + title/domain overlay) instead of falling back
+        // to a single thumbnail in the gallery strip. Matches the
+        // top-level article presentation so reposts don't mangle the
+        // original's layout. (§postmodal-redo)
+        const op = post.original_post as any;
+        const opIsArticle = op?.post_type === "article";
+        if (opIsArticle && op.cover_image_url) {
+          return (
+            <View style={{ marginTop: 8 }}>
+              <View style={isMobile ? s.articleWrapMobile : s.articleWrap}>
+                <Image source={{ uri: resolveUploadUrl(op.cover_image_url) }} style={s.articleImg} contentFit="cover" />
+                <View style={s.articleOverlay}>
+                  {op.title && <Text style={s.articleTitle} numberOfLines={2}>{op.title}</Text>}
+                  {op.external_url && (
+                    <Text style={s.articleDomain}>
+                      {op.external_url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </View>
+          );
+        }
+        if (op?.images?.length > 0 || op?.cover_image_url) {
+          return (
+            <View style={{ marginTop: 8 }}>
+              <PostGallery
+                images={op.images?.length > 0
+                  ? op.images
+                  : [op.cover_image_url!]}
+              />
+            </View>
+          );
+        }
+        return null;
+      })()}
     </Pressable>
   ) : null;
 

@@ -20,6 +20,7 @@ import { Camera, Plus, X } from "lucide-react-native";
 
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
 import { t } from "../tokens/useTokens";
+import { HapticPressable } from "./primitives";
 import { PostCafeIcon, PostDrinkIcon, PostLocationPinIcon } from "./icons/FigmaIcons";
 import ImageUploadModal from "./ImageUploadModal";
 import TastingNoteCard from "./TastingNoteCard";
@@ -706,10 +707,10 @@ export default function ComposePost({
 
       {/* ── Submit bar (pinned outside the scroll) ── */}
       <View style={s.submitRow}>
-        <Pressable onPress={onCancel} style={s.cancelBtn}><Text style={s.cancelText}>Cancel</Text></Pressable>
-        <Pressable onPress={handleSubmit} style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]} disabled={!canSubmit}>
+        <HapticPressable haptic="tap" onPress={onCancel} style={s.cancelBtn}><Text style={s.cancelText}>Cancel</Text></HapticPressable>
+        <HapticPressable haptic="commit" onPress={handleSubmit} style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]} disabled={!canSubmit}>
           {loading ? <ActivityIndicator size="small" color="#FAF8F0" /> : <Text style={s.submitText}>{isEditing ? "Save" : isRepost ? "Repost" : "Post"}</Text>}
-        </Pressable>
+        </HapticPressable>
       </View>
     </View>
   );

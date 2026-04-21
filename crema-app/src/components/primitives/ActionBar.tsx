@@ -6,9 +6,11 @@
  */
 
 import { useState, useCallback } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import Toggle from "./Toggle";
+import HapticPressable from "./HapticPressable";
+import { showToast } from "../shell/Toast";
 import { t } from "../../tokens/useTokens";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import {
@@ -64,30 +66,31 @@ export default function ActionBar({
         iconOn={<HeartFilledOutlineIcon size={heartSize} color={t.color.accent} />}
         iconOff={<HeartOutlineIcon size={heartSize} color={t.color.accent} />}
         countSize={isMobile ? 14 : 11.8}
+        onToggled={(nowLiked) => showToast(nowLiked ? "Liked" : "Unliked")}
       />
 
-      <Pressable onPress={onComment} style={s.btn}>
+      <HapticPressable haptic="tap" onPress={onComment} style={s.btn}>
         <CommentBubbleIcon size={commentSize} color={t.color.accent} />
         <Text style={[s.count, isMobile && s.countMobile]}>{commentCount}</Text>
-      </Pressable>
+      </HapticPressable>
 
       {!isRepost && (
-        <Pressable onPress={onRepost} style={s.btn}>
+        <HapticPressable haptic="tap" onPress={onRepost} style={s.btn}>
           <Svg width={repostSize} height={repostSize} viewBox="0 0 24 24" fill="none">
             <Path d="M17 1L21 5L17 9M3 11V9C3 7.93 3.42 6.93 4.17 6.17C4.93 5.42 5.93 5 7 5H21M7 23L3 19L7 15M21 13V15C21 16.06 20.58 17.07 19.83 17.83C19.07 18.58 18.07 19 17 19H3"
               stroke={t.color.accent} strokeWidth={2.095} strokeLinecap="round" strokeLinejoin="round" />
           </Svg>
           {repostCount > 0 && <Text style={[s.count, isMobile && s.countMobile]}>{repostCount}</Text>}
-        </Pressable>
+        </HapticPressable>
       )}
 
-      <Pressable onPress={handleShare} style={s.btn}>
+      <HapticPressable haptic="tap" onPress={handleShare} style={s.btn}>
         {showCopied ? (
           <Text style={[s.copiedText, isMobile && s.countMobile]}>Copied!</Text>
         ) : (
           <ShareNodesIcon size={shareSize} color={t.color.accent} />
         )}
-      </Pressable>
+      </HapticPressable>
     </View>
   );
 }

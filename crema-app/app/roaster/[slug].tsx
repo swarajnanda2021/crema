@@ -18,12 +18,13 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, Stack, useRouter } from "expo-router";
 import { openExternal } from "../../src/utils/openExternal";
 import Svg, { Path } from "react-native-svg";
-import { Plus, X, PenLine, Camera, MapPin, Check } from "lucide-react-native";
+import { Plus, X, PenLine, Camera, MapPin, Check, ArrowLeft } from "lucide-react-native";
 
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
+import CropGestureWrap from "../../src/components/shell/CropGestureWrap";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
@@ -34,10 +35,10 @@ import PostCard from "../../src/components/domain/PostCard";
 import BusinessAnalytics from "../../src/components/analytics/BusinessAnalytics";
 import CremaLogo from "../../src/components/CremaLogo";
 import EditableCoffeeCard from "../../src/components/domain/EditableCoffeeCard";
-import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 import PostPromptModal from "../../src/components/PostPromptModal";
-import { openPostModal, ConfirmDeleteModal } from "../../src/components/primitives";
+import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
+import { listen } from "../../src/utils/events";
 
 // ── Icons (Figma SVG paths, left panel only) ─────────────────────────────────
 
@@ -214,8 +215,6 @@ export default function RoasterDetailPage() {
   const [postPrompt, setPostPrompt] = useState<{
     title: string; body: string; teaser: string;
   } | null>(null);
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [composerPrefill, setComposerPrefill] = useState<string>("");
   const coffees = useMemo(() => {
     const seen = new Set<string>();
     return [...localCoffees, ...catalogCoffees].filter((c) => {
@@ -243,7 +242,6 @@ export default function RoasterDetailPage() {
 
   // Tabs & compose
   const [activeTab, setActiveTab] = useState<"posts" | "beans" | "analytics">("posts");
-  const [editingPost, setEditingPost] = useState<any>(null);
   const [postToDelete, setPostToDelete] = useState<any>(null);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
@@ -304,6 +302,8 @@ export default function RoasterDetailPage() {
   }, [slug]);
 
   useEffect(() => { if (slug) loadPosts(); }, [loadPosts, slug]);
+  // Refetch on the sitewide composer's emit (§2.40.3-follow-up).
+  useEffect(() => listen("crema:roaster-posts-updated", () => { loadPosts(); }), [loadPosts]);
 
   useEffect(() => {
     if (!slug) return;
@@ -376,12 +376,6 @@ export default function RoasterDetailPage() {
       setAllPosts((prev) => prev.filter((p) => p.id !== postId));
     } catch (e: any) { console.warn("Delete post error:", e.message); }
   }, []);
-
-  const handleEditPost = useCallback(async (postId: number, data: any) => {
-    await apiFetchRaw(`/posts/${postId}`, { method: "PUT", body: JSON.stringify(data) });
-    setEditingPost(null);
-    await loadPosts();
-  }, [loadPosts]);
 
   const handleCreateProduct = useCallback(async (data: any) => {
     try {
@@ -574,6 +568,36 @@ export default function RoasterDetailPage() {
       )}
 
       <ResponsiveWrapper isWide={isWide}>
+      {/* Mobile hero band: full-width cover image at the top with a
+         floating back button and the circular logo straddling the
+         hero/panel seam (half on the hero, half on the brown bio
+         panel below). Same merge pattern as the café profile. Wide
+         web keeps its side-panel layout below. (§2.35 redo) */}
+      {!isWide && (
+        <View style={s.heroWrapMobile}>
+          {heroImageUrl ? (
+            <Image source={{ uri: resolveUploadUrl(heroImageUrl) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+          ) : (
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: t.color["roaster.hero.fallback"] }]} />
+          )}
+          <Pressable onPress={() => router.back()} style={s.backFloating} accessibilityLabel="Back" hitSlop={8}>
+            <ArrowLeft size={18} color={t.color["text.on-dark"]} strokeWidth={2} />
+          </Pressable>
+        </View>
+      )}
+      {!isWide && (
+        <View style={s.logoOverlapStripe} pointerEvents="box-none">
+          <View style={s.logoOverlapCircle}>
+            {logoUrl ? (
+              <Image source={{ uri: resolveUploadUrl(logoUrl) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+            ) : (
+              <View style={s.logoOverlapFallback}>
+                <Text style={s.logoOverlapInitial}>{(roaster.name || "?")[0].toUpperCase()}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
       <View style={[
         s.pageContainer,
         isWide
@@ -586,20 +610,28 @@ export default function RoasterDetailPage() {
           s.leftPanel,
           isWide
             ? { height: isEditing ? winH - NAVBAR_H - 44 : winH - NAVBAR_H, width: "42%" }
-            : { width: "100%", paddingTop: 60 },  // Narrow: no fixed height; flows in page scroll
+            : { width: "100%", paddingTop: 54, paddingHorizontal: t.spacing.lg },  // Narrow: room for the overlapping logo above
           isEditing && isWide && { paddingBottom: 120 },
         ]}>
-          <Pressable onPress={() => router.back()} style={s.backBtn}>
-            <BackArrowIcon />
-            <Text style={s.backText}>Back</Text>
-          </Pressable>
+          {/* Back + Share row: wide only. On mobile the back button
+             floats on the hero and the share row is hidden from the
+             bio panel (share lives on the header's triple-dot menu
+             on mobile, out of scope here). */}
+          {isWide && (
+            <>
+              <Pressable onPress={() => router.back()} style={s.backBtn}>
+                <BackArrowIcon />
+                <Text style={s.backText}>Back</Text>
+              </Pressable>
 
-          <Pressable onPress={() => { if (Platform.OS === "web" && navigator?.clipboard) navigator.clipboard.writeText(window.location.href); }} style={s.shareRow}>
-            <Text style={s.shareText}>SHARE</Text>
-            <LeftPanelShareIcon />
-          </Pressable>
+              <Pressable onPress={() => { if (Platform.OS === "web" && navigator?.clipboard) navigator.clipboard.writeText(window.location.href); }} style={s.shareRow}>
+                <Text style={s.shareText}>SHARE</Text>
+                <LeftPanelShareIcon />
+              </Pressable>
+            </>
+          )}
 
-          <Text style={s.roasterName} numberOfLines={3}>{roaster.name}</Text>
+          <Text style={[s.roasterName, !isWide && s.roasterNameMobile]} numberOfLines={3}>{roaster.name}</Text>
 
           {/* About */}
           {isEditing ? (
@@ -702,7 +734,19 @@ export default function RoasterDetailPage() {
               }
             }}
           >
-            {/* Hero */}
+            {/* Hero — wide web only (§2.35 redo). On mobile the hero
+               banner is rendered above the pageContainer, with the
+               circular logo overlapping its lower edge. Keeping the
+               inner hero on wide preserves the existing edit-mode
+               drag / pinch controls. */}
+            {isWide && (
+            <CropGestureWrap
+              enabled={!!(isOwner && isEditing)}
+              containerW={heroContW || 800} containerH={heroContH || 334}
+              cropX={editCropX} cropY={editCropY} zoom={editHeroZoom}
+              onCrop={(x, y) => { setEditCropX(x); setEditCropY(y); }}
+              onZoom={(z) => setEditHeroZoom(z)}
+            >
             <View
               ref={heroWrapRef}
               style={[s.heroImageWrap, isEditing && isDraggingHero && { cursor: "grabbing" } as any, isEditing && !isDraggingHero && { cursor: "grab" } as any]}
@@ -743,19 +787,24 @@ export default function RoasterDetailPage() {
                 </Pressable>
               )}
             </View>
+            </CropGestureWrap>
+            )}
 
             {/* Tab bar — wraps in a horizontal ScrollView on mobile
                so POSTS / BEANS / ANALYTICS can scroll past the
                viewport when the full labels overflow. */}
             {(() => {
+              // Spec-aligned with café + user-profile tab bars: the
+              // POSTS tab is always present (matches BIO/MENU/POSTS on
+              // café; POSTS/SHELF/STAMPS on user profile) so the tab
+              // count + ordering doesn't shift based on content state.
+              // Empty state copy lives inside the POSTS tab content.
               const tabs = (
                 <>
-                  {!postsLoading && allPosts.length > 0 && (
-                    <Pressable onPress={() => setActiveTab("posts")} style={s.rightTab}>
-                      <Text style={[s.rightTabText, activeTab === "posts" && s.rightTabTextActive]}>POSTS</Text>
-                      {activeTab === "posts" && <View style={s.rightTabUnderline} />}
-                    </Pressable>
-                  )}
+                  <Pressable onPress={() => setActiveTab("posts")} style={s.rightTab}>
+                    <Text style={[s.rightTabText, activeTab === "posts" && s.rightTabTextActive]}>POSTS</Text>
+                    {activeTab === "posts" && <View style={s.rightTabUnderline} />}
+                  </Pressable>
                   <Pressable onPress={() => setActiveTab("beans")} style={s.rightTab}>
                     <Text style={[s.rightTabText, activeTab === "beans" && s.rightTabTextActive]}>BEANS</Text>
                     {activeTab === "beans" && <View style={s.rightTabUnderline} />}
@@ -799,7 +848,17 @@ export default function RoasterDetailPage() {
                       onHide={(p) => hidePost(p.id)}
                       onReport={(p) => confirmAndReport(p.id)}
                       onDislike={(p) => dislikePost(p.id)}
-                      onEdit={(p) => setEditingPost(p)}
+                      onEdit={(p) => openComposePost({
+                        editPostId: p.id,
+                        endpoint: "/roaster-posts",
+                        extraData: { roaster_slug: slug },
+                        refetchEventName: "crema:roaster-posts-updated",
+                        initialData: {
+                          body: p.teaser || (p as any).body,
+                          images: (p as any).images || [],
+                          location: p.location || "",
+                        },
+                      })}
                       onPin={(p) => handlePinToggle(p.id)}
                       onDelete={(p) => setPostToDelete(p)}
                     />
@@ -810,7 +869,14 @@ export default function RoasterDetailPage() {
                   <View style={s.emptyPostsWrap}>
                     <Text style={s.emptyPostsTitle}>Share your story</Text>
                     <Text style={s.emptyPostsBody}>Post about your coffee, link to press coverage, or share anything worth reading.</Text>
-                    <Pressable onPress={() => { setComposerPrefill(""); setComposerOpen(true); }} style={s.emptyPostsBtn}>
+                    <Pressable
+                      onPress={() => openComposePost({
+                        endpoint: "/roaster-posts",
+                        extraData: { roaster_slug: slug },
+                        refetchEventName: "crema:roaster-posts-updated",
+                      })}
+                      style={s.emptyPostsBtn}
+                    >
                       <Text style={s.emptyPostsBtnText}>Write your first post {"\u2192"}</Text>
                     </Pressable>
                   </View>
@@ -902,28 +968,21 @@ export default function RoasterDetailPage() {
               Posts tab (and posted as the user, not the roaster), which
               was the wrong mechanism. */}
           {isOwner && !isEditing && activeTab === "posts" && (
-            <Pressable onPress={() => { setComposerPrefill(""); setComposerOpen(true); }} style={s.fab}>
+            <Pressable
+              onPress={() => openComposePost({
+                endpoint: "/roaster-posts",
+                extraData: { roaster_slug: slug },
+                refetchEventName: "crema:roaster-posts-updated",
+              })}
+              style={s.fab}
+            >
               <Plus size={22} color={t.color["text.on-dark"]} strokeWidth={2.5} />
             </Pressable>
           )}
 
-          {/* Edit post modal */}
-          <Modal visible={!!editingPost} transparent animationType="fade" onRequestClose={() => setEditingPost(null)}>
-            <View style={s.followersOverlayWrap}>
-              <Pressable style={s.followersOverlayBg} onPress={() => setEditingPost(null)} />
-              <View style={s.editPostModal}>
-                {editingPost && (
-                  <ComposePost
-                    onSubmit={async (data) => { await handleEditPost(editingPost.id, data); }}
-                    onCancel={() => setEditingPost(null)}
-                    user={user}
-                    products={products}
-                    initialData={{ body: editingPost.teaser, images: editingPost.images || [], location: editingPost.location || "" }}
-                  />
-                )}
-              </View>
-            </View>
-          </Modal>
+          {/* Edit-post path (§2.40.3-follow-up): routes through the
+             sitewide composer via `openComposePost({ editPostId })` —
+             the global mount handles the PUT + refetch emit. */}
 
           {/* Image upload modals */}
           <ImageUploadModal visible={showLogoUpload} title="Upload Logo" purpose="logo" currentUrl={editLogo}
@@ -931,51 +990,23 @@ export default function RoasterDetailPage() {
           <ImageUploadModal visible={showHeroUpload} title="Upload Cover Image" purpose="hero" currentUrl={editHero}
             onConfirm={(url) => setEditHero(url)} onClose={() => setShowHeroUpload(false)} />
 
-          {/* Post-prompt after product mutation */}
+          {/* Post-prompt after product mutation (§2.40.3-follow-up):
+             routes straight to the sitewide composer with prefill. */}
           <PostPromptModal
             visible={!!postPrompt}
             title={postPrompt?.title || ""}
             body={postPrompt?.body || ""}
             onConfirm={() => {
-              setComposerPrefill(postPrompt?.teaser || "");
-              setComposerOpen(true);
+              openComposePost({
+                endpoint: "/roaster-posts",
+                extraData: { roaster_slug: slug },
+                refetchEventName: "crema:roaster-posts-updated",
+                initialData: { body: postPrompt?.teaser || "", images: [], location: "" },
+              });
               setPostPrompt(null);
             }}
             onClose={() => setPostPrompt(null)}
           />
-
-          {/* Composer modal, pre-filled with the post-prompt teaser. */}
-          <Modal
-            visible={composerOpen}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setComposerOpen(false)}
-          >
-            <View style={s.composerOverlayWrap}>
-              <Pressable style={s.composerOverlayBg} onPress={() => setComposerOpen(false)} />
-              <View style={s.composerCard}>
-                <ComposePost
-                  onSubmit={async (data) => {
-                    try {
-                      await apiFetchRaw("/roaster-posts", {
-                        method: "POST",
-                        body: JSON.stringify({ ...data, roaster_slug: slug }),
-                      });
-                      setComposerOpen(false);
-                      loadPosts?.();
-                    } catch (e) { console.warn("Post create failed:", e); }
-                  }}
-                  onCancel={() => setComposerOpen(false)}
-                  user={user}
-                  // Pipe the roaster's own coffees into the composer so the
-                  // tasting-note search actually finds the freshly-added
-                  // product. `coffees` is the merged local + catalog list.
-                  products={coffees}
-                  initialData={{ body: composerPrefill, images: [], location: "" }}
-                />
-              </View>
-            </View>
-          </Modal>
 
           {/* §2.9 / §2.19 — confirm-before-delete via the shared
              primitive so every destructive sheet on the site reads
@@ -1102,6 +1133,12 @@ const s = StyleSheet.create({
     fontFamily: t.font.display, fontSize: 56.8, color: t.color["text.on-dark"],
     lineHeight: 63, marginTop: 8, marginBottom: 12, ...liningNumerals,
   } as any,
+  // Mobile override — 56.8 pt dominates a phone screen; 28 pt reads
+  // like a page title and keeps the info density at X-app levels
+  // (same as the café mobile redo).
+  roasterNameMobile: {
+    fontSize: 28, lineHeight: 32, marginTop: 0, marginBottom: 6,
+  } as any,
 
   aboutBlock: { paddingRight: 20 },
   aboutText: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color.divider, lineHeight: 18 },
@@ -1162,6 +1199,52 @@ const s = StyleSheet.create({
   // Hero height matches the café profile (280) so both business
   // profile types read with the same visual rhythm.
   heroImageWrap: { width: "100%" as any, height: 280, backgroundColor: t.color["roaster.hero.fallback"], position: "relative" as any, overflow: "hidden" } as any,
+  // Mobile hero band — matches the café profile hero (§2.35 redo).
+  // Shorter than the wide hero because it only has to anchor the
+  // avatar overlap; the brown panel below carries the main content.
+  heroWrapMobile: {
+    width: "100%" as any,
+    height: 168,
+    backgroundColor: t.color["roaster.hero.fallback"],
+    overflow: "hidden",
+  } as any,
+  backFloating: {
+    position: "absolute", top: t.spacing.md, left: t.spacing.md,
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center", justifyContent: "center",
+  } as any,
+  // A zero-height stripe that lives BETWEEN the hero and the brown
+  // panel — its only job is to host the circular logo, absolute-
+  // positioned so it straddles the seam (half on hero, half on
+  // panel). Pointer events pass through so the panel below can be
+  // tapped normally; only the circle itself catches touches.
+  logoOverlapStripe: {
+    height: 0,
+    position: "relative" as any,
+    zIndex: 2,
+  } as any,
+  logoOverlapCircle: {
+    position: "absolute" as any,
+    top: -48,
+    left: t.spacing.lg,
+    width: 96, height: 96,
+    borderRadius: 48,
+    borderWidth: 4,
+    borderColor: t.color.bg,
+    backgroundColor: t.color["roaster.hero.fallback"],
+    overflow: "hidden",
+  } as any,
+  logoOverlapFallback: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: t.color.accent,
+  } as any,
+  logoOverlapInitial: {
+    fontFamily: t.font.display,
+    fontSize: 40,
+    color: t.color["text.on-dark"],
+  } as any,
   heroDragHint: {
     position: "absolute" as any, top: "50%" as any, left: "50%" as any,
     transform: [{ translateX: -70 }, { translateY: -14 }],
@@ -1180,9 +1263,13 @@ const s = StyleSheet.create({
   },
 
   // Tabs
+  // Spec-aligned with the café + user-profile tab bar: 48-px gap,
+  // no forced left padding, same 1-px divider colour. Prior 100-px
+  // gap + 56-px left inset read as off-spec vs every other tab bar
+  // in the app.
   rightTabBar: {
     flexDirection: "row", alignItems: "stretch", backgroundColor: t.color.bg,
-    height: 80, paddingLeft: 56, gap: 100, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)",
+    height: 80, gap: 48, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)",
   } as any,
   // Mobile: match Discover tab bar (Figma 63:5927) — 60 tall,
   // 24 gap, 32 left/right padding. Outer = sizing + bg + border on
@@ -1195,11 +1282,19 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(215,209,196,0.5)",
   } as any,
+  // Inner padding set to match the café tabs' effective left inset
+  // exactly. Café nests its TabRow inside a `rightInner` container
+  // with paddingHorizontal 24, plus `tabsMobileInner` with
+  // paddingHorizontal 4 → total 28 px from the screen edge to the
+  // first tab letter. Roaster renders the TabRow without an outer
+  // 24-px wrapper, so we add the equivalent padding directly on the
+  // inner: 2xl + 2xs = 28 px, so "POSTS" starts at the same column
+  // as "BIO" on the café.
   rightTabBarMobileInner: {
     flexDirection: "row",
     alignItems: "stretch",
     gap: t.spacing["2xl"],
-    paddingHorizontal: t.spacing["3xl"],
+    paddingHorizontal: t.spacing["2xl"] + t.spacing["2xs"],
     height: "100%" as any,
   } as any,
   rightTab: { justifyContent: "center", position: "relative" } as any,

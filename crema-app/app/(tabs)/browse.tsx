@@ -217,7 +217,7 @@ export default function BrowsePage() {
                 <View style={s.searchBar}>
                   <Search size={16} color={t.color["text.muted"]} />
                   <TextInput placeholder="Search" placeholderTextColor={t.color["text.muted"]} value={query} onChangeText={setQuery} style={s.searchInput} />
-                  {query ? <Pressable onPress={() => setQuery("")}><X size={16} color={t.color["text.muted"]} /></Pressable> : null}
+                  {query ? <Pressable onPress={() => setQuery("")} hitSlop={14} accessibilityLabel="Clear search"><X size={16} color={t.color["text.muted"]} /></Pressable> : null}
                 </View>
               </View>
             </View>
@@ -349,7 +349,7 @@ function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }
   return (
     <View style={s.activeChip}>
       <Text style={s.activeChipText}>{label}</Text>
-      <Pressable onPress={onRemove}><X size={10} color={t.color["tag.text"]} /></Pressable>
+      <Pressable onPress={onRemove} hitSlop={14} accessibilityLabel={`Remove ${label}`}><X size={10} color={t.color["tag.text"]} /></Pressable>
     </View>
   );
 }
@@ -541,7 +541,7 @@ function RoastersList() {
             <View style={s.searchBar}>
               <Search size={16} color={t.color["text.muted"]} />
               <TextInput placeholder="Search" placeholderTextColor={t.color["text.muted"]} value={roasterQuery} onChangeText={setRoasterQuery} style={s.searchInput} />
-              {roasterQuery ? <Pressable onPress={() => setRoasterQuery("")}><X size={16} color={t.color["text.muted"]} /></Pressable> : null}
+              {roasterQuery ? <Pressable onPress={() => setRoasterQuery("")} hitSlop={14} accessibilityLabel="Clear roaster search"><X size={16} color={t.color["text.muted"]} /></Pressable> : null}
             </View>
           </View>
         </View>
@@ -674,7 +674,7 @@ function CafesList() {
             <View style={s.searchBar}>
               <Search size={16} color={t.color["text.muted"]} />
               <TextInput placeholder="Search" placeholderTextColor={t.color["text.muted"]} value={cafeQuery} onChangeText={setCafeQuery} style={s.searchInput} />
-              {cafeQuery ? <Pressable onPress={() => setCafeQuery("")}><X size={16} color={t.color["text.muted"]} /></Pressable> : null}
+              {cafeQuery ? <Pressable onPress={() => setCafeQuery("")} hitSlop={14} accessibilityLabel="Clear café search"><X size={16} color={t.color["text.muted"]} /></Pressable> : null}
             </View>
           </View>
         </View>

@@ -1,25 +1,49 @@
 /**
  * SwipeToCommit — feed-row gesture that commits an action on
- * horizontal swipe, then springs back to neutral.
+ * horizontal swipe, then springs back to neutral. (§2.40.11 + §2)
  *
  * Different contract from SwipeableRow:
  *   SwipeableRow → latch OPEN and hold actions behind the row
  *   SwipeToCommit → commit on threshold and release; no latch
  *
  * Swipe-left  → reveals a heart disc at the right edge; crosses
- *               the threshold → onSwipeLike()     → row springs back.
+ *               the threshold → onSwipeLike()     → disc pulses,
+ *               row springs back.
  * Swipe-right → reveals a comment disc at the left edge; crosses
- *               the threshold → onSwipeComment()  → row springs back.
+ *               the threshold → onSwipeComment()  → disc pulses,
+ *               row springs back.
  *
  * Each disc fills with `accent` (Crema-pink) as the swipe
- * progresses (0 → 1 over [0, COMMIT_THRESHOLD]), so the user sees
- * a direct mapping between finger travel and commit readiness.
+ * progresses (0 → 1 over [0, COMMIT_THRESHOLD]). At commit the
+ * disc does a 1 → 1.4 → 1 burst that stays visible through the
+ * row's return spring so the user sees the action land — the
+ * ActionBar is hidden on mobile feed rows, so this burst is the
+ * *only* visual confirmation.
+ *
+ * Implementation: `react-native-gesture-handler` (`Gesture.Pan`) +
+ * `react-native-reanimated` (shared values + animated styles). The
+ * drag, the disc interpolations, the burst, and the release spring
+ * all run on the UI thread — no JS-bridge round-trip per frame, so
+ * the row tracks the finger at 60+ fps even when JS is busy.
+ * Haptics + commit callbacks hop back to JS via `runOnJS`.
  *
  * Native only. On web the wrapper is a passthrough — the feed's
  * ActionBar stays visible on web rows.
  */
-import { useRef } from "react";
-import { Animated, PanResponder, View, StyleSheet, Platform } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
+import { GestureDetector, Gesture } from "react-native-gesture-handler";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  withSequence,
+  runOnJS,
+  interpolate,
+  Extrapolation,
+  Easing,
+} from "react-native-reanimated";
+
 import { t } from "../../tokens/useTokens";
 import { HeartFilledOutlineIcon, CommentBubbleIcon } from "../icons/FigmaIcons";
 import { commit as hapticCommit, select as hapticSelect } from "../../utils/haptics";
@@ -30,14 +54,15 @@ interface Props {
   children: React.ReactNode;
 }
 
-// Finger travel to commit. Matches the visual "fully filled" point
-// of the reveal disc — by the time the disc fills to `accent`, the
-// user has crossed the commit line.
+// Finger travel to commit — matches the disc's "fully filled" point,
+// so the commit line is exactly where the visual reaches accent-full.
 const COMMIT_THRESHOLD = 96;
-// Hard cap on translateX so the row can't fly off-screen during a
-// long flick; also keeps the reveal disc from drifting past centre.
+// Hard cap on translateX. Long flicks don't fly the row off-screen,
+// and the reveal disc doesn't drift past centre.
 const MAX_DRAG = 140;
 const DISC_SIZE = 52;
+const BURST_PEAK = 1.4;
+const BURST_MS = 420;
 
 export default function SwipeToCommit(props: Props) {
   if (Platform.OS === "web") return <>{props.children}</>;
@@ -45,90 +70,110 @@ export default function SwipeToCommit(props: Props) {
 }
 
 function Native({ onSwipeLike, onSwipeComment, children }: Props) {
-  const translateX = useRef(new Animated.Value(0)).current;
+  const tx = useSharedValue(0);
+  // Tracks the last threshold-crossing sign (-1 = past like, 1 = past
+  // comment, 0 = neutral). When this changes while dragging we fire a
+  // single selection tick via runOnJS — one tick per crossing, not per
+  // frame while past the line.
+  const thresholdSign = useSharedValue(0);
+  // Burst values drive the post-commit "pulse" on each disc. 0 when
+  // dormant, ramps 1 → 0 over BURST_MS on commit so the disc stays
+  // visible + scales up briefly even after the row springs back.
+  const likeBurst = useSharedValue(0);
+  const commentBurst = useSharedValue(0);
 
-  const spring = (to: number) =>
-    Animated.spring(translateX, {
-      toValue: to,
-      useNativeDriver: true,
-      bounciness: 4,
-      speed: 18,
+  const fireLike = () => onSwipeLike?.();
+  const fireComment = () => onSwipeComment?.();
+
+  const pan = Gesture.Pan()
+    // Claim the gesture once the finger clears ~10px horizontally; if
+    // vertical travel crosses 12px first, give up so the parent
+    // ScrollView keeps the touch. Mirrors the old PanResponder
+    // arbitration numbers so the feel at the edge cases is the same.
+    .activeOffsetX([-10, 10])
+    .failOffsetY([-12, 12])
+    .onUpdate((e) => {
+      "worklet";
+      const clamped = Math.max(-MAX_DRAG, Math.min(MAX_DRAG, e.translationX));
+      tx.value = clamped;
+
+      const sign =
+        clamped <= -COMMIT_THRESHOLD ? -1 :
+        clamped >= COMMIT_THRESHOLD ? 1 : 0;
+      if (sign !== thresholdSign.value) {
+        thresholdSign.value = sign;
+        if (sign !== 0) runOnJS(hapticSelect)();
+      }
+    })
+    .onEnd((e) => {
+      "worklet";
+      const dx = e.translationX;
+      if (dx < -COMMIT_THRESHOLD) {
+        runOnJS(hapticCommit)();
+        runOnJS(fireLike)();
+        // Burst: snap to peak then ease back to 0. Disc opacity /
+        // scale read max(drag, burst), so it stays painted while the
+        // row springs back.
+        likeBurst.value = 1;
+        likeBurst.value = withTiming(0, { duration: BURST_MS, easing: Easing.out(Easing.cubic) });
+      } else if (dx > COMMIT_THRESHOLD) {
+        runOnJS(hapticCommit)();
+        runOnJS(fireComment)();
+        commentBurst.value = 1;
+        commentBurst.value = withTiming(0, { duration: BURST_MS, easing: Easing.out(Easing.cubic) });
+      }
+      tx.value = withSpring(0, { damping: 14, stiffness: 180, mass: 0.55 });
+      thresholdSign.value = 0;
+    })
+    .onFinalize(() => {
+      "worklet";
+      // Ensure we always return to neutral even if the gesture is
+      // cancelled mid-drag (e.g. parent claims the responder). Cheap
+      // no-op if already settled.
+      if (tx.value !== 0) {
+        tx.value = withSpring(0, { damping: 14, stiffness: 180, mass: 0.55 });
+      }
     });
 
-  const panResponder = useRef(
-    PanResponder.create({
-      // Gesture arbitration: horizontal travel must dominate vertical
-      // (2×) and clear a 10 px minimum before we claim the touch
-      // from the parent ScrollView. Loosened from the 3× / 12 px
-      // SwipeableRow defaults — the scrubby feel was from the
-      // gesture needing too much commitment before it engaged;
-      // dropping to 2× / 10 px lets the disc respond to the first
-      // few pixels of intent. Tuned empirically; if false-positive
-      // swipes show up on a casual vertical scroll we tighten.
-      onMoveShouldSetPanResponder: (_, g) => {
-        const ax = Math.abs(g.dx);
-        const ay = Math.abs(g.dy);
-        return ax > 10 && ax > ay * 2;
-      },
-      onMoveShouldSetPanResponderCapture: (_, g) => {
-        const ax = Math.abs(g.dx);
-        const ay = Math.abs(g.dy);
-        return ax > 12 && ax > ay * 2;
-      },
-      onPanResponderMove: (_, g) => {
-        const prev = (translateX as any)._value ?? 0;
-        const clamped = Math.max(-MAX_DRAG, Math.min(MAX_DRAG, g.dx));
-        translateX.setValue(clamped);
-        // Light selection tick the moment the swipe crosses the
-        // commit threshold, so the user feels the "you're in" point
-        // before they've released the finger. One tick per crossing
-        // in either direction (check sign flips).
-        const wasPastLike = prev <= -COMMIT_THRESHOLD;
-        const wasPastComment = prev >= COMMIT_THRESHOLD;
-        const isPastLike = clamped <= -COMMIT_THRESHOLD;
-        const isPastComment = clamped >= COMMIT_THRESHOLD;
-        if (isPastLike !== wasPastLike || isPastComment !== wasPastComment) {
-          hapticSelect();
-        }
-      },
-      onPanResponderRelease: (_, g) => {
-        const dx = g.dx;
-        if (dx < -COMMIT_THRESHOLD && onSwipeLike) {
-          hapticCommit();
-          onSwipeLike();
-        } else if (dx > COMMIT_THRESHOLD && onSwipeComment) {
-          hapticCommit();
-          onSwipeComment();
-        }
-        spring(0).start();
-      },
-      onPanResponderTerminate: () => {
-        spring(0).start();
-      },
-    }),
-  ).current;
+  const rowStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: tx.value }],
+  }));
 
-  // Progress 0 → 1 for each direction. The disc's fill opacity and
-  // scale both read off the same interpolation so they move in
-  // lockstep with finger travel.
-  const heartProgress = translateX.interpolate({
-    inputRange: [-COMMIT_THRESHOLD, -8, 0],
-    outputRange: [1, 0, 0],
-    extrapolate: "clamp",
-  });
-  const commentProgress = translateX.interpolate({
-    inputRange: [0, 8, COMMIT_THRESHOLD],
-    outputRange: [0, 0, 1],
-    extrapolate: "clamp",
+  const heartStyle = useAnimatedStyle(() => {
+    const dragP = interpolate(
+      tx.value,
+      [-COMMIT_THRESHOLD, -8, 0],
+      [1, 0, 0],
+      Extrapolation.CLAMP,
+    );
+    const burst = likeBurst.value;
+    const opacity = Math.max(dragP, burst);
+    // Scale blends drag-growth (0.55 → 1) with burst-pulse (1 → 1.4 → 1).
+    const dragScale = 0.55 + dragP * 0.45;
+    const burstScale = 1 + burst * (BURST_PEAK - 1);
+    const scale = Math.max(dragScale, burstScale);
+    return {
+      opacity,
+      transform: [{ scale }],
+    };
   });
 
-  const heartScale = heartProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.55, 1],
-  });
-  const commentScale = commentProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.55, 1],
+  const commentStyle = useAnimatedStyle(() => {
+    const dragP = interpolate(
+      tx.value,
+      [0, 8, COMMIT_THRESHOLD],
+      [0, 0, 1],
+      Extrapolation.CLAMP,
+    );
+    const burst = commentBurst.value;
+    const opacity = Math.max(dragP, burst);
+    const dragScale = 0.55 + dragP * 0.45;
+    const burstScale = 1 + burst * (BURST_PEAK - 1);
+    const scale = Math.max(dragScale, burstScale);
+    return {
+      opacity,
+      transform: [{ scale }],
+    };
   });
 
   return (
@@ -138,32 +183,19 @@ function Native({ onSwipeLike, onSwipeComment, children }: Props) {
          disc receives touches; the pan layer above handles the
          gesture and the commit happens there. */}
       <View pointerEvents="none" style={s.revealLayer}>
-        <Animated.View
-          style={[
-            s.disc,
-            s.discLeft,
-            { opacity: commentProgress, transform: [{ scale: commentScale }] },
-          ]}
-        >
+        <Animated.View style={[s.disc, s.discLeft, commentStyle]}>
           <CommentBubbleIcon size={24} color={t.color["text.on-dark"]} />
         </Animated.View>
-        <Animated.View
-          style={[
-            s.disc,
-            s.discRight,
-            { opacity: heartProgress, transform: [{ scale: heartScale }] },
-          ]}
-        >
+        <Animated.View style={[s.disc, s.discRight, heartStyle]}>
           <HeartFilledOutlineIcon size={24} color={t.color["text.on-dark"]} />
         </Animated.View>
       </View>
 
-      <Animated.View
-        style={{ transform: [{ translateX }] }}
-        {...panResponder.panHandlers}
-      >
-        {children}
-      </Animated.View>
+      <GestureDetector gesture={pan}>
+        <Animated.View style={rowStyle}>
+          {children}
+        </Animated.View>
+      </GestureDetector>
     </View>
   );
 }

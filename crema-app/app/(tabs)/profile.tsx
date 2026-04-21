@@ -29,7 +29,10 @@ import { t, SHELF_LABELS } from "../../src/tokens/useTokens";
 type ShelfKey = "open_bags" | "on_the_list";
 
 import PostCard from "../../src/components/domain/PostCard";
+import SwipeToCommit from "../../src/components/mobile/SwipeToCommit";
+import { showToast } from "../../src/components/shell/Toast";
 import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
+import CropGestureWrap from "../../src/components/shell/CropGestureWrap";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
@@ -481,7 +484,18 @@ export default function ProfilePage() {
 
   const heroContent = (
     <View style={[s.hero, isNarrow && s.heroNarrow]}>
-      {/* Avatar (manual positioning for true X+Y pan) */}
+      {/* Avatar (manual positioning for true X+Y pan).
+         Web: DOM `onMouseDown` + `onWheel` handlers below. Native:
+         `CropGestureWrap` delegates to `Gesture.Pan` + `Gesture.Pinch`
+         which call the same setEditCrop* / setEditZoom setters. (§2.36) */}
+      <CropGestureWrap
+        enabled={!!isEditing}
+        containerW={avatarContainerW || 350}
+        containerH={avatarContainerH || 360}
+        cropX={editCropX} cropY={editCropY} zoom={editZoom}
+        onCrop={(x, y) => { setEditCropX(x); setEditCropY(y); }}
+        onZoom={(z) => setEditZoom(z)}
+      >
       <View
         ref={avatarWrapRef}
         style={[
@@ -541,6 +555,7 @@ export default function ProfilePage() {
           </Pressable>
         )}
       </View>
+      </CropGestureWrap>
 
       {/* Info column (Figma 202:2831 — 291x330.7, all content confined to maxWidth 281) */}
       <View style={[s.infoCol, isNarrow && s.infoColNarrow]}>
@@ -813,9 +828,10 @@ export default function ProfilePage() {
             <Text style={g.emptySubtext}>Share your first coffee moment with the + button.</Text>
           </View>
         ) : (
-          posts.slice(0, visiblePostCount).map((post: any, idx: number) => (
-            <View key={`post-${post.id}-${idx}`}>
+          posts.slice(0, visiblePostCount).map((post: any, idx: number) => {
+            const card = (
               <PostCard post={post} user={user}
+                hideActionBar={isMobile}
                 onOpen={(p) => openPostModal({ post: p, mode: "view" })}
                 onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
@@ -835,9 +851,28 @@ export default function ProfilePage() {
                 onPin={(p) => handlePinToggle(p.id)}
                 onDelete={(p) => setPostToDelete(p)}
               />
-              {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
-            </View>
-          ))
+            );
+            return (
+              <View key={`post-${post.id}-${idx}`}>
+                {isMobile ? (
+                  <SwipeToCommit
+                    onSwipeLike={async () => {
+                      try {
+                        const res: any = await apiFetchRaw(`/post_likes/${post.id}/toggle`, { method: "POST" });
+                        const nowLiked = !!(res?.data?.toggled ?? res?.toggled);
+                        showToast(nowLiked ? "Liked" : "Unliked");
+                        loadData();
+                      } catch { /* swipe is best-effort */ }
+                    }}
+                    onSwipeComment={() => openPostModal({ post, mode: "comment" })}
+                  >
+                    {card}
+                  </SwipeToCommit>
+                ) : card}
+                {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
+              </View>
+            );
+          })
         )}
       </View>
     );
@@ -965,7 +1000,7 @@ export default function ProfilePage() {
             <View style={s.followersModal}>
               <View style={s.followersHeader}>
                 <Text style={s.followersTitle}>Favorite drink</Text>
-                <Pressable onPress={() => setShowDrinkPicker(false)} hitSlop={8}>
+                <Pressable onPress={() => setShowDrinkPicker(false)} hitSlop={14} accessibilityLabel="Close drink picker">
                   <X size={16} color="#351101" />
                 </Pressable>
               </View>
@@ -1011,7 +1046,7 @@ export default function ProfilePage() {
               <View style={s.followersModal}>
                 <View style={s.followersHeader}>
                   <Text style={s.followersTitle}>Favorite café</Text>
-                  <Pressable onPress={() => { setShowCafePicker(false); setCafeQuery(""); }} hitSlop={8}>
+                  <Pressable onPress={() => { setShowCafePicker(false); setCafeQuery(""); }} hitSlop={14} accessibilityLabel="Close café picker">
                     <X size={16} color="#351101" />
                   </Pressable>
                 </View>
@@ -1069,7 +1104,7 @@ export default function ProfilePage() {
             <View style={s.followersModal}>
               <View style={s.followersHeader}>
                 <Text style={s.followersTitle}>{followerCount} {followerCount === 1 ? "follower" : "followers"}</Text>
-                <Pressable onPress={() => setShowFollowersModal(false)} hitSlop={8}>
+                <Pressable onPress={() => setShowFollowersModal(false)} hitSlop={14} accessibilityLabel="Close followers list">
                   <X size={16} color="#351101" />
                 </Pressable>
               </View>

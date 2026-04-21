@@ -12,7 +12,7 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { X, ImageIcon, Camera, Link2 } from "lucide-react-native";
 import { t } from "../tokens/useTokens";
-import { apiUpload } from "../api/client";
+import { apiUpload, resolveUploadUrl } from "../api/client";
 
 interface Props {
   visible: boolean;
@@ -165,7 +165,11 @@ export default function ImageUploadModal({ visible, title, purpose = "general", 
             {uploading ? (
               <ActivityIndicator size="large" color={t.color["text.muted"]} />
             ) : previewUrl ? (
-              <Image source={{ uri: previewUrl }} style={s.previewImg} contentFit="cover" transition={200} />
+              // Upload endpoint returns a relative path (e.g. `/uploads/…`);
+              // `resolveUploadUrl` prepends the API base so `expo-image`
+              // can fetch it. Without this the preview thumbnail stays
+              // blank after a successful upload. (§postmodal-redo)
+              <Image source={{ uri: resolveUploadUrl(previewUrl) }} style={s.previewImg} contentFit="cover" transition={200} />
             ) : (
               <View style={s.previewEmpty}>
                 <ImageIcon size={32} color={t.color.divider} strokeWidth={1.2} />

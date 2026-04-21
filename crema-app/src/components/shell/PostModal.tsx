@@ -20,7 +20,9 @@ import { apiFetchRaw } from "../../api/client";
 import ComposePost from "../ComposePost";
 import { t } from "../../tokens/useTokens";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
-import { CroppedAvatar, timeAgo } from "../primitives";
+import { showChromeNow } from "../../utils/chromeScroll";
+import { showToast } from "./Toast";
+import { CroppedAvatar, timeAgo, HapticPressable } from "../primitives";
 import CommentThread from "../primitives/CommentThread";
 import PostCard from "../domain/PostCard";
 import PostGallery from "../PostGallery";
@@ -79,9 +81,25 @@ export default function PostModal({
     }
   }, [visible, post]);
 
+  // On mobile-open: (a) snap the modal's own ScrollView to top so the
+  // post card lands flush with the modal header — otherwise a prior
+  // open's scroll position can leak through a quick re-open, and
+  // (b) force the MobileHeader / MobileFooter chrome back to visible.
+  // The modal positions at `top: insets.top + MOBILE_HEADER_HEIGHT`,
+  // which only aligns with the painted header when chrome is shown;
+  // if the underlying feed was mid-scroll (chrome collapsed) the
+  // modal would sit below a gap through which the underlying feed's
+  // previous post was visible. `showChromeNow()` closes the gap.
+  useEffect(() => {
+    if (!visible) return;
+    if (isMobile) showChromeNow();
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [visible, isMobile]);
+
   const handleRepostSubmit = useCallback(async (data: any) => {
     try {
       await apiFetchRaw("/posts", { method: "POST", body: JSON.stringify(data) });
+      showToast("Reposted");
       onClose();
     } catch (e) { console.warn("Repost failed:", e); }
   }, [onClose]);
@@ -112,17 +130,17 @@ export default function PostModal({
     <View style={[s.card, isMobile && s.cardMidBand]}>
       <View style={[s.header, isMobile && s.headerMobile]}>
         {isMobile && (
-          <Pressable onPress={onClose} hitSlop={10} style={s.backBtn} accessibilityLabel="Back">
+          <HapticPressable haptic="tap" onPress={onClose} hitSlop={10} style={s.backBtn} accessibilityLabel="Back">
             <ArrowLeft size={22} color={t.color["text.primary"]} strokeWidth={2} />
-          </Pressable>
+          </HapticPressable>
         )}
         <Text style={s.headerTitle}>
           {internalMode === "repost" ? "Repost" : "Post"}
         </Text>
         {!isMobile && (
-          <Pressable onPress={onClose} hitSlop={8}>
+          <HapticPressable haptic="tap" onPress={onClose} hitSlop={8}>
             <X size={18} color={t.color["text.primary"]} />
-          </Pressable>
+          </HapticPressable>
         )}
       </View>
 
@@ -258,7 +276,10 @@ export default function PostModal({
                   </Animated.View>
                 )}
 
-                {/* Comment thread — uses CommentThread primitive */}
+                {/* Comment thread — uses CommentThread primitive. When
+                    the modal opens in mode="comment" (e.g. the mobile
+                    feed's swipe-right-to-comment shortcut), auto-focus
+                    the input so the keyboard pops on open. */}
                 {showComments && (
                   <CommentThread
                     resource="post_comments"
@@ -267,6 +288,7 @@ export default function PostModal({
                     parentId={post.id}
                     user={user}
                     highlightCommentId={highlightCommentId}
+                    autoFocusInput={internalMode === "comment"}
                   />
                 )}
               </>

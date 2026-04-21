@@ -30,6 +30,7 @@ import { Handshake, Package } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
 import { apiFetchRaw } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
+import { HapticPressable } from "./primitives";
 
 interface Props {
   roaster_slug: string;
@@ -117,14 +118,15 @@ export default function InterestedButton({
   return (
     <>
       {!isControlled && (
-        <Pressable
+        <HapticPressable
+          haptic="select"
           onPress={openModal}
           style={[s.btn, compact && s.btnCompact]}
           accessibilityLabel={`Express wholesale interest in ${targetLabel}`}
         >
           <Handshake size={compact ? 14 : 16} color={t.color["text.on-dark"]} />
           <Text style={[s.btnText, compact && s.btnTextCompact]}>{label || "Interested"}</Text>
-        </Pressable>
+        </HapticPressable>
       )}
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={reset}>
@@ -140,9 +142,9 @@ export default function InterestedButton({
                   they'll see your volume and note.
                 </Text>
                 <View style={s.actionRow}>
-                  <Pressable onPress={reset} style={[s.action, s.primary]}>
+                  <HapticPressable haptic="tap" onPress={reset} style={[s.action, s.primary]}>
                     <Text style={s.primaryText}>Close</Text>
-                  </Pressable>
+                  </HapticPressable>
                 </View>
               </>
             ) : (
@@ -172,14 +174,16 @@ export default function InterestedButton({
                 />
                 {error && <Text style={s.error}>{error}</Text>}
                 <View style={s.actionRow}>
-                  <Pressable
+                  <HapticPressable
+                    haptic="tap"
                     onPress={reset}
                     style={[s.action, s.secondary]}
                     disabled={phase === "submitting"}
                   >
                     <Text style={s.secondaryText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
+                  </HapticPressable>
+                  <HapticPressable
+                    haptic="commit"
                     onPress={submit}
                     style={[s.action, s.primary, phase === "submitting" && s.primaryDisabled]}
                     disabled={phase === "submitting"}
@@ -189,7 +193,7 @@ export default function InterestedButton({
                     ) : (
                       <Text style={s.primaryText}>Send inquiry</Text>
                     )}
-                  </Pressable>
+                  </HapticPressable>
                 </View>
               </>
             )}

@@ -13,7 +13,7 @@ import { t, cardShadow } from "../tokens/useTokens";
 import { resolveUploadUrl } from "../api/client";
 import { useAuth, SavedAccount } from "../hooks/useAuth";
 import { emit } from "../utils/events";
-import { CroppedAvatar } from "./primitives";
+import { CroppedAvatar, HapticPressable } from "./primitives";
 import QRModal from "./QRModal";
 import RecycleBinModal from "./RecycleBinModal";
 
@@ -165,7 +165,8 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
           <>
             <View style={s.panelHeader}>
               <Text style={s.panelTitle}>Account</Text>
-              <Pressable
+              <HapticPressable
+                haptic="tap"
                 onPress={onClose}
                 hitSlop={10}
                 accessibilityLabel="Close"
@@ -173,14 +174,14 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
                 style={s.panelCloseBtn}
               >
                 <X size={18} color={t.color["text.primary"]} strokeWidth={1.75} />
-              </Pressable>
+              </HapticPressable>
             </View>
             <View style={s.divider} />
           </>
         )}
 
         {/* ── Current account header — clickable, goes to profile ── */}
-        <Pressable onPress={handleManage} style={({ pressed }) => [s.accountHeader, pressed && s.menuItemPressed]}>
+        <HapticPressable haptic="select" onPress={handleManage} style={({ pressed }) => [s.accountHeader, pressed && s.menuItemPressed]}>
           {user.avatar_url ? (
             <CroppedAvatar
               url={user.avatar_url}
@@ -198,7 +199,7 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
             <Text style={s.displayName} numberOfLines={1}>{user.display_name}</Text>
             <Text style={s.username} numberOfLines={1}>@{user.username}</Text>
           </View>
-        </Pressable>
+        </HapticPressable>
 
         <View style={s.divider} />
 
@@ -243,7 +244,8 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
             <View style={s.divider} />
             <Text style={s.sectionLabel}>Other accounts</Text>
             {others.map((acct) => (
-              <Pressable
+              <HapticPressable
+                haptic="select"
                 key={acct.username}
                 onPress={() => handleSwitch(acct)}
                 style={({ pressed }) => [s.accountRow, pressed && s.menuItemPressed]}
@@ -262,7 +264,7 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
                   <Text style={s.accountRowName} numberOfLines={1}>{acct.display_name}</Text>
                   <Text style={s.accountRowUser} numberOfLines={1}>@{acct.username}</Text>
                 </View>
-              </Pressable>
+              </HapticPressable>
             ))}
           </View>
         )}
@@ -290,13 +292,14 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
 
 function MenuItem({ icon, label, onPress }: { icon: React.ReactNode; label: string; onPress: () => void }) {
   return (
-    <Pressable
+    <HapticPressable
+      haptic="tap"
       onPress={onPress}
       style={({ pressed }) => [s.menuItem, pressed && s.menuItemPressed]}
     >
       {icon}
       <Text style={s.menuItemText}>{label}</Text>
-    </Pressable>
+    </HapticPressable>
   );
 }
 

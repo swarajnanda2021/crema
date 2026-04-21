@@ -8,9 +8,10 @@
  */
 
 import { useRef, useCallback } from "react";
-import { Pressable, Text, Animated, StyleSheet, View } from "react-native";
+import { Text, Animated, StyleSheet } from "react-native";
 import { useToggle } from "../../resources/useToggle";
 import { t } from "../../tokens/useTokens";
+import HapticPressable from "./HapticPressable";
 
 interface ToggleProps {
   /** Resource name: "post_likes", "comment_likes", "follows" */
@@ -31,14 +32,19 @@ interface ToggleProps {
   style?: any;
   /** Font size for count text */
   countSize?: number;
+  /** Optional callback fired after the server confirms the toggle —
+   *  receives the new state. Used by ActionBar to flash a "Liked" /
+   *  "Unliked" toast when the viewer taps the heart. */
+  onToggled?: (nowToggled: boolean) => void;
 }
 
 export default function Toggle({
   resource, targetId, initial, count: initialCount,
   iconOn, iconOff, showCount = true, style, countSize = 13,
+  onToggled,
 }: ToggleProps) {
   const { toggled, count, toggle } = useToggle(resource, targetId, {
-    initial, count: initialCount,
+    initial, count: initialCount, onToggled,
   });
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -52,7 +58,7 @@ export default function Toggle({
   }, [toggle, scaleAnim]);
 
   return (
-    <Pressable onPress={handlePress} style={[s.btn, style]}>
+    <HapticPressable haptic="select" onPress={handlePress} style={[s.btn, style]}>
       <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
         {toggled ? iconOn : iconOff}
       </Animated.View>
@@ -61,7 +67,7 @@ export default function Toggle({
           {count}
         </Text>
       )}
-    </Pressable>
+    </HapticPressable>
   );
 }
 

@@ -18,10 +18,12 @@ import { listen } from "../../src/utils/events";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { useResource } from "../../src/resources/useResource";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
-import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
+import { openPostModal, openComposePost, ConfirmDeleteModal, HapticPressable } from "../../src/components/primitives";
+import { showToast } from "../../src/components/shell/Toast";
 import PostCard from "../../src/components/domain/PostCard";
 import HiddenPostRow from "../../src/components/domain/HiddenPostRow";
 import SwipeToCommit from "../../src/components/mobile/SwipeToCommit";
+import ScrollScrubber, { type ScrollScrubberHandle } from "../../src/components/mobile/ScrollScrubber";
 import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { t } from "../../src/tokens/useTokens";
 import type { Post } from "../../src/resources/types";
@@ -35,6 +37,7 @@ export default function FeedPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [postToDelete, setPostToDelete] = useState<Post | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const scrubberRef = useRef<ScrollScrubberHandle>(null);
   // Local hide-state overrides. The map stores the viewer's
   // current intent for a given post id: `true` = hidden,
   // `false` = explicitly un-hidden (Undo after hide). Missing key
@@ -91,6 +94,8 @@ export default function FeedPage() {
           // Pipe into the sitewide chrome-hide animation so the
           // header + footer slide away on scroll-down like X.
           onChromeScroll(e);
+          // Right-edge drag-to-jump scrubber (§2.40.12). Native-only.
+          scrubberRef.current?.onScroll(e);
           const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
           if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 300) {
             if (visibleCount < items.length) {
@@ -160,9 +165,14 @@ export default function FeedPage() {
                       // Fire the toggle endpoint directly; refetch so the
                       // feed's post state reflects the new like count.
                       // ActionBar is hidden on mobile feed rows, so the
-                      // round-trip is the sole source of truth.
+                      // round-trip is the sole source of truth. Toast
+                      // reflects the new state — `toggled: true` means the
+                      // row was created (user now likes); `false` means
+                      // the row was deleted (unliked).
                       try {
-                        await apiFetchRaw(`/post_likes/${post.id}/toggle`, { method: "POST" });
+                        const res: any = await apiFetchRaw(`/post_likes/${post.id}/toggle`, { method: "POST" });
+                        const nowLiked = !!(res?.data?.toggled ?? res?.toggled);
+                        showToast(nowLiked ? "Liked" : "Unliked");
                         refetch();
                       } catch {
                         /* swallow — the swipe is best-effort */
@@ -180,15 +190,20 @@ export default function FeedPage() {
         )}
       </ScrollView>
 
+      {/* Right-edge drag-to-jump scrubber (§2.40.12). Fades in while
+          scrolling, out after ~900ms idle. Native-only; web keeps the
+          browser scrollbar. */}
+      <ScrollScrubber ref={scrubberRef} scrollRef={scrollRef} />
+
       {/* FAB — routes to the sitewide composer (GlobalComposePost at
           root layout) via the `openComposePost` helper. On mobile the
           composer renders in the mid-band between MobileHeader and
           MobileFooter; on web wide it stays a centered floating card.
           (§2.40.3 / §2.40.6) */}
       {user && (
-        <Pressable onPress={() => openComposePost()} style={s.fab}>
+        <HapticPressable haptic="tap" onPress={() => openComposePost()} style={s.fab}>
           <Plus size={22} color={t.color["text.on-dark"]} strokeWidth={2.5} />
-        </Pressable>
+        </HapticPressable>
       )}
 
       {/* Edit post routing is handled inline on the PostCard's edit

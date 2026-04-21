@@ -1,6 +1,8 @@
 /**
  * MobileFooter — sticky bottom nav that persists across every
- * mobile screen (Home / Discover / Messages / Profile).
+ * mobile screen.
+ *
+ * Default tab set: Home / Discover / Messages / Profile.
  *
  * Lives at the root layout so it stays painted while the user
  * drills into detail screens (coffee, roaster, cafe, user, account,
@@ -8,10 +10,18 @@
  * reliance on Expo Router's Tabs mounted state, which disappears
  * the moment you navigate outside the `(tabs)` group.
  *
- * Taps on the four tabs use `router.replace` so successive tab
- * switches don't accumulate a back stack. Drill-downs (e.g., tap a
- * user on the Discover feed) still push normally via `router.push`
- * because the underlying screens call `router.push` themselves.
+ * Taps on the tabs use `router.replace` so successive tab switches
+ * don't accumulate a back stack. Drill-downs (e.g., tap a user on
+ * the Discover feed) still push normally via `router.push` because
+ * the underlying screens call `router.push` themselves.
+ *
+ * Per-screen tab sets (§2.40.7): `getTabsForPath(pathname, user)`
+ * dispatches on the leading path segment so screens with a
+ * different nav model can ship alongside the default one without
+ * mounting their own footer. Café POS + roaster analytics are
+ * scaffolded as examples — the actual screens haven't landed yet
+ * (§2.39-adjacent), but the routes they'll use are reserved here
+ * so their nav will "just work" when they arrive.
  *
  * Visual spec: Figma 66:6577 — 71px bar + iPhone home-indicator
  * inset, `nav.mobile.bar.bg`, `text.primary` active / `text.muted`
@@ -21,7 +31,10 @@
 import { View, Text, Pressable, StyleSheet, Platform, Animated } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Home, Compass, MessageCircle, User as UserIcon } from "lucide-react-native";
+import {
+  Home, Compass, MessageCircle, User as UserIcon,
+  QrCode, ClipboardList, Package, BarChart3, Settings, Users,
+} from "lucide-react-native";
 
 import { t } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
@@ -37,17 +50,11 @@ interface TabDef {
   icon: (color: string) => React.ReactNode;
 }
 
-export default function MobileFooter() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const insets = useSafeAreaInsets();
-  const { user } = useAuth();
-
-  // `/` is Home, `/browse` is Discover, `/messages` is Messages,
-  // `/profile` is Profile. Anything outside these is a drill-down
-  // (coffee, user, cafe, roaster, search, notifications, account,
-  // auth) — we render the bar but no tab is active.
-  const tabs: TabDef[] = [
+/** Default tab set — the 4 consumer tabs every signed-in user sees
+ *  on the main surfaces. Profile icon flips to the user's avatar
+ *  when one is set; otherwise the lucide UserIcon. */
+function defaultTabs(user: any): TabDef[] {
+  return [
     {
       label: "Home",
       path: "/",
@@ -74,12 +81,8 @@ export default function MobileFooter() {
         user?.avatar_url ? (
           <View
             style={{
-              width: 26,
-              height: 26,
-              borderRadius: 13,
-              borderWidth: 1.5,
-              borderColor: color,
-              overflow: "hidden",
+              width: 26, height: 26, borderRadius: 13,
+              borderWidth: 1.5, borderColor: color, overflow: "hidden",
             }}
           >
             <CroppedAvatar
@@ -95,6 +98,107 @@ export default function MobileFooter() {
         ),
     },
   ];
+}
+
+/** Café POS tab set — 5 tabs optimised for the counter workflow
+ *  (Phase 2 §2.5 Café POS). Screens haven't landed yet; the paths
+ *  below are reserved so when the POS feature ships it only has to
+ *  mount under `/cafe-pos/*` to get this nav for free. */
+function cafePosTabs(_user: any): TabDef[] {
+  return [
+    {
+      label: "Scan",
+      path: "/cafe-pos",
+      match: (p) => p === "/cafe-pos",
+      icon: (color) => <QrCode size={24} color={color} strokeWidth={2} />,
+    },
+    {
+      label: "Orders",
+      path: "/cafe-pos/orders",
+      match: (p) => p === "/cafe-pos/orders",
+      icon: (color) => <ClipboardList size={24} color={color} strokeWidth={2} />,
+    },
+    {
+      label: "Stamps",
+      path: "/cafe-pos/stamps",
+      match: (p) => p === "/cafe-pos/stamps",
+      icon: (color) => <Users size={24} color={color} strokeWidth={2} />,
+    },
+    {
+      label: "Reports",
+      path: "/cafe-pos/reports",
+      match: (p) => p === "/cafe-pos/reports",
+      icon: (color) => <BarChart3 size={24} color={color} strokeWidth={2} />,
+    },
+    {
+      label: "Settings",
+      path: "/cafe-pos/settings",
+      match: (p) => p === "/cafe-pos/settings",
+      icon: (color) => <Settings size={24} color={color} strokeWidth={2} />,
+    },
+  ];
+}
+
+/** Roaster analytics tab set — 5 tabs for the wholesale-first
+ *  seller dashboard (Phase 1 §2.18 analytics + Phase 2 §2.15 orders).
+ *  Same reservation model as cafePosTabs — when the screens ship
+ *  under `/roaster-analytics/*` they inherit this footer. */
+function roasterAnalyticsTabs(_user: any): TabDef[] {
+  return [
+    {
+      label: "Overview",
+      path: "/roaster-analytics",
+      match: (p) => p === "/roaster-analytics",
+      icon: (color) => <BarChart3 size={24} color={color} strokeWidth={2} />,
+    },
+    {
+      label: "Orders",
+      path: "/roaster-analytics/orders",
+      match: (p) => p === "/roaster-analytics/orders",
+      icon: (color) => <Package size={24} color={color} strokeWidth={2} />,
+    },
+    {
+      label: "Leads",
+      path: "/roaster-analytics/leads",
+      match: (p) => p === "/roaster-analytics/leads",
+      icon: (color) => <MessageCircle size={24} color={color} strokeWidth={2} />,
+    },
+    {
+      label: "Audience",
+      path: "/roaster-analytics/audience",
+      match: (p) => p === "/roaster-analytics/audience",
+      icon: (color) => <Users size={24} color={color} strokeWidth={2} />,
+    },
+    {
+      label: "Settings",
+      path: "/roaster-analytics/settings",
+      match: (p) => p === "/roaster-analytics/settings",
+      icon: (color) => <Settings size={24} color={color} strokeWidth={2} />,
+    },
+  ];
+}
+
+/** Dispatch the right tab set based on the current route. Adding a
+ *  new per-screen nav is a single prefix guard here — no provider,
+ *  no context, no emits. Pathname prefix is the contract. */
+function getTabsForPath(pathname: string | null | undefined, user: any): TabDef[] {
+  const p = pathname || "/";
+  if (p === "/cafe-pos" || p.startsWith("/cafe-pos/")) return cafePosTabs(user);
+  if (p === "/roaster-analytics" || p.startsWith("/roaster-analytics/")) return roasterAnalyticsTabs(user);
+  return defaultTabs(user);
+}
+
+export default function MobileFooter() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+
+  // Per-screen tab sets (§2.40.7): the dispatcher picks the right
+  // TabDef[] based on the URL prefix so café POS + roaster analytics
+  // screens can ship with their own 5-tab nav without mounting their
+  // own footer.
+  const tabs: TabDef[] = getTabsForPath(pathname, user);
 
   const hidden = getChromeHiddenAnim();
   const footerTotalH = 71 + insets.bottom;

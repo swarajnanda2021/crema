@@ -20,6 +20,10 @@ interface ToggleOptions {
   initial?: boolean;
   /** Initial count (e.g. from like_count on the parent resource) */
   count?: number;
+  /** Fires after the server confirms the toggle — receives the new
+   *  state (`true` = now on / created, `false` = now off / deleted).
+   *  Call-site typically uses this to flash a confirmation toast. */
+  onToggled?: (nowToggled: boolean) => void;
 }
 
 export function useToggle(resource: string, targetId: string | number, options: ToggleOptions = {}) {
@@ -41,12 +45,13 @@ export function useToggle(resource: string, targetId: string | number, options: 
       const result = raw?.data ?? raw;
       setToggled(result.toggled);
       setCount(result.count);
+      options.onToggled?.(!!result.toggled);
     } catch {
       // Rollback on error
       setToggled(prevToggled);
       setCount(prevCount);
     }
-  }, [resource, targetId, toggled, count]);
+  }, [resource, targetId, toggled, count, options.onToggled]);
 
   return { toggled, count, toggle };
 }
