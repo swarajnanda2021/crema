@@ -1,12 +1,14 @@
 import { useState, useCallback } from "react";
 import { View, Text, ScrollView, StyleSheet, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
 import { t } from "../tokens/useTokens";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import CoffeeCard from "./CoffeeCard";
 
 const PAGE_SIZE = 24;
 const GAP = 20;                    // Figma: 20px between cards
 const TARGET_CARD_W = 240;         // Figma target card width
-const CARD_ASPECT = 400 / 240;     // Figma 372 + ~28px for bean_type row
+const CARD_ASPECT = 400 / 240;     // Portrait (web wide): Figma 372 + ~28px
+const LANDSCAPE_ASPECT = 251 / 370; // Landscape (mobile): Figma 66:6267/6268
 const GRID_PAD = 16;
 
 interface CoffeeListProps {
@@ -24,6 +26,7 @@ interface CoffeeListProps {
 export default function CoffeeList({ coffees, popularity = {}, compact, ListHeaderComponent, onScroll }: CoffeeListProps) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [containerW, setContainerW] = useState(0);
+  const { isMobile } = useBreakpoint();
   const visible = (Array.isArray(coffees) ? coffees : []).slice(0, visibleCount);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
@@ -33,7 +36,10 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
   const availableWidth = containerW > 0 ? containerW - GRID_PAD * 2 : 960;
   const numCols = Math.max(1, Math.min(8, Math.round((availableWidth + GAP) / (TARGET_CARD_W + GAP))));
   const cardWidth = Math.floor((availableWidth - GAP * (numCols - 1)) / numCols);
-  const cardHeight = Math.floor(cardWidth * CARD_ASPECT);
+  // Landscape flip on mobile — the card sizes itself landscape
+  // internally, so the wrapper has to allocate the landscape height
+  // to avoid dead space below each row.
+  const cardHeight = Math.floor(cardWidth * (isMobile ? LANDSCAPE_ASPECT : CARD_ASPECT));
 
   const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;

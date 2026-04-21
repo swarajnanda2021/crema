@@ -112,8 +112,14 @@ function HeroEditIcon() {
 
 // ── ShelfCarousel — horizontal scroll of coffee cards ────────────────────────
 
+// Portrait (web wide): 240 × 400. Landscape (mobile, §2.33):
+// the card flips to a 370 × 251 landscape frame — we sample the
+// viewport so a single card nearly fills it, matching the Figma
+// "tap one at a time" swipe idiom on phones.
 const CAROUSEL_CARD_W = 240;
 const CAROUSEL_CARD_H = Math.floor(240 * (400 / 240));
+const CAROUSEL_CARD_W_MOBILE = 340;
+const CAROUSEL_CARD_H_MOBILE = Math.floor(CAROUSEL_CARD_W_MOBILE * (251 / 370));
 const CAROUSEL_GAP = 16;
 const CAROUSEL_PAD = 20;
 
@@ -129,6 +135,9 @@ function ShelfCarousel({
   isOwner?: boolean;
   onAddToShelf?: (productId: string) => void;
 }) {
+  const { isMobile } = useBreakpoint();
+  const cardW = isMobile ? CAROUSEL_CARD_W_MOBILE : CAROUSEL_CARD_W;
+  const cardH = isMobile ? CAROUSEL_CARD_H_MOBILE : CAROUSEL_CARD_H;
   if (coffees.length === 0) {
     return (
       <View style={g.empty}>
@@ -145,11 +154,11 @@ function ShelfCarousel({
       contentContainerStyle={{ paddingHorizontal: CAROUSEL_PAD, gap: CAROUSEL_GAP, paddingBottom: 8 }}
     >
       {coffees.map(({ coffee, entryId }) => (
-        <View key={entryId} style={{ width: CAROUSEL_CARD_W, height: CAROUSEL_CARD_H }}>
+        <View key={entryId} style={{ width: cardW, height: cardH }}>
           <CoffeeCard
             coffee={coffee}
-            width={CAROUSEL_CARD_W}
-            height={CAROUSEL_CARD_H}
+            width={cardW}
+            height={cardH}
             shelfMode={shelfMode}
             isOwner={isOwner}
             currentShelf={activeShelf}

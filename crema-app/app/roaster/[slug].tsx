@@ -114,6 +114,7 @@ const GRID_GAP = 12;
 const GRID_PAD = 20;
 const TARGET_CARD_W = 240;
 const CARD_ASPECT = 372 / 240;
+const LANDSCAPE_ASPECT = 251 / 370;
 
 function CoffeeGrid({
   coffees, isOwner, onDeleteProduct, onEditProduct, roasterName, onSaveCard, popularity,
@@ -125,10 +126,13 @@ function CoffeeGrid({
   popularity?: Record<string, number>;
 }) {
   const [containerW, setContainerW] = useState(0);
+  const { isMobile } = useBreakpoint();
   const available = containerW > 0 ? containerW - GRID_PAD * 2 : 800;
   const numCols = Math.max(1, Math.min(4, Math.round((available + GRID_GAP) / (TARGET_CARD_W + GRID_GAP))));
   const cardW = Math.floor((available - GRID_GAP * (numCols - 1)) / numCols);
-  const cardH = Math.floor(cardW * CARD_ASPECT);
+  // Landscape aspect on mobile so the wrapper matches the landscape
+  // fork inside CoffeeCard; portrait on web wide.
+  const cardH = Math.floor(cardW * (isMobile ? LANDSCAPE_ASPECT : CARD_ASPECT));
 
   if (coffees.length === 0 && !isOwner) {
     return (
