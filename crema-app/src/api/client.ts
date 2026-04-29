@@ -162,13 +162,15 @@ export async function apiUpload<T = any>(
   return res.json();
 }
 
-/** Fire-and-forget click tracking. */
+/** Fire-and-forget click tracking. Hits the registry-driven
+ *  `click_events` resource — the table name is the URL by convention,
+ *  no `clicks` alias on the backend. */
 export function trackClick(
   productId: string,
   roasterSlug: string,
   sourcePage: string
 ): void {
-  apiFetchRaw("/clicks", {
+  apiFetchRaw("/click_events", {
     method: "POST",
     body: JSON.stringify({
       product_id: productId,

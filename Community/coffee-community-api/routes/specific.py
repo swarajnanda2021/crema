@@ -1765,7 +1765,7 @@ def admin_refresh_roaster_stream(
     finally:
         db.close()
 
-    def _sse(event: str, data: dict | str) -> str:
+    def _sse(event, data):
         # SSE framing — `event: <name>\ndata: <json>\n\n`. `data`
         # accepts either a dict (json-encoded) or a raw string
         # (delta passthrough — Anthropic's partial_json IS the data
@@ -1778,7 +1778,7 @@ def admin_refresh_roaster_stream(
     def event_stream():
         try:
             yield _sse("phase", {"phase": "bio_streaming"})
-            payload: dict | None = None
+            payload = None
             for ev_type, ev_data in roaster_enricher.enrich_roaster_from_url_stream(website):
                 if ev_type == "delta":
                     yield _sse("delta", ev_data)
