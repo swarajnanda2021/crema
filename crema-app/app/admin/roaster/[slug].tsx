@@ -54,7 +54,7 @@ import {
 } from "lucide-react-native";
 
 import { t } from "../../../src/tokens/useTokens";
-import { apiFetchRaw, resolveUploadUrl } from "../../../src/api/client";
+import { apiFetchRaw, apiStream, resolveUploadUrl } from "../../../src/api/client";
 import { onChromeScroll } from "../../../src/utils/chromeScroll";
 import { useBreakpoint } from "../../../src/hooks/useBreakpoint";
 import SiteHeader from "../../../src/components/SiteHeader";
@@ -71,6 +71,134 @@ import type {
   RoasterSource,
   ScrapeProposal,
 } from "../../../src/resources/types";
+
+// ── Partial JSON field extraction (for streaming refresh) ────────────────
+//
+// Sonnet streams its tool_use input as a series of `input_json_delta`
+// chunks that concatenate into the final JSON object. The page wants
+// to surface field values as soon as they're recognizable so the
+// admin sees the form filling in chatbot-style. These two helpers
+// run against the running buffer on every delta tick:
+//
+//   `extractFieldsFromBuffer` returns a snapshot of every known string
+//   key whose value (complete or in-progress) can be read out of the
+//   buffer. Handles JSON escapes (\\n, \\", \\\\) so partial bio prose
+//   renders correctly. Cheap: regex pass per key, ~10 keys total,
+//   runs ~once every 50–100 ms during streaming.
+//
+//   `currentlyStreamingKey` returns the key whose value is still
+//   in-progress (last quote not yet matched) — drives the status
+//   strip's "Filling about_blurb…" label so the user sees what
+//   field Sonnet is currently writing.
+
+const STREAM_STRING_KEYS = [
+  "name",
+  "tagline",
+  "city",
+  "state",
+  "instagram_handle",
+  "contact_email",
+  "about_blurb",
+  // platform + bean_catalog_url stream too but they map to `source`
+  // not `profile`; the SSE `complete` event delivers them canonically
+  // so we don't need partial visibility on the profile form.
+] as const;
+
+const FIELD_LABELS: Record<string, string> = {
+  name: "name",
+  tagline: "tagline",
+  city: "city",
+  state: "state",
+  instagram_handle: "Instagram",
+  contact_email: "email",
+  about_blurb: "bio",
+};
+
+function decodeJsonStringEscapes(raw: string): string {
+  // Minimal JSON-string unescape — \" \\ \/ \n \r \t \b \f and
+  // \uXXXX. Handles partial inputs gracefully (a trailing lone
+  // backslash is preserved as-is rather than throwing).
+  let out = "";
+  let i = 0;
+  while (i < raw.length) {
+    const ch = raw[i];
+    if (ch !== "\\") {
+      out += ch;
+      i += 1;
+      continue;
+    }
+    if (i + 1 >= raw.length) {
+      // Lone trailing backslash — keep, will resolve next delta.
+      break;
+    }
+    const next = raw[i + 1];
+    if (next === '"') { out += '"'; i += 2; }
+    else if (next === "\\") { out += "\\"; i += 2; }
+    else if (next === "/") { out += "/"; i += 2; }
+    else if (next === "n") { out += "\n"; i += 2; }
+    else if (next === "r") { out += "\r"; i += 2; }
+    else if (next === "t") { out += "\t"; i += 2; }
+    else if (next === "b") { out += "\b"; i += 2; }
+    else if (next === "f") { out += "\f"; i += 2; }
+    else if (next === "u" && i + 5 < raw.length) {
+      const hex = raw.slice(i + 2, i + 6);
+      const code = parseInt(hex, 16);
+      if (Number.isFinite(code)) {
+        out += String.fromCharCode(code);
+        i += 6;
+      } else {
+        out += ch; i += 1;
+      }
+    } else {
+      // Unknown escape — copy verbatim.
+      out += ch; i += 1;
+    }
+  }
+  return out;
+}
+
+function extractFieldsFromBuffer(buffer: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const key of STREAM_STRING_KEYS) {
+    // Match `"key" : "value-so-far` where value can contain escaped
+    // quotes (\\") but not unescaped ones — that would mark the
+    // close. The value is captured up to (but not including) the
+    // closing quote OR the end-of-buffer.
+    const re = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)`);
+    const m = re.exec(buffer);
+    if (m) {
+      out[key] = decodeJsonStringEscapes(m[1]);
+    }
+  }
+  return out;
+}
+
+function currentlyStreamingKey(buffer: string): string | null {
+  // The currently-streaming key is the LAST key whose opening `"key": "`
+  // appears in the buffer without a matching closing quote yet.
+  // Approximation: find every `"key": "..."` pattern, strip those
+  // out, then look for a trailing `"key": "` start.
+  let latest: string | null = null;
+  for (const key of STREAM_STRING_KEYS) {
+    // Closed pattern: "key": "complete value"
+    const closedRe = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`);
+    // Open-only pattern: "key": "incomplete value-so-far (no closing
+    // quote, possibly empty)
+    const openRe = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)$`);
+    if (closedRe.test(buffer)) continue;
+    if (openRe.test(buffer)) {
+      latest = key;
+      // Don't break — a later key in our enum may have started
+      // already (Sonnet emits them in schema order, so the latest
+      // wins).
+    }
+  }
+  return latest;
+}
+
+function prettyFieldLabel(key: string): string {
+  return FIELD_LABELS[key] || key.replace(/_/g, " ");
+}
 
 export default function AdminRoasterPage() {
   const router = useRouter();
@@ -361,11 +489,13 @@ export default function AdminRoasterPage() {
     }, 2000);
   };
 
-  // Combined refresh — bio enrich + catalog scrape in one click. The
-  // backend orchestrator runs Sonnet against the website synchronously
-  // (5–10 s) and then enqueues a scrape job whose progress this page
-  // polls. Status strip cycles phase labels for the user; per-field
-  // streaming cascade lands later via SSE upgrade.
+  // Combined refresh — bio enrich + catalog scrape in one click,
+  // streamed end-to-end. Hits the SSE endpoint and pipes Sonnet's
+  // tool_use JSON deltas straight into the form so the admin sees
+  // each field populate as it arrives instead of waiting 5–10 s for
+  // the whole payload. Status strip narrates which field is currently
+  // filling. Falls back to the non-streaming /refresh-all endpoint if
+  // the runtime doesn't expose a Response body reader.
   const refreshAll = async () => {
     if (!profile) return;
     hapticCommit();
@@ -373,11 +503,144 @@ export default function AdminRoasterPage() {
     setEnrichError(null);
     setError(null);
     setRefreshPhase("bio");
+    setPhaseProgress(null);
     const sendRegenerate = regeneratePromptOnNext;
     setRegeneratePromptOnNext(false);
+
+    let resp: Response | null = null;
+    try {
+      resp = await apiStream(
+        `/admin/roasters/${profile.roaster_slug}/refresh-stream`,
+        {
+          method: "POST",
+          body: JSON.stringify({ regenerate_prompt: sendRegenerate }),
+        },
+      );
+    } catch (e: any) {
+      setEnrichError(e?.message || "Couldn't open refresh stream");
+      setRefreshPhase("idle");
+      setEnrichBusy(false);
+      return;
+    }
+
+    const reader = resp.body?.getReader?.();
+    if (!reader) {
+      // Streaming not available on this runtime — silently fall
+      // through to the non-streaming /refresh-all endpoint so the
+      // admin still gets the workflow, just without the cascade.
+      return refreshAllNonStreaming(sendRegenerate);
+    }
+
+    const decoder = new TextDecoder("utf-8");
+    let textBuffer = "";   // SSE wire frame buffer
+    let jsonBuffer = "";   // accumulated tool_use JSON across deltas
+    try {
+      // Streaming loop. Each iteration either receives more bytes
+      // or hits done; we parse SSE frames out of `textBuffer` and
+      // dispatch by event name.
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        textBuffer += decoder.decode(value, { stream: true });
+        let sepIdx: number;
+        while ((sepIdx = textBuffer.indexOf("\n\n")) >= 0) {
+          const frame = textBuffer.slice(0, sepIdx);
+          textBuffer = textBuffer.slice(sepIdx + 2);
+          let eventName = "message";
+          let dataStr = "";
+          for (const line of frame.split("\n")) {
+            if (line.startsWith("event:")) eventName = line.slice(6).trim();
+            else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+          }
+          if (!dataStr) continue;
+          let parsed: any;
+          try { parsed = JSON.parse(dataStr); } catch { continue; }
+
+          if (eventName === "delta") {
+            jsonBuffer += String(parsed.text ?? "");
+            const fields = extractFieldsFromBuffer(jsonBuffer);
+            // Apply only the fields that are in our streaming set —
+            // setProfile merges so other fields stay put. Cast to
+            // any since EditableField + the registry shape both
+            // accept extra optional keys.
+            setProfile((prev) => {
+              if (!prev) return prev;
+              const next: any = { ...prev };
+              if (fields.name !== undefined) next.name = fields.name;
+              if (fields.tagline !== undefined) next.tagline = fields.tagline;
+              if (fields.city !== undefined) next.city = fields.city;
+              if (fields.state !== undefined) next.state = fields.state;
+              if (fields.instagram_handle !== undefined) next.instagram_handle = fields.instagram_handle;
+              if (fields.contact_email !== undefined) next.contact_email = fields.contact_email;
+              if (fields.about_blurb !== undefined) next.about_blurb = fields.about_blurb;
+              return next;
+            });
+            const cur = currentlyStreamingKey(jsonBuffer);
+            if (cur) setPhaseProgress(`Filling ${prettyFieldLabel(cur)}…`);
+          } else if (eventName === "complete") {
+            // Apply canonical post-DB-upsert profile + transition
+            // to the scrape phase if a job was queued.
+            if (parsed.profile) {
+              setProfile(parsed.profile);
+            }
+            refetch();
+            await fetchCatalogProducts();
+            if (parsed.warning) {
+              setEnrichError(parsed.warning);
+            }
+            if (parsed.job_id) {
+              setEnrichJobId(parsed.job_id);
+              setRefreshPhase("scraping");
+              setPhaseProgress("Fetching catalog…");
+              startPoll(parsed.job_id);
+            } else {
+              setRefreshPhase("done");
+              setEnrichBusy(false);
+              setTimeout(() => {
+                setRefreshPhase((cur) => (cur === "done" ? "idle" : cur));
+                setPhaseProgress(null);
+              }, 2500);
+            }
+          } else if (eventName === "error") {
+            setEnrichError(parsed.message || "Streaming refresh failed");
+            setRefreshPhase("idle");
+            setEnrichBusy(false);
+            try { reader.cancel(); } catch {}
+            return;
+          }
+          // "phase" + "done" events are advisory — the state
+          // transitions happen on `complete`, so they don't need
+          // explicit handling here.
+        }
+      }
+    } catch (e: any) {
+      setEnrichError(e?.message || "Stream read failed");
+      setRefreshPhase("idle");
+      setEnrichBusy(false);
+    } finally {
+      // Defensive: if the stream ended without a `complete` or
+      // `error` event landing (network drop, server kill, etc.),
+      // the busy state would otherwise stick. The branches above
+      // already clear busy when either event lands, so this only
+      // fires on the cut-off-mid-stream edge case.
+      setRefreshPhase((cur) => {
+        if (cur === "bio") {
+          setEnrichBusy(false);
+          return "idle";
+        }
+        return cur;
+      });
+    }
+  };
+
+  // Non-streaming fallback — used only when the runtime can't read
+  // response.body. Same end-state as the streaming path; just no
+  // field-by-field cascade.
+  const refreshAllNonStreaming = async (sendRegenerate: boolean) => {
     try {
       const res: any = await apiFetchRaw(
-        `/admin/roasters/${profile.roaster_slug}/refresh-all`,
+        `/admin/roasters/${profile!.roaster_slug}/refresh-all`,
         {
           method: "POST",
           body: JSON.stringify({ regenerate_prompt: sendRegenerate }),
@@ -386,12 +649,7 @@ export default function AdminRoasterPage() {
       const data: any = res?.data ?? res;
       const updatedProfile = data?.profile as RoasterProfile | undefined;
       const job = data?.job as { id: number } | undefined;
-      if (updatedProfile) {
-        setProfile(updatedProfile);
-      }
-      // Pull the freshly-mirrored source row (shop_url / platform).
-      // Triggers a `setLoading(true)` flash but the rest of the page
-      // already has profile state, so the visible content is stable.
+      if (updatedProfile) setProfile(updatedProfile);
       refetch();
       if (job?.id) {
         setEnrichJobId(job.id);

@@ -529,3 +529,142 @@ def enrich_roaster_from_url(website: str) -> dict:
     }
 
     return {"profile": profile, "source": source}
+
+
+# ── Streaming variant ──────────────────────────────────────────────────────
+#
+# Same surface as `enrich_roaster_from_url` but emits Sonnet's tool_use
+# JSON deltas as they stream from the API. Lets the admin page show
+# fields populating progressively rather than dumping the whole
+# enriched profile after the 5–10 s Sonnet round-trip.
+
+def enrich_roaster_from_url_stream(website: str):
+    """Generator. Same end-state as `enrich_roaster_from_url` but
+    yields events along the way:
+
+      ("delta", "<partial_json fragment>")
+          Each Anthropic `input_json_delta` chunk verbatim. Frontend
+          accumulates these into a buffer and runs a partial-JSON
+          extractor against it to update fields in real time.
+
+      ("complete", {"profile": {...}, "source": {...}})
+          Final canonical payload — same shape `enrich_roaster_from_url`
+          returns. Caller (the SSE endpoint) applies the DB upsert
+          using this. Frontend should treat fields here as the
+          source of truth and overwrite any partial state.
+
+    Raises `RoasterEnricherError` for any caller-actionable failure;
+    SSE handler converts those into an `error` event.
+    """
+    if not website:
+        raise RoasterEnricherError("website is required")
+    if not website.startswith(("http://", "https://")):
+        website = "https://" + website
+    parsed = urlparse(website)
+    if not parsed.netloc:
+        raise RoasterEnricherError(f"Couldn't parse website URL: {website}")
+
+    base_url = f"{parsed.scheme}://{parsed.netloc}"
+    homepage = _fetch(base_url)
+    if not homepage:
+        raise RoasterEnricherError(
+            f"Couldn't fetch homepage at {base_url}. The site may be down "
+            "or blocking our user-agent."
+        )
+
+    logo_url = _select_image(homepage, base_url, _LOGO_SELECTORS)
+    hero_url = _select_image(homepage, base_url, _HERO_SELECTORS)
+    homepage_text = _extract_text(homepage)
+    about_text = _try_about_page(base_url)
+    nav_links = _extract_nav_links(homepage, base_url)
+    sitemap_urls = _try_sitemap(base_url)
+    platform_hint = _detect_platform(homepage)
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise RoasterEnricherError(
+            "ANTHROPIC_API_KEY is not set. Export it in the shell that runs "
+            "the FastAPI server (export ANTHROPIC_API_KEY=sk-...)."
+        )
+    try:
+        import anthropic
+    except ImportError as e:
+        raise RoasterEnricherError(
+            "anthropic SDK isn't installed. `pip install anthropic` in the "
+            "FastAPI server's Python env."
+        ) from e
+
+    nav_block = "\n".join(f"- {u}" for u in nav_links) if nav_links else "(none extracted)"
+    sitemap_block = (
+        "\n".join(f"- {u}" for u in sitemap_urls[:80])
+        if sitemap_urls else "(no sitemap.xml found)"
+    )
+    user_content = (
+        f"ROASTER URL: {base_url}\n"
+        f"PLATFORM HINT (regex sniff, may be wrong): "
+        f"{platform_hint or 'unknown'}\n\n"
+        f"HOMEPAGE TEXT (cleaned, first ~6000 chars):\n"
+        f"{homepage_text or '(empty)'}\n\n"
+        f"ABOUT PAGE TEXT (cleaned, first ~6000 chars):\n"
+        f"{about_text or '(no about page found)'}\n\n"
+        f"NAV LINKS (extracted from header/nav, candidate URLs for "
+        f"`bean_catalog_url`):\n{nav_block}\n\n"
+        f"SITEMAP URLS (first 80 from /sitemap.xml; helps disambiguate "
+        f"product-listing pages):\n{sitemap_block}"
+    )
+
+    client = anthropic.Anthropic(max_retries=3)
+    sonnet_input: Optional[dict] = None
+    try:
+        with client.messages.stream(
+            model=MODEL,
+            max_tokens=MAX_TOKENS,
+            system=_ROASTER_SYSTEM,
+            tools=[_ROASTER_TOOL],
+            tool_choice={"type": "tool", "name": "extract_roaster_profile"},
+            messages=[{"role": "user", "content": user_content}],
+        ) as stream:
+            for event in stream:
+                # The SDK surfaces tool_use input chunks as
+                # `input_json_delta`. Other content_block_delta
+                # variants (text deltas, citation deltas) shouldn't
+                # appear given our `tool_choice` lock, but ignore
+                # defensively.
+                etype = getattr(event, "type", None)
+                if etype == "content_block_delta":
+                    delta = getattr(event, "delta", None)
+                    if delta is not None and getattr(delta, "type", "") == "input_json_delta":
+                        partial = getattr(delta, "partial_json", "") or ""
+                        if partial:
+                            yield ("delta", partial)
+            final = stream.get_final_message()
+    except anthropic.APIError as e:
+        raise RoasterEnricherError(f"Sonnet call failed: {e}") from e
+
+    for block in final.content:
+        if block.type == "tool_use":
+            sonnet_input = block.input  # type: ignore[assignment]
+            break
+    if sonnet_input is None:
+        raise RoasterEnricherError("Sonnet returned no tool_use block")
+
+    name = (sonnet_input.get("name") or parsed.netloc.replace("www.", "")).strip()
+    slug = slugify(name)
+    profile = {
+        "roaster_slug": slug,
+        "name": name,
+        "tagline": (sonnet_input.get("tagline") or None),
+        "about_blurb": (sonnet_input.get("about_blurb") or "").strip(),
+        "specialties": sonnet_input.get("specialties") or [],
+        "city": sonnet_input.get("city") or None,
+        "state": sonnet_input.get("state") or None,
+        "instagram_handle": sonnet_input.get("instagram_handle") or None,
+        "contact_email": sonnet_input.get("contact_email") or None,
+        "website": website,
+        "logo_url": logo_url,
+        "hero_image_url": hero_url,
+    }
+    source = {
+        "platform": (sonnet_input.get("platform") or platform_hint),
+        "shop_url": sonnet_input.get("bean_catalog_url") or None,
+    }
+    yield ("complete", {"profile": profile, "source": source})

@@ -1715,6 +1715,265 @@ def admin_re_enrich_roaster(slug: str, user=Depends(get_current_user)):
     return admin_enrich_roaster({"website": website}, user=user)
 
 
+@router.post("/admin/roasters/{slug}/refresh-stream")
+def admin_refresh_roaster_stream(
+    slug: str,
+    body: dict = None,
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_current_user),
+):
+    """SSE variant of /refresh-all. Same end-state — fresh profile +
+    queued scrape job — but streams Sonnet's tool_use JSON deltas to
+    the client as they arrive so the per-roaster admin page can fill
+    in fields token-by-token instead of waiting 5–10 s for the full
+    payload.
+
+    Event stream format:
+
+      event: delta
+      data: <raw partial_json fragment from Anthropic>
+
+      event: complete
+      data: {"profile": {...}, "source": {...}, "job_id": 123}
+
+      event: error
+      data: {"message": "<human-readable>"}
+
+      event: done
+      data: {}
+
+    The frontend buffers `delta` payloads and runs a partial-JSON
+    extractor against the accumulated string to surface field
+    values as soon as they're complete. `complete` carries the
+    canonical post-DB-upsert state and the queued scrape job id;
+    the existing job poll path picks up from there.
+    """
+    _require_admin(user)
+    body = body or {}
+    regenerate_prompt = bool(body.get("regenerate_prompt"))
+
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT website FROM roaster_profiles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not row or not row["website"]:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"No website on file for roaster {slug}")
+        website = row["website"]
+    finally:
+        db.close()
+
+    def _sse(event: str, data: dict | str) -> str:
+        # SSE framing — `event: <name>\ndata: <json>\n\n`. `data`
+        # accepts either a dict (json-encoded) or a raw string
+        # (delta passthrough — Anthropic's partial_json IS the data
+        # payload, so we wrap it in {"text": "..."} to keep the
+        # content-type uniformly JSON on the wire).
+        if isinstance(data, str):
+            data = {"text": data}
+        return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+    def event_stream():
+        try:
+            yield _sse("phase", {"phase": "bio_streaming"})
+            payload: dict | None = None
+            for ev_type, ev_data in roaster_enricher.enrich_roaster_from_url_stream(website):
+                if ev_type == "delta":
+                    yield _sse("delta", ev_data)
+                elif ev_type == "complete":
+                    payload = ev_data
+
+            if payload is None:
+                yield _sse("error", {"message": "Sonnet returned no tool_use block"})
+                yield _sse("done", {})
+                return
+
+            # Apply the DB upsert + source mirror — same logic as
+            # admin_enrich_roaster, kept inline here to stay in the
+            # streaming context. Uses a fresh DB handle since
+            # outer-scope `db` was closed above.
+            profile = payload["profile"]
+            source = payload["source"]
+            db2 = get_db()
+            try:
+                now = _now_iso()
+                existing_by_website = db2.execute(
+                    "SELECT roaster_slug FROM roaster_profiles WHERE website = ?",
+                    (profile["website"],),
+                ).fetchone()
+                slug_use = existing_by_website["roaster_slug"] if existing_by_website else profile["roaster_slug"]
+                existing = db2.execute(
+                    "SELECT roaster_slug FROM roaster_profiles WHERE roaster_slug = ?",
+                    (slug_use,),
+                ).fetchone()
+                specialties_json = json.dumps(profile.get("specialties") or [])
+                if existing:
+                    db2.execute(
+                        "UPDATE roaster_profiles SET "
+                        " name = COALESCE(?, name), "
+                        " about_blurb = COALESCE(?, about_blurb), "
+                        " tagline = COALESCE(?, tagline), "
+                        " specialties = COALESCE(?, specialties), "
+                        " city = COALESCE(?, city), "
+                        " state = COALESCE(?, state), "
+                        " instagram_handle = COALESCE(?, instagram_handle), "
+                        " contact_email = COALESCE(?, contact_email), "
+                        " website = COALESCE(?, website), "
+                        " logo_url = COALESCE(?, logo_url), "
+                        " hero_image_url = COALESCE(?, hero_image_url), "
+                        " updated_at = ? "
+                        "WHERE roaster_slug = ?",
+                        (
+                            profile.get("name"),
+                            profile.get("about_blurb") or None,
+                            profile.get("tagline"),
+                            specialties_json if profile.get("specialties") else None,
+                            profile.get("city"),
+                            profile.get("state"),
+                            profile.get("instagram_handle"),
+                            profile.get("contact_email"),
+                            profile.get("website"),
+                            profile.get("logo_url"),
+                            profile.get("hero_image_url"),
+                            now,
+                            slug_use,
+                        ),
+                    )
+                else:
+                    db2.execute(
+                        "INSERT INTO roaster_profiles "
+                        "(roaster_slug, name, about_blurb, tagline, specialties, "
+                        " website, city, state, instagram_handle, contact_email, "
+                        " logo_url, hero_image_url, hero_crop_x, hero_crop_y, "
+                        " hero_zoom, published, updated_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 50, 50, 1, 0, ?)",
+                        (
+                            slug_use, profile.get("name"), profile.get("about_blurb"),
+                            profile.get("tagline"), specialties_json,
+                            profile.get("website"), profile.get("city"),
+                            profile.get("state"), profile.get("instagram_handle"),
+                            profile.get("contact_email"),
+                            profile.get("logo_url"),
+                            profile.get("hero_image_url"),
+                            now,
+                        ),
+                    )
+
+                if profile.get("name"):
+                    from services.notifications import sync_roaster_name_to_user
+                    sync_roaster_name_to_user(db2, slug_use, profile["name"])
+
+                # Mirror source row (shop_url + platform).
+                existing_src = db2.execute(
+                    "SELECT id FROM roaster_sources WHERE website = ?",
+                    (profile["website"],),
+                ).fetchone()
+                if not existing_src:
+                    db2.execute(
+                        "INSERT INTO roaster_sources "
+                        "(name, website, shop_url, platform, city, state, enabled, added_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
+                        (
+                            profile.get("name") or slug_use,
+                            profile["website"],
+                            source.get("shop_url"),
+                            source.get("platform"),
+                            profile.get("city"),
+                            profile.get("state"),
+                            now,
+                        ),
+                    )
+                else:
+                    db2.execute(
+                        "UPDATE roaster_sources SET "
+                        " shop_url = COALESCE(?, shop_url), "
+                        " platform = COALESCE(?, platform), "
+                        " city = COALESCE(?, city), "
+                        " state = COALESCE(?, state) "
+                        "WHERE id = ?",
+                        (
+                            source.get("shop_url"),
+                            source.get("platform"),
+                            profile.get("city"),
+                            profile.get("state"),
+                            existing_src["id"],
+                        ),
+                    )
+                db2.commit()
+
+                # Re-fetch the canonical row shape so the frontend
+                # gets exactly what the registry would have served.
+                from resources.crud import get_resource_by_id
+                full_profile = get_resource_by_id(db2, "roaster_profiles", slug_use,
+                                                    current_user_id=user["id"])
+
+                # Kick the scrape job.
+                src_row = db2.execute(
+                    "SELECT shop_url, platform FROM roaster_sources rs "
+                    "JOIN roaster_profiles rp ON rp.website = rs.website "
+                    "WHERE rp.roaster_slug = ?",
+                    (slug_use,),
+                ).fetchone()
+                if not src_row or not src_row["shop_url"] or not src_row["platform"]:
+                    yield _sse("complete", {
+                        "profile": full_profile,
+                        "source": source,
+                        "job_id": None,
+                        "warning": "Bio enrichment finished but the catalog "
+                                    "source is missing shop_url or platform — "
+                                    "no scrape job kicked.",
+                    })
+                    yield _sse("done", {})
+                    return
+
+                try:
+                    job_id = catalog_ops.enqueue_job(db2, "scrape", started_by=user["id"])
+                except catalog_ops.JobConflict as e:
+                    yield _sse("complete", {
+                        "profile": full_profile,
+                        "source": source,
+                        "job_id": None,
+                        "warning": str(e),
+                    })
+                    yield _sse("done", {})
+                    return
+                background_tasks.add_task(
+                    catalog_ops.run_scrape_job, job_id,
+                    roaster_slug=slug_use,
+                    regenerate_prompt=regenerate_prompt,
+                )
+                yield _sse("complete", {
+                    "profile": full_profile,
+                    "source": source,
+                    "job_id": job_id,
+                })
+                yield _sse("done", {})
+            finally:
+                db2.close()
+        except roaster_enricher.RoasterEnricherError as e:
+            yield _sse("error", {"message": str(e)})
+            yield _sse("done", {})
+        except Exception as e:
+            yield _sse("error", {"message": f"{type(e).__name__}: {e}"})
+            yield _sse("done", {})
+
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            # Disable proxy buffering so events flush immediately on
+            # nginx / Cloudflare. uvicorn dev doesn't need this but
+            # production reverse-proxies do.
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @router.post("/admin/roasters/{slug}/refresh-all", status_code=202)
 def admin_refresh_roaster_all(
     slug: str,
