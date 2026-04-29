@@ -7,32 +7,6 @@ For architecture rules see `CRUD_UTOPIA.md`.
 
 ---
 
-> **Café removal pivot — active workstream (2026-04-29)**
->
-> `NORTH_STAR.md` was rewritten on 2026-04-29 to defer cafés out of
-> Phase 1. The vision is now consumer + roaster only; café tooling
-> (loyalty, supplier discovery, POS, wholesale commerce) returns as
-> a future **Phase N** project, redesigned from scratch. Reason:
-> trying to ship all three participant flows in Phase 1 turned out
-> to be too much. The consumer experience kept getting compromised
-> by café-side complexity (split notification stacks, account-type
-> guards, business chat, stamp-book UI) and roaster sign-up
-> suffered from ambiguity about who the audience was.
->
-> Café-related code is **still in the codebase** as of this writing
-> — what's queued is the removal workstream tracked in **§2.42**.
-> Until that lands, café-touching content in §1.2, §1.4, §1.5, and
-> §1.7 carries either a section-level deferred banner (§1.4) or
-> mini-notes pointing back here. Café-shipped items in §2.1, §2.2,
-> §2.4, §2.6, §2.10, §2.15, §2.17, §2.20, §2.24 are folded into
-> the §2.42 removal scope.
->
-> When §2.42 ships, those rows are deleted (not just retagged) —
-> the document goes back to reading as the live codebase, not a
-> changelog.
-
----
-
 ## 1. What has been built
 
 ### 1.1 Architecture (CRUD Utopia)
@@ -62,25 +36,20 @@ Android from a single codebase.
 
 | Feature | Description | Key files |
 |---------|-------------|-----------|
-| **Auth** | Register, login, UUID session tokens (30-day TTL), multi-account (one user + one roaster + one café simultaneously), floating auth modal for Add Another Account | `services/auth.py`, `useAuth.tsx`, `AuthModal.tsx` |
-| **User profile** | Canela display name, avatar with drag-to-reposition + pinch-to-zoom, bio, favorite drink/café, roast preference, in-place editing | `app/(tabs)/profile.tsx` |
+| **Auth** | Register, login, UUID session tokens (30-day TTL), multi-account (one user + one roaster simultaneously), floating auth modal for Add Another Account | `services/auth.py`, `useAuth.tsx`, `AuthModal.tsx` |
+| **User profile** | Canela display name, avatar with drag-to-reposition + pinch-to-zoom, bio, favorite drink/café (free text), roast preference, in-place editing | `app/(tabs)/profile.tsx` |
 | **Tasting journal** | Sliders (acidity, body, sweetness, aftertaste 1-5), flavor tags, full brew recipe (method, dose, yield, water, time, temp, grind, ratio), blend components | `tasting_notes` resource |
 | **Coffee shelf** | Open Bags / On the List, horizontal card carousel, move between shelves, remove | `shelf_entries` resource, `useShelves.ts` |
-| **Stamp book** | Per-café stamp progress (dots UI), QR display for barista scan, reward tracking | `StampBookList.tsx`, `StampBookModal.tsx` |
 | **Social feed** | Posts (articles, notes, reposts, tasting-note auto-posts, sourcing stories), likes, threaded comments with replies, notifications | `roaster_posts` + `post_likes` + `post_comments` resources |
-| **Long-form post type** (§2.14) | `post_type = "sourcing_story"` with a dedicated `body_full` column on `roaster_posts`. Teaser stays the excerpt shown in the feed; `body_full` is the expanded narrative. PostCard renders "Read the full post →" to toggle the long body inline and shows "Shared a long-form post" as the subtitle. Available to every account type — originally gated to roasters as "Sourcing story", the gate was dropped in §2.14 because the underlying thing is just "extend the character limit". Roasters still use it for sourcing stories; consumers can write a detailed brew walkthrough or journal entry. | `roaster_posts.body_full`, PostCard `isSourcingStory` branch, `ComposePost` long-form toggle |
-| **Post composer** | Floating modal, image upload, link auto-detect with preview, tasting-note card attachment, tag-a-café (pink heart icon), tag-a-drink picker, location. Every account gets a "Long form" toggle that promotes the post to long-form with a dedicated body_full textarea (min 200, max 5000 chars). | `ComposePost.tsx` |
+| **Long-form post type** | `post_type = "sourcing_story"` with a dedicated `body_full` column on `roaster_posts`. Teaser stays the excerpt shown in the feed; `body_full` is the expanded narrative. PostCard renders "Read the full post →" to toggle the long body inline and shows "Shared a long-form post" as the subtitle. Available to every account type. | `roaster_posts.body_full`, PostCard `isSourcingStory` branch, `ComposePost` long-form toggle |
+| **Post composer** | Floating modal, image upload, link auto-detect with preview, tasting-note card attachment, tag-a-drink picker, location. Every account gets a "Long form" toggle that promotes the post to long-form with a dedicated body_full textarea (min 200, max 5000 chars). | `ComposePost.tsx` |
 | **Buy button** | Outbound click to roaster's product URL, tracked in `click_events` (product, roaster, source page, timestamp) | `CoffeeCard.tsx`, `click_events` resource |
 | **Brew method cards** | Roaster-submitted recipe cards rendered as a horizontal carousel on the product detail page ("Recommended recipes from the roaster"). Method-specific field layout (espresso: dose/yield/ratio/time/temp/grind; pour-over: dose/water/bloom/brew-time/grind; etc.). `fields_json` escape hatch for method-specific extras that don't fit the shared columns. | `brew_methods` resource, `BrewMethodCard.tsx`, `/coffee/[id]` carousel |
-| **"Interested" wholesale handshake** | Café accounts see an Interested button on the product detail page. Tapping opens a modal with an optional note, creates a `wholesale_inquiries` row, and fires a `wholesale_inquiry` notification to every roaster-account user on that slug — lands in their Business tab (§2.4) with a deep-link to the sending café's profile (where §2.6 procurement fields render). Roaster can respond / archive via `POST /api/wholesale-inquiries/{id}/respond`. | `InterestedButton.tsx`, `wholesale_inquiries` resource, `_handle_notify_wholesale_inquiry` hook, `/api/my-wholesale-inquiries` |
-| **Messages inbox + inquiry chat** | Navbar Messages icon (every authenticated user) with unread badge opens a chat-style inbox dropdown listing every inquiry + DM thread — counterparty avatar, product (for inquiries), last-message preview, time, unread count. Business users (roaster + café) see the inbox split into three tabs (§2.15): **Business** (wholesale inquiries), **Non-business** (direct messages), **Archive** (archived inquiries). Regular users see the flat list. Tapping a row opens `ThreadBody`: compact header with counterparty + product + status chip, collapsible Details drawer for business context, conversation area with self/other bubbles, composer at bottom. Polls every 5s while open; marks read on open + on new messages. Roasters get a `…` menu for Mark-replied / Archive / Reopen. Archive tab keeps archived threads reachable; Reopen lives inside the thread. | `/api/my-threads`, `/api/wholesale-inquiries/{id}/thread`, `/api/wholesale-inquiries/{id}/messages`, `/api/wholesale-inquiries/{id}/read`, `MessagesDropdown.tsx`, `ThreadBody.tsx`, `useInquiryInbox.ts` |
-| **Wholesale availability signal** | Roasters flag products as wholesale-available via a single checkbox on `EditableCoffeeCard`. The min-kg + note fields were dropped (negotiation happens inline on the inquiry thread). Products live in both `products` and `roaster_products` tables so the columns + indexes are mirrored; `wholesale_minimum_kg` and `wholesale_note` remain in the schema for legacy rows but the creation form null-throughs them. On `CoffeeCard` the Package chip sits in the top-right slot (displacing the heart for business viewers — roasters AND cafés, neither has a personal shelf), visible only when `wholesale_available === 1`. Browse has a "Wholesale available only" filter for business viewers (both roaster + café accounts). `POST /api/roasters/{slug}/products` still accepts the legacy 3 fields. Inline owner-edit UI on existing products is tracked in §2.9. | `products.wholesale_*`, `roaster_products.wholesale_*`, `CoffeeCard` Package chip, browse filter |
+| **Messages inbox** | Navbar Messages icon (every authenticated user) with unread badge opens a chat-style inbox dropdown listing direct-message threads — counterparty avatar, last-message preview, time, unread count. Inbox / Archive tabs (Archive is session-scoped until the DM-archive backend ships in §2.40.8). Tapping a row opens `ThreadBody`: compact header with counterparty avatar, conversation area with self/other bubbles, composer at bottom. Polls every 5s while open; marks read on open + on new messages. | `/api/my-threads`, `/api/direct-threads/*`, `MessagesDropdown.tsx`, `ThreadBody.tsx`, `useDirectInbox.ts` |
 | **Popularity modal (on-shelf viewer)** | Tapping the circular social dot on a CoffeeCard opens `PopularityModal`. Fetches `/products/{id}/users` and `/products/{id}/posts` in parallel, renders tasting-note posts via the shared `PostCard` (full header + tasting-note card + action bar — identical to the feed), and silent shelvers (no post) land in a compact "Also on shelf" list below. Shell matches the floating-modal language (blur backdrop, token overlay, Canela title). Count lives in the header subtitle ("On N people's shelves") — the card dot itself is number-free. | `PopularityModal.tsx`, `/api/products/{id}/posts`, `PostCard` |
-| **Notifications** | Dropdown with likes, comments, follows, reposts, reply, catalog-change notifications (product added/removed, menu changed), §2.20 cross-business fanout types (wholesale_available, sourcing_story, menu_updated_business, loyalty_changed). Subject line + deep-link to source entity (sourcing_story → PostModal, others → entity profile). | `NotificationsDropdown.tsx`, `useNotifications.ts` |
-| **Activity / Business tabs** | Roaster + café accounts see the notifications dropdown split into two tabs. Activity = social (like/comment/follow/repost/reply); Business = catalog fanout + wholesale inquiries (§2.1) + stamp awards + §2.20 cross-business signals (new wholesale flag, sourcing story, menu update from a followed café, loyalty program change). Regular users still see one flat list. Unread count appears next to each tab label. | `NotificationsDropdown.tsx` `BUSINESS_TYPES` set in `useNotifications.ts` |
-| **Browse / Discover** | Roasters list with city filter, cafés list with city filter, product catalog. Sticky search bar hides/shows via `useSearchBarAutoHide` (§2.16) with dead-band, bottom-freeze, and top-force-show guards so it doesn't thrash at end-of-list rubber-banding. | `app/(tabs)/browse.tsx`, `src/hooks/useSearchBarAutoHide.ts` |
-| **Sitewide search dropdown** (§2.11) | Navbar glass opens a floating dropdown styled like messages / notifications. Cream-backed input (no browser focus ring), live narrowing, four sections: Users (via `/api/users/search`), Beans, Roasters, Cafés (local-cache filter). Beans render without product image. Each section caps at 5 hits; a "See all results for …" row routes to Discover with the query pre-filled. | `SearchDropdown.tsx`, `Navbar.tsx` |
-| **QR identity** | Short-lived QR tokens (5-min TTL), displayed in profile dropdown "Show QR" and inside stamp book modals | `useQRToken.ts`, `QRModal.tsx`, `services/qr_tokens.py` |
+| **Notifications** | Flat dropdown with likes, comments, follows, reposts, reply, catalog-change notifications (product added/removed), and sourcing-story fanout. Subject line + deep-link to source entity (sourcing_story → PostModal, others → entity profile / post). | `NotificationsDropdown.tsx`, `useNotifications.ts` |
+| **Browse / Discover** | Roasters list with city filter + product catalog. Sticky search bar hides/shows via `useSearchBarAutoHide` with dead-band, bottom-freeze, and top-force-show guards so it doesn't thrash at end-of-list rubber-banding. | `app/(tabs)/browse.tsx`, `src/hooks/useSearchBarAutoHide.ts` |
+| **Sitewide search dropdown** | Navbar glass opens a floating dropdown styled like messages / notifications. Cream-backed input (no browser focus ring), live narrowing, three sections: Users (via `/api/users/search`), Beans, Roasters (local-cache filter). Beans render without product image. Each section caps at 8 hits. | `SearchDropdown.tsx`, `Navbar.tsx` |
 
 ### 1.3 Roaster features
 
@@ -94,56 +63,18 @@ Android from a single codebase.
 | **Catalog-change notifications** | When a roaster adds/removes a product, all followers get a notification with the product name | `notify_followers_catalog` hook |
 | **Logo → navbar sync** | Updating the roaster logo_url automatically mirrors to user.avatar_url so the navbar avatar reflects the entity image | `sync_roaster_logo_to_user` hook |
 
-### 1.4 Café features
-
-> **Deferred to Phase N — queued for removal in §2.42.** Content
-> preserved here as the removal audit reference; the section is
-> deleted (not just retagged) when the removal workstream ships.
-> See `NORTH_STAR.md` §3 "Phase N — Cafés re-enter (Future)" for
-> the rationale and `BUILD_ROADMAP.md` §2.42 for the inventory.
-
-| Feature | Description | Key files |
-|---------|-------------|-----------|
-| **Café profile** | Split-panel layout (dark left, light right), logo with drag/zoom (circular crop), hero with drag/zoom, about blurb, address, Instagram, website, hours, seasonal badge | `app/cafe/[slug].tsx` |
-| **Coffee menu** | Grouped by drink name, horizontal bean-card carousel per drink. In-place editing (pencil icon in edit mode). Add-bean empty-card with slide-in animation at end of each drink row. Add-drink form for new drinks (available outside edit mode). | MenuTab, DrinkRow, BeanCard, AddBeanCard, AddMenuItemForm in café page |
-| **Stamp system** | Camera-only QR scanner (no manual token paste). Two-step flow: camera decodes → avatar preview with circular stamp button → tap to commit. Rate-limited 1 per user per café per 24h. | `ScannerModal.tsx`, `/cafes/{slug}/stamp` endpoint |
-| **Loyalty program** | Configurable stamp target (tappable to cycle 5/8/10/12/15), reward picker (pill chips from menu drinks + custom text), seasonal schedule picker (month grid + year-round toggle). Opt-out via inline trash button (cream circle, dark icon — matches coffee card delete). Re-enable via "Enable loyalty program" pill. | Seasonal/RewardPicker in café page |
-| **Follow + followers** | Follow button + follower count on bio left column, same endpoint as roaster follows | CafeFollowButton in café page |
-| **Post-prompt modal** | Same as roaster — asks owner to post after any menu mutation (add/update/remove) | PostPromptModal wired through MenuTab |
-| **Posts tab FAB** | Café owners get the same floating-composer FAB pattern as the roaster page and the consumer feed: bottom-right dark disc, cream plus icon, only on the Posts tab and only when not editing. Opens the existing `composerOpen` modal (already wired to `/roaster-posts` with `cafe_slug` + `roaster_slug: user_${id}`) with an empty prefill. Previously café owners could only post by mutating the menu to trigger PostPromptModal. | FAB + composerOpen modal in café page |
-| **Menu-change notifications** | When a café owner adds/edits/removes a menu item, all followers get a notification | `notify_menu_added/updated/removed` hooks |
-| **Logo → navbar sync** | Café logo_url + crop coords mirrored to user.avatar_* on profile save | `sync_cafe_logo_to_user` hook |
-| **Procurement profile** | Owner-only block on café profile: monthly volume (kg), open-to-new-roasters toggle, free-text note. Qualifies the lead for roasters once §2.1 "Interested" inquiries ship. | `cafe_profiles.{monthly_volume_kg, open_to_new_roasters, procurement_note}`, café page procurement block |
-
 ### 1.5 Admin dashboard
-
-> **Café-touching surfaces queued for §2.42 removal:** Site Analytics
-> *Loyalty* sub-tab (entirely café-derived), *Supply* sub-tab
-> wholesale + procurement + stamp + business-notification cards
-> (most of the section), the daily-stamps time-series, the
-> "top cafés by stamps" + café-followers ranked tables, and the
-> stamp-cohort retention grid. Catalog Ops surfaces (Phase 1–6
-> rows) stay — they're roaster-pipeline work — but references to
-> `wholesale_*` column preservation are obsolete once those columns
-> drop. See §2.42 for the precise list.
 
 | Feature | Description |
 |---------|-------------|
-| **Site Analytics tab** | Owner-only tab on the Crema admin's profile (username "crema", is_admin=1). Contains 6 sub-tabs: Engagement, Commerce, Loyalty, Network, Retention, Supply. |
+| **Site Analytics tab** | Owner-only tab on the Crema admin's profile (username "crema", is_admin=1). Contains 4 sub-tabs: Engagement, Commerce, Network, Retention. |
 | **Metric cards** | Canela big numbers + Inter labels + optional "?" info button that opens a floating modal with the metric's explanation. |
-| **Time-series charts** | ggplot-style line charts (react-native-svg) for daily active users, daily signups, daily posts, daily clicks, daily stamps. Friendly date labels ("Apr 1st"), ~6 ticks, hover tooltip that flips below when near top. Pre-data empty days trimmed. |
-| **Ranked tables** | MetricTable for top-clicked products, clicks by source, top cafés by stamps, top roasters/cafés by followers. Scrollable inside carousel cards. |
-| **Retention cohort grid** | Weekly signup cohorts with D1/D7/D30 retention %, heat-tinted cells. Writer retention + stamp-cohort retention. |
-| **Supply · procurement readiness** | 3 cards in Supply tab: Procurement Ready (count), Open to New Roasters (count), Procurement Readiness % (of cafés with any procurement field filled). Leading indicator for §2.1 inquiry quality. |
-| **Supply · notification split (30d)** | 3 cards tracking how much of the last month's notification volume is B2B vs social: Business Notifs (30d), Activity Notifs (30d), Business Share %. Rises as catalog activity and wholesale inquiries grow. |
-| **Supply · wholesale inquiries** | 6 cards tracking the flagship Phase 1 B2B metric: Inquiries Total, Inquiries (30d), Inquiries Open, Response Rate %, Cafés Inquiring, Roasters Receiving. Response rate = (responded + archived) / total. |
-| **Supply · §2.18 expansion** | 6 additional cards: Inquiries (7d) (velocity), Median Response Time (median hours to first roaster reply, 30d), Avg Thread Depth, Returning Cafés (2nd+ inquiry to same roaster), Inquiry Messages (lifetime + 30d). Plus 4 ranked tables in a Plots carousel: Most-inquired beans, Most-responsive roasters, Cafés inquiring by city, Roasters receiving by city. Three remaining metrics (re-open rate, avg order size, wholesale flag churn) deferred — they need new schema (status history, structured quantity field, wholesale-flag history). |
-| **Supply · wholesale signal** | 3 cards tracking the roaster-side supply readiness: Wholesale Available (count), Wholesale Signal % (of active products), Roasters With Wholesale (distinct count). Low % means roasters aren't yet opting in. |
-| **Supply · sourcing stories** | 3 cards tracking narrative investment: Sourcing Stories (total), Stories (30d), Story Share % (of roaster posts). |
-| **Supply · brew recipes** | 3 cards tracking roaster recipe investment: Brew Recipes (count), Recipe Coverage % (of active products with ≥1 recipe), Top Method (most common across all recipe cards). |
+| **Time-series charts** | ggplot-style line charts (react-native-svg) for daily active users, daily signups, daily posts, daily clicks. Friendly date labels ("Apr 1st"), ~6 ticks, hover tooltip that flips below when near top. Pre-data empty days trimmed. |
+| **Ranked tables** | MetricTable for top-clicked products, clicks by source, top roasters by followers. Scrollable inside carousel cards. |
+| **Retention cohort grid** | Weekly signup cohorts with D1/D7/D30 retention %, heat-tinted cells. Writer retention. |
 | **Plot carousel** | Swipe-only (no buttons), dot pager, per-section state isolation via React key. |
 | **Circular refresh button** | 44×44 dark primary fill, cream icon, matches site FAB language. |
-| **Backend** | `services/admin_stats.py` (~500 lines): 6 section functions, each wrapped to never crash the others. Daily series with zero-fill + leading-zero trim. Gated on `is_admin=1 AND username="crema"`. |
+| **Backend** | `services/admin_stats.py`: 4 section functions, each wrapped to never crash the others. Daily series with zero-fill + leading-zero trim. Gated on `is_admin=1 AND username="crema"`. |
 | **Catalog Ops tab** | Second admin-only top-level tab on the Crema admin's profile, alongside Site Analytics. Two sub-tabs: **Scraper** (run the existing `Scraper/` pipeline on demand, edit the list of roaster sites it crawls, see job history with log tails) and **Taste Graph** (run Haiku classification on un-geolocated flavor-note tags, upload + validate-diff + activate new SCA tree versions). Long-running work fans out to FastAPI `BackgroundTasks` writing into a new `jobs` table; the admin tab polls every 2 s while a job is live. v0 is local-only on the M1; the prod-deployment hardening (worker queue, restart safety, log persistence, secret manager) is parked in `LAUNCH_TODO §3.8`. |
 | **Catalog Ops backend** | New tables in `database.py`: `jobs`, `roaster_sources`, `sca_addresses`, `sca_tree_versions`. Seeded idempotently on first boot from `Scraper/verified_roasters_catalog.json`, `tasting_notes_tags/tag_resolutions.json`, and the canonical SCA tree in `services/sca_geolocator.py`. New services: `services/sca_geolocator.py` (Haiku classifier + tree validator + exemplar selection), `services/scrape_runner.py` (subprocess wrapper around `Scraper/scraper/main.py`, upsert preserving `wholesale_*` owner-set columns), `services/catalog_ops.py` (job lifecycle + first-boot seeding). New endpoints in `routes/specific.py` (`POST /api/admin/scrape/run`, `POST /api/admin/scrape/sources`, `POST /api/admin/geolocate/run`, `GET /api/admin/geolocate/stats`, `POST /api/admin/geolocate/tree`, `POST /api/admin/geolocate/tree/{id}/activate`, `GET /api/admin/jobs/{id}/log`) reusing the existing `_require_admin()`. Generic CRUD route in `routes/resources.py` extended to enforce `auth: {"...": "admin"}` so registry-tagged admin resources (the four new tables + any future ones) inherit the same gate. |
 | **Catalog Ops frontend** | `src/components/admin/CatalogOps.tsx` (top container with sub-tab carousel matching `TractionDashboard`'s structural moves), `ScraperPanel.tsx` (hero strip with prominent CTA + 5-stat last-run summary, **live progress strip** with parsed `[N/M] roaster …` count + auto-scrolling stdout feed visible while a scrape runs, **three landscape `CoffeeCard` carousels** for "Newly added" / "Refreshed" / "Not found this run" pulled from the job's `result_summary` — sold-out candidates surface in the third rail, **collapsible Sources panel** with All/Enabled/Unverified chip filters + search + add-by-URL so 100+ rows stay out of the way of the live job, and a compact recent-jobs list), `TasteGraphPanel.tsx` (4-card stats top-section, Run-classification CTA, paste-JSON tree upload with diff buckets `still_valid` / `now_invalid` / `would_change_meaning`, activate confirmation, tree-version list, job history). All visual values from `useTokens`; all data via `useResource<T>` or `apiFetchRaw`. Builds for both mobile and web — responsive flex via `useBreakpoint().isMobile`. `CoffeeCard` gained a `forceLandscape` prop so the admin rails get horizontal cards on web too, not just at the mobile breakpoint. |
@@ -181,7 +112,6 @@ Android from a single codebase.
 
 ### 1.7 Seeded data
 
-- **9 Goa pilot cafés** with menus, hours, seasonal schedules, owner accounts (`seed_cafes.py`) [deferred — see §2.42]
 - **121 roasters** from scraped catalog + roaster profiles
 - **521 products** in unified products table
 - **Admin account:** username `crema`, password `crema`, is_admin=1
@@ -194,14 +124,9 @@ Ordered by the Phase 1 roadmap in `NORTH_STAR.md`. Each item references
 the relevant section there. For deployment/infra prerequisites see
 `LAUNCH_TODO.md`.
 
-**Top priority right now: §2.42 — Café removal pivot.** Phase 1 just
-narrowed to consumer + roaster only (NORTH_STAR.md rewrite, 2026-04-29).
-The mobile readiness block (§2.31–§2.40) shipped in the previous
-session; remaining items (§2.37 hit-slop second wave, §2.39 EAS,
-§2.41 recommender, §2.40.8 DM archive backend) sit behind the café
-removal because the removal touches enough surfaces — admin + consumer
-+ notifications + DB schema — that landing it first cleans the slate
-for everything after.
+The mobile readiness block (§2.31–§2.40) shipped in earlier sessions.
+Remaining post-pivot work: §2.37 hit-slop second wave, §2.39 EAS,
+§2.41 recommender, §2.40.8 DM archive backend.
 
 ### Mobile (iOS + Android) readiness — THIS WEEK
 
@@ -383,19 +308,6 @@ row that slides in a full-height panel from the right edge:
 
 Key files: `app/(tabs)/browse.tsx`, new `src/components/FilterDrawer.tsx`.
 
-### 2.35 Café menu — card-stack fallback on narrow screens
-
-The §2.10 / §2.24 tabular menu (7 fixed-width columns) overflows on
-any phone. Below `isMobile`, render each drink as a vertical card
-instead — drink name (Canela) at top, roaster row with ExternalLink
-icon next, a row of meta pills for (Roast · Process · Hot · Iced),
-tasting notes underneath, owner actions (pencil + trash) top-right.
-Columns collapse into labeled rows. The table layout stays for
-tablet+ (`winW >= BP.mobile`).
-
-The add-row, add-roaster-to-drink, and per-item edit modals are all
-already floating modals so they carry over unchanged.
-
 ### 2.36 Hero + avatar drag → PanResponder (touch-compatible)
 
 `app/roaster/[slug].tsx`, `app/cafe/[slug].tsx`, and
@@ -544,7 +456,6 @@ next Expo Go run.
 | M1 | **Native "simply does not work" after §postmodal-redo** | Addressed defensively in `PostGallery.tsx`: `isTastingNoteEntry` now guards against non-string entries, and `NoteSlot` wraps `JSON.parse` in a `try/catch` that returns `null` on malformed tasting-note rows (a single bad entry used to throw inside render, crashing the whole feed). Gesture-side fix lands with M7 below. Needs a device re-test to confirm the feed no longer white-screens. |
 | M2 | **Header + Footer buttons dead while PostModal is open (mobile)** | Swapped `elevation: 12` for `zIndex: 40` on every mid-band modal host (`PostModal`, `GlobalComposePost`, `PopularityModal`, `AuthModal`). On Android, `elevation` opens a Material-shadow outline whose hit-test region can extend slightly past the view's declared frame, intermittently swallowing taps on sibling chrome; `zIndex` keeps the paint order without the outline quirk. iOS stacking was already JSX-order-based so behaviour there is unchanged. Device verification pending. |
 | M3 | **Message button on user profile (viewed as Nada) does nothing** | Shipped. The old handler used `window.__crema_openThread` — a bridge registered only by `Navbar` (wide web). On native `Navbar` never mounts, so the call was a silent no-op. Handler now branches on `isMobile`: native / narrow web routes to `/messages` with `thread_id` + `kind` as route params, and `(tabs)/messages.tsx` reads them via `useLocalSearchParams` and passes `initialThread` into `MessagesDropdown`. Web-wide path kept the bridge. |
-| M4 | **Café profile missing a Message button entirely** | **Deferred — product decision.** Adding the CTA needs a backend endpoint (either a new `POST /direct-threads/with-cafe/{slug}` or a join field on `GET /cafe_profiles/{slug}` that exposes `owner_username` so the existing `/direct-threads/with/{username}` endpoint can be reused). Competing path already exists: roaster → café wholesale inquiries via `InterestedButton`, and consumer → café interaction currently routes through the stamp program, not DM. Decide whether consumer-to-café DMs are in scope before shipping the UI. |
 | M5 | **Add Image modal thumbnail — verify on native** | Verified on code path: `<Image source={{ uri: resolveUploadUrl(previewUrl) }} />` at `ImageUploadModal.tsx:172`, and `resolveUploadUrl` correctly handles absolute URLs (passes through) and relative `/uploads/…` paths (prefixes the API origin). Still needs one device trigger to confirm. |
 | M6 | **Inner Pressables in cards blocked by outer Pressable wrapper on web** | Shipped. `NoteSlot` in `PostGallery` no longer wraps `TastingNoteCard` in a `Pressable` — that reverts to the pre-postmodal-redo behaviour where the inner cart button is the only actionable surface on the card. Tapping the cart now fires only `openExternal(product_url)`; the outer modal-open tap is still reachable on other card regions (body text, avatar row) via PostCard's `mobileTapToOpen` Pressable. `ImageSlot` kept its Pressable since the image IS supposed to route taps to the gallery `onPress`. |
 | M7 | **Tap-to-open doesn't fire on image thumbnails (native)** | Shipped. `ImageSlot` on native is now wrapped in a `GestureDetector` running `Gesture.Tap()` via `runOnJS(onPress)()`, replacing the RN `Pressable`. This puts the tap inside gesture-handler's pipeline so it arbitrates with `SwipeToCommit`'s parent Pan at the same level: Tap wins on zero-travel release, Pan wins on >10 px horizontal travel. Deterministic, no responder race. Web path keeps the Pressable (RN Web's onClick bubbles cleanly and SwipeToCommit is a passthrough). Device verification pending. |
@@ -570,41 +481,12 @@ All unshipped items still have full detail in §2.1-2.29 below
 
 ---
 
-### 2.1 "Interested" button *(shipped — see §1.2 "Interested" wholesale handshake)*
-
-The flagship Phase 1 B2B feature landed end-to-end: `wholesale_inquiries`
-registry resource with subfields for café context, `notify_wholesale_inquiry`
-hook firing to every roaster-account user on the target slug, scoped list
-endpoint (`GET /api/my-wholesale-inquiries`) with per-account perspective,
-roaster response endpoint (`POST /api/wholesale-inquiries/{id}/respond`),
-`InterestedButton` component on the product detail page, and 6 admin
-Supply cards. Generic list+read are blocked on the resource to keep one
-café from peeking at another's leads.
-
-### 2.2 Wholesale availability signal *(shipped — see §1.2 Wholesale availability signal)*
-
-Fields, badge, browse filter, and admin metrics all landed. Inline
-owner-edit UI for toggling the flag on *existing* products is
-deferred — it needs a dedicated product editor rather than cramming
-toggles into the tight Figma layout of `EditableCoffeeCard` (which
-is the new-product creation form). Until that editor lands, the
-three fields are already accepted by `POST /api/roasters/{slug}/products`
-for new creations.
-
 ### 2.3 Sourcing story posts *(shipped — see §1.2 Sourcing story post type)*
 
 Column, type, composer toggle, and expandable card render all landed.
 Tagged-product + tagged-origin UI (the "tie a story to a specific
 bean and producer") was not part of this checkpoint — that's additive
 and lands cleanly once the next editor pass touches the composer.
-
-### 2.4 Business notification tab *(shipped — see §1.2 Activity / Business tabs)*
-
-The tab split, categorization helper (`BUSINESS_TYPES` in
-`useNotifications.ts`), per-tab unread counts, and admin Supply-tab
-metrics all landed. `wholesale_inquiry` and `stamp_awarded` types are
-pre-reserved so §2.1 and future loyalty work can fire them without
-another enum change.
 
 ### 2.5 Brew method cards *(shipped — see §1.2 Brew method cards)*
 
@@ -613,12 +495,6 @@ metrics all landed. A dedicated roaster-owner editor for adding
 recipes via UI is deferred alongside the §2.2 product-editor
 follow-up; the registry already exposes the CRUD endpoints
 (`POST /api/products/{id}/brew_methods`).
-
-### 2.6 Café procurement profile *(shipped — see §1.4)*
-
-The 3 fields + owner-editable block + admin readiness metric have
-landed. Conditional visibility to roasters is intentionally deferred
-to §2.1 where the wholesale inquiry notification carries the snapshot.
 
 ### 2.7 Profile edit: eliminate *every* layout shift between modes *(shipped)*
 
@@ -653,33 +529,6 @@ invariant across the edit toggle on desktop widths. If a regression
 shows up, snapshot the hero's bounding rect entering and leaving
 edit — any delta beyond rounding is a fail.
 
-### 2.8 Wholesale chip rework on CoffeeCard + EditableCoffeeCard *(shipped)*
-
-Scope-cut and shipped. The form collapsed to a single "Available
-wholesale" checkbox (min-kg + note fields gone — those negotiate
-inline on the inquiry thread). On CoffeeCard the Package chip moved
-from the top-left friends slot to the top-right heart slot, and is
-now visible to both roaster AND café viewers (not café-only),
-replacing the heart for business account types that don't have a
-personal shelf. The former pill-shaped friends badge became a
-circular 31×31 social dot with no count. **Browse wholesale filter**
-also opened to roaster viewers in the same pass — parity with the
-card chip — so a roaster can surface other roasters' wholesale
-offerings when they need a backup supplier (the §1 "supply anxiety"
-use-case, applied to roasters too). Filter lives in the sidebar,
-same checkbox UI as for cafés.
-
-**PopularityModal redesign** shipped alongside. Moved to the site's
-floating-modal language (blur backdrop, token overlay + radius,
-Canela title) and — critically — the body now renders real
-`PostCard`s for tasting-note posts instead of a bespoke "user row +
-inline tasting-note card" layout. A new `/api/products/{id}/posts`
-endpoint returns envelope-wrapped `Post` objects (author join,
-counts, `liked_by_me`), which the modal pipes into the shared
-`PostCard` so Aayushi's tasting note on Gangecool reads the same as
-it does on the feed. Users who shelved without writing a note fall
-into a compact "Also on shelf" section below the posts.
-
 ### 2.9 Roaster edit mode for existing beans *(shipped)*
 
 A pencil button lives top-right on each owner-viewed product card
@@ -700,19 +549,6 @@ Two related adjustments shipped in the same pass:
 - **Delete now asks first.** The bin opens a confirmation sheet
   ("Remove this bean?" with Cancel / Remove) instead of deleting
   on tap. Removes a whole class of fat-finger-regret bugs.
-
-### 2.10 Café menu table (no cards) *(shipped)*
-
-The grid-of-bean-cards menu was replaced with a tabular layout in
-`MenuTab` (`app/cafe/[slug].tsx`). Each drink renders as a compact
-block — Canela name + per-roaster rows beneath, separated by
-dividers that echo the hours table. The roaster name is the only
-clickable element (routes to `/roaster/{slug}`); sub-text carries
-bean name (if the café set one), bean type, and roast. No images,
-no cards, no carousels. Owner-in-edit mode still has trash
-affordances per row. `DrinkRow` / `BeanCard` / `AddBeanCard`
-helpers are still exported but no longer rendered on the primary
-menu path.
 
 ### 2.11 Sitewide search (navbar magnifying glass) *(shipped)*
 
@@ -784,20 +620,6 @@ expand affordance. Roasters can still write a sourcing story (that
 use-case is preserved); consumers can now write a detailed brew
 walkthrough or journal entry without hitting the roaster gate.
 
-### 2.15 Messages dropdown: business/non-business tabs + archive tab *(shipped)*
-
-`MessagesDropdown` now renders a tab strip for business users
-(roaster + café accounts) with three tabs: **Business** (wholesale
-inquiry threads), **Non-business** (direct messages), and
-**Archive** (wholesale threads with `status === "archived"`). Each
-tab carries its own unread count, same visual language as the §2.4
-Activity/Business notification split. Regular users skip the tabs
-and keep the single flat list.
-
-Archived inquiry threads — which previously vanished from the
-inbox once a roaster hit Archive — now stay one click away. The
-thread's `…` menu still has the Reopen affordance to unarchive.
-
 ### 2.16 Search-bar hide animation glitches at end-of-list *(shipped)*
 
 New `useSearchBarAutoHide` hook (`src/hooks/useSearchBarAutoHide.ts`)
@@ -809,101 +631,6 @@ the user has scrolled past 80px). `CoffeeList` now exposes raw
 `onScroll` instead of a direction discriminator, and all three
 Discover sub-tabs (Beans / Roasters / Cafés) route through the hook
 so the fix is one-place-only.
-
-### 2.17 Drop the café procurement profile section *(shipped)*
-
-The owner-visible procurement block (monthly volume / open to new
-roasters / procurement note) was removed from `app/cafe/[slug].tsx`
-— both edit and read paths. Supporting state, load-from-row hydration,
-and save-payload fields came out in the same pass. The admin
-"Supply · procurement readiness" cards (`procurementReady`,
-`procurementOpen`, `procurementReadiness`) were dropped from
-`services/admin_stats.py` and `TractionDashboard.tsx` since the
-underlying signal disappears. DB columns stay in place (no
-migration) for historic rows; nothing writes to them now. If any
-of the fields turns out to genuinely help the inquiry flow, they'd
-land inline on the inquiry modal rather than back on the public
-profile.
-
-### 2.18 B2B metrics expansion + clickable cards drilling into a daily chart *(shipped — 8 of 11 metrics, 3 deferred on schema-history grounds)*
-
-**Drill-down UX (prior pass, still in place).** Every `<Card>` in
-`TractionDashboard` is a Pressable that opens `MetricSeriesModal`:
-Canela title + one-line definition (from the `E` map), current
-value, full daily line chart (`LineChart` via SVG). Backend
-dispatcher at `GET /api/stats/series?key={key}&range=30d`
-(admin-gated). Cards without a backing series hit a graceful
-"Daily history not yet captured" state.
-
-**This pass — 8 new B2B metrics + 4 ranked tables.** The Supply
-tab now reads as a real B2B dashboard, not just an inquiry-volume
-screen. Cards (with drill-down where the daily series makes sense):
-
-- **Inquiries (7d)** — leading-edge velocity vs the 30d card.
-  `seriesKey="inquiries_7d"`.
-- **Median Response Time** (`median_response_hours`) — median
-  hours from a café opening an inquiry to the first message back
-  from a roaster account, last 30d. SQLite has no MEDIAN; rows
-  come back as per-inquiry hours and Python takes the middle one.
-  Renders `—` when no responses recorded yet.
-- **Avg Thread Depth** (`avg_thread_depth`) — `AVG(c)` over
-  `(SELECT COUNT(*) c FROM inquiry_messages GROUP BY inquiry_id)`.
-  Distinguishes drive-by interest from real procurement
-  conversations.
-- **Returning Cafés** (`returning_cafes`) — cafés that have come
-  back to the *same* roaster for a 2nd-or-later inquiry. Best
-  proxy for "this sourcing relationship is sticking."
-- **Inquiry Messages** + **Messages (30d)** — total inquiry-thread
-  message volume with daily drill-down series. Leading indicator
-  before a thread converts to a formal order (Phase 2).
-
-Plus 4 ranked tables in a new `PlotCarousel` at the bottom of the
-Supply tab (same swipe pattern as Loyalty / Network / Commerce):
-
-- **Most-inquired beans** — top 5 by inquiry count, joined to
-  `products` + `roaster_products` so beans authored by either
-  table show up. Sub-line is the roaster name.
-- **Most-responsive roasters** — top 5 by response rate, weighted
-  by volume. `HAVING COUNT(*) >= 3` filter dodges the
-  "1 of 1 = 100%" noise.
-- **Cafés inquiring by city** + **Roasters receiving by city** —
-  geo distribution leaderboards. Foundation for the Goa-vs-
-  Bangalore-vs-other heatmap once enough volume lands.
-
-**Pre-existing series-defs typo fixed.** The original §2.18 work
-wired `inquiries_total` and `inquiries_30d` series defs against
-`opened_at` — the column is actually `created_at`, so both
-drill-downs were silently returning empty until now. Both keys
-now use `created_at`; series renders correctly.
-
-**Deferred metrics (3 of 11 — need new schema, out of scope for
-this pass):**
-
-- **Inquiry re-open rate** — needs a `wholesale_inquiry_status_history`
-  table (or equivalent column journal) so we can count archived →
-  open transitions. The current schema overwrites status without
-  history.
-- **Avg order size mentions** — needs a regex pass over inquiry
-  notes to extract numeric quantities, plus probably a structured
-  `quantity_kg` column for the inquiry modal so the data isn't
-  parsed every read.
-- **Wholesale flag churn** — needs `products_wholesale_history` (or
-  reuse a generic audit log). Without a change-log we can't measure
-  toggle frequency.
-
-These three should land in a follow-on pass that introduces the
-schema additions; once the history tables exist, the SQL is
-straightforward and slots into the same `_SERIES_DEFS` /
-`renderSupply` pattern as the 8 metrics that landed here.
-
-**Backend code:** `services/admin_stats.py` `_supply()` extended
-with the 8 new computations (lines clearly labelled `§2.18
-expansion`); `_SERIES_DEFS` extended with `inquiries_7d`,
-`inquiry_messages_total`, `inquiry_messages_30d`. Frontend code:
-`crema-app/src/components/admin/TractionDashboard.tsx`
-`renderSupply()` extended with 6 new cards + a new `PlotCarousel`
-slide for each ranked table; `E` map extended with one-line
-definitions for every new metric.
 
 ### 2.19 Confirm-before-delete sweep (every delete button) *(shipped)*
 
@@ -939,72 +666,6 @@ Per-surface state at the close of this sweep:
   is one line away.
 - **Admin account deletion** — out of scope; that flow needs the
   type-to-confirm-username pattern, separate from this sweep.
-
-### 2.20 Cross-business follower notifications (wholesale flag, etc.) *(shipped)*
-
-Four new notification types now fan to business followers (`account_type
-IN ('roaster','cafe')`) only — the existing `notify_followers_catalog`
-helper still hits everyone, the new helpers narrow the audience:
-
-- **`wholesale_available`** — fires from `products` registry hooks
-  (on_create + on_update) and from the hand-rolled
-  `POST/PUT /api/roasters/{slug}/products` endpoints in
-  `routes/specific.py`. Subject = bean name; deep-link =
-  roaster profile. Skips the fanout when the flag isn't currently
-  set, so flipping wholesale OFF doesn't notify anyone. Verified
-  end-to-end: a wholesale-flagged bean creation by `nada` fanned to
-  3 roaster + 1 café follower; 5 consumer followers were correctly
-  skipped.
-- **`sourcing_story`** — fires from `roaster_posts` on_create when
-  `post_type='sourcing_story'`. The hook is a no-op for every other
-  post_type so it can sit alongside `notify_repost` without an
-  extra registry branch. Carries `post_id` so the dropdown opens
-  the post in `PostModal` rather than routing to the roaster
-  profile (special-cased in the renderer's `goToSource`).
-- **`menu_updated_business`** — fires alongside the existing
-  `notify_menu_updated` on `cafe_menu_items` on_update. The
-  existing hook fans to all followers (lands in Business via
-  `BUSINESS_TYPES` for businesses, Activity for consumers); the
-  new hook adds the B2B-flavored copy ("tweaked a menu item") so
-  procurement readers can scan it differently. Yes, business
-  followers receive both notifications on the same trigger — the
-  alternative (split the existing `notify_menu_updated` audience)
-  was deferred because it ripples into `product_added` /
-  `product_removed` semantics too. Tradeoff accepted.
-- **`loyalty_changed`** — fires from `cafe_profiles` on_update
-  alongside `sync_cafe_logo_to_user`. Skipped when
-  `stamps_enabled=0` so disable events don't notify. Over-fires
-  on profile saves that don't actually touch loyalty fields
-  (logo change, hours change, etc.) — proper fix is field-diff
-  tracking in the registry engine, deferred.
-
-**Frontend.** `useNotifications.ts` `NotificationType` union and
-`BUSINESS_TYPES` set extended with all four. `NotificationsDropdown.tsx`
-gets matching `NOTIF_MESSAGES` entries; `goToSource` routes
-`sourcing_story` to PostModal via `post_id`, others fall through to
-the existing `target_slug` handler that routes to the entity profile.
-
-**Service helpers.** Two new functions in `services/notifications.py`:
-`_business_follower_user_ids(db, slug)` runs the JOIN'd follow lookup;
-`_fanout_to_business_followers(db, slug, kind, change, subject, actor,
-*, post_id=None)` wraps the loop + dedupe-by-actor + commit so each
-new hook is ~10 lines.
-
-**Caveats documented for the follow-on pass:**
-- `wholesale_available` and `loyalty_changed` over-fire on saves that
-  don't change the relevant field. Field-diff tracking in the registry
-  engine would let the hooks fire only on the meaningful transition.
-- The double-notify on menu updates (consumer's `menu_updated` fan
-  reaches business followers too, alongside `menu_updated_business`)
-  is the cost of not splitting the existing hook's audience. If the
-  Business tab gets noisy, the fix is to split `notify_menu_updated`
-  into `_consumer` and `_business` variants and move the catalog
-  types out of `BUSINESS_TYPES`.
-
-Downstream roadmap note: §2.18 now has a natural follow-on "Business
-notification engagement" card — how often business-tab recipients
-click through to the source entity. Good signal for wholesale-offer
-visibility once enough fanout volume lands.
 
 ### 2.21 Page-transition loader *(shipped)*
 
@@ -1065,20 +726,6 @@ like one surface, not four rows of form:
   URL detection after the refactor; preview card renders inline
   with the editable title overlay intact.
 
-### 2.24 Café menu — column header + tighter row height *(shipped)*
-
-- **Column header row** ("Drink · Roaster · Roast · Price · Tasting
-  Notes") added above the first drink block, sharing the data-row
-  column widths so everything aligns. Rendered in Inter medium 10px
-  uppercase with 0.6 letter-spacing in muted color — reads as
-  metadata, not another drink row. Bottom border echoes the hours
-  table's per-row rule.
-- **Tighter rows** — `menuDrink` lost its own `paddingVertical`
-  (set to 0) so rows carry all the per-block vertical spacing.
-  `menuRow` stays at 6px top / bottom, matching `hoursRow`
-  exactly; dividers keep their 6px `marginVertical`. Per-row
-  density now matches the opening-hours block.
-
 ### 2.25 Recycle bin / archive *(shipped)*
 
 Sitewide undo for destructive actions. Every hard-delete across the
@@ -1131,54 +778,6 @@ Verified: signing out of one account with another saved now lands
 directly on the next entity's home, without any auth screen in
 between.
 
-### 2.27 Business analytics dashboard *(shipped)*
-
-Per-business analytics sub-tab inside roaster and café profiles.
-Counterpart to the admin traction dashboard but scoped to "fast
-insight for one owner" rather than "data for the admin team":
-two subtabs, three small cards per subtab, one line chart above.
-Every card doubles as a chart selector — tap a card, the line
-chart re-plots that metric.
-
-**Backend.** `services/business_stats.py` exposes two composer
-entry points (`compute_roaster_business`, `compute_cafe_business`)
-that assemble the full payload — for each section, three metric
-cards + their per-card 30-day daily series. Owner-gated endpoints
-at `GET /api/stats/business/roaster/{slug}` and
-`/api/stats/business/cafe/{slug}` (with admin bypass for `crema`).
-
-**Roaster dashboard — "Am I finding buyers?"**
-- **Wholesale** subtab: Inquiries this week · Open inquiries
-  (tinted red when >0) · Top bean cafés are asking about (30d)
-- **Audience** subtab: Followers · Cafés following me (the
-  warm-lead number) · Posts this month
-
-**Café dashboard — "Is my loyalty program working?"**
-- **Loyalty** subtab: Stamps this week · Repeat-customer rate
-  (tinted red <10%, green ≥30%) · Top regular
-- **Menu** subtab: Tasting notes about my beans · Posts tagged
-  with this café · Unique roasters on menu (tinted red when ≤1
-  on a ≥3-item menu — the NORTH_STAR §2 supply-anxiety signal)
-
-**Design rules.** Cards are small (170-220px wide, ~140px tall),
-flex-wrap horizontally — they never span the full row. Label is
-uppercase muted micro-copy; value is 30px Canela display; delta
-is a single ↑/↓/→ arrow with % vs prior 7d; optional hint line
-below. Selected card gets a cream fill + dark border to signal
-"this is the chart source". Every card has an info "?" button
-with a one-line explanation + a suggested action ("If this is
-zero, try posting a sourcing story this week"). Empty series
-renders an honest "No daily history yet" placeholder instead of
-an empty chart.
-
-**Mounting.** New "ANALYTICS" tab on both `app/roaster/[slug].tsx`
-and `app/cafe/[slug].tsx`, visible only when `isOwner` (admin does
-*not* see this tab on other businesses' profiles — use the
-existing Traction dashboard for cross-business analytics).
-Component lives at `src/components/analytics/BusinessAnalytics.tsx`
-and reuses the admin `LineChart` + `InfoButton` / `InfoModal`
-primitives; no new schema, no new design tokens.
-
 ### 2.28 Scraper resurrection + sold-out preservation
 
 The product catalog is populated by a scraper that crawls roaster
@@ -1228,174 +827,6 @@ both moved to the top of section 2, under the Runway summary.
 See "Mobile (iOS / Android) readiness — THIS WEEK" and "Launch
 blockers — everything non-mobile" up top. Heading numbers preserved
 for cross-references from commits.)*
-
-### 2.42 Café removal pivot
-
-`NORTH_STAR.md` was rewritten on 2026-04-29 to defer cafés out of
-Phase 1. Phase 1 is now consumer + roaster only; cafés return as a
-future Phase N redesign-from-scratch, gated on consumer-roaster
-traction and undated. This subsection is the removal workstream.
-
-**Why now.** Trying to ship all three participant flows in Phase 1
-turned out to be too much. The consumer experience kept getting
-compromised by café-side complexity (split notification stacks,
-account-type guards, business chat, stamp-book UI) and roaster
-sign-up suffered from ambiguity about who the audience was. We are
-pulling cafés out wholesale rather than partially, because half-
-removed café surfaces would carry the same cognitive overhead as
-the full thing.
-
-**Decisions (resolved 2026-04-29).** All seven decisions resolved
-to **delete** — when cafés re-enter in Phase N, the surfaces will
-be redesigned from scratch rather than revived from these rows.
-
-| # | Decision | Resolution |
-|---|----------|------------|
-| 1 | `products.wholesale_available` / `wholesale_minimum_kg` / `wholesale_note` columns | DELETE — drop columns; re-introduce in Phase N if/when wholesale lands |
-| 2 | `users.favorite_cafe_slug` column | DELETE |
-| 3 | `menu_updated_business` notification type | DELETE entirely (the consumer `menu_updated` handler is going away too — café surfaces gone) |
-| 4 | `account_type` enum `'cafe'` value | DELETE the value |
-| 5 | Existing `account_type='cafe'` user rows | DELETE (must run before the enum-drop migration) |
-| 6 | Feed posts with `category='stamp'` (and any café-tagged posts) | DELETE |
-| 7 | `BusinessAnalytics.tsx` post-removal scope | REDUCE — keep only the roaster *Audience* subtab (Followers · Posts this month · drop "Cafés following me"). Wholesale subtab + entire café dashboard removed |
-
-**Inventory (audited 2026-04-28; subject to revision when execution starts).**
-
-Files to delete entirely (11):
-
-```
-crema-app/app/cafe/[slug].tsx                        (~3,767 LOC)
-crema-app/src/hooks/useCafes.ts                      (63 LOC)
-crema-app/src/hooks/useCafeResolver.ts               (40 LOC)
-crema-app/src/hooks/useInquiryInbox.ts               (~50 LOC)
-crema-app/src/components/StampBookList.tsx           (122 LOC)
-crema-app/src/components/StampBookModal.tsx          (136 LOC)
-crema-app/src/components/QRModal.tsx                 (~80 LOC)
-crema-app/src/components/ScannerModal.tsx            (~70 LOC)
-crema-app/src/components/InterestedButton.tsx        (~70 LOC)
-Community/coffee-community-api/seed_cafes.py         (441 LOC)
-Community/coffee-community-api/services/qr_tokens.py (~70 LOC)
-```
-
-Files to modify surgically (~22):
-
-- **Frontend:** `app/(tabs)/browse.tsx` (drop CafeCard + Cafés tab),
-  `app/(tabs)/profile.tsx` (drop favorite-café row + Stamps tab),
-  `app/(tabs)/messages.tsx` (drop wholesale_inquiry branch),
-  `app/_layout.tsx` (drop /cafe route + GlobalPopularityModal café path),
-  `src/components/CoffeeCard.tsx` (drop Package chip + wholesale modal),
-  `src/components/NotificationsDropdown.tsx` (drop wholesale_inquiry / stamp_awarded / menu_updated_business / loyalty_changed / wholesale_available cases),
-  `src/components/MessagesDropdown.tsx` (drop business/non-business/archive split — non-business viewers already had two-tab Inbox/Archive shipped in §2.40, but the *business-tab* split goes),
-  `src/components/admin/TractionDashboard.tsx` (drop Loyalty + Supply renderers),
-  `src/components/analytics/BusinessAnalytics.tsx` (reduce to the surviving roaster Audience subtab),
-  `src/utils/types.ts` (drop Cafe type, wholesale fields on Product, café-flavored notification kinds),
-  `src/components/primitives/index.ts` (drop café composer helpers if any).
-- **Backend:** `database.py` (DROP migrations for `cafe_profiles`,
-  `cafe_menu_items`, `stamps`, `stamp_rewards`, `qr_tokens`,
-  `wholesale_inquiries`, `inquiry_messages`; column drops on
-  `users` + `products`; account_type enum tightening),
-  `resources/registry.py` (delete the 7 café/wholesale resources;
-  prune café-related fields on `users` + `roaster_posts` +
-  `products` + `notifications`),
-  `resources/crud.py` (drop café-flavored hook dispatch),
-  `routes/specific.py` (delete 9 café endpoints — `/cafes/{slug}/stamp`,
-  `/cafes/{slug}/qr-token`, `/api/wholesale-inquiries/*`,
-  `/api/my-wholesale-inquiries`),
-  `models.py`, `services/notifications.py` (delete wholesale +
-  stamp + menu_updated_business + loyalty_changed handlers),
-  `services/business_stats.py` (drop café composer),
-  `services/admin_stats.py` (drop loyalty + supply sections + the
-  series-defs for inquiries / stamps / wholesale signals).
-- **Specs / docs:** `specs/COMMUNITY_SPEC.md` (rewrite — drop wholesale
-  inquiries + stamp-cohort sections), this file (delete §1.4 +
-  the tagged §1.2 / §1.5 / §1.7 entries + the café-shipped §2.x
-  pointers, then delete §2.42 itself).
-
-**Total scope:** ~6,200 LOC removed, ~60-65 files touched, **7 tables
-DROPPED**, ~5-8 columns dropped from `users` + `products` + (possibly)
-`roaster_posts`. Estimated effort: 6-7 hours optimistic for a careful
-one-shot; realistically **1.5-2 focused sessions** when the spec
-rewrites + verification are factored in.
-
-**Pre-removal checklist:**
-
-```
-[ ] Confirm uvicorn is OFF before running schema migrations
-    (or accept the --reload race risk — safer to stop it first):
-    pkill -f "uvicorn main:app"
-[ ] Back up the DB:
-    cp Community/coffee-community-api/coffee_community.db \
-       Community/coffee-community-api/coffee_community.db.bak.preremoval
-[ ] Count café-related rows so impact is measurable:
-    sqlite3 …db "SELECT COUNT(*) FROM users WHERE account_type='cafe';"
-    sqlite3 …db "SELECT COUNT(*) FROM cafe_profiles;"
-    sqlite3 …db "SELECT COUNT(*) FROM stamps;"
-    sqlite3 …db "SELECT COUNT(*) FROM wholesale_inquiries;"
-    sqlite3 …db "SELECT COUNT(*) FROM inquiry_messages;"
-    sqlite3 …db "SELECT COUNT(*) FROM roaster_posts WHERE category='stamp' OR cafe_slug IS NOT NULL;"
-[ ] Spot-check FK cascade behaviour on cafe_profiles → cafe_menu_items
-    / stamps / wholesale_inquiries / inquiry_messages. Some FK paths
-    may not have ON DELETE CASCADE set; if so the migration order
-    matters (delete dependent tables first).
-```
-
-**Risk flags:**
-
-- **`account_type` enum tightening** — existing `'cafe'` user rows
-  must be deleted (decision #5) before the enum-drop migration; any
-  surviving café rows break user queries afterwards.
-- **Cascade deletes** — dropping `cafe_profiles` cascades to
-  `cafe_menu_items`, `stamps`, `wholesale_inquiries`,
-  `inquiry_messages`. Verify cascades fire cleanly; if not, drop
-  child tables first.
-- **CoffeeCard top-right slot** — currently shows heart/bin/Package
-  depending on viewer type. Removing the Package chip (wholesale
-  flag gone) leaves the slot for the heart only. Verify no other
-  future affordance was planned for it.
-- **Roaster-to-roaster DMs** — `direct_threads` / `direct_messages`
-  have no café dependency. Stays.
-- **Feed posts with café context** — any `roaster_posts` rows where
-  `category='stamp'` or `cafe_slug IS NOT NULL` get deleted (decision
-  #6). The user-facing feed will lose the historical posts; consistent
-  with the wholesale rewrite-from-scratch principle.
-- **`BusinessAnalytics.tsx`** — losing the Wholesale subtab + the
-  café dashboard halves the surface. The remaining roaster Audience
-  subtab is honest; resist the urge to pad it with new cards.
-- **Site Analytics admin dashboard** — the Loyalty + Supply sub-tabs
-  go away entirely, dropping the dashboard from 6 sub-tabs to 4
-  (Engagement, Commerce, Network, Retention). The admin entry point
-  shrinks; that's correct.
-
-**Execution order:**
-
-```
-1. Land NORTH_STAR.md rewrite ✅ (2026-04-29, current commit)
-2. Land BUILD_ROADMAP.md update ← in this commit
-3. Update specs/COMMUNITY_SPEC.md (drop wholesale + stamp sections)
-4. Backend removal — services + registry + DROP migrations DRAFTED
-   (not run yet); null-out / delete FK fields. User signs off on
-   the migration SQL before it touches the DB.
-5. Frontend removal — delete the 11 files, surgical edits to ~22.
-   Verify in Expo as each surface clears.
-6. Run migrations. Verify table drops are clean. Spot-check no
-   orphaned FKs.
-7. Commit as one or several logical chunks ("backend café
-   removal", "frontend café removal", "DB migrations", "docs
-   pivot"). Reviewable diffs > one giant commit.
-8. Delete this §2.42 + the §1.4 banner + the §1.5/§1.7 tags +
-   the top-of-doc pivot banner. Document goes back to reading as
-   live state, not a changelog.
-```
-
-**Out of scope:**
-
-- `Feed_mock_ups/` — untracked directory in the working tree.
-  Untouched by the removal; stays as-is.
-- Phase N café redesign — when cafés re-enter, surfaces are built
-  from scratch. This subsection is removal-only.
-
-*Once §2.42 ships, this subsection deletes itself along with §1.4,
-the §1.5 mini-note, the §1.7 tag, and the top-of-doc pivot banner.*
 
 ---
 
