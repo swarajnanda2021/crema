@@ -10,7 +10,26 @@
 
 The community layer adds social features to Crema: user accounts, coffee shelves (Open Bags / On the List), detailed tasting notes with full brew recipes, a social post feed, user profiles, popularity tracking, and a recommendations engine.
 
-> **Note:** This spec was written for the v0 React/Vite frontend. The current app is React Native (Expo) with a CRUD Utopia backend. Shelf categories have been simplified from three (currently_drinking / drank / want_to_try) to two (open_bags / on_the_list). See the root README and `crema-app/README.md` for current architecture.
+> **Note (2026-04-29):** This spec is the **consumer community
+> layer** only — auth, shelves, tasting notes, feed, dictionary,
+> click tracking — which is exactly the Phase 1 survival surface
+> after the café-deferral pivot in `NORTH_STAR.md` (rewritten
+> 2026-04-29). Café / wholesale / stamps / loyalty / business-chat
+> surfaces were added to the codebase *after* this spec was
+> written and are being removed in `BUILD_ROADMAP.md` §2.42
+> (deferred to a future Phase N redesign-from-scratch).
+>
+> Spec is otherwise out-of-sync with the current frontend
+> (originally written for the v0 React/Vite app; current app is
+> React Native / Expo on a CRUD Utopia backend) and missing
+> several backend additions that postdate it (post types, social
+> graph, notifications, brew methods, follows, DMs). A general
+> refresh is owed but is **not** part of the café-removal pivot.
+> Currently still accurate as written: shelf model, tasting-note
+> schema, dictionary, click events, avatar upload. Shelf
+> categories simplified from three (currently_drinking / drank /
+> want_to_try) to two (open_bags / on_the_list). See the root
+> `README.md` and `crema-app/README.md` for current architecture.
 
 **Backend:** FastAPI + SQLite + bcrypt (direct, no passlib)
 **Frontend:** React components integrated into the main app, auth-gated via `AuthGuard`
