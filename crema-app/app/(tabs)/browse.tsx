@@ -23,6 +23,37 @@ import type { RoasterProfile } from "../../src/resources/types";
 import SlidePanel from "../../src/components/mobile/SlidePanel";
 import { SlidersHorizontal } from "lucide-react-native";
 
+// Specialty-catalog filter axes. Bean Type chip set mirrors the
+// canonical species names; long-tail values (the rare "Arabica-Robusta"
+// etc.) stay invisible under any active Bean Type chip — same rule as
+// missing altitude. Heavier curation lands later via the Coffee
+// Standardization sub-tab in Catalog Ops.
+const BEAN_TYPES: { key: string; label: string }[] = [
+  { key: "Arabica", label: "Arabica" },
+  { key: "Blend", label: "Blend" },
+  { key: "Robusta", label: "Robusta" },
+  { key: "Excelsa", label: "Excelsa" },
+  { key: "Liberica", label: "Liberica" },
+];
+
+// Altitude bands (masl). Specialty-coffee shorthand: <1200 lowland,
+// 1200-1500 high-grown, 1500+ strictly high-grown / SHB tier.
+const ALTITUDE_BANDS: { key: string; label: string; test: (a: number) => boolean }[] = [
+  { key: "lt1200", label: "Up to 1200m", test: (a) => a < 1200 },
+  { key: "1200_1500", label: "1200–1500m", test: (a) => a >= 1200 && a < 1500 },
+  { key: "gte1500", label: "1500m+", test: (a) => a >= 1500 },
+];
+
+// Price bands per 100g. Comparing absolute price across pack sizes is
+// meaningless (a 100g bag at ₹500 is much pricier per gram than a
+// 250g bag at ₹500); ppg-per-100g is the specialty-buyer's mental
+// model.
+const PRICE_BANDS: { key: string; label: string; test: (ppg: number) => boolean }[] = [
+  { key: "under_200", label: "Under ₹200/100g", test: (ppg) => ppg < 200 },
+  { key: "200_400", label: "₹200–400/100g", test: (ppg) => ppg >= 200 && ppg < 400 },
+  { key: "over_400", label: "₹400+/100g", test: (ppg) => ppg >= 400 },
+];
+
 export default function BrowsePage() {
   const { products, roasters, roastLevels, processes, fetchProducts } = useCoffeeData();
   const { width } = useWindowDimensions();
@@ -45,6 +76,14 @@ export default function BrowsePage() {
   const [selectedRoasters, setSelectedRoasters] = useState<string[]>([]);
   const [selectedRoasts, setSelectedRoasts] = useState<string[]>([]);
   const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
+  // Specialty-catalog filter axes. All multi-select; NULLs hidden when
+  // any chip in the section is active (no "Other" bucket — see the
+  // canonicalize.py module on the backend for the matching rule).
+  const [selectedBeanTypes, setSelectedBeanTypes] = useState<string[]>([]);
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [selectedVarietals, setSelectedVarietals] = useState<string[]>([]);
+  const [selectedAltitudes, setSelectedAltitudes] = useState<string[]>([]);
+  const [selectedPriceBands, setSelectedPriceBands] = useState<string[]>([]);
   // Roasters tab — Location filter. Lifted to BrowsePage so the
   // mobile filter drawer (rendered here) can edit the same array
   // that the desktop sidebar inside RoastersList reads.
@@ -105,6 +144,34 @@ export default function BrowsePage() {
     if (selectedRoasters.length > 0) list = list.filter((p: any) => selectedRoasters.includes(p.roaster_slug));
     if (selectedRoasts.length > 0) list = list.filter((p: any) => selectedRoasts.includes(p.roast_level));
     if (selectedProcesses.length > 0) list = list.filter((p: any) => selectedProcesses.includes(p.process));
+    if (selectedBeanTypes.length > 0) {
+      list = list.filter((p: any) => p.bean_type && selectedBeanTypes.includes(p.bean_type));
+    }
+    if (selectedRegions.length > 0) {
+      list = list.filter((p: any) => p.origin_region && selectedRegions.includes(p.origin_region));
+    }
+    if (selectedVarietals.length > 0) {
+      list = list.filter((p: any) => p.varietal_canonical && selectedVarietals.includes(p.varietal_canonical));
+    }
+    if (selectedAltitudes.length > 0) {
+      list = list.filter((p: any) => {
+        if (p.altitude_masl == null) return false;
+        return selectedAltitudes.some(k => {
+          const band = ALTITUDE_BANDS.find(b => b.key === k);
+          return band ? band.test(p.altitude_masl) : false;
+        });
+      });
+    }
+    if (selectedPriceBands.length > 0) {
+      list = list.filter((p: any) => {
+        if (!p.price_inr || !p.weight_grams || p.weight_grams <= 0) return false;
+        const ppg = (p.price_inr / p.weight_grams) * 100;
+        return selectedPriceBands.some(k => {
+          const band = PRICE_BANDS.find(b => b.key === k);
+          return band ? band.test(ppg) : false;
+        });
+      });
+    }
 
     // Sort
     if (sortBy === "featured" && Object.keys(popularity).length > 0) {
@@ -121,7 +188,7 @@ export default function BrowsePage() {
       });
     }
     return list;
-  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, sortBy, popularity, newOnly, showSoldOut]);
+  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, selectedBeanTypes, selectedRegions, selectedVarietals, selectedAltitudes, selectedPriceBands, sortBy, popularity, newOnly, showSoldOut]);
 
   const filteredRoasterCount = useMemo(() => new Set(filtered.map((p: any) => p.roaster_slug)).size, [filtered]);
 
@@ -134,6 +201,46 @@ export default function BrowsePage() {
     return Array.from(set).sort();
   }, [roasters]);
 
+  // Bean Type chip set — filter the canonical 5 down to species that
+  // actually have ≥1 product in the current catalog so the drawer
+  // doesn't list dead chips.
+  const beanTypeOptions = useMemo(() => {
+    const present = new Set<string>();
+    (products as any[]).forEach((p: any) => { if (p.bean_type) present.add(p.bean_type); });
+    return BEAN_TYPES.filter(b => present.has(b.key));
+  }, [products]);
+
+  // Region chip set — derived from `products.origin_region` (populated
+  // by services/canonicalize.py). Sorted by product count descending,
+  // alphabetical tiebreak — high-signal regions surface first.
+  const regionOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    (products as any[]).forEach((p: any) => {
+      const r = p.origin_region;
+      if (r) counts.set(r, (counts.get(r) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([key]) => ({ key, label: key }));
+  }, [products]);
+
+  // Varietal chip set — derived from `products.varietal_canonical`.
+  // Cultivars with only 1 product in the catalog are omitted (they
+  // stay searchable but don't pollute the chip set with singletons).
+  // Heavier curation lands later via the Coffee Standardization
+  // sub-tab in Catalog Ops.
+  const varietalOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    (products as any[]).forEach((p: any) => {
+      const v = p.varietal_canonical;
+      if (v) counts.set(v, (counts.get(v) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .filter(([, n]) => n >= 2)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([key]) => ({ key, label: key }));
+  }, [products]);
+
   // Per-tab filter activity. The drawer + the filter-icon dot need
   // to reflect what's actually editable from the current tab, not
   // the union of bean + roaster filters.
@@ -141,6 +248,11 @@ export default function BrowsePage() {
     selectedRoasters.length +
     selectedRoasts.length +
     selectedProcesses.length +
+    selectedBeanTypes.length +
+    selectedRegions.length +
+    selectedVarietals.length +
+    selectedAltitudes.length +
+    selectedPriceBands.length +
     (newOnly ? 1 : 0) +
     (showSoldOut ? 1 : 0);
   const roastersFilterCount = selectedCities.length;
@@ -157,7 +269,10 @@ export default function BrowsePage() {
     if (activeTab === "roasters") {
       setSelectedCities([]);
     } else {
-      setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]); setQuery("");
+      setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]);
+      setSelectedBeanTypes([]); setSelectedRegions([]); setSelectedVarietals([]);
+      setSelectedAltitudes([]); setSelectedPriceBands([]);
+      setQuery("");
       setNewOnly(false); setShowSoldOut(false);
     }
   };
@@ -266,6 +381,16 @@ export default function BrowsePage() {
               <View style={s.filterDivider} />
               <FilterSection title="Roast" items={roastLevels.map((l: string) => ({ key: l, label: l }))} selected={selectedRoasts} onToggle={v => toggleArray(selectedRoasts, setSelectedRoasts, v)} />
               <View style={s.filterDivider} />
+              <FilterSection title="Bean Type" items={beanTypeOptions} selected={selectedBeanTypes} onToggle={v => toggleArray(selectedBeanTypes, setSelectedBeanTypes, v)} />
+              <View style={s.filterDivider} />
+              <FilterSection title="Region" items={regionOptions} selected={selectedRegions} onToggle={v => toggleArray(selectedRegions, setSelectedRegions, v)} maxVisible={12} />
+              <View style={s.filterDivider} />
+              <FilterSection title="Varietal" items={varietalOptions} selected={selectedVarietals} onToggle={v => toggleArray(selectedVarietals, setSelectedVarietals, v)} maxVisible={12} />
+              <View style={s.filterDivider} />
+              <FilterSection title="Altitude" items={ALTITUDE_BANDS.map(b => ({ key: b.key, label: b.label }))} selected={selectedAltitudes} onToggle={v => toggleArray(selectedAltitudes, setSelectedAltitudes, v)} />
+              <View style={s.filterDivider} />
+              <FilterSection title="Price" items={PRICE_BANDS.map(b => ({ key: b.key, label: b.label }))} selected={selectedPriceBands} onToggle={v => toggleArray(selectedPriceBands, setSelectedPriceBands, v)} />
+              <View style={s.filterDivider} />
               <FilterSection title="Roasters" items={roasters.map((r: any) => ({ key: r.slug, label: r.name }))} selected={selectedRoasters} onToggle={v => toggleArray(selectedRoasters, setSelectedRoasters, v)} maxVisible={20} />
               <View style={s.filterDivider} />
               <FilterSection title="Process" items={processes.map((p: string) => ({ key: p, label: p }))} selected={selectedProcesses} onToggle={v => toggleArray(selectedProcesses, setSelectedProcesses, v)} />
@@ -316,11 +441,22 @@ export default function BrowsePage() {
                 hasActiveFilters ? (
                   <View style={s.listHeader}>
                     <View style={s.activeChips}>
-                      {selectedRoasts.map(v => <ActiveChip key={v} label={v} onRemove={() => toggleArray(selectedRoasts, setSelectedRoasts, v)} />)}
-                      {selectedProcesses.map(v => <ActiveChip key={v} label={v} onRemove={() => toggleArray(selectedProcesses, setSelectedProcesses, v)} />)}
+                      {selectedRoasts.map(v => <ActiveChip key={`rl:${v}`} label={v} onRemove={() => toggleArray(selectedRoasts, setSelectedRoasts, v)} />)}
+                      {selectedBeanTypes.map(v => <ActiveChip key={`bt:${v}`} label={v} onRemove={() => toggleArray(selectedBeanTypes, setSelectedBeanTypes, v)} />)}
+                      {selectedRegions.map(v => <ActiveChip key={`rg:${v}`} label={v} onRemove={() => toggleArray(selectedRegions, setSelectedRegions, v)} />)}
+                      {selectedVarietals.map(v => <ActiveChip key={`vt:${v}`} label={v} onRemove={() => toggleArray(selectedVarietals, setSelectedVarietals, v)} />)}
+                      {selectedAltitudes.map(k => {
+                        const band = ALTITUDE_BANDS.find(b => b.key === k);
+                        return <ActiveChip key={`alt:${k}`} label={band?.label || k} onRemove={() => toggleArray(selectedAltitudes, setSelectedAltitudes, k)} />;
+                      })}
+                      {selectedPriceBands.map(k => {
+                        const band = PRICE_BANDS.find(b => b.key === k);
+                        return <ActiveChip key={`pr:${k}`} label={band?.label || k} onRemove={() => toggleArray(selectedPriceBands, setSelectedPriceBands, k)} />;
+                      })}
+                      {selectedProcesses.map(v => <ActiveChip key={`pc:${v}`} label={v} onRemove={() => toggleArray(selectedProcesses, setSelectedProcesses, v)} />)}
                       {selectedRoasters.map(slug => {
                         const r = roasters.find((r: any) => r.slug === slug);
-                        return <ActiveChip key={slug} label={r?.name || slug} onRemove={() => toggleArray(selectedRoasters, setSelectedRoasters, slug)} />;
+                        return <ActiveChip key={`rs:${slug}`} label={r?.name || slug} onRemove={() => toggleArray(selectedRoasters, setSelectedRoasters, slug)} />;
                       })}
                     </View>
                   </View>
@@ -427,6 +563,16 @@ export default function BrowsePage() {
                     </View>
                     <View style={s.filterDivider} />
                     <FilterSection title="Roast" items={roastLevels.map((l: string) => ({ key: l, label: l }))} selected={selectedRoasts} onToggle={v => toggleArray(selectedRoasts, setSelectedRoasts, v)} />
+                    <View style={s.filterDivider} />
+                    <FilterSection title="Bean Type" items={beanTypeOptions} selected={selectedBeanTypes} onToggle={v => toggleArray(selectedBeanTypes, setSelectedBeanTypes, v)} />
+                    <View style={s.filterDivider} />
+                    <FilterSection title="Region" items={regionOptions} selected={selectedRegions} onToggle={v => toggleArray(selectedRegions, setSelectedRegions, v)} maxVisible={12} />
+                    <View style={s.filterDivider} />
+                    <FilterSection title="Varietal" items={varietalOptions} selected={selectedVarietals} onToggle={v => toggleArray(selectedVarietals, setSelectedVarietals, v)} maxVisible={12} />
+                    <View style={s.filterDivider} />
+                    <FilterSection title="Altitude" items={ALTITUDE_BANDS.map(b => ({ key: b.key, label: b.label }))} selected={selectedAltitudes} onToggle={v => toggleArray(selectedAltitudes, setSelectedAltitudes, v)} />
+                    <View style={s.filterDivider} />
+                    <FilterSection title="Price" items={PRICE_BANDS.map(b => ({ key: b.key, label: b.label }))} selected={selectedPriceBands} onToggle={v => toggleArray(selectedPriceBands, setSelectedPriceBands, v)} />
                     <View style={s.filterDivider} />
                     <FilterSection title="Roasters" items={roasters.map((r: any) => ({ key: r.slug, label: r.name }))} selected={selectedRoasters} onToggle={v => toggleArray(selectedRoasters, setSelectedRoasters, v)} maxVisible={20} />
                     <View style={s.filterDivider} />
