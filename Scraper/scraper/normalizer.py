@@ -463,19 +463,31 @@ def normalize_woocommerce_product(raw: dict, roaster: dict) -> Optional[dict]:
         # WooCommerce variable products store weight in attributes.
         # The API price field is the MINIMUM price, so pair it with the
         # SMALLEST weight variant for a correct price-per-gram ratio.
+        #
+        # Match either:
+        #   - attribute name contains weight / size / pack / gram (also
+        #     catches bespoke labels like "Grams"); OR
+        #   - ALL of the attribute's terms parse as weights (catches
+        #     unconventional labels like "Quantity"). The all-terms
+        #     guard rules out unrelated axes — "Brewing Methods" /
+        #     "Grind" have no terms that parse as weights, so they're
+        #     skipped naturally.
         for attr in (raw.get("attributes") or []):
             attr_name = (attr.get("name") or "").lower()
-            if "weight" in attr_name or "size" in attr_name or "pack" in attr_name:
-                terms = attr.get("terms") or []
-                weights = []
-                for term in terms:
-                    t_name = term.get("name", "") if isinstance(term, dict) else str(term)
-                    w = normalize_weight(t_name)
-                    if w:
-                        weights.append(w)
-                if weights:
-                    weight_g = min(weights)  # smallest → matches min price
-                    break
+            terms = attr.get("terms") or []
+            if not terms:
+                continue
+            weights = []
+            for term in terms:
+                t_name = term.get("name", "") if isinstance(term, dict) else str(term)
+                w = normalize_weight(t_name)
+                if w:
+                    weights.append(w)
+            name_match = any(kw in attr_name for kw in ("weight", "size", "pack", "gram"))
+            all_terms_match = bool(weights) and len(weights) == len(terms)
+            if (name_match and weights) or all_terms_match:
+                weight_g = min(weights)  # smallest → matches min price
+                break
 
     # ── Image ──────────────────────────────────────────────────────────────
     images = raw.get("images") or []
