@@ -22,11 +22,13 @@
 
 import { useState } from "react";
 import {
-  View, ScrollView, Pressable, StyleSheet, Text,
+  View, ScrollView, Pressable, StyleSheet, Text, Platform,
   useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent,
 } from "react-native";
 import { Image } from "expo-image";
 import { ChevronRight } from "lucide-react-native";
+import { GestureDetector, Gesture } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 
 import { resolveUploadUrl } from "../api/client";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -39,32 +41,82 @@ export const PG_GAP = 10;
 export const PG_RADIUS = 5;
 export const PG_RADIUS_LS = 10;
 
-export function isTastingNoteEntry(img: string) {
-  return img.startsWith('{"type":"tasting_note"') || img.startsWith('{"type": "tasting_note"');
+export function isTastingNoteEntry(img: any) {
+  return typeof img === "string" && (
+    img.startsWith('{"type":"tasting_note"') || img.startsWith('{"type": "tasting_note"')
+  );
 }
 
 function ImageSlot({
   entry, width, height, onPress,
 }: { entry: string; width: number; height: number; onPress?: () => void }) {
+  const img = (
+    <Image
+      source={{ uri: resolveUploadUrl(entry) }}
+      style={{ width, height, borderRadius: PG_RADIUS }}
+      contentFit="cover"
+    />
+  );
+
+  // Web: plain Pressable. RN Web's onClick bubbles cleanly and
+  // SwipeToCommit is a passthrough, so there's no gesture arbiter
+  // to race.
+  if (Platform.OS === "web") {
+    return (
+      <Pressable onPress={onPress} style={{ width, height }}>
+        {img}
+      </Pressable>
+    );
+  }
+
+  // Native: when this slot sits inside SwipeToCommit's `Gesture.Pan`
+  // AND a horizontal `<ScrollView>` parent, three touch handlers
+  // arbitrate for the same finger — and iOS sometimes strands an RN
+  // Pressable behind the gesture-handler Pan's POSSIBLE phase, so a
+  // zero-travel tap never fires (M7). Move the tap into gesture-
+  // handler's pipeline via `Gesture.Tap()` so the child gesture
+  // competes with the parent Pan at the same level: Tap wins on
+  // release without meeting Pan's 10-px activation offset, Pan wins
+  // on horizontal travel. Deterministic arbitration, no responder
+  // race.
+  const tap = Gesture.Tap()
+    .maxDuration(260)
+    .onEnd((_e, success) => {
+      "worklet";
+      if (success && onPress) runOnJS(onPress)();
+    });
   return (
-    <Pressable onPress={onPress} style={{ width, height }}>
-      <Image
-        source={{ uri: resolveUploadUrl(entry) }}
-        style={{ width, height, borderRadius: PG_RADIUS }}
-        contentFit="cover"
-      />
-    </Pressable>
+    <GestureDetector gesture={tap}>
+      <View style={{ width, height }}>{img}</View>
+    </GestureDetector>
   );
 }
 
+// M6 fix: no outer Pressable wrap. The inner cart inside
+// `TastingNoteCard` is the only actionable element on the card; the
+// pre-postmodal-redo behaviour was to render the card bare and let
+// the cart own its own touches. Wrapping in Pressable on web caused
+// the outer onClick to bubble from the inner cart (double-fire
+// opening both the product URL and the post modal). Tap on empty
+// card area now falls through to whatever parent container wants to
+// claim it (on mobile feed, that's PostCard's outer `CardContainer`
+// Pressable via `mobileTapToOpen`).
 function NoteSlot({
-  entry, width, height, landscape, onPress,
-}: { entry: string; width: number; height: number; landscape: boolean; onPress?: () => void }) {
-  const data = JSON.parse(entry);
+  entry, width, height, landscape,
+}: { entry: string; width: number; height: number; landscape: boolean }) {
+  let data: any;
+  try {
+    data = JSON.parse(entry);
+  } catch {
+    // Malformed tasting-note JSON — render nothing rather than
+    // throwing a render-time exception (the feed used to crash on
+    // a single bad row).
+    return null;
+  }
   return (
-    <Pressable onPress={onPress} style={{ width, height }}>
+    <View style={{ width, height }}>
       <TastingNoteCard {...data} width={width} height={height} landscape={landscape} />
-    </Pressable>
+    </View>
   );
 }
 
@@ -95,7 +147,7 @@ export default function PostGallery({
         style={s.wrap}
       >
         {notes.length > 0 && (
-          <NoteCarouselMobile notes={notes} containerW={effectiveW} onPress={onPress} />
+          <NoteCarouselMobile notes={notes} containerW={effectiveW} />
         )}
         {imgs.length > 0 && (
           <ImageStripMobile images={imgs} containerW={effectiveW} onPress={onPress} />
@@ -117,7 +169,7 @@ export default function PostGallery({
         {images.map((entry, i) => (
           <View key={i} style={{ width: itemW, height: itemH, borderRadius: PG_RADIUS, overflow: "hidden" as any }}>
             {isTastingNoteEntry(entry) ? (
-              <NoteSlot entry={entry} width={itemW} height={itemH} landscape={false} onPress={onPress} />
+              <NoteSlot entry={entry} width={itemW} height={itemH} landscape={false} />
             ) : (
               <ImageSlot entry={entry} width={itemW} height={itemH} onPress={onPress} />
             )}
@@ -132,8 +184,8 @@ export default function PostGallery({
  *  viewport, snap-paged, with dot indicators + edge chevron when
  *  there are multiple notes. */
 function NoteCarouselMobile({
-  notes, containerW, onPress,
-}: { notes: string[]; containerW: number; onPress?: () => void }) {
+  notes, containerW,
+}: { notes: string[]; containerW: number }) {
   const [idx, setIdx] = useState(0);
   const slideW = containerW;
   const slideH = Math.round(slideW * GALLERY_ASPECT_LS);
@@ -155,7 +207,7 @@ function NoteCarouselMobile({
       >
         {notes.map((entry, i) => (
           <View key={i} style={{ width: slideW, height: slideH, borderRadius: PG_RADIUS_LS, overflow: "hidden" }}>
-            <NoteSlot entry={entry} width={slideW} height={slideH} landscape onPress={onPress} />
+            <NoteSlot entry={entry} width={slideW} height={slideH} landscape />
           </View>
         ))}
       </ScrollView>

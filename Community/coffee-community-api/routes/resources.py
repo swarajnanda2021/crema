@@ -20,6 +20,27 @@ from services.notifications import run_hook
 router = APIRouter(prefix="/api", tags=["Resources"])
 
 
+# ── Admin gate (mirrors routes/specific._require_admin) ──────────────────────
+# Some resources tag their per-verb auth as "admin" — `roaster_sources`,
+# `jobs`, `sca_addresses`, `sca_tree_versions` from the Catalog Ops tabs.
+# This helper centralizes the predicate so any future admin-only resource
+# inherits the same gate by simply tagging itself in the registry.
+
+def _is_admin(user) -> bool:
+    return bool(
+        user and user.get("is_admin") == 1 and user.get("username") == "crema"
+    )
+
+
+def _enforce_admin(auth_req, current_user):
+    """Raise 403 when an "admin" auth tag is present and the caller isn't
+    the canonical admin. Pulled out because every CRUD verb below has to
+    perform the same check."""
+    if auth_req == "admin" and not _is_admin(current_user):
+        from fastapi import HTTPException
+        raise HTTPException(403, "Admin only")
+
+
 # ── Standard CRUD resources ──────────────────────────────────────────────────
 
 # List
@@ -42,6 +63,7 @@ def resource_list(resource: str, limit: int = None, offset: int = 0,
     if auth_req == "self" and not current_user:
         from fastapi import HTTPException
         raise HTTPException(401, "Authentication required")
+    _enforce_admin(auth_req, current_user)
 
     db = get_db()
     try:
@@ -66,6 +88,12 @@ def resource_list(resource: str, limit: int = None, offset: int = 0,
 def resource_list_filtered(resource: str, limit: int = None, offset: int = 0,
                            user_id: int = None, product_id: str = None,
                            roaster_slug: str = None, post_type: str = None,
+                           # `kind` is the discriminator on the `jobs` table —
+                           # admin tabs filter the job feed by 'scrape' /
+                           # 'geolocate' / 'tree_validate'. Any future enum
+                           # column with field name 'kind' inherits this for
+                           # free.
+                           kind: str = None,
                            authorization: str = Header(None)):
     res = get_resource(resource)
     if res.get("type") == "toggle" or res.get("write_only"):
@@ -74,6 +102,8 @@ def resource_list_filtered(resource: str, limit: int = None, offset: int = 0,
 
     current_user = get_optional_user(authorization)
     uid = current_user["id"] if current_user else None
+    auth_req = res.get("auth", {}).get("list")
+    _enforce_admin(auth_req, current_user)
     db = get_db()
     try:
         filters = {}
@@ -85,6 +115,8 @@ def resource_list_filtered(resource: str, limit: int = None, offset: int = 0,
             filters["roaster_slug"] = roaster_slug
         if post_type is not None:
             filters["post_type"] = post_type
+        if kind is not None:
+            filters["kind"] = kind
 
         data, total = list_resource(db, resource, filters=filters,
                                     limit=limit, offset=offset, current_user_id=uid)
@@ -107,6 +139,7 @@ def resource_get(resource: str, id: str, authorization: str = Header(None)):
 
     current_user = get_optional_user(authorization)
     uid = current_user["id"] if current_user else None
+    _enforce_admin(res.get("auth", {}).get("read"), current_user)
 
     # Convert ID type
     pk_type = res.get("pk_type", "int")
@@ -131,6 +164,7 @@ def resource_create(resource: str, body: dict, user=Depends(get_current_user)):
     if auth_req == "required" and not user:
         from fastapi import HTTPException
         raise HTTPException(401, "Authentication required")
+    _enforce_admin(auth_req, user)
 
     db = get_db()
     try:
@@ -149,6 +183,11 @@ def resource_create(resource: str, body: dict, user=Depends(get_current_user)):
 @router.put("/{resource}/{id}")
 def resource_update(resource: str, id: str, body: dict, user=Depends(get_current_user)):
     res = get_resource(resource)
+    auth_req = res.get("auth", {}).get("update")
+    if auth_req == "blocked":
+        from fastapi import HTTPException
+        raise HTTPException(403, f"{resource} cannot be updated via generic endpoint — use specific route")
+    _enforce_admin(auth_req, user)
     pk_type = res.get("pk_type", "int")
     id_val = id if pk_type == "str" else int(id)
 
@@ -167,6 +206,11 @@ def resource_update(resource: str, id: str, body: dict, user=Depends(get_current
 @router.delete("/{resource}/{id}")
 def resource_delete(resource: str, id: str, user=Depends(get_current_user)):
     res = get_resource(resource)
+    auth_req = res.get("auth", {}).get("delete")
+    if auth_req == "blocked":
+        from fastapi import HTTPException
+        raise HTTPException(403, f"{resource} cannot be deleted via generic endpoint — use specific route")
+    _enforce_admin(auth_req, user)
     pk_type = res.get("pk_type", "int")
     id_val = id if pk_type == "str" else int(id)
 

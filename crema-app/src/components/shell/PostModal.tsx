@@ -389,7 +389,12 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: t.color.bg,
-    ...(Platform.OS === "web" ? { zIndex: 40 } : { elevation: 12 }),
+    // zIndex works cross-platform. On Android, `elevation` creates
+    // a Material shadow layer whose hit-test outline can extend
+    // slightly beyond the view's declared frame, intermittently
+    // swallowing taps on sibling chrome (M2). Plain zIndex keeps
+    // the paint order correct without the elevation outline quirk.
+    zIndex: 40,
   } as any,
   cardMidBand: {
     width: "100%" as any,

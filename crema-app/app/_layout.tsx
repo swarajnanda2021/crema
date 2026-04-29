@@ -167,7 +167,10 @@ const gStyles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: t.color.bg,
-    ...(Platform.OS === "web" ? { zIndex: 40 } : { elevation: 12 }),
+    // See the matching comment in PostModal.tsx — zIndex over
+    // `elevation: 12` to avoid Android's Material-shadow hit-test
+    // outline occasionally swallowing taps on sibling chrome (M2).
+    zIndex: 40,
   } as any,
   composeCardMobile: { flex: 1, backgroundColor: t.color.bg, overflow: "hidden" } as any,
   overlayWrap: {

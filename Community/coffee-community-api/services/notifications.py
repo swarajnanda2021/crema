@@ -4,6 +4,8 @@ Notification service — creates notifications as side-effects of CRUD operation
 Called by the CRUD engine hooks system.
 """
 
+from __future__ import annotations
+
 import datetime
 
 
@@ -65,6 +67,8 @@ def run_hook(hook_name, db, *, resource_name=None, item=None, current_user=None,
         _handle_sync_entity_logo(db, item, current_user, "cafe")
     elif hook_name == "sync_roaster_logo_to_user":
         _handle_sync_entity_logo(db, item, current_user, "roaster")
+    elif hook_name == "sync_roaster_name_to_user":
+        _handle_sync_roaster_name_to_user(db, item, current_user)
     elif hook_name == "notify_wholesale_inquiry":
         _handle_notify_wholesale_inquiry(db, item, current_user)
     elif hook_name == "notify_wholesale_available":
@@ -145,6 +149,41 @@ def _handle_shelf_upsert(db, item, user):
     if existing:
         db.execute("DELETE FROM shelf_entries WHERE id = ?", (existing["id"],))
         db.commit()
+
+
+def sync_roaster_name_to_user(db, slug: str, name: str | None) -> int:
+    """Public helper for the bio enrich + re-enrich routes (which write
+    SQL directly and bypass the registry hook dispatcher). Mirrors a
+    `roaster_profiles.name` change onto every `users.display_name`
+    where account_type='roaster' AND roaster_slug=slug.
+
+    Returns the number of user rows touched (0 when no roaster account
+    has claimed this slug yet — common for newly-enriched profiles
+    with no signed-up owner). Caller commits.
+    """
+    if not slug or not name:
+        return 0
+    cur = db.execute(
+        "UPDATE users SET display_name = ? "
+        "WHERE account_type = 'roaster' AND roaster_slug = ?",
+        (name, slug),
+    )
+    return cur.rowcount
+
+
+def _handle_sync_roaster_name_to_user(db, item, actor):
+    """Registry-hook entry point. Fires from `roaster_profiles.on_update`
+    so admin edits via the page-level PUT (e.g. inline Name field on
+    the roaster admin page) flow into the linked user row's
+    display_name automatically. The bio enrich + re-enrich endpoints
+    bypass the registry CRUD, so they call `sync_roaster_name_to_user`
+    explicitly — both paths share the same SQL."""
+    if not item:
+        return
+    slug = item.get("roaster_slug")
+    name = item.get("name")
+    sync_roaster_name_to_user(db, slug, name)
+    db.commit()
 
 
 def _handle_sync_entity_logo(db, item, actor, kind):

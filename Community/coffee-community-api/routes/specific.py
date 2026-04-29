@@ -4,6 +4,8 @@ Specific routes that must be registered BEFORE the catch-all resource routes.
 These have fixed paths that would otherwise be shadowed by /{resource}/{id}.
 """
 
+import json
+
 from fastapi import APIRouter, Depends, Header
 from database import get_db
 from resources.crud import list_resource, build_select, row_to_dict, resolve_embeds
@@ -1946,5 +1948,772 @@ def empty_trash(user=Depends(get_current_user)):
     db = get_db()
     try:
         return ok(_trash.purge_all(db, current_user=user), resource="trash")
+    finally:
+        db.close()
+
+
+# ── Catalog Ops admin endpoints (v0, local-only) ────────────────────────────
+# These wrap two pieces of catalog infrastructure that already exist as
+# standalone Python modules:
+#   * The `Scraper/` directory — a multi-platform Shopify/WooCommerce/HTML
+#     scraper with quality gates.
+#   * `tag_resolver_test.py` (lifted into `services/sca_geolocator.py`) —
+#     a Haiku-backed flavor-note → SCA-tree classifier.
+# Each endpoint is gated through `_require_admin()` (defined above for the
+# traction dashboard). Long-running work fans out to FastAPI
+# `BackgroundTasks` so the request returns immediately with a job id;
+# the admin tab polls `/api/jobs/{id}` (registry CRUD) for progress.
+# Prod hardening (worker queue, restart safety, log persistence) is parked
+# in LAUNCH_TODO §3.8.
+
+from fastapi import BackgroundTasks, UploadFile, File, Form
+from services import catalog_ops, sca_geolocator, scrape_runner
+
+
+def _job_to_response(db, job_id: int) -> dict:
+    """Return the same shape the frontend gets when polling
+    `/api/jobs/{id}` so the run-trigger response and the polling response
+    are interchangeable."""
+    row = db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    if not row:
+        return {"id": job_id, "status": "queued"}
+    out = dict(row)
+    if out.get("result_summary"):
+        try:
+            out["result_summary"] = json.loads(out["result_summary"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return out
+
+
+@router.post("/admin/scrape/run", status_code=202)
+def admin_scrape_run(body: dict = None, background_tasks: BackgroundTasks = None,
+                      user=Depends(get_current_user)):
+    """Enqueue a scrape job and immediately return its id. The runner
+    fires off the scraper subprocess in the background; the admin tab
+    polls `/api/jobs/{id}` until status leaves 'running'.
+
+    Body:
+      `roaster_slug` (optional): scope to a single roaster's enabled
+        source — what the per-roaster Coffees-section CTA sends. When
+        omitted, every enabled `roaster_sources` row gets crawled
+        (the legacy "all sources" path).
+      `regenerate_prompt` (optional, default false): force regeneration
+        of the per-roaster site prompt addendum after the run
+        completes. Only meaningful when `roaster_slug` is set —
+        bulk runs skip the meta-call entirely. The toggle on the
+        roaster page sets this to true for one run, then auto-clears.
+    """
+    _require_admin(user)
+    body = body or {}
+    roaster_slug = (body.get("roaster_slug") or "").strip() or None
+    regenerate_prompt = bool(body.get("regenerate_prompt"))
+    db = get_db()
+    try:
+        try:
+            job_id = catalog_ops.enqueue_job(db, "scrape", started_by=user["id"])
+        except catalog_ops.JobConflict as e:
+            from fastapi import HTTPException
+            raise HTTPException(409, str(e), headers={"X-Live-Job-Id": str(e.live_job_id)})
+        background_tasks.add_task(
+            catalog_ops.run_scrape_job, job_id,
+            roaster_slug=roaster_slug,
+            regenerate_prompt=regenerate_prompt,
+        )
+        return ok(_job_to_response(db, job_id), resource="jobs")
+    finally:
+        db.close()
+
+
+@router.post("/admin/scrape/sources", status_code=201)
+def admin_add_roaster_source(body: dict, user=Depends(get_current_user)):
+    """Add a new roaster source. The admin types (or pastes) a website
+    URL; we do a best-effort `<title>` fetch to pre-fill the `name`
+    column. Platform / city / state stay null until the admin edits."""
+    _require_admin(user)
+    website = (body or {}).get("website", "").strip()
+    if not website:
+        from fastapi import HTTPException
+        raise HTTPException(422, "website is required")
+    if not website.startswith(("http://", "https://")):
+        website = "https://" + website
+    name = (body or {}).get("name", "").strip()
+    if not name:
+        name = scrape_runner.fetch_roaster_title(website) or website
+    db = get_db()
+    try:
+        existing = db.execute(
+            "SELECT id FROM roaster_sources WHERE website = ?", (website,)
+        ).fetchone()
+        if existing:
+            from fastapi import HTTPException
+            raise HTTPException(409, "A source with this website already exists.")
+        cur = db.execute(
+            "INSERT INTO roaster_sources "
+            "(name, website, shop_url, platform, city, state, enabled, added_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
+            (
+                name, website,
+                (body or {}).get("shop_url"),
+                (body or {}).get("platform"),
+                (body or {}).get("city"),
+                (body or {}).get("state"),
+                _now_iso(),
+            ),
+        )
+        db.commit()
+        row = db.execute(
+            "SELECT * FROM roaster_sources WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+        return ok(dict(row), resource="roaster_sources")
+    finally:
+        db.close()
+
+
+def _now_iso() -> str:
+    import datetime as _dt
+    return _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@router.post("/admin/geolocate/run", status_code=202)
+def admin_geolocate_run(background_tasks: BackgroundTasks,
+                         user=Depends(get_current_user)):
+    """Enqueue a classification job. The runner harvests every distinct
+    flavor-note tag from the products table that isn't yet in
+    `sca_addresses`, sends them to Haiku in one batch, validates against
+    the active SCA tree, and writes results back."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        try:
+            job_id = catalog_ops.enqueue_job(db, "geolocate", started_by=user["id"])
+        except catalog_ops.JobConflict as e:
+            from fastapi import HTTPException
+            raise HTTPException(409, str(e), headers={"X-Live-Job-Id": str(e.live_job_id)})
+        background_tasks.add_task(catalog_ops.run_geolocate_job, job_id)
+        return ok(_job_to_response(db, job_id), resource="jobs")
+    finally:
+        db.close()
+
+
+@router.get("/admin/geolocate/stats")
+def admin_geolocate_stats(user=Depends(get_current_user)):
+    """Tag counts for the Taste Graph sub-tab top section. Cheap enough
+    to recompute every poll — single SELECT * over `sca_addresses` plus a
+    walk over `products`."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        return ok(sca_geolocator.compute_geolocate_stats(db), resource="geolocate_stats")
+    finally:
+        db.close()
+
+
+@router.post("/admin/geolocate/tree", status_code=201)
+async def admin_geolocate_tree_upload(file: UploadFile = File(...),
+                                        notes: str = Form(""),
+                                        user=Depends(get_current_user)):
+    """Multipart upload of a new SCA tree JSON. Validates the structure,
+    runs the diff against `sca_addresses`, persists the tree as a NEW
+    row with `is_active=0` (activation is a separate explicit POST). The
+    diff is returned inline so the admin can review before activating.
+    """
+    _require_admin(user)
+    raw = await file.read()
+    try:
+        tree = sca_geolocator.parse_tree_json(raw.decode("utf-8", errors="strict"))
+    except (UnicodeDecodeError, ValueError) as e:
+        from fastapi import HTTPException
+        raise HTTPException(422, f"Invalid tree JSON: {e}")
+    db = get_db()
+    try:
+        diff = sca_geolocator.validate_tree_against_addresses(db, tree)
+        cur = db.execute(
+            "INSERT INTO sca_tree_versions "
+            "(uploaded_at, uploaded_by, tree_json, is_active, notes) "
+            "VALUES (?, ?, ?, 0, ?)",
+            (_now_iso(), user["id"], json.dumps(tree), notes or None),
+        )
+        db.commit()
+        version_id = cur.lastrowid
+        return ok({
+            "version_id": version_id,
+            "diff": diff,
+        }, resource="sca_tree_versions")
+    finally:
+        db.close()
+
+
+@router.post("/admin/geolocate/tree/{version_id}/activate")
+def admin_geolocate_tree_activate(version_id: int,
+                                    user=Depends(get_current_user)):
+    """Flip `is_active=1` to a previously uploaded tree version. Only one
+    row carries `is_active=1` at a time — the SQL is two statements
+    inside a single transaction so a crash mid-flip can't leave us with
+    zero active trees."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        target = db.execute(
+            "SELECT id FROM sca_tree_versions WHERE id = ?", (version_id,)
+        ).fetchone()
+        if not target:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Tree version {version_id} not found")
+        db.execute("UPDATE sca_tree_versions SET is_active = 0 WHERE is_active = 1")
+        db.execute("UPDATE sca_tree_versions SET is_active = 1 WHERE id = ?", (version_id,))
+        db.commit()
+        return ok({"activated": version_id}, resource="sca_tree_versions")
+    finally:
+        db.close()
+
+
+@router.get("/admin/jobs/{job_id}/log")
+def admin_job_log(job_id: int, user=Depends(get_current_user)):
+    """Return the captured log tail for a single job. The full row is
+    available via `/api/jobs/{id}` (registry CRUD) — this endpoint is a
+    convenience for the modal that opens when the admin taps a job
+    history row."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id, kind, status, log_tail, error_message FROM jobs WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Job {job_id} not found")
+        return ok(dict(row), resource="jobs")
+    finally:
+        db.close()
+
+
+# ── Scrape proposals: approve / reject / undo / sold-out ────────────────────
+# Every scrape now stages its diff into `scrape_proposals` and waits for
+# the admin to approve. These endpoints are the approval surface — none
+# of them touch the products table without the admin saying so.
+
+@router.get("/admin/scrape/proposals")
+def admin_list_proposals(job_id: int = None, status: str = "pending",
+                          user=Depends(get_current_user)):
+    """List proposals — defaults to `pending` so the admin tab can show
+    the approval queue. Pass `status=` (or empty string) to widen."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        rows = catalog_ops.list_proposals(
+            db, job_id=job_id, status=(status or None) if status != "" else None,
+        )
+        return ok(rows, resource="scrape_proposals", total=len(rows))
+    finally:
+        db.close()
+
+
+@router.post("/admin/scrape/proposals/approve")
+def admin_approve_proposals(body: dict, user=Depends(get_current_user)):
+    """Approve one or more proposals. Body: { ids: int[] }."""
+    _require_admin(user)
+    ids = (body or {}).get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        from fastapi import HTTPException
+        raise HTTPException(422, "ids[] is required")
+    db = get_db()
+    try:
+        return ok(catalog_ops.approve_proposals(db, ids), resource="scrape_proposals")
+    finally:
+        db.close()
+
+
+@router.post("/admin/scrape/proposals/reject")
+def admin_reject_proposals(body: dict, user=Depends(get_current_user)):
+    """Reject (discard) one or more pending proposals. Body: { ids: int[] }."""
+    _require_admin(user)
+    ids = (body or {}).get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        from fastapi import HTTPException
+        raise HTTPException(422, "ids[] is required")
+    db = get_db()
+    try:
+        return ok(catalog_ops.reject_proposals(db, ids), resource="scrape_proposals")
+    finally:
+        db.close()
+
+
+@router.post("/admin/scrape/jobs/{job_id}/undo")
+def admin_undo_job(job_id: int, user=Depends(get_current_user)):
+    """Reverse every applied proposal from a scrape (or manual sold-out)
+    job. Inserts get deleted (only if `source='scraped'` — roaster-claimed
+    rows survive); updates / restores replay the captured `prev_state`;
+    mark-sold-out flips `available=1`.
+
+    Backfilled prior-job proposals lack a `prev_state` for updates, so
+    those entries are skipped and reported in the response."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        return ok(catalog_ops.undo_job(db, job_id), resource="jobs")
+    finally:
+        db.close()
+
+
+@router.post("/admin/products/{product_id}/sold-out")
+def admin_mark_product_sold_out(product_id: str, user=Depends(get_current_user)):
+    """Manually flip a product to `available=0`. Logged as a proposal
+    against a synthetic `manual_sold_out` job so the change is undoable
+    via the same job-undo path as a scrape."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        return ok(
+            catalog_ops.mark_product_sold_out(db, product_id, started_by=user["id"]),
+            resource="products",
+        )
+    finally:
+        db.close()
+
+
+# ── Tab 1 (ROASTERS): single-URL enrichment + publish toggle + delete ───────
+# `enrich_roaster_from_url` synthesizes a profile via Sonnet; the response
+# upserts into `roaster_profiles` (with `published=0` so the admin reviews
+# before pushing it to Discover) and creates the matching `roaster_sources`
+# row so Tab 2's scraper picks it up automatically.
+
+from services import roaster_enricher  # noqa: E402
+
+
+@router.post("/admin/roasters/enrich", status_code=201)
+def admin_enrich_roaster(body: dict, user=Depends(get_current_user)):
+    """Synchronous single-URL enrichment. Body: { website }. Returns the
+    full upserted profile so the page route can render it immediately.
+
+    v2 enrichment returns `{ profile, source }`:
+      - `profile` upserts into `roaster_profiles`. Re-enrich uses
+        COALESCE — Sonnet null doesn't blow away an admin edit.
+      - `source` carries the bean-catalog URL + platform Sonnet picked,
+        which we mirror onto `roaster_sources` so BEANS-tab scraping
+        is preconfigured (no manual data entry).
+    """
+    _require_admin(user)
+    website = (body or {}).get("website", "").strip()
+    if not website:
+        from fastapi import HTTPException
+        raise HTTPException(422, "website is required")
+
+    try:
+        result = roaster_enricher.enrich_roaster_from_url(website)
+    except roaster_enricher.RoasterEnricherError as e:
+        from fastapi import HTTPException
+        # 503 when the env / SDK is the blocker (admin can fix); 422 for
+        # bad input / unreachable site.
+        if "ANTHROPIC_API_KEY" in str(e) or "isn't installed" in str(e):
+            raise HTTPException(503, str(e))
+        raise HTTPException(422, str(e))
+
+    profile = result["profile"]
+    source = result["source"]
+
+    db = get_db()
+    try:
+        now = _now_iso()
+
+        # Look up by WEBSITE first — Sonnet may produce a slightly
+        # different canonical name on re-enrich ("Bili Hu Coffee" →
+        # "Bili Hu Coffee Roasters") which would slugify to a NEW
+        # slug and orphan the 19 products in `products` that point at
+        # the original slug. By matching on `website` we always reuse
+        # the existing slug, so re-enrich is in-place and idempotent.
+        existing_by_website = db.execute(
+            "SELECT roaster_slug FROM roaster_profiles WHERE website = ?",
+            (profile["website"],),
+        ).fetchone()
+        if existing_by_website:
+            slug = existing_by_website["roaster_slug"]
+        else:
+            slug = profile["roaster_slug"]
+
+        existing = db.execute(
+            "SELECT roaster_slug FROM roaster_profiles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+
+        specialties_json = json.dumps(profile.get("specialties") or [])
+        if existing:
+            # COALESCE pattern: any field Sonnet returned `None` keeps
+            # whatever was already on the row. Non-null Sonnet values
+            # win. Re-enrich is therefore safe — admin's manual edits
+            # to city / state / etc. survive an inconclusive re-run.
+            db.execute(
+                "UPDATE roaster_profiles SET "
+                " name = COALESCE(?, name), "
+                " about_blurb = COALESCE(?, about_blurb), "
+                " tagline = COALESCE(?, tagline), "
+                " specialties = COALESCE(?, specialties), "
+                " city = COALESCE(?, city), "
+                " state = COALESCE(?, state), "
+                " instagram_handle = COALESCE(?, instagram_handle), "
+                " contact_email = COALESCE(?, contact_email), "
+                " website = COALESCE(?, website), "
+                " logo_url = COALESCE(?, logo_url), "
+                " hero_image_url = COALESCE(?, hero_image_url), "
+                " updated_at = ? "
+                "WHERE roaster_slug = ?",
+                (
+                    profile.get("name"),
+                    profile.get("about_blurb") or None,
+                    profile.get("tagline"),
+                    specialties_json if profile.get("specialties") else None,
+                    profile.get("city"),
+                    profile.get("state"),
+                    profile.get("instagram_handle"),
+                    profile.get("contact_email"),
+                    profile.get("website"),
+                    profile.get("logo_url"),
+                    profile.get("hero_image_url"),
+                    now,
+                    slug,
+                ),
+            )
+        else:
+            db.execute(
+                "INSERT INTO roaster_profiles "
+                "(roaster_slug, name, about_blurb, tagline, specialties, "
+                " website, city, state, instagram_handle, contact_email, "
+                " logo_url, hero_image_url, hero_crop_x, hero_crop_y, "
+                " hero_zoom, published, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 50, 50, 1, 0, ?)",
+                (
+                    slug, profile.get("name"), profile.get("about_blurb"),
+                    profile.get("tagline"), specialties_json,
+                    profile.get("website"), profile.get("city"),
+                    profile.get("state"), profile.get("instagram_handle"),
+                    profile.get("contact_email"),
+                    profile.get("logo_url"),
+                    profile.get("hero_image_url"),
+                    now,
+                ),
+            )
+
+        # Sync the canonical name onto the linked user account's
+        # display_name so feed posts show "Blue Tokai Coffee Roasters"
+        # instead of the slug "blue-tokai-coffee-roasters". Bypasses
+        # the registry hook because this endpoint writes SQL directly;
+        # both code paths (this enrich + the registry PUT to
+        # /api/roaster_profiles/{slug}) share the same helper.
+        if profile.get("name"):
+            from services.notifications import sync_roaster_name_to_user
+            sync_roaster_name_to_user(db, slug, profile["name"])
+
+        # Mirror onto `roaster_sources` so BEANS-tab scraping is ready
+        # to go without manual data entry. Sonnet picked the
+        # specialty-beans URL; we store it as `shop_url`. `enabled`
+        # stays 0 — admin verifies the URL is right before turning the
+        # scraper on.
+        existing_src = db.execute(
+            "SELECT id, shop_url, platform FROM roaster_sources WHERE website = ?",
+            (profile["website"],),
+        ).fetchone()
+        if not existing_src:
+            db.execute(
+                "INSERT INTO roaster_sources "
+                "(name, website, shop_url, platform, city, state, enabled, added_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
+                (
+                    profile.get("name") or slug,
+                    profile["website"],
+                    source.get("shop_url"),
+                    source.get("platform"),
+                    profile.get("city"),
+                    profile.get("state"),
+                    now,
+                ),
+            )
+        else:
+            # COALESCE here too — admin edits to shop_url / platform
+            # win over an inconclusive re-enrich.
+            db.execute(
+                "UPDATE roaster_sources SET "
+                " shop_url = COALESCE(?, shop_url), "
+                " platform = COALESCE(?, platform), "
+                " city = COALESCE(?, city), "
+                " state = COALESCE(?, state) "
+                "WHERE id = ?",
+                (
+                    source.get("shop_url"),
+                    source.get("platform"),
+                    profile.get("city"),
+                    profile.get("state"),
+                    existing_src["id"],
+                ),
+            )
+        db.commit()
+
+        # Re-fetch via registry shape so the page route sees the same row
+        # the grid will after it refetches.
+        from resources.crud import get_resource_by_id
+        full = get_resource_by_id(db, "roaster_profiles", slug,
+                                    current_user_id=user["id"])
+        return ok(full, resource="roaster_profiles")
+    finally:
+        db.close()
+
+
+@router.post("/admin/roasters/{slug}/re-enrich")
+def admin_re_enrich_roaster(slug: str, user=Depends(get_current_user)):
+    """Re-run enrichment against the existing website. Overwrites
+    about_blurb / specialties / logo / hero. Admin can edit the profile
+    afterwards if Sonnet got something wrong."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT website FROM roaster_profiles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not row or not row["website"]:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"No website on file for roaster {slug}")
+        website = row["website"]
+    finally:
+        db.close()
+
+    return admin_enrich_roaster({"website": website}, user=user)
+
+
+@router.post("/admin/roasters/{slug}/publish")
+def admin_publish_roaster(slug: str, body: dict = None,
+                            user=Depends(get_current_user)):
+    """Toggle the Discover-visibility flag. Body: { published: 0 | 1 }."""
+    _require_admin(user)
+    if body is None:
+        body = {}
+    desired = body.get("published")
+    if desired not in (0, 1):
+        from fastapi import HTTPException
+        raise HTTPException(422, "published must be 0 or 1")
+    db = get_db()
+    try:
+        cur = db.execute(
+            "UPDATE roaster_profiles SET published = ?, updated_at = ? "
+            "WHERE roaster_slug = ?",
+            (desired, _now_iso(), slug),
+        )
+        db.commit()
+        if cur.rowcount == 0:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Roaster {slug} not found")
+        return ok({"roaster_slug": slug, "published": desired},
+                    resource="roaster_profiles")
+    finally:
+        db.close()
+
+
+@router.put("/admin/roasters/{slug}/scrape-settings")
+def admin_update_scrape_settings(slug: str, body: dict,
+                                   user=Depends(get_current_user)):
+    """Update the scrape-side fields on the `roaster_sources` row that
+    matches this roaster's website. Body accepts `{ shop_url, platform,
+    enabled }`; absent keys are left untouched. Returns the updated
+    source row.
+
+    The drawer in Tab 1 ROASTERS uses this so the admin can fill in
+    `shop_url` + `platform` + flip `enabled` to 1 without leaving the
+    profile context — that's what unlocks the roaster for BEANS-tab
+    scraping."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        prof = db.execute(
+            "SELECT roaster_slug, name, website, city, state "
+            "FROM roaster_profiles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not prof or not prof["website"]:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"No website on file for roaster {slug}")
+
+        # The 121 originally-seeded roasters carry a profile row but no
+        # matching source row. Auto-create on first save so the admin
+        # can fill in `shop_url` / `platform` / flip `enabled` without
+        # bouncing through a separate "create source" call. New rows
+        # land at `enabled=0` — scraping only turns on when the admin
+        # explicitly toggles the pill in the page header.
+        src = db.execute(
+            "SELECT id FROM roaster_sources WHERE website = ?",
+            (prof["website"],),
+        ).fetchone()
+        if not src:
+            import datetime
+            now_iso = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+            db.execute(
+                "INSERT INTO roaster_sources "
+                "(name, website, city, state, enabled, added_at) "
+                "VALUES (?, ?, ?, ?, 0, ?)",
+                (
+                    prof["name"] or slug,
+                    prof["website"],
+                    prof["city"],
+                    prof["state"],
+                    now_iso,
+                ),
+            )
+            db.commit()
+            src = db.execute(
+                "SELECT id FROM roaster_sources WHERE website = ?",
+                (prof["website"],),
+            ).fetchone()
+
+        sets = []
+        params = []
+        for key in ("shop_url", "platform", "enabled"):
+            if key in body:
+                sets.append(f"{key} = ?")
+                params.append(body[key])
+        if not sets:
+            from fastapi import HTTPException
+            raise HTTPException(422, "No valid fields to update")
+        params.append(src["id"])
+        db.execute(
+            f"UPDATE roaster_sources SET {', '.join(sets)} WHERE id = ?",
+            params,
+        )
+        db.commit()
+        row = db.execute(
+            "SELECT * FROM roaster_sources WHERE id = ?", (src["id"],)
+        ).fetchone()
+        return ok(dict(row), resource="roaster_sources")
+    finally:
+        db.close()
+
+
+@router.post("/admin/products/{product_id}/re-enrich")
+def admin_re_enrich_product(product_id: str, user=Depends(get_current_user)):
+    """Re-run Sonnet enrichment against an existing products row,
+    overwrite the four enrichment columns (process_raw, producer,
+    brew_recommendation_json, enrichment_status) plus the LLM-curated
+    fields (coffee_name, origin, varietal, bean_type, …).
+
+    Used by the Library view in Tab 3 + by the per-card "Needs
+    re-enrichment" affordance for rows where Sonnet failed during the
+    scrape's initial pass.
+    """
+    _require_admin(user)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT * FROM products WHERE product_id = ?", (product_id,),
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Product {product_id} not found")
+        product = dict(row)
+        try:
+            from services import product_enricher
+            merged = product_enricher.enrich_product(product)
+        except Exception as e:
+            from fastapi import HTTPException
+            raise HTTPException(503, f"Enrichment failed: {e}")
+        if merged is None:
+            db.execute(
+                "UPDATE products SET enrichment_status = 'failed' "
+                "WHERE product_id = ?",
+                (product_id,),
+            )
+            db.commit()
+            from fastapi import HTTPException
+            raise HTTPException(502, "Sonnet returned no result; row marked failed")
+
+        brew = merged.get("brew_recommendation")
+        brew_json = json.dumps(brew) if isinstance(brew, dict) else None
+        flavor = merged.get("flavor_notes")
+        flavor_json = json.dumps(flavor) if isinstance(flavor, list) else flavor
+        db.execute(
+            """
+            UPDATE products SET
+                coffee_name = COALESCE(?, coffee_name),
+                roast_level = COALESCE(?, roast_level),
+                tasting_notes = COALESCE(?, tasting_notes),
+                origin = COALESCE(?, origin),
+                process = COALESCE(?, process),
+                varietal = COALESCE(?, varietal),
+                altitude_masl = COALESCE(?, altitude_masl),
+                bean_type = COALESCE(?, bean_type),
+                flavor_notes = COALESCE(?, flavor_notes),
+                process_raw = ?,
+                producer = ?,
+                brew_recommendation_json = ?,
+                enrichment_status = 'enriched'
+            WHERE product_id = ?
+            """,
+            (
+                merged.get("coffee_name_clean") or merged.get("coffee_name"),
+                merged.get("roast_level"),
+                merged.get("tasting_notes"),
+                merged.get("origin"),
+                merged.get("process"),
+                merged.get("varietal"),
+                merged.get("altitude_masl"),
+                merged.get("bean_type"),
+                flavor_json,
+                merged.get("process_raw"),
+                merged.get("producer"),
+                brew_json,
+                product_id,
+            ),
+        )
+        db.commit()
+        updated = db.execute(
+            "SELECT * FROM products WHERE product_id = ?", (product_id,),
+        ).fetchone()
+        return ok(dict(updated), resource="products")
+    finally:
+        db.close()
+
+
+@router.delete("/admin/roasters/{slug}")
+def admin_delete_roaster(slug: str, user=Depends(get_current_user)):
+    """Remove the profile + cascade source row. Existing products with
+    this `roaster_slug` stay in `products` (catalog data isn't
+    destroyed). Before deleting we append a row to `deleted_roasters`
+    so the admin can find the original website later — re-enrichment
+    from the same URL recreates the profile if the deletion was a
+    mistake."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT roaster_slug, name, website, city, state "
+            "FROM roaster_profiles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Roaster {slug} not found")
+        # Log first so the audit row survives even if the DELETE step
+        # below trips a constraint and we have to abort.
+        import datetime
+        now_iso = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        db.execute(
+            "INSERT INTO deleted_roasters "
+            "(roaster_slug, name, website, city, state, deleted_at, deleted_by) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                row["roaster_slug"],
+                row["name"],
+                row["website"],
+                row["city"],
+                row["state"],
+                now_iso,
+                user["id"],
+            ),
+        )
+        db.execute("DELETE FROM roaster_profiles WHERE roaster_slug = ?", (slug,))
+        if row["website"]:
+            db.execute(
+                "DELETE FROM roaster_sources WHERE website = ?",
+                (row["website"],),
+            )
+        db.commit()
+        return ok({"deleted": slug}, resource="roaster_profiles")
     finally:
         db.close()

@@ -613,6 +613,192 @@ _MIGRATIONS = [
     )""",
     "CREATE INDEX IF NOT EXISTS idx_post_reports_post ON post_reports(post_id)",
     "CREATE INDEX IF NOT EXISTS idx_post_reports_user ON post_reports(user_id)",
+    # ── Catalog ops admin tabs (v0, local-only) ─────────────────────────────
+    # Three concerns share these tables:
+    #   * Scraper tab — `roaster_sources` is the live list of websites the
+    #     scraper crawls (seeded from Scraper/verified_roasters_catalog.json
+    #     once, then editable via the admin tab).
+    #   * Taste Graph tab — `sca_addresses` is the per-tag → SCA address
+    #     resolution store (replaces tmp/tag_resolutions.json as the live
+    #     source). `sca_tree_versions` keeps every uploaded SCA tree JSON
+    #     by version with exactly one row marked active.
+    #   * Both tabs — `jobs` records every triggered background job (scrape
+    #     / geolocate / tree_validate) with status, timing, and a log tail.
+    # See LAUNCH_TODO §3.8 — the prod-deployment hardening (queue worker,
+    # restart safety, log rotation, cron) is deliberately deferred.
+    """CREATE TABLE IF NOT EXISTS jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL,
+        started_by INTEGER NOT NULL REFERENCES users(id),
+        started_at TEXT,
+        finished_at TEXT,
+        error_message TEXT,
+        log_tail TEXT,
+        result_summary TEXT,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_jobs_kind_status ON jobs(kind, status)",
+    "CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC)",
+    """CREATE TABLE IF NOT EXISTS roaster_sources (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        website TEXT NOT NULL UNIQUE,
+        shop_url TEXT,
+        platform TEXT,
+        city TEXT,
+        state TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        added_at TEXT NOT NULL,
+        last_scraped_at TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_roaster_sources_enabled ON roaster_sources(enabled)",
+    """CREATE TABLE IF NOT EXISTS sca_addresses (
+        tag TEXT PRIMARY KEY,
+        address_t1 TEXT,
+        address_t2 TEXT,
+        address_t3 TEXT,
+        is_null INTEGER NOT NULL DEFAULT 0,
+        source TEXT NOT NULL,
+        classified_at TEXT NOT NULL,
+        model_version TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_sca_addresses_t1 ON sca_addresses(address_t1)",
+    "CREATE INDEX IF NOT EXISTS idx_sca_addresses_source ON sca_addresses(source)",
+    """CREATE TABLE IF NOT EXISTS sca_tree_versions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uploaded_at TEXT NOT NULL,
+        uploaded_by INTEGER REFERENCES users(id),
+        tree_json TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 0,
+        notes TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_sca_tree_active ON sca_tree_versions(is_active)",
+    # ── Scrape approval workflow ────────────────────────────────────────────
+    # Every product change a scrape job *wants* to make lands here as a row
+    # with `status='pending'`. The admin reviews proposals and approves /
+    # rejects them; only on approve does `products` get touched. `prev_state`
+    # captures the row's pre-change shape so undo can reverse cleanly.
+    #
+    # change_type values:
+    #   'insert'           → propose creating a new products row
+    #   'update'           → propose refreshing an existing row's columns
+    #   'mark_sold_out'    → propose flipping available=1 → 0 (when scrape
+    #                        finds a slug's products no longer listed)
+    #   'restore_available'→ propose flipping available=0 → 1 (when scrape
+    #                        sees a previously sold-out bean back in stock
+    #                        with matching product_id)
+    #
+    # status values:
+    #   'pending'  → awaiting admin review
+    #   'applied'  → approved + written to products
+    #   'rejected' → admin discarded the proposal; no DB change
+    #   'reverted' → previously applied, then undone by job-undo
+    """CREATE TABLE IF NOT EXISTS scrape_proposals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+        product_id TEXT NOT NULL,
+        change_type TEXT NOT NULL,
+        proposed_state_json TEXT,
+        prev_state_json TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        applied_at TEXT,
+        reverted_at TEXT,
+        rejected_at TEXT,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_scrape_proposals_job ON scrape_proposals(job_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_scrape_proposals_status ON scrape_proposals(status)",
+    # ── Catalog Ops Phase 1: enrichment fields on products ──────────────────
+    # The scrape pipeline will run `enrich.py` per product before staging
+    # the proposal, so every approved row carries the full 13-field payload
+    # the admin reviewed. `process_raw` keeps the roaster's verbatim text
+    # alongside the existing `process` enum bucket — no fidelity loss for
+    # experimental methods (anaerobic carbonic, lactic, yeast inoculated,
+    # etc.). `producer` and `brew_recommendation_json` are LLM-extracted
+    # from narrative description text. `enrichment_status` lets the admin
+    # tab flag rows where Sonnet was unavailable so they can be re-enriched
+    # later without re-scraping.
+    "ALTER TABLE products ADD COLUMN process_raw TEXT",
+    "ALTER TABLE products ADD COLUMN producer TEXT",
+    "ALTER TABLE products ADD COLUMN brew_recommendation_json TEXT",
+    "ALTER TABLE products ADD COLUMN enrichment_status TEXT NOT NULL DEFAULT 'pending'",
+    # Phase 6 enricher rewrite — three more LLM-extracted fields per
+    # the bean wishlist:
+    #   • `roast_level_name` — verbatim roaster term (Vienna / Full City+ /
+    #     Espresso roast / Filter roast). The existing `roast_level` enum
+    #     stays for filterability but the original phrasing is the truth.
+    #   • `roaster_blurb` — short third-person narrative about THIS bean
+    #     (sourcing story, processing technique, why the roaster chose
+    #     it). Distinct from tasting_notes (those have their own field).
+    #   • `weight_grams` already existed; nothing to add for it.
+    "ALTER TABLE products ADD COLUMN roast_level_name TEXT",
+    "ALTER TABLE products ADD COLUMN roaster_blurb TEXT",
+    # Phase 6 follow-up — per-roaster site prompt hint. After the
+    # first per-roaster Haiku enrichment run completes, a Sonnet
+    # meta-call samples 3-5 of the products + their page text and
+    # writes a 1-2 paragraph addendum to the extraction system
+    # prompt that captures THIS roaster's quirks (units, where info
+    # is buried, naming conventions, fields that are unreliable).
+    # Subsequent per-roaster runs prepend this addendum to the base
+    # system prompt so Haiku gets the past experience for free.
+    # Admin can opt to regenerate by toggling the per-run flag on
+    # the roaster page.
+    "ALTER TABLE roaster_profiles ADD COLUMN enrichment_prompt_hint TEXT",
+    # Discoverability gate: enriched roasters land here as `published=0` so
+    # the admin reviews the synthesized bio + edits it before pushing the
+    # row to the public Discover surface. Existing 121 profiles all default
+    # to 1 since they were already live.
+    "ALTER TABLE roaster_profiles ADD COLUMN published INTEGER NOT NULL DEFAULT 1",
+    "CREATE INDEX IF NOT EXISTS idx_roaster_profiles_published ON roaster_profiles(published)",
+    # ── Catalog Ops Phase 4 prep: process canonicalization (Process Graph) ──
+    # Mirrors `sca_addresses` + `sca_tree_versions` — the admin will run a
+    # Haiku batch on distinct `process_raw` strings, mapping each onto a
+    # canonical taxonomy version. Tables seed empty; first activation
+    # happens via the Mapping sub-tab.
+    """CREATE TABLE IF NOT EXISTS process_addresses (
+        raw_string TEXT PRIMARY KEY,
+        canonical TEXT,
+        is_null INTEGER NOT NULL DEFAULT 0,
+        source TEXT NOT NULL,
+        classified_at TEXT NOT NULL,
+        model_version TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_process_addresses_canonical ON process_addresses(canonical)",
+    """CREATE TABLE IF NOT EXISTS process_canonical_versions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uploaded_at TEXT NOT NULL,
+        uploaded_by INTEGER REFERENCES users(id),
+        taxonomy_json TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 0,
+        notes TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_process_canonical_active ON process_canonical_versions(is_active)",
+    # ── Catalog Ops audit: deleted roasters log ────────────────────────
+    # When admin removes a roaster from Catalog Ops we still want a way to
+    # find the original website, in case the deletion was a mistake or the
+    # admin wants to re-enrich later. Hard-deleting `roaster_profiles` +
+    # `roaster_sources` removes operational state; this table preserves
+    # just enough to recover (name + website + when). Append-only.
+    """CREATE TABLE IF NOT EXISTS deleted_roasters (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        roaster_slug TEXT NOT NULL,
+        name TEXT,
+        website TEXT,
+        city TEXT,
+        state TEXT,
+        deleted_at TEXT NOT NULL,
+        deleted_by INTEGER REFERENCES users(id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_deleted_roasters_at ON deleted_roasters(deleted_at)",
+    # ── Phase: roaster enrichment v2 ───────────────────────────────────
+    # Three free-text fields that Sonnet is now asked to extract during
+    # bio enrichment. Tagline shows under the name on the admin page;
+    # instagram + contact_email feed wholesale-outreach + the future
+    # roaster page. NULL until enrichment / admin manually fills.
+    "ALTER TABLE roaster_profiles ADD COLUMN tagline TEXT",
+    "ALTER TABLE roaster_profiles ADD COLUMN instagram_handle TEXT",
+    "ALTER TABLE roaster_profiles ADD COLUMN contact_email TEXT",
 ]
 
 
@@ -683,6 +869,16 @@ def init_db():
         _seed_pilot_cafes(conn)
     except Exception as e:
         print(f"Café seed note: {e}")
+    # Catalog-ops seed (idempotent — populates roaster_sources from the
+    # on-disk catalog JSON, sca_addresses from the cached resolutions, and
+    # sca_tree_versions with the canonical SCA tree). Lives in services/
+    # so the seed logic can be reused by tests / scripts without dragging
+    # in the rest of database.py.
+    try:
+        from services.catalog_ops import seed_initial_state
+        seed_initial_state(conn)
+    except Exception as e:
+        print(f"Catalog-ops seed note: {e}")
     conn.close()
 
 

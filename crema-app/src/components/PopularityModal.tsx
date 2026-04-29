@@ -298,7 +298,9 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: t.color.bg,
-    ...(Platform.OS === "web" ? { zIndex: 40 } : { elevation: 12 }),
+    // See PostModal.tsx — zIndex over `elevation: 12` to avoid the
+    // Material-shadow hit-test outline quirk on Android (M2).
+    zIndex: 40,
   } as any,
   cardMidBand: {
     width: "100%" as any, height: "100%" as any,

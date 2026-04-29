@@ -35,6 +35,10 @@ interface CoffeeCardProps {
    *  button renders on the card and the parent is expected to open
    *  its edit modal with this bean pre-filled. */
   onEdit?: () => void;
+  /** Force the landscape variant regardless of viewport. Used by the
+   *  admin Catalog Ops carousels — they need horizontal cards on web
+   *  too, not just the mobile breakpoint. */
+  forceLandscape?: boolean;
 }
 
 // Figma: image 160/372, info 212/372 (portrait, web wide)
@@ -47,7 +51,7 @@ const LANDSCAPE_IMG_RATIO = 180 / 370;
 const SHELF_KEYS: ShelfKey[] = ["open_bags", "on_the_list"];
 const BTN_SIZE = 31;
 
-export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 240, height: cardH = 372, shelfMode, isOwner = true, currentShelf, onMoveShelf, onRemove, onAddToShelf, onEdit }: CoffeeCardProps) {
+export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 240, height: cardH = 372, shelfMode, isOwner = true, currentShelf, onMoveShelf, onRemove, onAddToShelf, onEdit, forceLandscape = false }: CoffeeCardProps) {
   const [showShelfPicker, setShowShelfPicker] = useState(false);
   const [showWholesaleInquiry, setShowWholesaleInquiry] = useState(false);
   const [shelvedAs, setShelvedAs] = useState<ShelfKey | null>(currentShelf || null);
@@ -101,7 +105,15 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
   //   • Image second-right (below bin): pencil
   //   • Image bottom-left: share disc (moved off the info row)
   //   • Info bottom-right: cart disc (stays on info, same as portrait)
-  if (isMobile) {
+  // Sold-out lens — true when the bean is out of stock. Currently
+  // both `available === 0` (SQLite) and `available === false`
+  // (legacy JSON path) need handling. Used to render a pink pill
+  // overlay on the image so the card is visually distinct in
+  // both Discover (when the user toggles "Sold out" filter) and
+  // any other surface that mixes available + retired stock.
+  const isSoldOut = coffee.available === 0 || coffee.available === false;
+
+  if (isMobile || forceLandscape) {
     return (
       <View style={[s.cardLs, { width: lsCardW, height: lsCardH }]}>
         {/* ── IMAGE (left half) ── */}
@@ -111,6 +123,11 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
           ) : (
             <View style={s.imagePlaceholder}><Coffee size={40} color="rgba(53,17,1,0.12)" /></View>
           )}
+          {isSoldOut ? (
+            <View style={s.soldOutPill} pointerEvents="none">
+              <Text style={s.soldOutPillText}>Sold out</Text>
+            </View>
+          ) : null}
 
           {/* Top-left slot: add-to-shelf heart (non-owner, shelfMode) OR
              social dot (userCount > 0). Same rule as portrait. */}
@@ -245,6 +262,11 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
         ) : (
           <View style={s.imagePlaceholder}><Coffee size={40} color="rgba(53,17,1,0.12)" /></View>
         )}
+        {isSoldOut ? (
+          <View style={s.soldOutPill} pointerEvents="none">
+            <Text style={s.soldOutPillText}>Sold out</Text>
+          </View>
+        ) : null}
       </View>
 
       {/* Top overlay layout:
@@ -580,6 +602,30 @@ const s = StyleSheet.create({
     borderBottomLeftRadius: 5,
     overflow: "hidden",
     position: "relative",
+  } as any,
+  // Sold-out pill — overlaid on the image area, centered. Pink fill
+  // with white text reads as a clear "this is retired" signal at
+  // any card size. `pointerEvents=none` so the pill doesn't steal
+  // taps from the heart / cart / social affordances around it.
+  soldOutPill: {
+    position: "absolute",
+    top: "50%",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    transform: [{ translateY: -12 }],
+  } as any,
+  soldOutPillText: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.xs"],
+    color: t.color["text.on-dark"],
+    backgroundColor: t.color["accent.cta"],
+    paddingHorizontal: t.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: t.radius.full,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    overflow: "hidden",
   } as any,
   infoSectionLs: {
     backgroundColor: "#EFE9DB",

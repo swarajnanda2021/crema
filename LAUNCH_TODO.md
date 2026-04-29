@@ -62,8 +62,8 @@ a fresh prod DB doesn't ship with an admin password printed in the
 repo. Add `.env.example` documenting every key the backend and
 frontend read.
 
-### 1.2 Env lockdown `[ ]`
-Three env vars, nothing more. All default to current localhost
+### 1.2 Env lockdown `[~]`
+Four env vars, nothing more. All default to current localhost
 behavior so dev stays unchanged:
 - `CORS_ORIGINS` — comma-separated list. Prod:
   `https://cremabrews.com`. Dev fallback: `*`.
@@ -72,6 +72,19 @@ behavior so dev stays unchanged:
   `./coffee_community.db` (cwd).
 - `UPLOADS_DIR` — upload write path. Prod: `/data/uploads`. Dev
   fallback: `./uploads`.
+- `ANTHROPIC_API_KEY` — Sonnet key the Catalog Ops bio enrichment,
+  per-product enrichment, and SCA tag classification all read.
+  Missing key degrades gracefully (`enrichment_status='deferred'`),
+  not a hard failure. Local dev loads from
+  `Community/coffee-community-api/.env` via `python-dotenv` (added
+  to `requirements.txt`, wired in `main.py` before any service
+  imports). Prod injection via `fly secrets set ANTHROPIC_API_KEY=...`
+  — Fly stores it encrypted, never on disk in the image. Same
+  `os.environ.get(...)` read-path in both worlds. `.env` is
+  gitignored at repo root (line 11) and `.env.example` documents
+  the full list. If a real key ever lands in git history, **rotate
+  at console.anthropic.com immediately** — making the repo private
+  doesn't fix already-committed secrets, only rotation does.
 
 `main.py`, `database.py`, `routes/uploads.py` each read one of
 these. No config framework, no pydantic-settings — four lines of
@@ -90,6 +103,27 @@ In `main.py`, mount the static dir at `/` AFTER the router include:
 `app.mount("/", StaticFiles(directory="static", html=True))`. The
 `html=True` flag makes unknown paths fall through to `index.html`
 so Expo Router's client-side routing keeps working.
+
+**Backend Python dependencies** (`Community/coffee-community-api/requirements.txt`
+is the source of truth — Stage 2 just `pip install -r`s it):
+- `fastapi`, `uvicorn[standard]` — HTTP server.
+- `passlib[bcrypt]` — auth password hashing.
+- `python-multipart` — file uploads.
+- `python-dotenv` — local-dev `.env` loader (Fly secrets bypass it; safe in prod).
+- `anthropic` — Sonnet / Haiku SDK for Catalog Ops bio enrichment + per-product enrichment + SCA tag classification.
+- `requests`, `beautifulsoup4` — HTML fetch + parse for the bio enrichment hero (homepage + about-page scrape).
+
+If you ever add a new Python dep to a `services/` file, **always**
+add it to this requirements.txt — otherwise the local M1 dev runs on
+the user's `(base)` venv (which has half-installed packages) and the
+prod Fly build fails on first deploy because `pip install` only
+sees what's declared. Symptom in the wild: `503 anthropic SDK isn't
+installed` after the API key is set — that's the test that catches
+missing-dep regressions.
+
+The backend `Makefile` (`make dev`, `make install`, `make seed-cafes`)
+is dev-only — Fly bypasses it via the Dockerfile entrypoint above.
+Don't try to invoke `make` inside the container.
 
 ### 1.4 Error boundary + 404 route `[ ]`
 Expo Router's `ErrorBoundary` export with user-friendly copy, plus
@@ -143,8 +177,18 @@ Then add to `fly.toml`:
 fly secrets set \
   CORS_ORIGINS="https://cremabrews.com" \
   DB_PATH="/data/coffee_community.db" \
-  UPLOADS_DIR="/data/uploads"
+  UPLOADS_DIR="/data/uploads" \
+  ANTHROPIC_API_KEY="sk-ant-..."
 ```
+The local-dev `.env` file is **not** uploaded — Fly secrets are the
+prod injection path. Same `os.environ.get(...)` read-path in the
+Python code, so no code changes between dev and prod.
+
+When you scale past F&F (think Phase 1+ with 1–5k weekly actives,
+where Sonnet usage is non-trivial), consider rotating
+`ANTHROPIC_API_KEY` to a separate prod-only key with its own usage
+cap so a runaway scrape can't drain the dev quota. Same `fly secrets
+set` flow, just a different key value — no code or infra change.
 
 ### 2.6 First deploy `[ ]` YOU
 ```
@@ -276,7 +320,52 @@ is ready and the first TestFlight invite goes out.
 - Uptime monitoring (Better Stack / Cronitor free tiers).
 - Daily automated Postgres dumps to R2/B2 offsite.
 
-## 3.8 Nice-to-haves (no trigger; pick up during slow weeks)
+## 3.8 Catalog-ops jobs in prod (trigger: Fly.io deploy with admin tabs shipped)
+
+**Context.** The admin profile carries two tabs (built locally on the M1
+first):
+
+- **Scraper tab** — list of roaster URLs, button to run the scrape, button to
+  add a new URL. Wraps the existing `Scraper/` Python module.
+- **Taste Graph tab** — count of unclassified flavor-note tags, button to run
+  Haiku classification on only the new ones, upload-new-tree (SCA JSON) with
+  validation diff. Wraps `tag_resolver_test.py` etc.
+
+In v0 these run synchronously on the M1: admin presses button → FastAPI
+spawns a background task in the same process → writes results to the local
+SQLite. That's fine for one admin user on one machine.
+
+The moment we cross into Fly.io (per §3.1 / §3.2 triggers), the same code
+path has new failure modes that this task addresses:
+
+- **Resource starvation.** A 5-30 min scrape on `shared-cpu-1x` starves
+  every other request. Need a separate worker process — arq / dramatiq /
+  rq, on the same container, with the API still answering on the main
+  process.
+- **Restart safety.** Fly machines restart on deploy / OOM. Job state in
+  process memory disappears. Need a `jobs` table: `id, kind, status,
+  started_at, finished_at, log_tail, started_by_user_id`. Worker reads
+  from queue, writes status back. Admin tab polls the table.
+- **Log persistence.** `print()` to stdout works locally; on Fly,
+  `fly logs` rotates and the admin can't view past runs from the app.
+  Pipe stdout into the `log_tail` column (or a `/data/job-logs/` file)
+  so the admin tab can render it.
+- **API-key handling.** `ANTHROPIC_API_KEY` moves from local shell env
+  to `fly secrets set ANTHROPIC_API_KEY=...`. Same code, different
+  injection point.
+- **Concurrency guard.** Only one scrape / one classification at a time.
+  DB-level lock on the `jobs` table (status='running' row blocks new
+  enqueues for that kind).
+- **Cron cadence.** Decide whether scrapes stay manual-only, or auto-fire
+  weekly via Fly's scheduled machines. If auto, the admin tab still shows
+  the last cron run with override controls.
+
+**When this trigger fires:** rewrite the v0 sync background-task path into
+a queue-backed worker, add the `jobs` table + endpoints, move secrets, add
+log capture. Estimated 1-2 days. Do not pre-build any of this for v0 —
+it's wasted complexity until we actually have a server to run on.
+
+## 3.9 Nice-to-haves (no trigger; pick up during slow weeks)
 - Dark mode scaffold (non-trivial; every `t.color` call needs
   re-audit).
 - i18n scaffolding (English + Hindi) via `t("key")`.

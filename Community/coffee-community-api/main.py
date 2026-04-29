@@ -13,6 +13,18 @@ from queue import Queue, Empty
 import json
 import asyncio
 
+# Load `.env` from the same directory as this `main.py`, regardless of
+# the cwd uvicorn was launched from. `load_dotenv()` with no argument
+# walks up from cwd, which silently fails when uvicorn is started from
+# a parent / sibling directory — surface as "ANTHROPIC_API_KEY is not
+# set" 503s. Anchoring to `__file__` makes it cwd-independent.
+# Production (Fly) injects the same vars via `fly secrets set`, so the
+# `os.environ.get(...)` read-path is identical in both worlds.
+# Per LAUNCH_TODO §1.2, the file is gitignored at repo root (line 11).
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

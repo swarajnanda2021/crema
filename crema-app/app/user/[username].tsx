@@ -387,12 +387,23 @@ export default function UserProfilePage() {
                 try {
                   const raw = await apiFetchRaw(`/direct-threads/with/${username}`, { method: "POST" });
                   const d = raw?.data ?? raw;
-                  if (d?.thread_id) {
-                    // Cross-component signal: let the navbar open the
-                    // Messages dropdown at this thread.
-                    if (typeof window !== "undefined") {
-                      (window as any).__crema_openThread?.("direct_message", d.thread_id);
-                    }
+                  if (!d?.thread_id) return;
+                  // Cross-platform open:
+                  //  - Web wide: Navbar's MessagesDropdown bridge opens
+                  //    the floating dropdown at the right thread.
+                  //  - Native / narrow web: navigate to the Messages
+                  //    tab with the thread id as a route param; that
+                  //    screen reads `useLocalSearchParams` and opens
+                  //    the thread (M3 fix). The web bridge doesn't
+                  //    exist on native because the Navbar component
+                  //    never mounts there.
+                  if (isMobile) {
+                    router.push({
+                      pathname: "/messages",
+                      params: { thread_id: String(d.thread_id), kind: "direct_message" },
+                    } as any);
+                  } else if (typeof window !== "undefined") {
+                    (window as any).__crema_openThread?.("direct_message", d.thread_id);
                   }
                 } catch (e) { console.warn("Open DM failed:", e); }
               }}

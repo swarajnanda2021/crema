@@ -40,8 +40,9 @@ import Navbar from "../../src/components/Navbar";
 import CremaLogo from "../../src/components/CremaLogo";
 import StampBookList from "../../src/components/StampBookList";
 import TractionDashboard from "../../src/components/admin/TractionDashboard";
+import CatalogOps from "../../src/components/admin/CatalogOps";
 
-type ProfileTab = "posts" | "shelf" | "stamps" | "following" | "analytics";
+type ProfileTab = "posts" | "shelf" | "stamps" | "following" | "analytics" | "catalog";
 
 // Admin check — defense in depth: slug match + flag match. The backend
 // endpoint enforces this same predicate on /api/stats/traction, so a
@@ -763,14 +764,15 @@ export default function ProfilePage() {
   ) : null;
 
   // ── Tab bar ─────────────────────────────────────────────────────────
-  // One extra tab ("SITE ANALYTICS") appears only on the Crema admin's own
-  // profile. Other users — and the admin viewing other users' profiles
-  // (handled by user/[username].tsx) — see only the base four. The six
-  // admin sections live inside that tab as a sub-tab carousel.
+  // Two extra tabs ("SITE ANALYTICS", "CATALOG OPS") appear only on the
+  // Crema admin's own profile. Other users — and the admin viewing other
+  // users' profiles (handled by user/[username].tsx) — see only the base
+  // four. SITE ANALYTICS holds the read-only metrics dashboard; CATALOG
+  // OPS holds the write/run-job actions for the scraper + taste graph.
   const isAdmin = isAdminUser(user);
   const baseTabs: ProfileTab[] = ["posts", "shelf", "stamps", "following"];
   const visibleTabs: ProfileTab[] = isAdmin
-    ? [...baseTabs, "analytics"]
+    ? [...baseTabs, "analytics", "catalog"]
     : baseTabs;
   const baseLabel = (tab: ProfileTab) =>
     tab === "posts"
@@ -781,7 +783,9 @@ export default function ProfilePage() {
       ? "STAMP BOOK"
       : tab === "following"
       ? "FOLLOWING"
-      : "SITE ANALYTICS";
+      : tab === "analytics"
+      ? "SITE ANALYTICS"
+      : "CATALOG OPS";
 
   const tabChildren = visibleTabs.map((tab) => (
     <Pressable
@@ -904,6 +908,12 @@ export default function ProfilePage() {
     tabContent = (
       <View style={s.adminTabContent}>
         <TractionDashboard />
+      </View>
+    );
+  } else if (isAdmin && activeTab === "catalog") {
+    tabContent = (
+      <View style={s.adminTabContent}>
+        <CatalogOps />
       </View>
     );
   } else if (activeTab === "following") {

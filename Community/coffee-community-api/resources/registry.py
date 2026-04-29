@@ -378,6 +378,17 @@ RESOURCES = {
             "wholesale_available": {"type": "int", "default": 0},
             "wholesale_minimum_kg": {"type": "int"},
             "wholesale_note": {"type": "str"},
+            # Phase 3+ enricher fields — populated by Sonnet at staging
+            # time, surfaced on the per-product card and the per-roaster
+            # Coffees section.
+            "process_raw": {"type": "str"},
+            "producer": {"type": "str"},
+            "brew_recommendation_json": {"type": "str"},
+            "enrichment_status": {"type": "str", "default": "pending"},
+            # Phase 6 — verbatim roast term + per-bean narrative blurb
+            # (third-person, distilled from the roaster's own copy).
+            "roast_level_name": {"type": "str"},
+            "roaster_blurb": {"type": "str"},
             "created_at": {"type": "str", "ro": True, "auto": "now"},
         },
         "auth": {"list": None, "read": None, "create": "required", "delete": "required"},
@@ -406,18 +417,54 @@ RESOURCES = {
             "roaster_slug": {"type": "str", "required": True},
             "name": {"type": "str"},
             "about_blurb": {"type": "str"},
+            "tagline": {"type": "str"},
             "specialties": {"type": "json"},
             "website": {"type": "str"},
             "city": {"type": "str"},
             "state": {"type": "str"},
+            "instagram_handle": {"type": "str"},
+            "contact_email": {"type": "str"},
             "logo_url": {"type": "str"},
             "hero_image_url": {"type": "str"},
             "hero_crop_x": {"type": "float", "default": 50},
             "hero_crop_y": {"type": "float", "default": 50},
             "hero_zoom": {"type": "float", "default": 1},
+            # Phase 1 — discoverability gate. Newly-enriched roasters land
+            # at `published=0` and only flip to 1 once the admin opens the
+            # profile drawer and toggles "Publish to Discover". Public
+            # listings should filter on this column going forward.
+            "published": {"type": "int", "default": 1},
+            # Phase 6 follow-up — per-roaster site prompt addendum.
+            # Sonnet writes this once after the first per-roaster Haiku
+            # enrichment run completes; subsequent runs prepend it to
+            # the base extraction system prompt. Visible to admin on
+            # the roaster page so they can read what the model is
+            # being told about THIS roaster on every run.
+            "enrichment_prompt_hint": {"type": "str"},
             "updated_at": {"type": "str"},
         },
         "auth": {"list": None, "read": None, "update": "required"},
+        "subfields": [
+            # `products_count` lets the ROASTERS grid show "24 coffees in
+            # catalog" on each roaster card without a second roundtrip.
+            {"name": "products_count",
+             "sql": "(SELECT COUNT(*) FROM products p WHERE p.roaster_slug = t.roaster_slug)"},
+            # `scrape_ready` reflects whether the corresponding
+            # `roaster_sources` row has both shop_url and platform set —
+            # i.e., the scraper actually knows how to crawl it. Surface
+            # this as the card's "✓ Scraper" / "⊘ Unverified" status.
+            {"name": "scrape_ready",
+             "sql": "(SELECT CASE WHEN rs.shop_url IS NOT NULL AND rs.platform IS NOT NULL "
+                    "THEN 1 ELSE 0 END FROM roaster_sources rs WHERE rs.website = t.website)"},
+        ],
+        # When admin edits the roaster's display name via the inline
+        # Name field on the admin page (PUT /api/roaster_profiles/{slug}),
+        # propagate the change to `users.display_name` for the linked
+        # roaster account so feed posts surface the canonical name
+        # instead of the slug. Same pattern as `sync_roaster_logo_to_user`
+        # (which lives explicit in the enrich routes); the dispatcher
+        # entry is in services/notifications.py.
+        "hooks": {"on_update": ["sync_roaster_name_to_user"]},
         "order": "roaster_slug ASC",
     },
 
@@ -664,6 +711,199 @@ RESOURCES = {
         "auth": {"list": None, "read": None, "create": "blocked", "delete": "blocked"},
         "order": "redeemed_at DESC",
         "limit": 200,
+    },
+
+    # ── Catalog Ops admin tabs (v0, local-only) ───────────────────────────
+    # These three resources are admin-gated (`auth: {"list": "admin", ...}`).
+    # The generic CRUD route in `routes/resources.py` enforces the admin
+    # predicate (`is_admin=1 AND username='crema'`) on every verb tagged
+    # "admin" — same shape as `_require_admin` in `routes/specific.py` so
+    # there's exactly one definition of who counts as admin.
+
+    "roaster_sources": {
+        "table": "roaster_sources",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "name": {"type": "str", "required": True},
+            "website": {"type": "str", "required": True},
+            "shop_url": {"type": "str"},
+            "platform": {"type": "str"},
+            "city": {"type": "str"},
+            "state": {"type": "str"},
+            "enabled": {"type": "int", "default": 1},
+            "added_at": {"type": "str", "ro": True, "auto": "now"},
+            "last_scraped_at": {"type": "str"},
+        },
+        "auth": {
+            "list": "admin", "read": "admin",
+            # Create goes through POST /api/admin/scrape/sources so we can
+            # do a cheap title-fetch before the row lands; PATCH and DELETE
+            # use the generic admin-gated update/delete paths.
+            "create": "blocked", "update": "admin", "delete": "admin",
+        },
+        # `roaster_slug` and `products_count` are computed via subquery
+        # so the admin tab can show "23 coffees in catalog" alongside
+        # each row without a second roundtrip. The link is
+        # roaster_sources.website → roaster_profiles.website
+        # → roaster_profiles.roaster_slug → products.roaster_slug.
+        # When a website doesn't match any roaster_profile (e.g. a
+        # trailing-slash difference) the count is 0 — that's a data
+        # cleanliness flag we surface honestly.
+        "subfields": [
+            {"name": "roaster_slug",
+             "sql": "(SELECT rp.roaster_slug FROM roaster_profiles rp WHERE rp.website = t.website)"},
+            {"name": "products_count",
+             "sql": "COALESCE((SELECT COUNT(*) FROM products p "
+                    "WHERE p.roaster_slug = "
+                    "(SELECT rp.roaster_slug FROM roaster_profiles rp WHERE rp.website = t.website)), 0)"},
+        ],
+        "order": "name ASC",
+        "limit": 500,
+    },
+
+    "jobs": {
+        "table": "jobs",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "kind": {"type": "str", "ro": True},
+            "status": {"type": "str", "ro": True},
+            "started_by": {"type": "int", "ro": True},
+            "started_at": {"type": "str", "ro": True},
+            "finished_at": {"type": "str", "ro": True},
+            "error_message": {"type": "str", "ro": True},
+            "log_tail": {"type": "str", "ro": True},
+            "result_summary": {"type": "json", "ro": True},
+            "created_at": {"type": "str", "ro": True, "auto": "now"},
+        },
+        "auth": {
+            "list": "admin", "read": "admin",
+            # Jobs are only created by the runners (POST /api/admin/.../run)
+            # and never updated / deleted by clients.
+            "create": "blocked", "update": "blocked", "delete": "blocked",
+        },
+        "order": "created_at DESC",
+        "limit": 50,
+    },
+
+    # ── Catalog Ops audit log: deleted roasters ───────────────────────────
+    # Read-only listing for the admin "Recently deleted" section. Rows are
+    # written from the DELETE /api/admin/roasters/{slug} endpoint just
+    # before the actual hard-delete, so the URL survives for re-enrichment.
+    "deleted_roasters": {
+        "table": "deleted_roasters",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "roaster_slug": {"type": "str", "ro": True},
+            "name": {"type": "str", "ro": True},
+            "website": {"type": "str", "ro": True},
+            "city": {"type": "str", "ro": True},
+            "state": {"type": "str", "ro": True},
+            "deleted_at": {"type": "str", "ro": True, "auto": "now"},
+            "deleted_by": {"type": "int", "ro": True},
+        },
+        "auth": {
+            "list": "admin", "read": "admin",
+            # Writes go through the DELETE-roaster admin endpoint; clients
+            # never insert / update / delete log rows directly.
+            "create": "blocked", "update": "blocked", "delete": "blocked",
+        },
+        "order": "deleted_at DESC",
+        "limit": 50,
+    },
+
+    "sca_addresses": {
+        "table": "sca_addresses",
+        "pk": "tag",
+        "pk_type": "str",
+        "fields": {
+            "tag": {"type": "str", "required": True},
+            "address_t1": {"type": "str"},
+            "address_t2": {"type": "str"},
+            "address_t3": {"type": "str"},
+            "is_null": {"type": "int", "default": 0},
+            "source": {"type": "str"},
+            "classified_at": {"type": "str", "ro": True, "auto": "now"},
+            "model_version": {"type": "str"},
+        },
+        "auth": {
+            "list": "admin", "read": "admin",
+            # Inserted by the runner (`run_geolocate_job`); admin override
+            # UI is parked under §3.8 so create/update/delete stay blocked.
+            "create": "blocked", "update": "blocked", "delete": "blocked",
+        },
+        "order": "tag ASC",
+        "limit": 500,
+    },
+
+    "sca_tree_versions": {
+        "table": "sca_tree_versions",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "uploaded_at": {"type": "str", "ro": True, "auto": "now"},
+            "uploaded_by": {"type": "int", "ro": True},
+            "tree_json": {"type": "str", "ro": True},
+            "is_active": {"type": "int", "default": 0},
+            "notes": {"type": "str"},
+        },
+        "auth": {
+            "list": "admin", "read": "admin",
+            # Uploads come through POST /api/admin/geolocate/tree (which
+            # validates structure + diff) and activations through
+            # /tree/{id}/activate. The generic verbs stay blocked so the
+            # validate→activate handshake is the only path.
+            "create": "blocked", "update": "blocked", "delete": "blocked",
+        },
+        "order": "uploaded_at DESC",
+        "limit": 50,
+    },
+
+    # ── Process canonicalization (Phase 4 prep, Mapping sub-tab) ─────────
+    # Mirrors `sca_addresses` + `sca_tree_versions` for processing methods.
+    # Distinct `products.process_raw` strings get mapped to a canonical
+    # bucket (Washed / Natural / Honey / Anaerobic / Carbonic Maceration /
+    # Lactic / Yeast Inoculated / Wet-Hulled / Other-Experimental), with
+    # the raw text preserved alongside so admin can re-canonicalize later.
+    "process_addresses": {
+        "table": "process_addresses",
+        "pk": "raw_string",
+        "pk_type": "str",
+        "fields": {
+            "raw_string": {"type": "str", "required": True},
+            "canonical": {"type": "str"},
+            "is_null": {"type": "int", "default": 0},
+            "source": {"type": "str"},
+            "classified_at": {"type": "str", "ro": True, "auto": "now"},
+            "model_version": {"type": "str"},
+        },
+        "auth": {
+            "list": "admin", "read": "admin",
+            "create": "blocked", "update": "blocked", "delete": "blocked",
+        },
+        "order": "raw_string ASC",
+        "limit": 500,
+    },
+
+    "process_canonical_versions": {
+        "table": "process_canonical_versions",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "uploaded_at": {"type": "str", "ro": True, "auto": "now"},
+            "uploaded_by": {"type": "int", "ro": True},
+            "taxonomy_json": {"type": "str", "ro": True},
+            "is_active": {"type": "int", "default": 0},
+            "notes": {"type": "str"},
+        },
+        "auth": {
+            "list": "admin", "read": "admin",
+            "create": "blocked", "update": "blocked", "delete": "blocked",
+        },
+        "order": "uploaded_at DESC",
+        "limit": 50,
     },
 }
 

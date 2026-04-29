@@ -116,9 +116,13 @@ export interface Product {
   roaster_name: string | null;
   coffee_name: string;
   roast_level: string | null;
+  /** Verbatim roaster term (Vienna / Full City+ / Espresso roast). */
+  roast_level_name: string | null;
   tasting_notes: string | null;
   origin: string | null;
   process: string | null;
+  /** Verbatim process text — preserves experimental specificity. */
+  process_raw: string | null;
   varietal: string | null;
   altitude_masl: number | null;
   bean_type: string | null;
@@ -128,8 +132,19 @@ export interface Product {
   image_url: string | null;
   product_url: string | null;
   description_raw: string | null;
+  /** Sonnet-distilled third-person narrative about THIS bean. */
+  roaster_blurb: string | null;
+  /** Producer / family / individual who grew the bean. */
+  producer: string | null;
+  /** Brew recommendation as JSON: { method, dose_grams, ratio, water_temp_celsius, notes }. */
+  brew_recommendation_json: string | null;
+  /** "pending" | "enriched" | "failed" | "deferred" */
+  enrichment_status: string | null;
   available: boolean | number;
   source: "scraped" | "manual" | "roaster";
+  wholesale_available: number | null;
+  wholesale_minimum_kg: number | null;
+  wholesale_note: string | null;
   created_at: string;
 }
 
@@ -210,14 +225,37 @@ export interface RoasterProfile {
   roaster_slug: string;
   name: string | null;
   about_blurb: string | null;
+  tagline: string | null;
   specialties: string[] | null;
   website: string | null;
   city: string | null;
+  state: string | null;
+  instagram_handle: string | null;
+  contact_email: string | null;
   logo_url: string | null;
   hero_image_url: string | null;
   hero_crop_x: number;
   hero_crop_y: number;
   hero_zoom: number;
+  // Phase 1 — admin-controlled Discover-visibility flag. Newly enriched
+  // roasters land at `0` and only flip to `1` when the admin reviews the
+  // synthesized bio in the Catalog Ops drawer and toggles "Publish".
+  published: number;
+  // Subfields computed via subquery on the roaster_profiles registry
+  // entry — the ROASTERS grid uses these to render the status caption
+  // ("✓ Scraper · 24 coffees" / "⊘ Unverified") without a second
+  // roundtrip. Both are number-or-null because the join may miss when
+  // the websites disagree on https/www. drift.
+  products_count?: number;
+  scrape_ready?: number;
+  /**
+   * Per-roaster site prompt addendum. Sonnet writes this once after
+   * the first per-roaster Haiku enrichment run completes; Haiku
+   * prepends it to the base extraction system prompt on every
+   * subsequent run for this roaster. Visible to admin on the
+   * roaster page so they can read what Haiku is being told.
+   */
+  enrichment_prompt_hint: string | null;
   updated_at: string | null;
 }
 
@@ -587,4 +625,126 @@ export interface TractionStats {
   retention: RetentionStats;
   supply: SupplyStats;
   generated_at: string;
+}
+
+// ── Catalog Ops admin tabs (v0) ────────────────────────────────────────────
+
+/** A roaster website the scraper crawls. The admin tab edits this list. */
+export interface RoasterSource {
+  id: number;
+  name: string;
+  website: string;
+  shop_url: string | null;
+  platform: string | null;
+  city: string | null;
+  state: string | null;
+  enabled: number;
+  added_at: string;
+  last_scraped_at: string | null;
+  // Computed via subquery in the registry — `roaster_slug` is the
+  // `roaster_profiles` slug whose website matches this row, and
+  // `products_count` is how many rows the marketplace currently
+  // carries for that slug. Surfaces "23 coffees in catalog" on each
+  // source so the admin can judge importance at a glance.
+  roaster_slug: string | null;
+  products_count: number;
+}
+
+/** Audit row written by the admin DELETE-roaster endpoint just before
+ *  the actual hard-delete. The "Recently deleted" admin section reads
+ *  this — re-enrichment from `website` recreates the profile if the
+ *  deletion was a mistake. */
+export interface DeletedRoaster {
+  id: number;
+  roaster_slug: string;
+  name: string | null;
+  website: string | null;
+  city: string | null;
+  state: string | null;
+  deleted_at: string;
+  deleted_by: number | null;
+}
+
+/** Background job tracked in the `jobs` table. */
+export interface CatalogJob {
+  id: number;
+  kind: "scrape" | "geolocate" | "tree_validate";
+  status: "queued" | "running" | "succeeded" | "failed";
+  started_by: number;
+  started_at: string | null;
+  finished_at: string | null;
+  error_message: string | null;
+  log_tail: string | null;
+  result_summary: Record<string, any> | string | null;
+  created_at: string;
+}
+
+/** One row per catalog tag → SCA-tree address resolution. */
+export interface ScaAddress {
+  tag: string;
+  address_t1: string | null;
+  address_t2: string | null;
+  address_t3: string | null;
+  is_null: number;
+  source: "haiku" | "admin_override" | "imported";
+  classified_at: string;
+  model_version: string | null;
+}
+
+/** Stored SCA tree, exactly one row marked is_active=1. */
+export interface ScaTreeVersion {
+  id: number;
+  uploaded_at: string;
+  uploaded_by: number | null;
+  tree_json: string;
+  is_active: number;
+  notes: string | null;
+}
+
+/** Top-section stats for the Taste Graph sub-tab. */
+export interface GeolocateStats {
+  total_catalog_tags: number;
+  geolocated: number;
+  null_resolved: number;
+  unclassified: number;
+  total_classified_rows: number;
+}
+
+/** Diff bucket returned by the tree-upload validation step. */
+export interface TreeDiffBucket {
+  count: number;
+  items: Array<{
+    tag: string;
+    address?: string[] | null;
+    old_address?: string[];
+    new_paths?: string[][];
+  }>;
+}
+
+export interface TreeUploadResult {
+  version_id: number;
+  diff: {
+    still_valid: TreeDiffBucket;
+    now_invalid: TreeDiffBucket;
+    would_change_meaning: TreeDiffBucket;
+  };
+}
+
+/** Proposed product change from a scrape (or manual sold-out) job. */
+export interface ScrapeProposal {
+  id: number;
+  job_id: number;
+  product_id: string;
+  change_type:
+    | "insert"
+    | "update"
+    | "restore_available"
+    | "mark_sold_out";
+  proposed_state: any | null;
+  prev_state: any | null;
+  status: "pending" | "applied" | "rejected" | "reverted";
+  applied_at: string | null;
+  reverted_at: string | null;
+  rejected_at: string | null;
+  created_at: string;
 }

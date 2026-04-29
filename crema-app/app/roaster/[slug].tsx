@@ -30,6 +30,8 @@ import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMen
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t } from "../../src/tokens/useTokens";
 import CoffeeCard from "../../src/components/CoffeeCard";
+import CoffeeDetailSheet from "../../src/components/CoffeeDetailSheet";
+import { commit as hapticCommit } from "../../src/utils/haptics";
 import SiteHeader from "../../src/components/SiteHeader";
 import PostCard from "../../src/components/domain/PostCard";
 import BusinessAnalytics from "../../src/components/analytics/BusinessAnalytics";
@@ -128,6 +130,7 @@ function CoffeeGrid({
   popularity?: Record<string, number>;
 }) {
   const [containerW, setContainerW] = useState(0);
+  const [detailCoffee, setDetailCoffee] = useState<any>(null);
   const { isMobile } = useBreakpoint();
   const available = containerW > 0 ? containerW - GRID_PAD * 2 : 800;
   const numCols = Math.max(1, Math.min(4, Math.round((available + GRID_GAP) / (TARGET_CARD_W + GRID_GAP))));
@@ -135,6 +138,14 @@ function CoffeeGrid({
   // Landscape aspect on mobile so the wrapper matches the landscape
   // fork inside CoffeeCard; portrait on web wide.
   const cardH = Math.floor(cardW * (isMobile ? LANDSCAPE_ASPECT : CARD_ASPECT));
+
+  // Long-press → CoffeeDetailSheet. Mounted once at the bottom of the
+  // grid (state lives here, not per card) so the sheet opens with
+  // whichever coffee was long-pressed.
+  const openDetail = useCallback((c: any) => {
+    hapticCommit();
+    setDetailCoffee(c);
+  }, []);
 
   if (coffees.length === 0 && !isOwner) {
     return (
@@ -144,7 +155,13 @@ function CoffeeGrid({
   return (
     <View onLayout={(e) => setContainerW(e.nativeEvent.layout.width)} style={[cg.grid, { gap: GRID_GAP, paddingHorizontal: GRID_PAD }]}>
       {coffees.map((c) => (
-        <View key={c.product_id || c.id} style={{ width: cardW, height: cardH }}>
+        <Pressable
+          key={c.product_id || c.id}
+          onLongPress={() => openDetail(c)}
+          delayLongPress={350}
+          style={{ width: cardW, height: cardH }}
+          accessibilityHint="Long-press to inspect every detail the roaster shared about this coffee"
+        >
           <CoffeeCard
             coffee={c} width={cardW} height={cardH}
             shelfMode={isOwner && !!onDeleteProduct}
@@ -152,13 +169,18 @@ function CoffeeGrid({
             onRemove={isOwner && onDeleteProduct ? () => onDeleteProduct(c.product_id || c.id) : undefined}
             onEdit={isOwner && onEditProduct ? () => onEditProduct(c) : undefined}
           />
-        </View>
+        </Pressable>
       ))}
       {isOwner && roasterName && onSaveCard && containerW > 0 && (
         <View key="__editable__" style={{ width: cardW, height: cardH }}>
           <EditableCoffeeCard roasterName={roasterName} width={cardW} height={cardH} onSave={onSaveCard} />
         </View>
       )}
+      <CoffeeDetailSheet
+        coffee={detailCoffee}
+        visible={detailCoffee !== null}
+        onClose={() => setDetailCoffee(null)}
+      />
     </View>
   );
 }

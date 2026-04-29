@@ -5,28 +5,40 @@
  * Only imports, API calls, and component references are updated for crud-utopia.
  */
 
-import { useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { Image } from "expo-image";
 import { Search, X, ArrowRight } from "lucide-react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useCafes } from "../../src/hooks/useCafes";
+import { useResource } from "../../src/resources/useResource";
 import { useSearchBarAutoHide } from "../../src/hooks/useSearchBarAutoHide";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { t, cardShadow } from "../../src/tokens/useTokens";
 import CoffeeList from "../../src/components/CoffeeList";
+import RoasterRow from "../../src/components/RoasterRow";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
+import type { RoasterProfile } from "../../src/resources/types";
 import SlidePanel from "../../src/components/mobile/SlidePanel";
 import { SlidersHorizontal } from "lucide-react-native";
 
 export default function BrowsePage() {
-  const { products, roasters, roastLevels, processes } = useCoffeeData();
+  const { products, roasters, roastLevels, processes, fetchProducts } = useCoffeeData();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
   const { isMobile } = useBreakpoint();
+
+  // Re-fetch products every time the user lands on Discover. Admin
+  // approvals on a fresh enrichment land in `products`; without this
+  // hook the consumer-side cache stays stale until app reload.
+  useFocusEffect(
+    useCallback(() => {
+      fetchProducts();
+    }, [fetchProducts]),
+  );
   const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
   const [query, setQuery] = useState("");
   const [popularity, setPopularity] = useState<Record<string, number>>({});
@@ -35,6 +47,10 @@ export default function BrowsePage() {
   const [selectedRoasters, setSelectedRoasters] = useState<string[]>([]);
   const [selectedRoasts, setSelectedRoasts] = useState<string[]>([]);
   const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
+  // Roasters tab — Location filter. Lifted to BrowsePage so the
+  // mobile filter drawer (rendered here) can edit the same array
+  // that the desktop sidebar inside RoastersList reads.
+  const [selectedCities, setSelectedCities] = useState<string[]>([]);
   // §2.16 — stable search-bar hide that doesn't thrash at
   // end-of-list. Replaces the old raw `y > lastY && y > 10` toggle.
   const { hidden: searchBarHidden, handleScroll: handleBeansScroll } = useSearchBarAutoHide();
@@ -47,6 +63,19 @@ export default function BrowsePage() {
   const { user } = useAuth();
   const canSeeWholesale = user?.account_type === "cafe" || user?.account_type === "roaster";
   const [wholesaleOnly, setWholesaleOnly] = useState(false);
+  // Two new lens-style toggles surfaced alongside the wholesale
+  // filter: `newOnly` narrows to beans created in the last 30 days
+  // (catalog-freshness signal — useful right after an enrichment
+  // run); `showSoldOut` flips the default available-only view to
+  // show ONLY sold-out beans (admin-y diagnostic — pre-launch the
+  // soft plan is to drop sold-outs from the catalog entirely; for
+  // now this lens lets us see them).
+  const [newOnly, setNewOnly] = useState(false);
+  const [showSoldOut, setShowSoldOut] = useState(false);
+  // 30 days expressed in milliseconds — `created_at` is ISO so a
+  // single Date.parse + arithmetic gets the cutoff. Defined once
+  // outside the filter useMemo so it stays cheap.
+  const NEW_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
   // §2.34 — mobile filter drawer. On narrow screens the sidebar is
   // hidden; a Filters button next to the search bar slides this in
   // from the right using the shared SlidePanel primitive.
@@ -61,7 +90,20 @@ export default function BrowsePage() {
 
   // Inline filtering (replaces filterCoffees utility)
   const filtered = useMemo(() => {
-    let list = products.filter((p: any) => p.available !== false && p.available !== 0);
+    // Default lens: in-stock only. `showSoldOut` flips it to
+    // sold-out only — the two are exclusive, never overlapping
+    // (consumer browsing wants either fresh stock or the "what's
+    // gone missing" lens, not a mix).
+    let list = showSoldOut
+      ? products.filter((p: any) => p.available === false || p.available === 0)
+      : products.filter((p: any) => p.available !== false && p.available !== 0);
+    if (newOnly) {
+      const cutoff = Date.now() - NEW_WINDOW_MS;
+      list = list.filter((p: any) => {
+        const ts = Date.parse(p.created_at || "");
+        return Number.isFinite(ts) && ts >= cutoff;
+      });
+    }
     if (query) {
       const q = query.toLowerCase();
       list = list.filter((p: any) =>
@@ -83,18 +125,55 @@ export default function BrowsePage() {
       list = [...list].sort((a, b) => (a.price_inr || 0) - (b.price_inr || 0));
     } else if (sortBy === "price_high") {
       list = [...list].sort((a, b) => (b.price_inr || 0) - (a.price_inr || 0));
+    } else if (sortBy === "newest") {
+      list = [...list].sort((a, b) => {
+        const ta = Date.parse(a.created_at || "") || 0;
+        const tb = Date.parse(b.created_at || "") || 0;
+        return tb - ta;
+      });
     }
     return list;
-  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, sortBy, popularity, canSeeWholesale, wholesaleOnly]);
+  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, sortBy, popularity, canSeeWholesale, wholesaleOnly, newOnly, showSoldOut]);
 
   const filteredRoasterCount = useMemo(() => new Set(filtered.map((p: any) => p.roaster_slug)).size, [filtered]);
-  const hasActiveFilters = selectedRoasters.length > 0 || selectedRoasts.length > 0 || selectedProcesses.length > 0 || !!query || (canSeeWholesale && wholesaleOnly);
+
+  // Cities derived once for the mobile drawer — same shape the
+  // RoastersList sidebar uses, kept in sync because both consume the
+  // same `roasters` from useCoffeeData.
+  const cities = useMemo(() => {
+    const set = new Set<string>();
+    (roasters as any[]).forEach((r: any) => { if (r.city) set.add(r.city); });
+    return Array.from(set).sort();
+  }, [roasters]);
+
+  // Per-tab filter activity. The drawer + the filter-icon dot need
+  // to reflect what's actually editable from the current tab, not
+  // the union of bean + roaster filters.
+  const beansFilterCount =
+    selectedRoasters.length +
+    selectedRoasts.length +
+    selectedProcesses.length +
+    (canSeeWholesale && wholesaleOnly ? 1 : 0) +
+    (newOnly ? 1 : 0) +
+    (showSoldOut ? 1 : 0);
+  const roastersFilterCount = selectedCities.length;
+  const activeFilterCount = activeTab === "roasters" ? roastersFilterCount : beansFilterCount;
+  const hasActiveFilters = activeTab === "roasters"
+    ? roastersFilterCount > 0
+    : (beansFilterCount > 0 || !!query);
 
   const toggleArray = (arr: string[], setter: (v: string[]) => void, val: string) => {
     setter(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
   };
 
-  const clearAll = () => { setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]); setQuery(""); setWholesaleOnly(false); };
+  const clearAll = () => {
+    if (activeTab === "roasters") {
+      setSelectedCities([]);
+    } else {
+      setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]); setQuery(""); setWholesaleOnly(false);
+      setNewOnly(false); setShowSoldOut(false);
+    }
+  };
 
   return (
     <View style={s.container}>
@@ -121,11 +200,11 @@ export default function BrowsePage() {
                 onPress={() => setFilterDrawerOpen(true)}
                 style={s.tabBarFilterBtn}
                 hitSlop={8}
-                accessibilityLabel={`Filters${hasActiveFilters ? `, ${selectedRoasters.length + selectedRoasts.length + selectedProcesses.length + (wholesaleOnly ? 1 : 0)} active` : ""}`}
+                accessibilityLabel={`Filters${activeFilterCount > 0 ? `, ${activeFilterCount} active` : ""}`}
                 accessibilityRole="button"
               >
                 <SlidersHorizontal size={24} color={t.color["text.primary"]} strokeWidth={1.75} />
-                {hasActiveFilters && <View style={s.tabBarFilterDot} />}
+                {activeFilterCount > 0 && <View style={s.tabBarFilterDot} />}
               </Pressable>
             )}
           </View>
@@ -174,6 +253,36 @@ export default function BrowsePage() {
                 </>
               )}
 
+              {/* Catalog freshness lenses \u2014 `New` narrows to beans
+                 created in the last 30 days; `Sold out` flips the
+                 default in-stock lens to show only retired stock.
+                 Same checkbox geometry as the wholesale row above. */}
+              <View style={s.filterSection}>
+                <Pressable
+                  onPress={() => setNewOnly((v) => !v)}
+                  style={s.wholesaleRow}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: newOnly }}
+                >
+                  <View style={[s.wholesaleBox, newOnly && s.wholesaleBoxOn]}>
+                    {newOnly && <Text style={s.wholesaleBoxTick}>{"\u2713"}</Text>}
+                  </View>
+                  <Text style={s.wholesaleLabel}>New (last 30 days)</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setShowSoldOut((v) => !v)}
+                  style={s.wholesaleRow}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: showSoldOut }}
+                >
+                  <View style={[s.wholesaleBox, showSoldOut && s.wholesaleBoxOn]}>
+                    {showSoldOut && <Text style={s.wholesaleBoxTick}>{"\u2713"}</Text>}
+                  </View>
+                  <Text style={s.wholesaleLabel}>Sold out</Text>
+                </Pressable>
+              </View>
+              <View style={s.filterDivider} />
+
               <View style={s.filterSection}>
                 <Text style={s.filterTitle}>Sort By</Text>
                 {[
@@ -219,6 +328,19 @@ export default function BrowsePage() {
                   <TextInput placeholder="Search" placeholderTextColor={t.color["text.muted"]} value={query} onChangeText={setQuery} style={s.searchInput} />
                   {query ? <Pressable onPress={() => setQuery("")} hitSlop={14} accessibilityLabel="Clear search"><X size={16} color={t.color["text.muted"]} /></Pressable> : null}
                 </View>
+                {/* Live coffee + roaster count under the search bar.
+                   Always visible (not just on desktop sidebar) so the
+                   admin can watch numbers move as enrichment runs
+                   land new beans. Reflects whatever filter lens is
+                   active (sold-out, new, wholesale, etc.). */}
+                <Text style={s.beansCount}>
+                  <Text style={s.beansCountBold}>{filtered.length}</Text>{" "}
+                  {filtered.length === 1 ? "coffee" : "coffees"} from{" "}
+                  <Text style={s.beansCountBold}>{filteredRoasterCount}</Text>{" "}
+                  {filteredRoasterCount === 1 ? "roaster" : "roasters"}
+                  {showSoldOut ? " · sold-out lens" : ""}
+                  {newOnly ? " · added in last 30 days" : ""}
+                </Text>
               </View>
             </View>
 
@@ -244,7 +366,11 @@ export default function BrowsePage() {
           </View>
         </View>
       ) : activeTab === "roasters" ? (
-        <RoastersList />
+        <RoastersList
+          cities={cities}
+          selectedCities={selectedCities}
+          setSelectedCities={setSelectedCities}
+        />
       ) : (
         <CafesList />
       )}
@@ -280,49 +406,92 @@ export default function BrowsePage() {
                 contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 }}
                 showsVerticalScrollIndicator={false}
               >
-                {canSeeWholesale && (
+                {activeTab === "roasters" ? (
+                  // ROASTERS tab — Location only, per the Figma 40:2769
+                  // sidebar spec. Bean-attribute filters belong to the
+                  // BEANS tab and have nothing to say about a roaster.
+                  <FilterSection
+                    title="Location"
+                    items={cities.map(c => ({ key: c, label: c }))}
+                    selected={selectedCities}
+                    onToggle={v => toggleArray(selectedCities, setSelectedCities, v)}
+                    maxVisible={20}
+                  />
+                ) : (
                   <>
+                    {canSeeWholesale && (
+                      <>
+                        <View style={s.filterSection}>
+                          <Pressable
+                            onPress={() => setWholesaleOnly((v) => !v)}
+                            style={s.wholesaleRow}
+                            accessibilityRole="switch"
+                            accessibilityState={{ checked: wholesaleOnly }}
+                          >
+                            <View style={[s.wholesaleBox, wholesaleOnly && s.wholesaleBoxOn]}>
+                              {wholesaleOnly && <Text style={s.wholesaleBoxTick}>{"\u2713"}</Text>}
+                            </View>
+                            <Text style={s.wholesaleLabel}>Wholesale</Text>
+                          </Pressable>
+                        </View>
+                        <View style={s.filterDivider} />
+                      </>
+                    )}
+                    {/* Catalog freshness lenses \u2014 same checkboxes as
+                       the desktop sidebar, bound to the same state
+                       so toggling between viewports never resets. */}
                     <View style={s.filterSection}>
                       <Pressable
-                        onPress={() => setWholesaleOnly((v) => !v)}
+                        onPress={() => setNewOnly((v) => !v)}
                         style={s.wholesaleRow}
                         accessibilityRole="switch"
-                        accessibilityState={{ checked: wholesaleOnly }}
+                        accessibilityState={{ checked: newOnly }}
                       >
-                        <View style={[s.wholesaleBox, wholesaleOnly && s.wholesaleBoxOn]}>
-                          {wholesaleOnly && <Text style={s.wholesaleBoxTick}>{"\u2713"}</Text>}
+                        <View style={[s.wholesaleBox, newOnly && s.wholesaleBoxOn]}>
+                          {newOnly && <Text style={s.wholesaleBoxTick}>{"\u2713"}</Text>}
                         </View>
-                        <Text style={s.wholesaleLabel}>Wholesale</Text>
+                        <Text style={s.wholesaleLabel}>New (last 30 days)</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => setShowSoldOut((v) => !v)}
+                        style={s.wholesaleRow}
+                        accessibilityRole="switch"
+                        accessibilityState={{ checked: showSoldOut }}
+                      >
+                        <View style={[s.wholesaleBox, showSoldOut && s.wholesaleBoxOn]}>
+                          {showSoldOut && <Text style={s.wholesaleBoxTick}>{"\u2713"}</Text>}
+                        </View>
+                        <Text style={s.wholesaleLabel}>Sold out</Text>
                       </Pressable>
                     </View>
                     <View style={s.filterDivider} />
+                    <View style={s.filterSection}>
+                      <Text style={s.filterTitle}>Sort By</Text>
+                      {[
+                        { key: "featured", label: "Featured" },
+                        { key: "newest", label: "Newest" },
+                        { key: "price_low", label: "Price: Low\u2013High" },
+                        { key: "price_high", label: "Price: High\u2013Low" },
+                      ].map(opt => (
+                        <Pressable key={opt.key} onPress={() => setSortBy(opt.key)} style={s.radioRow}>
+                          <View style={[s.radio, sortBy === opt.key && s.radioSelected]}>
+                            {sortBy === opt.key && <View style={s.radioDot} />}
+                          </View>
+                          <Text style={s.checkLabel}>{opt.label}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <View style={s.filterDivider} />
+                    <FilterSection title="Roast" items={roastLevels.map((l: string) => ({ key: l, label: l }))} selected={selectedRoasts} onToggle={v => toggleArray(selectedRoasts, setSelectedRoasts, v)} />
+                    <View style={s.filterDivider} />
+                    <FilterSection title="Roasters" items={roasters.map((r: any) => ({ key: r.slug, label: r.name }))} selected={selectedRoasters} onToggle={v => toggleArray(selectedRoasters, setSelectedRoasters, v)} maxVisible={20} />
+                    <View style={s.filterDivider} />
+                    <FilterSection title="Process" items={processes.map((p: string) => ({ key: p, label: p }))} selected={selectedProcesses} onToggle={v => toggleArray(selectedProcesses, setSelectedProcesses, v)} />
                   </>
                 )}
-                <View style={s.filterSection}>
-                  <Text style={s.filterTitle}>Sort By</Text>
-                  {[
-                    { key: "featured", label: "Featured" },
-                    { key: "newest", label: "Newest" },
-                    { key: "price_low", label: "Price: Low\u2013High" },
-                    { key: "price_high", label: "Price: High\u2013Low" },
-                  ].map(opt => (
-                    <Pressable key={opt.key} onPress={() => setSortBy(opt.key)} style={s.radioRow}>
-                      <View style={[s.radio, sortBy === opt.key && s.radioSelected]}>
-                        {sortBy === opt.key && <View style={s.radioDot} />}
-                      </View>
-                      <Text style={s.checkLabel}>{opt.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-                <View style={s.filterDivider} />
-                <FilterSection title="Roast" items={roastLevels.map((l: string) => ({ key: l, label: l }))} selected={selectedRoasts} onToggle={v => toggleArray(selectedRoasts, setSelectedRoasts, v)} />
-                <View style={s.filterDivider} />
-                <FilterSection title="Roasters" items={roasters.map((r: any) => ({ key: r.slug, label: r.name }))} selected={selectedRoasters} onToggle={v => toggleArray(selectedRoasters, setSelectedRoasters, v)} maxVisible={20} />
-                <View style={s.filterDivider} />
-                <FilterSection title="Process" items={processes.map((p: string) => ({ key: p, label: p }))} selected={selectedProcesses} onToggle={v => toggleArray(selectedProcesses, setSelectedProcesses, v)} />
               </ScrollView>
-              {/* Footer actions — reset (with count) on the left,
-                  apply on the right. */}
+              {/* Footer actions — reset (with per-tab count) on the
+                  left, apply on the right. */}
               <View style={s.filterDrawerFooter}>
                 <Pressable
                   onPress={clearAll}
@@ -330,7 +499,7 @@ export default function BrowsePage() {
                   style={[s.filterResetBtn, !hasActiveFilters && s.filterResetBtnDisabled]}
                 >
                   <Text style={s.filterResetText}>
-                    Reset{hasActiveFilters ? ` (${selectedRoasters.length + selectedRoasts.length + selectedProcesses.length + (wholesaleOnly ? 1 : 0)})` : ""}
+                    Reset{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
                   </Text>
                 </Pressable>
                 <Pressable onPress={() => setFilterDrawerOpen(false)} style={s.filterApplyBtn}>
@@ -431,52 +600,44 @@ function BrowseCard({
   );
 }
 
-function RoasterCard({
-  roaster, imageUrl, width: cardW,
+function RoastersList({
+  cities,
+  selectedCities,
+  setSelectedCities,
 }: {
-  roaster: any; imageUrl: string | undefined; width: number;
+  cities: string[];
+  selectedCities: string[];
+  setSelectedCities: (next: string[]) => void;
 }) {
   const router = useRouter();
-  const subtitle = [
-    [roaster.city, roaster.state].filter(Boolean).join(", "),
-    roaster.coffeeCount ? `${roaster.coffeeCount} ${roaster.coffeeCount === 1 ? "coffee" : "coffees"}` : "",
-  ].filter(Boolean).join("  \u00B7  ");
-
-  return (
-    <BrowseCard
-      imageUrl={imageUrl}
-      fallbackInitial={(roaster.name || "?")[0]}
-      name={roaster.name || ""}
-      subtitle={subtitle}
-      onPress={() => router.push(`/roaster/${roaster.slug}`)}
-      width={cardW}
-    />
-  );
-}
-
-function RoastersList() {
-  const { roasters, products } = useCoffeeData();
+  const { products } = useCoffeeData();
+  // Discover ROASTERS now reads `roaster_profiles` directly so the
+  // list is 1:1 with what the admin enriched (and published), not a
+  // products-derived view that hid every freshly-enriched roaster
+  // until at least one bean was scraped + approved. Profiles with
+  // `published=0` (unreviewed drafts) stay hidden from consumers.
+  const profilesResource = useResource<RoasterProfile>("roaster_profiles", { limit: 500 });
   const { width } = useWindowDimensions();
   const { isMobile } = useBreakpoint();
   const isDesktop = width >= 1024;
   const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
   const [roasterQuery, setRoasterQuery] = useState("");
-  const [selectedCities, setSelectedCities] = useState<string[]>([]);
-  const [containerW, setContainerW] = useState(0);
   const { hidden: searchBarHidden, handleScroll } = useSearchBarAutoHide();
 
-  // Match CoffeeList's grid math — same card width (240), same gap,
-  // same padding. Roaster / café card heights run a touch taller so
-  // the name + subtitle sit comfortably without cropping.
-  const GAP = 20;
-  const TARGET_CARD_W = 240;
-  const GRID_PAD = 16;
-  const CARD_ASPECT = 260 / 240;
-  const availW = containerW > 0 ? containerW - GRID_PAD * 2 : 960;
-  const numCols = Math.max(1, Math.min(8, Math.round((availW + GAP) / (TARGET_CARD_W + GAP))));
-  const cardW = Math.floor((availW - GAP * (numCols - 1)) / numCols);
-  const cardH = Math.floor(cardW * CARD_ASPECT);
+  // Re-fetch every time the user comes back to Discover. Admin
+  // approvals on a fresh enrichment land in `products` /
+  // `roaster_profiles`; this hook makes those visible without
+  // requiring an app reload.
+  useFocusEffect(
+    useCallback(() => {
+      profilesResource.refetch();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
+  );
 
+  // Per-roaster fallback image — the profile's own logo / hero takes
+  // precedence; the first product image is the fallback for legacy
+  // roasters whose profile assets haven't been filled in yet.
   const roasterImages = useMemo(() => {
     const map: Record<string, string> = {};
     (products as any[]).forEach((p: any) => {
@@ -485,29 +646,40 @@ function RoastersList() {
     return map;
   }, [products]);
 
-  const cities = useMemo(() => {
-    const set = new Set<string>();
-    roasters.forEach((r: any) => { if (r.city) set.add(r.city); });
-    return Array.from(set).sort();
-  }, [roasters]);
+  const publishedProfiles = useMemo(() => {
+    return (profilesResource.data || []).filter((p) => p.published === 1);
+  }, [profilesResource.data]);
 
   const filteredRoasters = useMemo(() => {
-    let result = roasters;
+    let result = publishedProfiles;
     if (roasterQuery) {
       const q = roasterQuery.toLowerCase();
-      result = result.filter((r: any) =>
+      result = result.filter((r) =>
         (r.name || "").toLowerCase().includes(q) ||
         (r.city || "").toLowerCase().includes(q)
       );
     }
     if (selectedCities.length > 0) {
-      result = result.filter((r: any) => selectedCities.includes(r.city));
+      result = result.filter((r) => !!r.city && selectedCities.includes(r.city));
     }
-    return result;
-  }, [roasters, roasterQuery, selectedCities]);
+    // Sort: most-stocked roasters surface first; alphabetical secondary.
+    return [...result].sort((a, b) => {
+      const ap = a.products_count || 0;
+      const bp = b.products_count || 0;
+      if (ap !== bp) return bp - ap;
+      return (a.name || a.roaster_slug).localeCompare(b.name || b.roaster_slug);
+    });
+  }, [publishedProfiles, roasterQuery, selectedCities]);
 
   const toggleCity = (city: string) => {
-    setSelectedCities(prev => prev.includes(city) ? prev.filter(c => c !== city) : [...prev, city]);
+    // setSelectedCities arrives from BrowsePage as a plain `(next) =>`
+    // setter, so we resolve the new array from the current `selectedCities`
+    // prop instead of the functional-setter pattern.
+    setSelectedCities(
+      selectedCities.includes(city)
+        ? selectedCities.filter(c => c !== city)
+        : [...selectedCities, city]
+    );
   };
 
   return (
@@ -551,21 +723,25 @@ function RoastersList() {
           showsVerticalScrollIndicator={false}
           onScroll={(e) => { onChromeScroll(e); if (!isMobile) handleScroll(e); }}
           scrollEventThrottle={16}
-          onLayout={(e) => setContainerW(e.nativeEvent.layout.width)}
           contentContainerStyle={{ paddingBottom: 100 }}
         >
-          <Text style={s.rPageTitle} numberOfLines={1}>Explore your favourite Indian coffee roasters</Text>
-          <View style={s.rDivider} />
-          <View style={[s.browseGrid, { gap: GAP, paddingHorizontal: GRID_PAD }]}>
-            {filteredRoasters.map((r: any) => (
-              <RoasterCard
-                key={r.slug}
-                roaster={r}
-                imageUrl={roasterImages[r.slug]}
-                width={cardW}
-              />
-            ))}
-          </View>
+          {filteredRoasters.map((r, idx) => (
+            <RoasterRow
+              key={r.roaster_slug}
+              imageUrl={
+                r.logo_url ||
+                r.hero_image_url ||
+                roasterImages[r.roaster_slug] ||
+                undefined
+              }
+              name={r.name || r.roaster_slug}
+              city={r.city}
+              state={r.state}
+              productsCount={r.products_count || 0}
+              showDivider={idx < filteredRoasters.length - 1}
+              onPress={() => router.push(`/roaster/${r.roaster_slug}`)}
+            />
+          ))}
         </ScrollView>
       </View>
     </View>
@@ -791,6 +967,18 @@ const s = StyleSheet.create({
   sidebar: { width: 195, minWidth: 195, maxWidth: 195, flexShrink: 0, flexGrow: 0 },
   sidebarCount: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.primary"], marginBottom: 16, lineHeight: 18 },
   sidebarCountBold: { fontFamily: t.font["body.semibold"] },
+  // Live count under the search bar — visible on every viewport so
+  // the admin can watch the catalog grow as enrichment runs land.
+  beansCount: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.secondary"],
+    paddingTop: t.spacing.sm,
+  } as any,
+  beansCountBold: {
+    fontFamily: t.font["body.semibold"],
+    color: t.color["text.primary"],
+  } as any,
 
   clearText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color.accent, marginBottom: 12 },
   filterDivider: { height: 1, backgroundColor: "rgba(215,209,196,0.5)", marginVertical: 12 },
