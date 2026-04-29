@@ -1715,6 +1715,96 @@ def admin_re_enrich_roaster(slug: str, user=Depends(get_current_user)):
     return admin_enrich_roaster({"website": website}, user=user)
 
 
+@router.post("/admin/roasters/{slug}/refresh-all", status_code=202)
+def admin_refresh_roaster_all(
+    slug: str,
+    body: dict = None,
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_current_user),
+):
+    """One-shot orchestrator: bio re-enrich (synchronous) → scrape job
+    (background). Returns the freshly-saved profile + the queued
+    scrape job's id so the per-roaster admin page can switch from
+    "filling profile fields" to "polling catalog enrichment" without
+    a second user click.
+
+    Body:
+      `regenerate_prompt` (optional): forwarded to the scrape job —
+        same semantics as the existing /admin/scrape/run flag.
+
+    Failure modes:
+      - Bio enrich raises (no API key, Sonnet down, unreachable site)
+        → bubbled up as the same 503/422 the underlying endpoint
+        would produce, scrape job NOT enqueued. Admin gets a clean
+        error with no half-applied state.
+      - Scrape pre-flight fails (no shop_url / platform after enrich)
+        → 422 with explicit message; bio enrich already saved.
+    """
+    _require_admin(user)
+    body = body or {}
+    regenerate_prompt = bool(body.get("regenerate_prompt"))
+
+    # Step 1 — pull website, run bio enrich. Reuses the existing
+    # admin_enrich_roaster handler so the COALESCE upsert + source
+    # mirror logic stays in one place.
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT website FROM roaster_profiles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not row or not row["website"]:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"No website on file for roaster {slug}")
+        website = row["website"]
+    finally:
+        db.close()
+
+    bio_envelope = admin_enrich_roaster({"website": website}, user=user)
+    bio_data = bio_envelope.get("data") if isinstance(bio_envelope, dict) else None
+
+    # Step 2 — re-fetch source so we know the freshly-mirrored
+    # shop_url + platform (Sonnet just wrote them via the bio enrich).
+    db = get_db()
+    try:
+        src_row = db.execute(
+            "SELECT id, shop_url, platform FROM roaster_sources rs "
+            "JOIN roaster_profiles rp ON rp.website = rs.website "
+            "WHERE rp.roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not src_row or not src_row["shop_url"] or not src_row["platform"]:
+            from fastapi import HTTPException
+            raise HTTPException(
+                422,
+                "Bio enrichment finished but the catalog source is missing "
+                "shop_url or platform. Set them manually, then run a scrape.",
+            )
+
+        # Step 3 — enqueue the scrape job. Same conflict + background-
+        # task wiring as /admin/scrape/run.
+        try:
+            job_id = catalog_ops.enqueue_job(db, "scrape", started_by=user["id"])
+        except catalog_ops.JobConflict as e:
+            from fastapi import HTTPException
+            raise HTTPException(
+                409, str(e), headers={"X-Live-Job-Id": str(e.live_job_id)},
+            )
+        background_tasks.add_task(
+            catalog_ops.run_scrape_job, job_id,
+            roaster_slug=slug,
+            regenerate_prompt=regenerate_prompt,
+        )
+        job_payload = _job_to_response(db, job_id)
+    finally:
+        db.close()
+
+    return ok(
+        {"profile": bio_data, "job": job_payload},
+        resource="roaster_refresh",
+    )
+
+
 @router.post("/admin/roasters/{slug}/publish")
 def admin_publish_roaster(slug: str, body: dict = None,
                             user=Depends(get_current_user)):

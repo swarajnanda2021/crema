@@ -48,7 +48,6 @@ import {
   ArrowLeft,
   Check,
   Pencil,
-  RefreshCw,
   Sparkles,
   Trash2,
   X,
@@ -92,8 +91,28 @@ export default function AdminRoasterPage() {
   // pattern; the only difference is which endpoint each one PUTs to.
   const [savingField, setSavingField] = useState<string | null>(null);
   const [savingScrapeField, setSavingScrapeField] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<"publish" | "reenrich" | "delete" | null>(null);
+  const [busyAction, setBusyAction] = useState<"publish" | "delete" | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Combined refresh flow — bio re-enrich runs synchronously on the
+  // backend (Sonnet against the homepage), then the same endpoint
+  // enqueues a per-roaster scrape job whose progress we poll. The
+  // status strip on the right hero row reads from `refreshPhase` and
+  // pairs with `phaseProgress` ("scraped 2/4 …") to surface what's
+  // actually happening to the admin.
+  const [refreshPhase, setRefreshPhase] = useState<
+    "idle" | "bio" | "scraping" | "enriching" | "done"
+  >("idle");
+  const [phaseProgress, setPhaseProgress] = useState<string | null>(null);
+
+  // Live catalog carousel — products already in the DB for this
+  // roaster. After accepting a proposal the new row lands here on the
+  // next refetch; admin can delete a stale bean directly from the
+  // card (warns first; next enrichment re-pulls it if still listed
+  // on the roaster's site).
+  const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
+  const [productToDelete, setProductToDelete] = useState<any | null>(null);
+  const [deletingProduct, setDeletingProduct] = useState(false);
 
   // Coffees section — pending bean-enrichment proposals scoped to
   // this roaster + the in-flight job (if the admin just kicked one off
@@ -187,25 +206,6 @@ export default function AdminRoasterPage() {
     }
   };
 
-  const toggleEnabled = async () => {
-    if (!source) return;
-    hapticCommit();
-    const next = source.enabled === 1 ? 0 : 1;
-    setSavingScrapeField("enabled");
-    setError(null);
-    try {
-      await apiFetchRaw(
-        `/admin/roasters/${slug}/scrape-settings`,
-        { method: "PUT", body: JSON.stringify({ enabled: next }) },
-      );
-      refetch();
-    } catch (e: any) {
-      setError(e?.message || "Couldn't toggle Enabled");
-    } finally {
-      setSavingScrapeField(null);
-    }
-  };
-
   // ── Catalog enrichment ────────────────────────────────────────────
   // Kick off the standalone scraper scoped to this one roaster, poll
   // its job row for completion, then refetch proposals so the
@@ -228,6 +228,41 @@ export default function AdminRoasterPage() {
   useEffect(() => {
     fetchProposals();
   }, [fetchProposals]);
+
+  const fetchCatalogProducts = useCallback(async () => {
+    if (!slug) return;
+    try {
+      const res: any = await apiFetchRaw(
+        `/products/filter?roaster_slug=${encodeURIComponent(slug)}&limit=200`,
+      );
+      const rows = (res?.data ?? res) as any[];
+      setCatalogProducts(Array.isArray(rows) ? rows : []);
+    } catch {
+      // Best-effort; the carousel just stays empty.
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    fetchCatalogProducts();
+  }, [fetchCatalogProducts]);
+
+  const deleteProduct = async () => {
+    if (!productToDelete) return;
+    hapticWarn();
+    setDeletingProduct(true);
+    setError(null);
+    try {
+      await apiFetchRaw(`/products/${productToDelete.product_id}`, {
+        method: "DELETE",
+      });
+      setProductToDelete(null);
+      await fetchCatalogProducts();
+    } catch (e: any) {
+      setError(e?.message || "Couldn't delete bean");
+    } finally {
+      setDeletingProduct(false);
+    }
+  };
 
   // Clean up any in-flight poll interval on slug change / unmount.
   useEffect(() => {
@@ -273,13 +308,35 @@ export default function AdminRoasterPage() {
         const res: any = await apiFetchRaw(`/jobs/${jobId}`);
         const job = (res?.data ?? res) as CatalogJob;
         consecutiveErrors = 0;
+        // Surface mid-flight progress in the status strip — once the
+        // log_tail mentions per-product enrichment we're past the
+        // raw scrape and into the Haiku phase. Cheap regex sniff
+        // against the rolling tail.
+        const tail = (job as any)?.log_tail || "";
+        if (typeof tail === "string") {
+          if (/staging proposals|per-product enrichment/i.test(tail)) {
+            setRefreshPhase("enriching");
+            const m = tail.match(/staged: scraped=(\d+)/);
+            if (m) setPhaseProgress(`Enriching ${m[1]} beans…`);
+          }
+        }
         if (job.status === "succeeded" || job.status === "failed") {
           stopPoll();
           setEnrichBusy(false);
+          setRefreshPhase(job.status === "succeeded" ? "done" : "idle");
+          setPhaseProgress(null);
+          // Auto-clear the "Done." status after a brief moment so the
+          // strip doesn't linger forever once everything's settled.
+          if (job.status === "succeeded") {
+            setTimeout(() => {
+              setRefreshPhase((cur) => (cur === "done" ? "idle" : cur));
+            }, 2500);
+          }
           if (job.status === "failed") {
             setEnrichError(job.error_message || "Enrichment failed.");
           }
           await fetchProposals();
+          await fetchCatalogProducts();
           refetch();
         }
       } catch (err: any) {
@@ -304,33 +361,49 @@ export default function AdminRoasterPage() {
     }, 2000);
   };
 
-  const runCatalogEnrichment = async () => {
-    if (!source?.shop_url || !source?.platform) {
-      setEnrichError(
-        "Set Shop URL and Platform first — enrichment needs both.",
-      );
-      return;
-    }
+  // Combined refresh — bio enrich + catalog scrape in one click. The
+  // backend orchestrator runs Sonnet against the website synchronously
+  // (5–10 s) and then enqueues a scrape job whose progress this page
+  // polls. Status strip cycles phase labels for the user; per-field
+  // streaming cascade lands later via SSE upgrade.
+  const refreshAll = async () => {
+    if (!profile) return;
     hapticCommit();
     setEnrichBusy(true);
     setEnrichError(null);
-    // Snapshot the toggle and clear it immediately — sticky for one
-    // click; the admin doesn't have to remember to flip it back.
+    setError(null);
+    setRefreshPhase("bio");
     const sendRegenerate = regeneratePromptOnNext;
     setRegeneratePromptOnNext(false);
     try {
-      const res: any = await apiFetchRaw("/admin/scrape/run", {
-        method: "POST",
-        body: JSON.stringify({
-          roaster_slug: slug,
-          regenerate_prompt: sendRegenerate,
-        }),
-      });
-      const job = (res?.data ?? res) as { id: number };
-      setEnrichJobId(job.id);
-      startPoll(job.id);
+      const res: any = await apiFetchRaw(
+        `/admin/roasters/${profile.roaster_slug}/refresh-all`,
+        {
+          method: "POST",
+          body: JSON.stringify({ regenerate_prompt: sendRegenerate }),
+        },
+      );
+      const data: any = res?.data ?? res;
+      const updatedProfile = data?.profile as RoasterProfile | undefined;
+      const job = data?.job as { id: number } | undefined;
+      if (updatedProfile) {
+        setProfile(updatedProfile);
+      }
+      // Pull the freshly-mirrored source row (shop_url / platform).
+      // Triggers a `setLoading(true)` flash but the rest of the page
+      // already has profile state, so the visible content is stable.
+      refetch();
+      if (job?.id) {
+        setEnrichJobId(job.id);
+        setRefreshPhase("scraping");
+        startPoll(job.id);
+      } else {
+        setRefreshPhase("done");
+        setEnrichBusy(false);
+      }
     } catch (e: any) {
-      setEnrichError(e?.message || "Couldn't start enrichment");
+      setEnrichError(e?.message || "Refresh failed");
+      setRefreshPhase("idle");
       setEnrichBusy(false);
     }
   };
@@ -377,31 +450,6 @@ export default function AdminRoasterPage() {
       setProfile({ ...profile, published: next });
     } catch (e: any) {
       setError(e?.message || "Couldn't change publish state");
-    } finally {
-      setBusyAction(null);
-    }
-  };
-
-  const reEnrich = async () => {
-    if (!profile) return;
-    hapticCommit();
-    setBusyAction("reenrich");
-    setError(null);
-    try {
-      await apiFetchRaw(
-        `/admin/roasters/${profile.roaster_slug}/re-enrich`,
-        { method: "POST" },
-      );
-      // The endpoint writes to BOTH `roaster_profiles` (bio + the new
-      // tagline / instagram / contact fields) and `roaster_sources`
-      // (platform + shop_url). The endpoint's response body only
-      // carries the profile shape, so `setProfile(updated)` would
-      // leave the local `source` state stale and the Scrape Settings
-      // block would show old values until the user navigated away.
-      // `refetch` pulls both fresh from the server.
-      refetch();
-    } catch (e: any) {
-      setError(e?.message || "Re-enrichment failed");
     } finally {
       setBusyAction(null);
     }
@@ -597,6 +645,51 @@ export default function AdminRoasterPage() {
             </Pressable>
           </View>
 
+          {/* ── Combined refresh row ──────────────────────────────────
+             Single CTA that runs bio re-enrich → catalog scrape in
+             one shot. Status strip on the left narrates what's
+             happening; the button itself stays right-aligned under
+             the Live/Hidden pill so the two action affordances on
+             this row stack visually. */}
+          <View style={s.refreshRow}>
+            <View style={s.statusStrip} pointerEvents="none">
+              {refreshPhase !== "idle" && (
+                <>
+                  <ActivityIndicator
+                    size="small"
+                    color={t.color["text.muted"]}
+                  />
+                  <Text style={s.statusStripText} numberOfLines={1}>
+                    {refreshPhase === "bio" && "Updating roaster bio…"}
+                    {refreshPhase === "scraping" && (phaseProgress || "Fetching catalog…")}
+                    {refreshPhase === "enriching" && (phaseProgress || "Enriching beans…")}
+                    {refreshPhase === "done" && "Done."}
+                  </Text>
+                </>
+              )}
+            </View>
+            <Pressable
+              onPress={refreshAll}
+              disabled={enrichBusy || refreshPhase === "bio" || refreshPhase === "scraping" || refreshPhase === "enriching"}
+              style={({ pressed }) => [
+                s.enrichCta,
+                (enrichBusy || refreshPhase === "bio" || refreshPhase === "scraping" || refreshPhase === "enriching") && s.ctaDisabled,
+                pressed && !enrichBusy && s.ctaPressed,
+              ]}
+              accessibilityLabel="Refresh roaster — bio + catalog enrichment"
+              accessibilityRole="button"
+            >
+              {enrichBusy ? (
+                <ActivityIndicator size="small" color={t.color["text.on-dark"]} />
+              ) : (
+                <Sparkles size={14} color={t.color["text.on-dark"]} strokeWidth={2} />
+              )}
+              <Text style={s.enrichCtaText}>
+                {enrichBusy ? "Refreshing…" : "Refresh roaster"}
+              </Text>
+            </Pressable>
+          </View>
+
           {/* ── 3. About ────────────────────────────────────────────── */}
           <View style={s.section}>
             <EditableField
@@ -671,135 +764,35 @@ export default function AdminRoasterPage() {
           </View>
 
           {/* ── 7. Coffees ──────────────────────────────────────────────
-             Per-roaster catalog enrichment surface. Replaces the old
-             read-only "Catalog scraper" badge with the editable
-             configuration (Shop URL · Platform · Enabled toggle), the
-             primary "Run enrichment" CTA, the post-run status
-             readout, and any pending bean proposals waiting on
-             admin review. The browse-side BEANS sub-tab now just
-             funnels here — this is where bean-pipeline work
-             actually happens. */}
-          {/* Re-enrich bio sits ABOVE the Coffees heading — it
-             operates on the identity sections (About / Specialties
-             / Location / Contact above), so it's logically a
-             continuation of the bio block, not a member of the
-             Coffees section. Same brown fill as Run enrichment so
-             both read as primary actions; row-anchored on its own
-             so a stray scroll-tap can't fire the wrong call. */}
-          <View style={s.bioReenrichRow}>
-            <Pressable
-              onPress={reEnrich}
-              disabled={busyAction === "reenrich"}
-              style={({ pressed }) => [
-                s.enrichCta,
-                busyAction === "reenrich" && s.ctaDisabled,
-                pressed && busyAction !== "reenrich" && s.ctaPressed,
-              ]}
-              accessibilityLabel="Re-enrich bio from the roaster's website"
-              accessibilityRole="button"
-            >
-              {busyAction === "reenrich" ? (
-                <ActivityIndicator size="small" color={t.color["text.on-dark"]} />
-              ) : (
-                <Sparkles size={14} color={t.color["text.on-dark"]} strokeWidth={2} />
-              )}
-              <Text style={s.enrichCtaText}>
-                {busyAction === "reenrich" ? "Enriching…" : "Re-enrich bio"}
-              </Text>
-            </Pressable>
-          </View>
-
+             Per-roaster catalog. The combined "Refresh roaster" CTA
+             above runs bio enrich + scrape in one click; this section
+             surfaces the resulting proposals for review and the live
+             catalog products with delete-per-card. The catalog-source
+             config (Shop URL · Platform) sits inline as plain
+             EditableFields — no card chrome — so the page reads as
+             one continuous form. The Enabled pill from the prior
+             design was a relic of the dormant bulk-scrape workflow
+             and is gone. */}
           <View style={s.section}>
-            <View style={s.coffeesHeader}>
-              <Text style={s.sectionHead}>Coffees</Text>
-              <Pressable
-                onPress={runCatalogEnrichment}
-                disabled={enrichBusy || !source?.shop_url || !source?.platform}
-                style={({ pressed }) => [
-                  s.enrichCta,
-                  (enrichBusy || !source?.shop_url || !source?.platform) && s.ctaDisabled,
-                  pressed && s.ctaPressed,
-                ]}
-                accessibilityLabel="Run catalog enrichment for this roaster"
-                accessibilityRole="button"
-              >
-                {enrichBusy ? (
-                  <ActivityIndicator size="small" color={t.color["text.on-dark"]} />
-                ) : (
-                  <RefreshCw size={14} color={t.color["text.on-dark"]} strokeWidth={2} />
-                )}
-                <Text style={s.enrichCtaText}>
-                  {enrichBusy ? "Enriching…" : "Run enrichment"}
-                </Text>
-              </Pressable>
-            </View>
-
-            {/* Catalog source — the scraper's entry point + Enabled
-               gate. Lifted out of the prior BEANS sub-tab so the
-               configuration that determines whether enrichment can
-               run sits next to the run CTA itself. */}
-            <View style={s.configCard}>
-              <View style={s.configHeaderRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.configTitle}>Catalog source</Text>
-                  <Text style={s.configHelper}>
-                    Verify the bean-catalog URL points at the
-                    specialty-coffee listing — narrower beats the
-                    generic /shop.
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={toggleEnabled}
-                  disabled={
-                    !source ||
-                    savingScrapeField === "enabled" ||
-                    (source?.enabled !== 1 && (!source?.shop_url || !source?.platform))
-                  }
-                  style={({ pressed }) => [
-                    s.enabledPill,
-                    source?.enabled === 1 ? s.enabledPillOn : s.enabledPillOff,
-                    pressed && { opacity: 0.85 },
-                  ]}
-                  accessibilityLabel={source?.enabled === 1 ? "Disable enrichment" : "Enable enrichment"}
-                  accessibilityRole="button"
-                >
-                  {savingScrapeField === "enabled" ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={source?.enabled === 1 ? t.color["text.on-dark"] : t.color["text.primary"]}
-                    />
-                  ) : (
-                    <Check
-                      size={14}
-                      color={source?.enabled === 1 ? t.color["text.on-dark"] : t.color["text.muted"]}
-                      strokeWidth={2}
-                    />
-                  )}
-                  <Text
-                    style={[
-                      s.enabledPillText,
-                      source?.enabled === 1 ? s.pillTextOn : s.pillTextOff,
-                    ]}
-                  >
-                    {source?.enabled === 1 ? "Enabled" : "Disabled"}
-                  </Text>
-                </Pressable>
-              </View>
-              <EditableField
-                label="Shop URL"
-                value={source?.shop_url || ""}
-                placeholder="https://roaster.example.com/collections/coffee"
-                saving={savingScrapeField === "shop_url"}
-                onSave={(next) => saveScrapeField("shop_url", next)}
-              />
-              <EditableField
-                label="Platform"
-                value={source?.platform || ""}
-                placeholder="shopify · woocommerce · custom"
-                saving={savingScrapeField === "platform"}
-                onSave={(next) => saveScrapeField("platform", next)}
-              />
-            </View>
+            <Text style={s.sectionHead}>Coffees</Text>
+            <Text style={s.configHelper}>
+              Verify the bean-catalog URL points at the specialty-coffee
+              listing — narrower beats the generic /shop.
+            </Text>
+            <EditableField
+              label="Shop URL"
+              value={source?.shop_url || ""}
+              placeholder="https://roaster.example.com/collections/coffee"
+              saving={savingScrapeField === "shop_url"}
+              onSave={(next) => saveScrapeField("shop_url", next)}
+            />
+            <EditableField
+              label="Platform"
+              value={source?.platform || ""}
+              placeholder="shopify · woocommerce · custom"
+              saving={savingScrapeField === "platform"}
+              onSave={(next) => saveScrapeField("platform", next)}
+            />
 
             {/* Site enrichment hint — Sonnet writes this once after
                the first per-roaster Haiku run, capturing what's
@@ -903,23 +896,82 @@ export default function AdminRoasterPage() {
                roaster, scoped by client-side filter on the global
                pending list. Long-press a card → BeanDetailModal
                (handled inside the carousel). The carousel handles
-               its own approve / skip + bulk actions. */}
+               its own approve / skip + bulk actions. After
+               acceptance the resulting product lands in the live
+               catalog carousel below. */}
             {latestPendingJobId !== null ? (
               <JobProposalsCarousel
                 jobId={latestPendingJobId}
-                onChanged={fetchProposals}
+                onChanged={() => {
+                  fetchProposals();
+                  fetchCatalogProducts();
+                }}
               />
             ) : enrichBusy && enrichJobId ? (
               <Text style={s.coffeesEmptyHint}>
                 Enriching your catalog · proposals will appear here when
                 the run finishes.
               </Text>
-            ) : (
+            ) : null}
+
+            {/* Live catalog — every product currently in the DB for
+               this roaster, in a horizontal carousel. Each card has
+               a small trash affordance that fires a confirm modal
+               before deleting; the warning notes that the next
+               enrichment run will re-pull the bean if it's still
+               on the roaster's site. */}
+            {catalogProducts.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={s.liveCatalogCarousel}
+              >
+                {catalogProducts.map((p) => (
+                  <View key={p.product_id} style={s.liveCard}>
+                    <View style={s.liveCardImageWrap}>
+                      {p.image_url ? (
+                        <Image
+                          source={{ uri: resolveUploadUrl(p.image_url) }}
+                          style={s.liveCardImage}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={s.liveCardImagePlaceholder} />
+                      )}
+                      <Pressable
+                        onPress={() => {
+                          hapticTap();
+                          setProductToDelete(p);
+                        }}
+                        hitSlop={8}
+                        style={s.liveCardDelete}
+                        accessibilityLabel={`Delete ${p.coffee_name}`}
+                        accessibilityRole="button"
+                      >
+                        <Trash2
+                          size={12}
+                          color={t.color["text.on-dark"]}
+                          strokeWidth={2}
+                        />
+                      </Pressable>
+                    </View>
+                    <Text style={s.liveCardName} numberOfLines={2}>
+                      {p.coffee_name}
+                    </Text>
+                    <Text style={s.liveCardMeta} numberOfLines={1}>
+                      {p.weight_grams ? `${p.weight_grams}g` : ""}
+                      {p.weight_grams && p.price_inr ? " · " : ""}
+                      {p.price_inr ? `₹${Math.round(p.price_inr)}` : ""}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : latestPendingJobId === null && !(enrichBusy && enrichJobId) ? (
               <Text style={s.coffeesEmptyHint}>
-                No proposals waiting on you. Tap "Run enrichment" to
-                refresh the bean catalog.
+                No beans in the catalog yet. Tap Refresh roaster above
+                to scrape this roaster's site.
               </Text>
-            )}
+            ) : null}
           </View>
 
           {error ? <Text style={s.errorText}>{error}</Text> : null}
@@ -934,6 +986,72 @@ export default function AdminRoasterPage() {
         </ScrollView>
         </KeyboardAvoidingView>
       )}
+
+      {/* Per-product delete confirm — same overlay shape as the
+         roaster remove modal, copy-tweaked for beans. */}
+      <Modal
+        visible={!!productToDelete}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setProductToDelete(null)}
+      >
+        <View style={s.confirmOverlayWrap}>
+          <Pressable
+            style={s.confirmOverlayBg}
+            onPress={() => setProductToDelete(null)}
+          />
+          <View style={s.confirmCard}>
+            <View style={s.confirmHeader}>
+              <Text style={s.confirmTitle}>
+                Delete {productToDelete?.coffee_name || "bean"}?
+              </Text>
+              <Pressable
+                onPress={() => {
+                  hapticTap();
+                  setProductToDelete(null);
+                }}
+                hitSlop={8}
+              >
+                <X size={t.size["icon.lg"]} color={t.color["text.primary"]} />
+              </Pressable>
+            </View>
+            <View style={s.confirmBody}>
+              <Text style={s.confirmText}>
+                The bean leaves the catalog immediately. The next
+                enrichment run will re-pull it from the roaster's site
+                if it's still listed there, so this is reversible.
+              </Text>
+              <View style={s.confirmActions}>
+                <Pressable
+                  onPress={() => {
+                    hapticTap();
+                    setProductToDelete(null);
+                  }}
+                  style={({ pressed }) => [s.linkBtn, pressed && s.linkBtnPressed]}
+                >
+                  <Text style={s.linkBtnText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={deleteProduct}
+                  disabled={deletingProduct}
+                  style={({ pressed }) => [
+                    s.cta,
+                    deletingProduct && s.ctaDisabled,
+                    pressed && s.ctaPressed,
+                  ]}
+                >
+                  {deletingProduct ? (
+                    <ActivityIndicator size="small" color={t.color["text.on-dark"]} />
+                  ) : (
+                    <Trash2 size={t.size["icon.sm"]} color={t.color["text.on-dark"]} strokeWidth={2} />
+                  )}
+                  <Text style={s.ctaText}>Delete bean</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Confirm-remove modal — top-level Modal (no nesting). */}
       <Modal
@@ -1373,30 +1491,36 @@ const s = StyleSheet.create({
     gap: t.spacing.sm,
   } as any,
   // ── Coffees section ─────────────────────────────────────────────
-  // Per-roaster catalog enrichment surface. Header carries the
-  // section title + the primary "Run enrichment" CTA on the right;
-  // a config card below carries the editable Shop URL · Platform ·
-  // Enabled pill that gates the run; the proposals carousel mounts
-  // below that whenever the latest scrape run for this roaster has
-  // pending changes awaiting review.
-  coffeesHeader: {
-    // Coffees title on the left, Run enrichment button on the
-    // right. Re-enrich bio is a separate row ABOVE this header
-    // (see `bioReenrichRow`) so the two enrichment actions can't
-    // be misfired for each other.
+  // Per-roaster catalog surface. The combined "Refresh roaster" CTA
+  // lives on the hero row above, so this section is bio-free —
+  // catalog source config (Shop URL · Platform) flows as plain
+  // EditableFields, the site-prompt hint is a flat collapsible
+  // panel, and the proposals + live-catalog carousels stack at the
+  // bottom.
+  // Combined refresh row — sits right under the Live/Hidden pill and
+  // above the About section. Status strip on the left narrates which
+  // phase the refresh is in (bio → scraping → enriching → done);
+  // the Refresh CTA stays right-aligned to mirror the Live/Hidden
+  // pill position above.
+  refreshRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: t.spacing.md,
-  },
-  // Wrapper for the standalone Re-enrich bio button — sits in its
-  // own row above the Coffees section. Right-aligned to mirror
-  // where Run enrichment lands inside the Coffees header below.
-  bioReenrichRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
+    gap: t.spacing.lg,
     paddingHorizontal: t.spacing.xl,
-    paddingTop: t.spacing.xl,
+    paddingTop: t.spacing.md,
+  } as any,
+  statusStrip: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: t.spacing.sm,
+    minHeight: 20,
+  } as any,
+  statusStripText: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.secondary"],
+    flex: 1,
   } as any,
   enrichCta: {
     flexDirection: "row",
@@ -1415,52 +1539,14 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  configCard: {
-    // Cream (card.info) background so the EditableField inputs
-    // inside — which use the lighter `card.front` — visually contrast
-    // and read as discrete fields rather than merging into the card.
-    backgroundColor: t.color["card.info"],
-    borderWidth: 1,
-    borderColor: t.color["border.light"],
-    borderRadius: t.radius.md,
-    padding: t.spacing.lg,
-    gap: t.spacing.md,
-  } as any,
-  configHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: t.spacing.lg,
-  },
-  configTitle: {
-    fontFamily: t.font["body.semibold"],
-    fontSize: t.size["font.md"],
-    color: t.color["text.primary"],
-  },
+  // Inline helper text under the Coffees section header — the prior
+  // `configCard` chrome is gone, the EditableFields below flow as
+  // plain rows so the page reads as one continuous form.
   configHelper: {
     fontFamily: t.font["body.regular"],
     fontSize: t.size["font.sm"],
     color: t.color["text.muted"],
     marginTop: t.spacing["2xs"],
-  },
-  enabledPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: t.spacing.xs,
-    paddingHorizontal: t.spacing.lg,
-    paddingVertical: t.spacing.sm,
-    borderRadius: t.radius.full,
-  } as any,
-  enabledPillOn: { backgroundColor: t.color["text.primary"] } as any,
-  enabledPillOff: {
-    backgroundColor: t.color["card.info"],
-    borderWidth: 1,
-    borderColor: t.color["border.light"],
-  } as any,
-  enabledPillText: {
-    fontFamily: t.font["body.semibold"],
-    fontSize: t.size["font.sm"],
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
   coffeesStatusLine: {
     fontFamily: t.font["body.regular"],
@@ -1475,22 +1561,20 @@ const s = StyleSheet.create({
     paddingTop: t.spacing.sm,
   } as any,
 
-  // Site enrichment hint card — collapsible panel that surfaces the
-  // per-roaster prompt addendum Sonnet generated, and the regen
-  // toggle for the next run.
+  // Site enrichment hint — collapsible inline section. Was a card in
+  // the prior design; flattened to match the rest of the Coffees
+  // section's plain-row rhythm. Top hairline border separates it
+  // from the EditableFields above.
   hintCard: {
-    backgroundColor: t.color["card.front"],
-    borderWidth: 1,
-    borderColor: t.color["border.light"],
-    borderRadius: t.radius.md,
-    overflow: "hidden",
+    borderTopWidth: 1,
+    borderTopColor: t.color["border.light"],
+    paddingTop: t.spacing.md,
+    marginTop: t.spacing.sm,
   } as any,
   hintHead: {
     flexDirection: "row",
     alignItems: "center",
     gap: t.spacing.md,
-    paddingHorizontal: t.spacing.lg,
-    paddingVertical: t.spacing.md,
   },
   hintTitle: {
     fontFamily: t.font["body.semibold"],
@@ -1800,6 +1884,60 @@ const s = StyleSheet.create({
   } as any,
   ctaDisabled: { opacity: 0.5 } as any,
   ctaPressed: { transform: [{ scale: 0.97 }] } as any,
+
+  // ── Live catalog carousel ────────────────────────────────────────
+  // Horizontal strip of products currently in the DB for this
+  // roaster. Each card carries a corner trash affordance that
+  // routes through a confirm modal before delete. Sized to fit ~2.5
+  // cards on a 390-px viewport so the carousel-ness is obvious.
+  liveCatalogCarousel: {
+    gap: t.spacing.md,
+    paddingTop: t.spacing.sm,
+  } as any,
+  liveCard: {
+    width: 140,
+    gap: t.spacing.xs,
+  } as any,
+  liveCardImageWrap: {
+    width: 140,
+    height: 140,
+    borderRadius: t.radius.md,
+    backgroundColor: t.color["card.info"],
+    overflow: "hidden",
+    position: "relative",
+  } as any,
+  liveCardImage: {
+    width: "100%",
+    height: "100%",
+  } as any,
+  liveCardImagePlaceholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: t.color["card.info"],
+  } as any,
+  liveCardDelete: {
+    position: "absolute",
+    top: t.spacing.xs,
+    right: t.spacing.xs,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: t.color["text.primary"],
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0.92,
+  } as any,
+  liveCardName: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.primary"],
+    lineHeight: 18,
+  },
+  liveCardMeta: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.xs"],
+    color: t.color["text.muted"],
+  },
   ctaText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.md"],
