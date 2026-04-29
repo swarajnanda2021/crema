@@ -7,6 +7,32 @@ For architecture rules see `CRUD_UTOPIA.md`.
 
 ---
 
+> **Café removal pivot — active workstream (2026-04-29)**
+>
+> `NORTH_STAR.md` was rewritten on 2026-04-29 to defer cafés out of
+> Phase 1. The vision is now consumer + roaster only; café tooling
+> (loyalty, supplier discovery, POS, wholesale commerce) returns as
+> a future **Phase N** project, redesigned from scratch. Reason:
+> trying to ship all three participant flows in Phase 1 turned out
+> to be too much. The consumer experience kept getting compromised
+> by café-side complexity (split notification stacks, account-type
+> guards, business chat, stamp-book UI) and roaster sign-up
+> suffered from ambiguity about who the audience was.
+>
+> Café-related code is **still in the codebase** as of this writing
+> — what's queued is the removal workstream tracked in **§2.42**.
+> Until that lands, café-touching content in §1.2, §1.4, §1.5, and
+> §1.7 carries either a section-level deferred banner (§1.4) or
+> mini-notes pointing back here. Café-shipped items in §2.1, §2.2,
+> §2.4, §2.6, §2.10, §2.15, §2.17, §2.20, §2.24 are folded into
+> the §2.42 removal scope.
+>
+> When §2.42 ships, those rows are deleted (not just retagged) —
+> the document goes back to reading as the live codebase, not a
+> changelog.
+
+---
+
 ## 1. What has been built
 
 ### 1.1 Architecture (CRUD Utopia)
@@ -70,6 +96,12 @@ Android from a single codebase.
 
 ### 1.4 Café features
 
+> **Deferred to Phase N — queued for removal in §2.42.** Content
+> preserved here as the removal audit reference; the section is
+> deleted (not just retagged) when the removal workstream ships.
+> See `NORTH_STAR.md` §3 "Phase N — Cafés re-enter (Future)" for
+> the rationale and `BUILD_ROADMAP.md` §2.42 for the inventory.
+
 | Feature | Description | Key files |
 |---------|-------------|-----------|
 | **Café profile** | Split-panel layout (dark left, light right), logo with drag/zoom (circular crop), hero with drag/zoom, about blurb, address, Instagram, website, hours, seasonal badge | `app/cafe/[slug].tsx` |
@@ -84,6 +116,16 @@ Android from a single codebase.
 | **Procurement profile** | Owner-only block on café profile: monthly volume (kg), open-to-new-roasters toggle, free-text note. Qualifies the lead for roasters once §2.1 "Interested" inquiries ship. | `cafe_profiles.{monthly_volume_kg, open_to_new_roasters, procurement_note}`, café page procurement block |
 
 ### 1.5 Admin dashboard
+
+> **Café-touching surfaces queued for §2.42 removal:** Site Analytics
+> *Loyalty* sub-tab (entirely café-derived), *Supply* sub-tab
+> wholesale + procurement + stamp + business-notification cards
+> (most of the section), the daily-stamps time-series, the
+> "top cafés by stamps" + café-followers ranked tables, and the
+> stamp-cohort retention grid. Catalog Ops surfaces (Phase 1–6
+> rows) stay — they're roaster-pipeline work — but references to
+> `wholesale_*` column preservation are obsolete once those columns
+> drop. See §2.42 for the precise list.
 
 | Feature | Description |
 |---------|-------------|
@@ -139,7 +181,7 @@ Android from a single codebase.
 
 ### 1.7 Seeded data
 
-- **9 Goa pilot cafés** with menus, hours, seasonal schedules, owner accounts (`seed_cafes.py`)
+- **9 Goa pilot cafés** with menus, hours, seasonal schedules, owner accounts (`seed_cafes.py`) [deferred — see §2.42]
 - **121 roasters** from scraped catalog + roaster profiles
 - **521 products** in unified products table
 - **Admin account:** username `crema`, password `crema`, is_admin=1
@@ -151,6 +193,15 @@ Android from a single codebase.
 Ordered by the Phase 1 roadmap in `NORTH_STAR.md`. Each item references
 the relevant section there. For deployment/infra prerequisites see
 `LAUNCH_TODO.md`.
+
+**Top priority right now: §2.42 — Café removal pivot.** Phase 1 just
+narrowed to consumer + roaster only (NORTH_STAR.md rewrite, 2026-04-29).
+The mobile readiness block (§2.31–§2.40) shipped in the previous
+session; remaining items (§2.37 hit-slop second wave, §2.39 EAS,
+§2.41 recommender, §2.40.8 DM archive backend) sit behind the café
+removal because the removal touches enough surfaces — admin + consumer
++ notifications + DB schema — that landing it first cleans the slate
+for everything after.
 
 ### Mobile (iOS + Android) readiness — THIS WEEK
 
@@ -1177,6 +1228,174 @@ both moved to the top of section 2, under the Runway summary.
 See "Mobile (iOS / Android) readiness — THIS WEEK" and "Launch
 blockers — everything non-mobile" up top. Heading numbers preserved
 for cross-references from commits.)*
+
+### 2.42 Café removal pivot
+
+`NORTH_STAR.md` was rewritten on 2026-04-29 to defer cafés out of
+Phase 1. Phase 1 is now consumer + roaster only; cafés return as a
+future Phase N redesign-from-scratch, gated on consumer-roaster
+traction and undated. This subsection is the removal workstream.
+
+**Why now.** Trying to ship all three participant flows in Phase 1
+turned out to be too much. The consumer experience kept getting
+compromised by café-side complexity (split notification stacks,
+account-type guards, business chat, stamp-book UI) and roaster
+sign-up suffered from ambiguity about who the audience was. We are
+pulling cafés out wholesale rather than partially, because half-
+removed café surfaces would carry the same cognitive overhead as
+the full thing.
+
+**Decisions (resolved 2026-04-29).** All seven decisions resolved
+to **delete** — when cafés re-enter in Phase N, the surfaces will
+be redesigned from scratch rather than revived from these rows.
+
+| # | Decision | Resolution |
+|---|----------|------------|
+| 1 | `products.wholesale_available` / `wholesale_minimum_kg` / `wholesale_note` columns | DELETE — drop columns; re-introduce in Phase N if/when wholesale lands |
+| 2 | `users.favorite_cafe_slug` column | DELETE |
+| 3 | `menu_updated_business` notification type | DELETE entirely (the consumer `menu_updated` handler is going away too — café surfaces gone) |
+| 4 | `account_type` enum `'cafe'` value | DELETE the value |
+| 5 | Existing `account_type='cafe'` user rows | DELETE (must run before the enum-drop migration) |
+| 6 | Feed posts with `category='stamp'` (and any café-tagged posts) | DELETE |
+| 7 | `BusinessAnalytics.tsx` post-removal scope | REDUCE — keep only the roaster *Audience* subtab (Followers · Posts this month · drop "Cafés following me"). Wholesale subtab + entire café dashboard removed |
+
+**Inventory (audited 2026-04-28; subject to revision when execution starts).**
+
+Files to delete entirely (11):
+
+```
+crema-app/app/cafe/[slug].tsx                        (~3,767 LOC)
+crema-app/src/hooks/useCafes.ts                      (63 LOC)
+crema-app/src/hooks/useCafeResolver.ts               (40 LOC)
+crema-app/src/hooks/useInquiryInbox.ts               (~50 LOC)
+crema-app/src/components/StampBookList.tsx           (122 LOC)
+crema-app/src/components/StampBookModal.tsx          (136 LOC)
+crema-app/src/components/QRModal.tsx                 (~80 LOC)
+crema-app/src/components/ScannerModal.tsx            (~70 LOC)
+crema-app/src/components/InterestedButton.tsx        (~70 LOC)
+Community/coffee-community-api/seed_cafes.py         (441 LOC)
+Community/coffee-community-api/services/qr_tokens.py (~70 LOC)
+```
+
+Files to modify surgically (~22):
+
+- **Frontend:** `app/(tabs)/browse.tsx` (drop CafeCard + Cafés tab),
+  `app/(tabs)/profile.tsx` (drop favorite-café row + Stamps tab),
+  `app/(tabs)/messages.tsx` (drop wholesale_inquiry branch),
+  `app/_layout.tsx` (drop /cafe route + GlobalPopularityModal café path),
+  `src/components/CoffeeCard.tsx` (drop Package chip + wholesale modal),
+  `src/components/NotificationsDropdown.tsx` (drop wholesale_inquiry / stamp_awarded / menu_updated_business / loyalty_changed / wholesale_available cases),
+  `src/components/MessagesDropdown.tsx` (drop business/non-business/archive split — non-business viewers already had two-tab Inbox/Archive shipped in §2.40, but the *business-tab* split goes),
+  `src/components/admin/TractionDashboard.tsx` (drop Loyalty + Supply renderers),
+  `src/components/analytics/BusinessAnalytics.tsx` (reduce to the surviving roaster Audience subtab),
+  `src/utils/types.ts` (drop Cafe type, wholesale fields on Product, café-flavored notification kinds),
+  `src/components/primitives/index.ts` (drop café composer helpers if any).
+- **Backend:** `database.py` (DROP migrations for `cafe_profiles`,
+  `cafe_menu_items`, `stamps`, `stamp_rewards`, `qr_tokens`,
+  `wholesale_inquiries`, `inquiry_messages`; column drops on
+  `users` + `products`; account_type enum tightening),
+  `resources/registry.py` (delete the 7 café/wholesale resources;
+  prune café-related fields on `users` + `roaster_posts` +
+  `products` + `notifications`),
+  `resources/crud.py` (drop café-flavored hook dispatch),
+  `routes/specific.py` (delete 9 café endpoints — `/cafes/{slug}/stamp`,
+  `/cafes/{slug}/qr-token`, `/api/wholesale-inquiries/*`,
+  `/api/my-wholesale-inquiries`),
+  `models.py`, `services/notifications.py` (delete wholesale +
+  stamp + menu_updated_business + loyalty_changed handlers),
+  `services/business_stats.py` (drop café composer),
+  `services/admin_stats.py` (drop loyalty + supply sections + the
+  series-defs for inquiries / stamps / wholesale signals).
+- **Specs / docs:** `specs/COMMUNITY_SPEC.md` (rewrite — drop wholesale
+  inquiries + stamp-cohort sections), this file (delete §1.4 +
+  the tagged §1.2 / §1.5 / §1.7 entries + the café-shipped §2.x
+  pointers, then delete §2.42 itself).
+
+**Total scope:** ~6,200 LOC removed, ~60-65 files touched, **7 tables
+DROPPED**, ~5-8 columns dropped from `users` + `products` + (possibly)
+`roaster_posts`. Estimated effort: 6-7 hours optimistic for a careful
+one-shot; realistically **1.5-2 focused sessions** when the spec
+rewrites + verification are factored in.
+
+**Pre-removal checklist:**
+
+```
+[ ] Confirm uvicorn is OFF before running schema migrations
+    (or accept the --reload race risk — safer to stop it first):
+    pkill -f "uvicorn main:app"
+[ ] Back up the DB:
+    cp Community/coffee-community-api/coffee_community.db \
+       Community/coffee-community-api/coffee_community.db.bak.preremoval
+[ ] Count café-related rows so impact is measurable:
+    sqlite3 …db "SELECT COUNT(*) FROM users WHERE account_type='cafe';"
+    sqlite3 …db "SELECT COUNT(*) FROM cafe_profiles;"
+    sqlite3 …db "SELECT COUNT(*) FROM stamps;"
+    sqlite3 …db "SELECT COUNT(*) FROM wholesale_inquiries;"
+    sqlite3 …db "SELECT COUNT(*) FROM inquiry_messages;"
+    sqlite3 …db "SELECT COUNT(*) FROM roaster_posts WHERE category='stamp' OR cafe_slug IS NOT NULL;"
+[ ] Spot-check FK cascade behaviour on cafe_profiles → cafe_menu_items
+    / stamps / wholesale_inquiries / inquiry_messages. Some FK paths
+    may not have ON DELETE CASCADE set; if so the migration order
+    matters (delete dependent tables first).
+```
+
+**Risk flags:**
+
+- **`account_type` enum tightening** — existing `'cafe'` user rows
+  must be deleted (decision #5) before the enum-drop migration; any
+  surviving café rows break user queries afterwards.
+- **Cascade deletes** — dropping `cafe_profiles` cascades to
+  `cafe_menu_items`, `stamps`, `wholesale_inquiries`,
+  `inquiry_messages`. Verify cascades fire cleanly; if not, drop
+  child tables first.
+- **CoffeeCard top-right slot** — currently shows heart/bin/Package
+  depending on viewer type. Removing the Package chip (wholesale
+  flag gone) leaves the slot for the heart only. Verify no other
+  future affordance was planned for it.
+- **Roaster-to-roaster DMs** — `direct_threads` / `direct_messages`
+  have no café dependency. Stays.
+- **Feed posts with café context** — any `roaster_posts` rows where
+  `category='stamp'` or `cafe_slug IS NOT NULL` get deleted (decision
+  #6). The user-facing feed will lose the historical posts; consistent
+  with the wholesale rewrite-from-scratch principle.
+- **`BusinessAnalytics.tsx`** — losing the Wholesale subtab + the
+  café dashboard halves the surface. The remaining roaster Audience
+  subtab is honest; resist the urge to pad it with new cards.
+- **Site Analytics admin dashboard** — the Loyalty + Supply sub-tabs
+  go away entirely, dropping the dashboard from 6 sub-tabs to 4
+  (Engagement, Commerce, Network, Retention). The admin entry point
+  shrinks; that's correct.
+
+**Execution order:**
+
+```
+1. Land NORTH_STAR.md rewrite ✅ (2026-04-29, current commit)
+2. Land BUILD_ROADMAP.md update ← in this commit
+3. Update specs/COMMUNITY_SPEC.md (drop wholesale + stamp sections)
+4. Backend removal — services + registry + DROP migrations DRAFTED
+   (not run yet); null-out / delete FK fields. User signs off on
+   the migration SQL before it touches the DB.
+5. Frontend removal — delete the 11 files, surgical edits to ~22.
+   Verify in Expo as each surface clears.
+6. Run migrations. Verify table drops are clean. Spot-check no
+   orphaned FKs.
+7. Commit as one or several logical chunks ("backend café
+   removal", "frontend café removal", "DB migrations", "docs
+   pivot"). Reviewable diffs > one giant commit.
+8. Delete this §2.42 + the §1.4 banner + the §1.5/§1.7 tags +
+   the top-of-doc pivot banner. Document goes back to reading as
+   live state, not a changelog.
+```
+
+**Out of scope:**
+
+- `Feed_mock_ups/` — untracked directory in the working tree.
+  Untouched by the removal; stays as-is.
+- Phase N café redesign — when cafés re-enter, surfaces are built
+  from scratch. This subsection is removal-only.
+
+*Once §2.42 ships, this subsection deletes itself along with §1.4,
+the §1.5 mini-note, the §1.7 tag, and the top-of-doc pivot banner.*
 
 ---
 
