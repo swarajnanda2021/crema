@@ -59,6 +59,7 @@ import { apiFetchRaw, resolveUploadUrl } from "../../../src/api/client";
 import { onChromeScroll } from "../../../src/utils/chromeScroll";
 import { useBreakpoint } from "../../../src/hooks/useBreakpoint";
 import SiteHeader from "../../../src/components/SiteHeader";
+import RoasterLogo from "../../../src/components/primitives/RoasterLogo";
 import JobProposalsCarousel from "../../../src/components/admin/JobProposalsCarousel";
 import {
   tap as hapticTap,
@@ -526,15 +527,11 @@ export default function AdminRoasterPage() {
               <Trash2 size={18} color={t.color["text.on-dark"]} strokeWidth={2} />
             </Pressable>
             <View style={s.heroContent}>
-              {profile.logo_url ? (
-                <Image
-                  source={{
-                    uri: resolveUploadUrl(profile.logo_url) || profile.logo_url,
-                  }}
-                  style={s.logo}
-                  contentFit="contain"
-                />
-              ) : null}
+              <RoasterLogo
+                url={profile.logo_url}
+                size={64}
+                fallbackInitial={profile.name || profile.roaster_slug}
+              />
               <View style={{ flex: 1 }}>
                 <Text style={s.heroTitle} numberOfLines={2}>
                   {profile.name || profile.roaster_slug}
@@ -1314,12 +1311,8 @@ const s = StyleSheet.create({
     alignItems: "flex-end",
     gap: t.spacing.md,
   } as any,
-  logo: {
-    width: 64,
-    height: 64,
-    borderRadius: t.radius.lg,
-    backgroundColor: t.color.bg,
-  } as any,
+  // (logo style removed — admin hero logo now uses the RoasterLogo
+  // primitive at size 64; see imports above.)
   heroTitle: {
     fontFamily: t.font.display,
     fontSize: t.size["font.2xl"],

@@ -17,7 +17,7 @@ import { Search as SearchIcon, X } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
 import { useCoffeeData } from "../hooks/useCoffeeData";
-import { CroppedAvatar } from "./primitives";
+import { CroppedAvatar, RoasterLogo } from "./primitives";
 
 interface Props {
   visible: boolean;
@@ -280,13 +280,7 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
                     onPress={() => goto(`/roaster/${r.roaster_slug}`)}
                     style={({ pressed }: any) => [s.row, pressed && s.rowPressed]}
                   >
-                    {r.logo_url ? (
-                      <Image source={{ uri: resolveUploadUrl(r.logo_url) }} style={s.thumb} />
-                    ) : (
-                      <View style={s.thumbFb}>
-                        <Text style={s.avatarLetter}>{(r.name || "?")[0]}</Text>
-                      </View>
-                    )}
+                    <RoasterLogo url={r.logo_url} size={28} fallbackInitial={r.name} />
                     <View style={s.rowText}>
                       <Text style={s.rowTitle} numberOfLines={1}>{r.name}</Text>
                       {r.city ? <Text style={s.rowMeta} numberOfLines={1}>{r.city}</Text> : null}

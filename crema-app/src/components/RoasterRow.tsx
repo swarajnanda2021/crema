@@ -1,32 +1,26 @@
 /**
  * RoasterRow — the canonical roaster list item, shared across the
  * consumer Discover ROASTERS tab and the admin Catalog Ops ROASTERS
- * sub-tab. Faithfully ports the Figma row design at node 40:2769:
- * image-left + name (Inter, large) + sub-line (Inter, body) + outline
- * circular arrow button right + hairline divider underneath. Press
- * state tints the row with the Crema pink (`t.color.flash`) so the
- * hover affordance stays consistent with the marketplace's flash
- * highlight language.
+ * sub-tab. Square `RoasterLogo` thumb on the left (canonical roaster
+ * identity treatment), name + sub-lines centered, outline circular
+ * arrow button on the right, hairline divider underneath. Press
+ * state tints the row with the Crema pink (`t.color.flash`).
  *
- * Sizes scale via `useBreakpoint`: wide screens get the literal Figma
- * dimensions (167×76 image, 60 px arrow); mobile scales image and
- * arrow down so the row still breathes on a 390 px viewport without
- * crushing the name into 3-line wrap.
+ * Sizes scale via `useBreakpoint`: thumb is 96 on mobile, 110 on
+ * wide; arrow scales down on mobile so the 390 px viewport doesn't
+ * crush the name into 3-line wrap.
  *
  * Admin callers can pass `pillLabel="Draft"` to surface the lifecycle
- * state as a top-left pill over the image — same geometry the old
- * portrait `RoasterCard` used so no visual vocabulary is lost in the
- * row migration.
+ * state as a top-left pill over the thumb.
  */
 
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Image } from "expo-image";
-import { ArrowRight, Coffee } from "lucide-react-native";
+import { ArrowRight } from "lucide-react-native";
 
 import { t } from "../tokens/useTokens";
 import { useBreakpoint } from "../hooks/useBreakpoint";
-import { resolveUploadUrl } from "../api/client";
 import { tap as hapticTap } from "../utils/haptics";
+import RoasterLogo from "./primitives/RoasterLogo";
 
 export default function RoasterRow({
   imageUrl,
@@ -48,8 +42,10 @@ export default function RoasterRow({
   onPress: () => void;
 }) {
   const { isMobile } = useBreakpoint();
-  const imageW = isMobile ? 100 : 167;
-  const imageH = 76;
+  // Square thumbs sitewide (canonical roaster identity treatment).
+  // Slightly larger than the previous 100×76 / 167×76 rectangles so
+  // the logo has room to breathe inside the rounded square.
+  const thumbSize = isMobile ? 96 : 110;
   const arrowSize = isMobile ? 44 : 60;
   const arrowIconSize = isMobile ? 16 : 22;
 
@@ -71,19 +67,8 @@ export default function RoasterRow({
       style={({ pressed }) => [s.row, pressed && s.rowActive]}
       accessibilityLabel={`Open ${name}`}
     >
-      <View style={[s.imageWrap, { width: imageW, height: imageH }]}>
-        {imageUrl ? (
-          <Image
-            source={{ uri: resolveUploadUrl(imageUrl) || imageUrl }}
-            style={StyleSheet.absoluteFillObject as any}
-            contentFit="cover"
-            transition={200}
-          />
-        ) : (
-          <View style={[StyleSheet.absoluteFillObject as any, s.imageFallback]}>
-            <Coffee size={t.size["icon.xl"]} color={t.color["text.muted"]} strokeWidth={1.5} />
-          </View>
-        )}
+      <View style={{ position: "relative" }}>
+        <RoasterLogo url={imageUrl} size={thumbSize} fallbackInitial={name} />
         {pillLabel ? (
           <View style={s.pill}>
             <Text style={s.pillText}>{pillLabel}</Text>
@@ -141,17 +126,6 @@ const s = StyleSheet.create({
   } as any,
   rowActive: {
     backgroundColor: t.color.flash,
-  } as any,
-  imageWrap: {
-    borderRadius: t.radius.xs,
-    overflow: "hidden",
-    backgroundColor: t.color["card.info"],
-    position: "relative",
-    flexShrink: 0,
-  } as any,
-  imageFallback: {
-    alignItems: "center",
-    justifyContent: "center",
   } as any,
   pill: {
     position: "absolute",

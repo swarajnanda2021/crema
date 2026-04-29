@@ -30,6 +30,7 @@ import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMen
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t } from "../../src/tokens/useTokens";
 import CoffeeCard from "../../src/components/CoffeeCard";
+import RoasterLogo from "../../src/components/primitives/RoasterLogo";
 import CoffeeDetailSheet from "../../src/components/CoffeeDetailSheet";
 import { commit as hapticCommit } from "../../src/utils/haptics";
 import SiteHeader from "../../src/components/SiteHeader";
@@ -609,14 +610,13 @@ export default function RoasterDetailPage() {
       )}
       {!isWide && (
         <View style={s.logoOverlapStripe} pointerEvents="box-none">
-          <View style={s.logoOverlapCircle}>
-            {logoUrl ? (
-              <Image source={{ uri: resolveUploadUrl(logoUrl) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-            ) : (
-              <View style={s.logoOverlapFallback}>
-                <Text style={s.logoOverlapInitial}>{(roaster.name || "?")[0].toUpperCase()}</Text>
-              </View>
-            )}
+          <View style={s.logoOverlapWrap}>
+            <RoasterLogo
+              url={logoUrl}
+              size={96}
+              fallbackInitial={roaster.name}
+              variant="hero-overlap"
+            />
           </View>
         </View>
       )}
@@ -1246,26 +1246,13 @@ const s = StyleSheet.create({
     position: "relative" as any,
     zIndex: 2,
   } as any,
-  logoOverlapCircle: {
+  // Anchors the rounded-square `RoasterLogo` (variant="hero-overlap")
+  // straddling the hero/panel seam. The primitive handles its own
+  // ring + fallback initial; this wrap just positions it.
+  logoOverlapWrap: {
     position: "absolute" as any,
     top: -48,
     left: t.spacing.lg,
-    width: 96, height: 96,
-    borderRadius: 48,
-    borderWidth: 4,
-    borderColor: t.color.bg,
-    backgroundColor: t.color["roaster.hero.fallback"],
-    overflow: "hidden",
-  } as any,
-  logoOverlapFallback: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: t.color.accent,
-  } as any,
-  logoOverlapInitial: {
-    fontFamily: t.font.display,
-    fontSize: 40,
-    color: t.color["text.on-dark"],
   } as any,
   heroDragHint: {
     position: "absolute" as any, top: "50%" as any, left: "50%" as any,

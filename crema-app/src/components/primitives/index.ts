@@ -7,6 +7,7 @@
 import { emit } from "../../utils/events";
 
 export { default as CroppedAvatar } from "./Avatar";
+export { default as RoasterLogo } from "./RoasterLogo";
 export { timeAgo } from "./TimeAgo";
 export { default as Toggle } from "./Toggle";
 export { default as ActionBar } from "./ActionBar";
