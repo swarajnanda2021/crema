@@ -808,7 +808,10 @@ def feed_timeline(limit: int = 30, offset: int = 0, authorization: str = Header(
     db = get_db()
     try:
         items, total = list_resource(db, "posts", limit=200, offset=0, current_user_id=uid)
-        items.sort(key=lambda x: x.get("published_at", ""), reverse=True)
+        # Coalesce NULL published_at to empty string before the sort —
+        # `dict.get(k, default)` returns None when the key exists with
+        # None value, and Python 3's `<` blows up on None < None.
+        items.sort(key=lambda x: x.get("published_at") or "", reverse=True)
         paginated = items[offset: offset + limit]
         return ok(paginated, resource="posts", total=total, limit=limit, offset=offset)
     finally:

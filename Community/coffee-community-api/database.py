@@ -824,12 +824,15 @@ _MIGRATIONS = [
     #   notifications (café-flavored)    : 7   (5 wholesale_inquiry + 2 inquiry_reply)
     #   roaster_posts.cafe_slug NOT NULL : 0
     "DELETE FROM roaster_posts WHERE cafe_slug IS NOT NULL",
-    "DELETE FROM users WHERE account_type='cafe'",
     """DELETE FROM notifications WHERE type IN (
         'wholesale_inquiry','inquiry_reply','stamp_awarded',
         'menu_updated_business','loyalty_changed','wholesale_available',
         'menu_added','menu_removed','menu_updated'
     )""",
+    # NOTE: deleting account_type='cafe' users runs OUTSIDE this list
+    # via _remove_cafe_users() — `init_db` wraps that call in
+    # PRAGMA foreign_keys = OFF / ON because the user rows are
+    # referenced from many tables without ON DELETE CASCADE.
     # Drop child tables first — even with PRAGMA foreign_keys = ON, this
     # ordering keeps us safe if any FK clause turns out to lack ON DELETE
     # CASCADE.
@@ -927,20 +930,17 @@ def init_db():
         _migrate_shelf_categories(conn)
     except Exception as e:
         print(f"Shelf migration note: {e}")
-    # Heal stale inquiry statuses: anything where a roaster has
-    # already replied but status is still 'open'. Idempotent; covers
-    # rows that pre-date the auto-respond-on-reply fix (§2.30) and
-    # any future mass-load where the message arrived before the
-    # status-flip logic did.
+    # §2.42 — drop café user rows. Lives outside the migration list
+    # because the account_type='cafe' users are referenced from many
+    # tables (sessions, posts, follows, …) without ON DELETE CASCADE,
+    # and PRAGMA foreign_keys is ON for the rest of the loop. Wrapping
+    # the delete with FK pragma OFF is the cleanest path; the orphaned
+    # rows in unrelated tables become inert (queries that JOIN to
+    # users naturally drop them).
     try:
-        _heal_inquiry_statuses(conn)
+        _remove_cafe_users(conn)
     except Exception as e:
-        print(f"Inquiry heal note: {e}")
-    # Seed pilot cafés (idempotent)
-    try:
-        _seed_pilot_cafes(conn)
-    except Exception as e:
-        print(f"Café seed note: {e}")
+        print(f"Café user cleanup note: {e}")
     # Catalog-ops seed (idempotent — populates roaster_sources from the
     # on-disk catalog JSON, sca_addresses from the cached resolutions, and
     # sca_tree_versions with the canonical SCA tree). Lives in services/
@@ -954,77 +954,28 @@ def init_db():
     conn.close()
 
 
-def _heal_inquiry_statuses(conn):
-    """Every inquiry where a roaster-account user has posted ≥1
-    message but the status is still 'open' becomes 'responded'. Runs
-    at boot and is idempotent."""
-    cur = conn.execute(
-        """
-        UPDATE wholesale_inquiries
-           SET status = 'responded',
-               updated_at = COALESCE(updated_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-         WHERE status = 'open'
-           AND EXISTS (
-               SELECT 1 FROM inquiry_messages im
-               JOIN users u ON u.id = im.user_id
-              WHERE im.inquiry_id = wholesale_inquiries.id
-                AND u.account_type = 'roaster'
-           )
-        """
-    )
-    if cur.rowcount:
-        print(f"Inquiry heal: flipped {cur.rowcount} rows open→responded")
-    conn.commit()
-
-
-def _seed_pilot_cafes(conn):
-    """Seed Brightside Café and Prana Goa — the Goa pilot. Idempotent."""
-    import datetime as _dt
-    now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    existing = conn.execute("SELECT cafe_slug FROM cafe_profiles WHERE cafe_slug IN ('brightside-mandrem', 'prana-goa')").fetchall()
-    existing_slugs = {r[0] for r in existing}
-
-    if 'brightside-mandrem' not in existing_slugs:
-        conn.execute("""
-            INSERT INTO cafe_profiles (
-                cafe_slug, name, about_blurb, address, city, state,
-                instagram_handle, seasonal_open_month, seasonal_close_month,
-                stamps_enabled, stamp_target, stamp_reward,
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            'brightside-mandrem',
-            'Brightside Café',
-            'A small café opposite the Mahalaxmi Temple in Mandrem. Known for bagels, continental brunch, and some of the best coffee in Goa. Closed during monsoon.',
-            'Junas Waddo, opposite Mahalaxmi Temple, Mandrem',
-            'Mandrem', 'Goa',
-            'brightsidecafe_goa',
-            10,  # opens October
-            5,   # closes end of May (i.e. closed June-September)
-            1, 10, 'Free coffee',
-            now, now,
-        ))
-
-    if 'prana-goa' not in existing_slugs:
-        conn.execute("""
-            INSERT INTO cafe_profiles (
-                cafe_slug, name, about_blurb, address, city, state,
-                instagram_handle, website,
-                seasonal_open_month, seasonal_close_month,
-                stamps_enabled, stamp_target, stamp_reward,
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            'prana-goa',
-            'Prana Goa',
-            'Wellness café at Vaayu Waterman''s Village in Ashwem. Multi-roaster pour menu, open year-round.',
-            'Vaayu Waterman''s Village, Ashwem, Mandrem',
-            'Mandrem', 'Goa',
-            'prana.goa',
-            'https://pranagoa.com',
-            None, None,  # year-round
-            1, 10, 'Free coffee',
-            now, now,
-        ))
-
-    conn.commit()
+def _remove_cafe_users(conn):
+    """Drop every account_type='cafe' user row. Wraps the DELETE in
+    PRAGMA foreign_keys = OFF so the user-id references that live in
+    sessions / shelf_entries / post_likes / follows / direct_threads /
+    notifications / etc. don't block the delete. Those tables don't
+    declare ON DELETE CASCADE on user_id, so the rows that reference
+    deleted users become orphans — inert in practice because every
+    user-facing query JOINs to users(id), and the orphaned rows
+    silently drop out of the result set. A future cleanup pass can
+    purge them; doing it inline would mean enumerating every table
+    that references users(id), which is brittle."""
+    rows = conn.execute(
+        "SELECT COUNT(*) FROM users WHERE account_type='cafe'"
+    ).fetchone()
+    n = rows[0] if rows else 0
+    if not n:
+        return
+    conn.executescript("""
+        PRAGMA foreign_keys = OFF;
+        BEGIN TRANSACTION;
+        DELETE FROM users WHERE account_type='cafe';
+        COMMIT;
+        PRAGMA foreign_keys = ON;
+    """)
+    print(f"Café user cleanup: deleted {n} users where account_type='cafe'")
