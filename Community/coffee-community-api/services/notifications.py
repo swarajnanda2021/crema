@@ -156,13 +156,14 @@ def _handle_shelf_upsert(db, item, user):
     # future "your friends are drinking …" surfaces.
 
 
-def _handle_sync_roaster_name_to_user(db, item, actor):
-    """When a roaster_profile name changes, mirror it onto the owner's
-    user.display_name so the navbar greeting stays accurate."""
-    if not item:
-        return
-    name = item.get("name")
-    slug = item.get("roaster_slug")
+def sync_roaster_name_to_user(db, slug: str, name: str) -> None:
+    """Mirror a roaster_profile name change onto the owner user's
+    display_name so the navbar greeting stays accurate.
+
+    Public helper — called both from the registry hook dispatcher (via
+    `_handle_sync_roaster_name_to_user`) and directly from the bio
+    re-enrich endpoint, which writes SQL outside the registry path.
+    """
     if not name or not slug:
         return
     db.execute(
@@ -170,6 +171,13 @@ def _handle_sync_roaster_name_to_user(db, item, actor):
         (name, slug),
     )
     db.commit()
+
+
+def _handle_sync_roaster_name_to_user(db, item, actor):
+    """Registry-hook variant — unpacks item dict, then delegates."""
+    if not item:
+        return
+    sync_roaster_name_to_user(db, item.get("roaster_slug"), item.get("name"))
 
 
 def _handle_sync_roaster_logo(db, item, actor):
