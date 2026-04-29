@@ -15,10 +15,15 @@ The vision anchor. Everything else is downstream of this.
 The moment a request is about writing, modifying, debugging, reviewing,
 deploying, or scoping code (anything beyond discussion, research,
 docs-only edits, or non-technical planning), Read the full contents of
-both before proposing changes or writing code:
+all three before proposing changes or writing code:
 
 - [CRUD_UTOPIA.md](CRUD_UTOPIA.md) — architecture rules (registry-driven backend, design tokens, the non-negotiables)
 - [BUILD_ROADMAP.md](BUILD_ROADMAP.md) — what's built, what's next, key files per feature
+- [DESIGN_LANGUAGE.md](DESIGN_LANGUAGE.md) — primary palette (3 brand colors only), font directive (NewSpirit display + Inter body), spacing/radius/shadow ladders, identity-surface split (CroppedAvatar circular vs RoasterLogo rounded square), pre-flight checklist
+
+The DESIGN_LANGUAGE.md doc is the source of truth for *visual*
+decisions — palette, typography, identity treatments. Run its
+pre-flight checklist before any UI commit.
 
 If unsure whether a request counts as "dev work," err on the side of
 reading them. The cost is small; the cost of acting on stale
