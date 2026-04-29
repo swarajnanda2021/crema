@@ -1,12 +1,9 @@
 /**
- * BusinessAnalytics — the lightweight per-business dashboard. Lives
- * inside roaster and café profile pages as an owner-gated "Analytics"
- * tab. Shape is deliberately small: two subtabs, three cards each,
- * one chart. Cards act as chart selectors — tap a card, the line
- * chart above re-plots that metric.
+ * BusinessAnalytics — roaster-only Audience dashboard. Lives inside
+ * the roaster profile page as an owner-gated "Analytics" tab.
  *
- * Backend: GET /api/stats/business/{kind}/{slug} returns a payload
- * shaped { [sectionKey]: { cards: [...], series: {...}, hero_key } }.
+ * Backend: GET /api/stats/business/roaster/{slug} returns a payload
+ * shaped { audience: { cards: [...], series: {...}, hero_key } }.
  * See services/business_stats.py.
  */
 
@@ -19,7 +16,7 @@ import { apiFetchRaw } from "../../api/client";
 import LineChart, { LineDatum } from "../admin/LineChart";
 import InfoModal, { InfoButton } from "../admin/InfoModal";
 
-type Kind = "roaster" | "cafe";
+type Kind = "roaster";
 
 interface Card {
   key: string;
@@ -44,16 +41,10 @@ interface Props {
   slug: string;
 }
 
-// Section labels + order per account type. Keep this small — each
-// business only gets two subtabs in V1.
+// Single section in V1 — roaster Audience.
 const SECTIONS: Record<Kind, { key: string; label: string }[]> = {
   roaster: [
-    { key: "wholesale", label: "Wholesale" },
-    { key: "audience",  label: "Audience" },
-  ],
-  cafe: [
-    { key: "loyalty",   label: "Loyalty" },
-    { key: "menu",      label: "Menu" },
+    { key: "audience", label: "Audience" },
   ],
 };
 

@@ -43,12 +43,11 @@ interface Account {
   slug?: string;
 }
 
-/** My own slug in the follows table — roaster / café slug for
- *  business accounts, `user_<id>` for regular users. Matches how
- *  backend `/my-following` stores rows. */
+/** My own slug in the follows table — roaster slug for business
+ *  accounts, `user_<id>` for regular users. Matches how backend
+ *  `/my-following` stores rows. */
 function mySlug(user: any): string {
   if (user?.roaster_slug) return user.roaster_slug;
-  if (user?.cafe_slug) return user.cafe_slug;
   return `user_${user?.id}`;
 }
 

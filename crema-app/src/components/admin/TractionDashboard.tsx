@@ -38,45 +38,35 @@ import RetentionTable from "./RetentionTable";
 export type AdminSection =
   | "engagement"
   | "commerce"
-  | "loyalty"
   | "network"
-  | "retention"
-  | "supply";
+  | "retention";
 
 const SECTIONS: AdminSection[] = [
   "engagement",
   "commerce",
-  "loyalty",
   "network",
   "retention",
-  "supply",
 ];
 
 const SECTION_LABELS: Record<AdminSection, string> = {
   engagement: "ENGAGEMENT",
   commerce: "COMMERCE",
-  loyalty: "LOYALTY",
   network: "NETWORK",
   retention: "RETENTION",
-  supply: "SUPPLY",
 };
 
 const SECTION_BLURBS: Record<AdminSection, string> = {
   engagement: "Who's active and how deeply.",
   commerce: "Buy-intent clicks, funnel, and top products.",
-  loyalty: "Stamps, reward conversion, and repeat visits.",
   network: "Follower graph and implicit community signals.",
   retention: "Weekly cohort grids and writer recurrence.",
-  supply: "Roasters, products, cafés, and ecosystem density.",
 };
 
 const SECTION_NICE: Record<AdminSection, string> = {
   engagement: "Engagement",
   commerce: "Commerce",
-  loyalty: "Loyalty",
   network: "Network",
   retention: "Retention",
-  supply: "Supply",
 };
 
 export default function TractionDashboard() {
@@ -180,17 +170,11 @@ export default function TractionDashboard() {
     case "commerce":
       body = renderCommerce(stats, headlineBasis);
       break;
-    case "loyalty":
-      body = renderLoyalty(stats, headlineBasis);
-      break;
     case "network":
       body = renderNetwork(stats, headlineBasis);
       break;
     case "retention":
       body = renderRetention(stats, headlineBasis);
-      break;
-    case "supply":
-      body = renderSupply(stats, headlineBasis);
       break;
   }
 
@@ -504,7 +488,7 @@ function renderEngagement(stats: any, basis: any) {
       <Text style={s.sectionHead}>Headline</Text>
       {grid(
         <>
-          <Card basis={basis} label="Total Users" value={e.total_users} hint={`${e.total_roasters} roasters · ${e.total_cafe_accounts} cafés`} info={E.totalUsers} seriesKey="daily_signups" />
+          <Card basis={basis} label="Total Users" value={e.total_users} hint={`${e.total_roasters} roasters`} info={E.totalUsers} seriesKey="daily_signups" />
           <Card basis={basis} label="DAU" value={e.dau} hint="Active in last 24h" info={E.dau} seriesKey="dau" />
           <Card basis={basis} label="WAU" value={e.wau} hint="Active in last 7d" info={E.wau} seriesKey="dau" />
           <Card basis={basis} label="MAU" value={e.mau} hint="Active in last 30d" info={E.mau} seriesKey="dau" />
@@ -617,53 +601,6 @@ function renderCommerce(stats: any, basis: any) {
   );
 }
 
-function renderLoyalty(stats: any, basis: any) {
-  const l = stats.loyalty;
-  return (
-    <View style={{ gap: t.spacing.xl }}>
-      <Text style={s.sectionHead}>Headline</Text>
-      {grid(
-        <>
-          <Card basis={basis} label="Total Stamps" value={l.total_stamps} info={E.totalStamps} seriesKey="total_stamps" />
-          <Card basis={basis} label="Last 7 days" value={l.stamps_7d} info={E.stamps7} />
-          <Card basis={basis} label="Last 30 days" value={l.stamps_30d} info={E.stamps30} />
-          <Card basis={basis} label="Last 90 days" value={l.stamps_90d} info={E.stamps90} />
-          <Card basis={basis} label="Unique Stamped Users" value={l.unique_stamped_users} info={E.uniqueStamped} />
-          <Card basis={basis} label="Avg Stamps / User" value={l.avg_stamps_per_user} info={E.avgStampsPerUser} />
-          <Card basis={basis} label="Loyal (3+ at a café)" value={l.loyal_cohort_3_plus} info={E.loyalCohort} />
-          <Card basis={basis} label="Avg Days Between Stamps" value={l.avg_days_between_stamps || "—"} info={E.avgBetween} />
-          <Card basis={basis} label="Rewards Redeemed" value={l.rewards_redeemed} info={E.rewardsRedeemed} />
-          <Card basis={basis} label="Reward Conversion" value={`${l.reward_conversion_pct}%`} hint="% of stamped users who reached target" info={E.rewardConversion} />
-        </>,
-      )}
-      <Text style={s.sectionHead}>Plots</Text>
-      <PlotCarousel
-        slides={[
-          <LineChart
-            key="stamps-90d"
-            title="Daily stamps (90d)"
-            valueLabel="Stamps"
-            data={toLineData(l.daily_stamps || [])}
-            info={E.dailyStamps}
-          />,
-          <MetricTable
-            key="top-cafes"
-            title="Top cafés by stamp volume"
-            valueHeader="Stamps"
-            info={E.topCafes}
-            rows={(l.top_cafes || []).map((c: any) => ({
-              label: c.name,
-              sub: c.city,
-              value: c.stamps,
-            }))}
-            maxHeight={360}
-          />,
-        ]}
-      />
-    </View>
-  );
-}
-
 function renderNetwork(stats: any, basis: any) {
   const n = stats.network;
   return (
@@ -693,22 +630,6 @@ function renderNetwork(stats: any, basis: any) {
             }))}
             maxHeight={360}
           />,
-          ...((n.top_cafes || []).length > 0
-            ? [
-                <MetricTable
-                  key="top-cafes"
-                  title="Top cafés by followers"
-                  valueHeader="Followers"
-                  info={E.topFollowedCafes}
-                  rows={(n.top_cafes || []).map((c: any) => ({
-                    label: c.name,
-                    sub: c.city,
-                    value: c.followers,
-                  }))}
-                  maxHeight={360}
-                />,
-              ]
-            : []),
         ]}
       />
     </View>
@@ -725,7 +646,6 @@ function renderRetention(stats: any, basis: any) {
         <>
           <Card basis={basis} label="Writers (≥1 note)" value={r.writers_total} info={E.writers} />
           <Card basis={basis} label="Writer Retention · 30d" value={`${r.writer_retention_30d_pct}%`} hint="% who wrote a second note within 30d" info={E.writerRetention} />
-          <Card basis={basis} label="First → Second Stamp · avg days" value={r.avg_first_to_second_stamp_days || "—"} info={E.firstToSecondStamp} />
           <Card basis={basis} label="Cohorts Tracked" value={(r.cohorts || []).length} info={E.weeklyCohorts} />
         </>,
       )}
@@ -766,113 +686,6 @@ function renderRetention(stats: any, basis: any) {
             key="grid"
             cohorts={r.cohorts || []}
             info={E.weeklyCohorts}
-          />,
-        ]}
-      />
-    </View>
-  );
-}
-
-function renderSupply(stats: any, basis: any) {
-  const sup = stats.supply;
-  return (
-    <View style={{ gap: t.spacing.xl }}>
-      <Text style={s.sectionHead}>Headline</Text>
-      {grid(
-        <>
-          <Card basis={basis} label="Roasters in Catalog" value={sup.roasters_total} info={E.roastersTotal} />
-          <Card basis={basis} label="With Profile" value={sup.roasters_with_profiles} info={E.roastersProfiles} />
-          <Card basis={basis} label="With Active Products" value={sup.roasters_with_products} info={E.roastersProducts} />
-          <Card basis={basis} label="With Followers" value={sup.roasters_with_followers} info={E.roastersFollowers} />
-          <Card basis={basis} label="Products Total" value={sup.products_total} info={E.productsTotal} />
-          <Card basis={basis} label="Available" value={sup.products_available} info={E.productsAvailable} />
-          <Card basis={basis} label="On a Shelf" value={sup.products_with_shelf_entry} info={E.productsShelf} />
-          <Card basis={basis} label="With Tasting Note" value={sup.products_with_tasting_note} info={E.productsNote} />
-          <Card basis={basis} label="Cafés Total" value={sup.cafes_total} info={E.cafesTotal} />
-          <Card basis={basis} label="Stamps Enabled" value={sup.cafes_stamps_enabled} info={E.cafesStamps} />
-          <Card basis={basis} label="With Any Stamp" value={sup.cafes_with_any_stamp} info={E.cafesAnyStamp} />
-          <Card basis={basis} label="Avg Menu Items" value={sup.avg_menu_items_per_cafe} info={E.avgMenu} />
-          <Card basis={basis} label="Sourcing From Catalog" value={sup.cafes_using_catalog_roasters} info={E.cafesCatalog} />
-          <Card basis={basis} label="Ecosystem Density" value={`${sup.ecosystem_density_pct}%`} hint="% of cafés pouring a catalog roaster" info={E.ecosystemDensity} />
-          {/* §2.17 — procurement readiness cards removed; the underlying UI on
-              the café profile was dropped because the inquiry thread already
-              carries the context the procurement fields were meant to provide. */}
-          <Card basis={basis} label="Business Notifs (30d)" value={sup.business_notifs_30d ?? 0} info={E.businessNotifs} />
-          <Card basis={basis} label="Activity Notifs (30d)" value={sup.activity_notifs_30d ?? 0} info={E.activityNotifs} />
-          <Card basis={basis} label="Business Share" value={`${sup.business_share_pct ?? 0}%`} hint="B2B vs social" info={E.businessShare} />
-          <Card basis={basis} label="Inquiries Total" value={sup.inquiries_total ?? 0} info={E.inquiriesTotal} seriesKey="inquiries_total" />
-          <Card basis={basis} label="Inquiries (30d)" value={sup.inquiries_30d ?? 0} info={E.inquiries30d} seriesKey="inquiries_30d" />
-          <Card basis={basis} label="Inquiries (7d)" value={sup.inquiries_7d ?? 0} hint="velocity" info={E.inquiries7d} seriesKey="inquiries_7d" />
-          <Card basis={basis} label="Inquiries Open" value={sup.inquiries_open ?? 0} info={E.inquiriesOpen} />
-          <Card basis={basis} label="Inquiry Response Rate" value={`${sup.inquiry_response_rate_pct ?? 0}%`} hint="responded or archived" info={E.inquiryResponseRate} />
-          <Card basis={basis} label="Median Response Time" value={sup.median_response_hours ? `${sup.median_response_hours}h` : "—"} hint="30d, hours to first reply" info={E.medianResponseHours} />
-          <Card basis={basis} label="Avg Thread Depth" value={sup.avg_thread_depth ?? 0} hint="messages per inquiry" info={E.avgThreadDepth} />
-          <Card basis={basis} label="Returning Cafés" value={sup.returning_cafes ?? 0} hint="2+ inquiries to same roaster" info={E.returningCafes} />
-          <Card basis={basis} label="Inquiry Messages" value={sup.inquiry_messages_total ?? 0} info={E.inquiryMessagesTotal} seriesKey="inquiry_messages_total" />
-          <Card basis={basis} label="Messages (30d)" value={sup.inquiry_messages_30d ?? 0} info={E.inquiryMessages30d} seriesKey="inquiry_messages_30d" />
-          <Card basis={basis} label="Cafés Inquiring" value={sup.inquiry_cafes_participating ?? 0} info={E.inquiryCafes} />
-          <Card basis={basis} label="Roasters Receiving" value={sup.inquiry_roasters_receiving ?? 0} info={E.inquiryRoasters} />
-          <Card basis={basis} label="Wholesale Available" value={sup.wholesale_available_total ?? 0} info={E.wholesaleAvailable} />
-          <Card basis={basis} label="Wholesale Signal" value={`${sup.wholesale_signal_pct ?? 0}%`} hint="% of active products" info={E.wholesaleSignalPct} />
-          <Card basis={basis} label="Roasters With Wholesale" value={sup.roasters_offering_wholesale ?? 0} info={E.wholesaleRoasters} />
-          <Card basis={basis} label="Sourcing Stories" value={sup.sourcing_stories_total ?? 0} info={E.sourcingStories} seriesKey="sourcing_stories_total" />
-          <Card basis={basis} label="Stories (30d)" value={sup.sourcing_stories_30d ?? 0} info={E.sourcingStories30d} seriesKey="sourcing_stories_total" />
-          <Card basis={basis} label="Story Share" value={`${sup.sourcing_story_share_pct ?? 0}%`} hint="% of roaster posts" info={E.sourcingStoryShare} />
-          <Card basis={basis} label="Brew Recipes" value={sup.brew_methods_total ?? 0} info={E.brewMethods} seriesKey="brew_methods_total" />
-          <Card basis={basis} label="Recipe Coverage" value={`${sup.recipe_coverage_pct ?? 0}%`} hint="% of products with a recipe" info={E.recipeCoverage} />
-          <Card basis={basis} label="Top Method" value={sup.top_brew_method || "—"} info={E.topBrewMethod} />
-        </>,
-      )}
-      {/* §2.18 expansion — ranked B2B tables. Same PlotCarousel
-         pattern as the Loyalty / Network / Commerce tabs use. */}
-      <Text style={s.sectionHead}>Plots</Text>
-      <PlotCarousel
-        slides={[
-          <MetricTable
-            key="top-inquired-beans"
-            title="Most-inquired beans"
-            valueHeader="Inquiries"
-            info={E.topInquiredBeans}
-            rows={(sup.top_inquired_beans || []).map((r: any) => ({
-              label: r.label,
-              sub: r.sub,
-              value: r.value,
-            }))}
-            maxHeight={360}
-          />,
-          <MetricTable
-            key="top-responsive-roasters"
-            title="Most-responsive roasters"
-            valueHeader="Response %"
-            info={E.topResponsiveRoasters}
-            rows={(sup.top_responsive_roasters || []).map((r: any) => ({
-              label: r.label,
-              sub: r.sub,
-              value: r.value,
-            }))}
-            maxHeight={360}
-          />,
-          <MetricTable
-            key="inquiry-cafe-cities"
-            title="Cafés inquiring by city"
-            valueHeader="Inquiries"
-            info={E.inquiryCafeCities}
-            rows={(sup.inquiry_cafe_cities || []).map((r: any) => ({
-              label: r.label,
-              value: r.value,
-            }))}
-            maxHeight={360}
-          />,
-          <MetricTable
-            key="inquiry-roaster-cities"
-            title="Roasters receiving by city"
-            valueHeader="Inquiries"
-            info={E.inquiryRoasterCities}
-            rows={(sup.inquiry_roaster_cities || []).map((r: any) => ({
-              label: r.label,
-              value: r.value,
-            }))}
-            maxHeight={360}
           />,
         ]}
       />

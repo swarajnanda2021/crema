@@ -19,7 +19,6 @@ import { useAuth } from "../../src/hooks/useAuth";
 import { listen } from "../../src/utils/events";
 import { useShelves } from "../../src/hooks/useShelves";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
-import { useCafes } from "../../src/hooks/useCafes";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
@@ -38,11 +37,10 @@ import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 import Navbar from "../../src/components/Navbar";
 import CremaLogo from "../../src/components/CremaLogo";
-import StampBookList from "../../src/components/StampBookList";
 import TractionDashboard from "../../src/components/admin/TractionDashboard";
 import CatalogOps from "../../src/components/admin/CatalogOps";
 
-type ProfileTab = "posts" | "shelf" | "stamps" | "following" | "analytics" | "catalog";
+type ProfileTab = "posts" | "shelf" | "following" | "analytics" | "catalog";
 
 // Admin check — defense in depth: slug match + flag match. The backend
 // endpoint enforces this same predicate on /api/stats/traction, so a
@@ -190,19 +188,16 @@ export default function ProfilePage() {
   const { user, loading: authLoading, updateProfile } = useAuth();
   const { shelves, fetchShelves, addToShelf, removeFromShelf } = useShelves();
   const { productMap } = useCoffeeData();
-  const { cafes } = useCafes();
   const router = useRouter();
   const { edit } = useLocalSearchParams<{ edit?: string }>();
   const { width: screenW } = useWindowDimensions();
   const isNarrow = screenW < 768;
   const { isMobile } = useBreakpoint();
 
-  // Sellers (roasters / cafés) go to their entity profile page instead
+  // Sellers (roasters) go to their storefront page instead
   useEffect(() => {
     if (user?.account_type === "roaster" && user?.roaster_slug) {
       router.replace(`/roaster/${user.roaster_slug}`);
-    } else if (user?.account_type === "cafe" && user?.cafe_slug) {
-      router.replace(`/cafe/${user.cafe_slug}`);
     }
   }, [user]);
 
@@ -240,12 +235,6 @@ export default function ProfilePage() {
   const [editBio, setEditBio] = useState("");
   const [editDrink, setEditDrink] = useState("");
   const [editCafe, setEditCafe] = useState("");
-  // Favorite café is now a proper FK pick from the cafés list (scarce
-  // "cult status" signal, one per user). Free text stays around as a
-  // fallback for un-migrated users.
-  const [editFavCafeSlug, setEditFavCafeSlug] = useState<string | null>(null);
-  const [showCafePicker, setShowCafePicker] = useState(false);
-  const [cafeQuery, setCafeQuery] = useState("");
   const [editPref, setEditPref] = useState("");
   const [editBrew, setEditBrew] = useState("");
   const [editLocation, setEditLocation] = useState("");
@@ -269,7 +258,6 @@ export default function ProfilePage() {
       setEditBio(user.bio || "");
       setEditDrink(user.favorite_drink || "");
       setEditCafe(user.favorite_cafe || "");
-      setEditFavCafeSlug(user.favorite_cafe_slug || null);
       setEditPref(user.coffee_preference || "");
       setEditBrew(user.brewing_style || "");
       setEditLocation(user.location || "");
@@ -396,10 +384,6 @@ export default function ProfilePage() {
         bio: editBio || undefined,
         favorite_drink: editDrink || undefined,
         favorite_cafe: editCafe || undefined,
-        // Only send when the user picked something in the dropdown.
-        // Clearing your fav café from the profile edit isn't a flow —
-        // un-liking happens via the heart on the café page itself.
-        favorite_cafe_slug: editFavCafeSlug || undefined,
         coffee_preference: editPref || undefined,
         brewing_style: editBrew || undefined,
         location: editLocation || undefined,
@@ -621,27 +605,14 @@ export default function ProfilePage() {
           <View style={s.infoItem}>
             <HeroHeartIcon />
             {isEditing ? (
-              // Picker opens a modal listing real cafés (useCafes).
-              // Free-text editing is gone — the "favorite café" is
-              // now a scarce link, not a typed string.
-              <Pressable onPress={() => setShowCafePicker(true)}>
-                <Text style={[s.infoText, !editFavCafeSlug && { color: "rgba(199,186,165,0.5)" }]}>
-                  {editFavCafeSlug
-                    ? (cafes.find((c) => c.cafe_slug === editFavCafeSlug)?.name || editFavCafeSlug)
-                    : (editCafe || "Pick a café")}
-                </Text>
-              </Pressable>
-            ) : user.favorite_cafe_slug ? (
-              // Linked chip — tap to jump to the café. This is the
-              // "connection" we're creating between users and the
-              // single café they frequent most.
-              <Pressable onPress={() => router.push(`/cafe/${user.favorite_cafe_slug}` as any)}>
-                <Text style={[s.infoText, { textDecorationLine: "underline" }]}>
-                  {cafes.find((c) => c.cafe_slug === user.favorite_cafe_slug)?.name
-                    || user.favorite_cafe
-                    || user.favorite_cafe_slug}
-                </Text>
-              </Pressable>
+              <TextInput
+                style={[s.infoText, s.inlineEditSmall]}
+                value={editCafe}
+                onChangeText={setEditCafe}
+                placeholder="Favorite café"
+                placeholderTextColor="rgba(199,186,165,0.5)"
+                maxLength={60}
+              />
             ) : (
               <Text style={s.infoText}>{user.favorite_cafe || "—"}</Text>
             )}
@@ -733,7 +704,6 @@ export default function ProfilePage() {
               setEditBio(user.bio || "");
               setEditDrink(user.favorite_drink || "");
               setEditCafe(user.favorite_cafe || "");
-              setEditFavCafeSlug(user.favorite_cafe_slug || null);
               setEditPref(user.coffee_preference || "");
               setEditBrew(user.brewing_style || "");
               setEditLocation(user.location || "");
@@ -770,7 +740,7 @@ export default function ProfilePage() {
   // four. SITE ANALYTICS holds the read-only metrics dashboard; CATALOG
   // OPS holds the write/run-job actions for the scraper + taste graph.
   const isAdmin = isAdminUser(user);
-  const baseTabs: ProfileTab[] = ["posts", "shelf", "stamps", "following"];
+  const baseTabs: ProfileTab[] = ["posts", "shelf", "following"];
   const visibleTabs: ProfileTab[] = isAdmin
     ? [...baseTabs, "analytics", "catalog"]
     : baseTabs;
@@ -779,8 +749,6 @@ export default function ProfilePage() {
       ? "POSTS"
       : tab === "shelf"
       ? "COFFEE SHELF"
-      : tab === "stamps"
-      ? "STAMP BOOK"
       : tab === "following"
       ? "FOLLOWING"
       : tab === "analytics"
@@ -896,12 +864,6 @@ export default function ProfilePage() {
             <ShelfCarousel coffees={section.entries} shelfMode isOwner activeShelf={section.key as ShelfKey} onMove={handleMoveShelf} onRemove={handleRemoveShelf} popularity={popularity} />
           </View>
         ))}
-      </View>
-    );
-  } else if (activeTab === "stamps") {
-    tabContent = (
-      <View style={s.tabContent}>
-        <StampBookList username={user.username} isOwnProfile />
       </View>
     );
   } else if (isAdmin && activeTab === "analytics") {
@@ -1035,76 +997,6 @@ export default function ProfilePage() {
           </View>
         </Modal>
       )}
-
-      {/* Café picker — mirrors the drink picker pattern, with a
-         search bar on top so it scales as the café roster grows.
-         Filter runs over name + city + slug so "mandrem" or
-         "brightside" both land you where you want. */}
-      {showCafePicker && (() => {
-        const q = cafeQuery.trim().toLowerCase();
-        const filtered = !q
-          ? cafes
-          : cafes.filter((c) => {
-              const hay = [c.name, c.city, c.state, c.cafe_slug]
-                .filter(Boolean).join(" ").toLowerCase();
-              return hay.includes(q);
-            });
-        return (
-          <Modal visible transparent animationType="fade" onRequestClose={() => { setShowCafePicker(false); setCafeQuery(""); }}>
-            <View style={s.followersOverlayWrap}>
-              <Pressable style={s.followersOverlayBg} onPress={() => { setShowCafePicker(false); setCafeQuery(""); }} />
-              <View style={s.followersModal}>
-                <View style={s.followersHeader}>
-                  <Text style={s.followersTitle}>Favorite café</Text>
-                  <Pressable onPress={() => { setShowCafePicker(false); setCafeQuery(""); }} hitSlop={14} accessibilityLabel="Close café picker">
-                    <X size={16} color="#351101" />
-                  </Pressable>
-                </View>
-                <View style={s.cafePickerSearchWrap}>
-                  <TextInput
-                    style={s.cafePickerSearchInput}
-                    value={cafeQuery}
-                    onChangeText={setCafeQuery}
-                    placeholder="Search cafés"
-                    placeholderTextColor="rgba(104,79,68,0.45)"
-                    autoFocus
-                  />
-                </View>
-                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 360 }}>
-                  {filtered.length === 0 ? (
-                    <Text style={[s.followerName, { padding: 16, color: "#A09580" }]}>
-                      {q ? `No cafés match "${cafeQuery}"` : "No cafés yet"}
-                    </Text>
-                  ) : (
-                    filtered.map((c, idx) => (
-                      <View key={c.cafe_slug}>
-                        {idx > 0 && <View style={s.followerDivider} />}
-                        <Pressable
-                          onPress={() => { setEditFavCafeSlug(c.cafe_slug); setShowCafePicker(false); setCafeQuery(""); }}
-                          style={s.followerRow}
-                        >
-                          <View style={s.followerInfo}>
-                            <View style={[s.drinkDot, editFavCafeSlug === c.cafe_slug && s.drinkDotActive]} />
-                            <View>
-                              <Text style={s.followerName}>{c.name}</Text>
-                              {c.city && (
-                                <Text style={{ fontFamily: t.font["body.regular"], fontSize: 11, color: "#A09580" }}>
-                                  {c.city}{c.state ? `, ${c.state}` : ""}
-                                </Text>
-                              )}
-                            </View>
-                          </View>
-                          {editFavCafeSlug === c.cafe_slug && <Check size={14} color="#D798DA" strokeWidth={2.5} />}
-                        </Pressable>
-                      </View>
-                    ))
-                  )}
-                </ScrollView>
-              </View>
-            </View>
-          </Modal>
-        );
-      })()}
 
       {/* Followers modal (same pattern as roaster profile) */}
       {showFollowersModal && (

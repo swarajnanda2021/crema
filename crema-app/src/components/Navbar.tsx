@@ -14,7 +14,7 @@ import { User, Search, Bell, MessageCircle } from "lucide-react-native";
 import { t, NAVBAR_HEIGHT } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
-import { useInquiryInbox } from "../hooks/useInquiryInbox";
+import { useDirectInbox } from "../hooks/useDirectInbox";
 import { CroppedAvatar } from "./primitives";
 import CremaLogo from "./CremaLogo";
 import ProfileDropdown from "./ProfileDropdown";
@@ -43,7 +43,7 @@ export default function Navbar() {
   // Every authenticated user has a Messages icon now — DMs are
   // available to regular user accounts too.
   const showMessagesIcon = !!user;
-  const { totalUnread: messagesUnread } = useInquiryInbox(!!user);
+  const { totalUnread: messagesUnread } = useDirectInbox(!!user);
 
 
   const isShop = pathname === "/browse";

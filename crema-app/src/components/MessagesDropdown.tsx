@@ -3,23 +3,13 @@
  * the active conversation inside one small floating card.
  *
  * Two view modes, swap in place:
- *   - list: scrolling inbox of threads (wholesale + DM, merged)
+ *   - list: scrolling inbox of DM threads
  *   - thread: the generic ThreadBody rendered with a back-arrow that
  *     returns to the list
  *
- * Non-blocking by design:
- *   - No full-viewport backdrop, so the site stays scrollable and
- *     clickable underneath. (The old backdrop was the reason every
- *     navbar popover froze site interaction.)
- *   - Outside-click dismissal via a document listener on web — clicks
- *     anywhere outside the card close the dropdown. Disarmed for
- *     150ms after open so the opening click doesn't instantly close
- *     the panel.
- *   - On native there's no document listener, so it's expected that
- *     users close via the X or via the Messages icon toggling.
- *
- * Surfaces fetch errors (/my-threads) so "no conversations yet"
- * isn't ambiguous with a silent auth/transport failure.
+ * Inbox tabs: Inbox / Archive. Archive is session-scoped until the
+ * DM-archive backend ships (§2.40.8); the inline Archive swipe action
+ * toggles a row between the two tabs.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -28,9 +18,8 @@ import {
 } from "react-native";
 import { Plus, Archive, BellOff, Trash2 } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
-import { apiFetchRaw } from "../api/client";
 import { CroppedAvatar, timeAgo, HapticPressable } from "./primitives";
-import { useInquiryInbox, InboxRow } from "../hooks/useInquiryInbox";
+import { useDirectInbox, InboxRow } from "../hooks/useDirectInbox";
 import { useAuth } from "../hooks/useAuth";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { onChromeScroll } from "../utils/chromeScroll";
@@ -42,40 +31,20 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   /** When set, the dropdown opens directly into the thread view for
-   *  this descriptor (used by NotificationsDropdown → wholesale_inquiry
-   *  / inquiry_reply / direct_message taps). */
+   *  this descriptor (used by NotificationsDropdown → direct_message taps). */
   initialThread?: { kind: ThreadKind; id: number } | null;
   /** Full-viewport mode for the mobile Messages tab screen. */
   fullScreen?: boolean;
 }
 
-// Normalise an InboxRow into the uniform shape the list row expects.
 function rowPresenter(row: InboxRow, currentUserId?: number) {
-  if (row.kind === "wholesale_inquiry") {
-    // Counterparty depends on perspective: roasters see the café,
-    // cafés see the roaster. Last-message ownership is independent.
-    return {
-      id: row.inquiry_id!,
-      avatarUrl: row.cafe_logo_url || row.roaster_logo_url || null,
-      cropX: row.cafe_logo_crop_x ?? null,
-      cropY: row.cafe_logo_crop_y ?? null,
-      zoom: row.cafe_logo_zoom ?? null,
-      name: row.cafe_name || row.roaster_name || "Thread",
-      subline: row.product_name || null,
-      preview: row.last_message || row.inquiry_note || "Conversation started",
-      time: row.last_message_at || row.opened_at || row.sort_at,
-      unread: row.unread_count,
-      sentByMe: row.last_message_user_id === currentUserId,
-    };
-  }
   return {
-    id: row.thread_id!,
+    id: row.thread_id,
     avatarUrl: row.other_avatar_url || null,
     cropX: row.other_avatar_crop_x ?? null,
     cropY: row.other_avatar_crop_y ?? null,
     zoom: row.other_avatar_zoom ?? null,
     name: row.other_display_name || row.other_username || "User",
-    subline: null as string | null,
     preview: row.last_message || "Conversation started",
     time: row.last_message_at || row.sort_at,
     unread: row.unread_count,
@@ -83,37 +52,27 @@ function rowPresenter(row: InboxRow, currentUserId?: number) {
   };
 }
 
-// For wholesale perspective where the viewer is a roaster, the
-// counterparty is the café (already covered above because we prefer
-// cafe_name / cafe_logo first). For wholesale perspective where the
-// viewer is a café, the counterparty is the roaster — rowPresenter
-// falls back to roaster_name / roaster_logo. This works because the
-// backend's /my-threads scopes what the viewer sees.
-
-// §2.15 — business users see the inbox split into tabs. The tab
-// discriminator is the `kind` field for active threads and `status`
-// for archive. Regular users see a single flat list (no tabs).
-type InboxTab = "business" | "non_business" | "archive";
-
-function threadTab(row: InboxRow): InboxTab {
-  if (row.kind === "wholesale_inquiry" && row.status === "archived") return "archive";
-  if (row.kind === "wholesale_inquiry") return "business";
-  return "non_business";
-}
+type InboxTab = "inbox" | "archive";
 
 export default function MessagesDropdown({ visible, onClose, initialThread, fullScreen }: Props) {
   const { user } = useAuth();
-  const { threads, totalUnread, loading, error, refresh, markRead } = useInquiryInbox(visible);
+  const { threads, totalUnread, loading, error, refresh, markRead } = useDirectInbox(visible);
   const { isMobile } = useBreakpoint();
   const [activeThread, setActiveThread] = useState<{ kind: ThreadKind; id: number } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const cardRef = useRef<any>(null);
 
+  const [tab, setTab] = useState<InboxTab>("inbox");
+  // Local archive store. Session-scoped until §2.40.8 lands the
+  // DM-archive backend. Key format: `direct_message:${thread_id}`.
+  const [localArchivedKeys, setLocalArchivedKeys] = useState<Set<string>>(new Set());
+  const rowKey = (r: InboxRow) => `direct_message:${r.thread_id}`;
+
   /** Build the Archive / Mute / Delete action set for a given inbox
-   *  row. Archive for wholesale_inquiry hits the existing
-   *  respond-with-status endpoint (roasters only); everything else
-   *  surfaces a "Coming soon" alert until the DM-side backend lands. */
+   *  row. Archive toggles a row between Inbox and Archive tabs;
+   *  Mute / Delete surface "Coming soon" until the DM-side backend
+   *  lands. */
   const buildActions = (row: InboxRow): SwipeAction[] => {
     const commingSoon = (feature: string) =>
       Alert.alert("Coming soon", `${feature} isn't wired up yet for this thread.`);
@@ -124,29 +83,14 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
         label: localArchivedKeys.has(rowKey(row)) ? "Unarchive" : "Archive",
         background: t.color["text.primary"],
         icon: <Archive size={18} color={ICON} strokeWidth={2} />,
-        onPress: async () => {
-          if (row.kind === "wholesale_inquiry" && user?.account_type === "roaster") {
-            try {
-              await apiFetchRaw(`/wholesale-inquiries/${row.inquiry_id}/respond`, {
-                method: "POST",
-                body: JSON.stringify({ status: "archived" }),
-              });
-              refresh();
-            } catch (e) {
-              Alert.alert("Archive failed", String(e));
-            }
-          } else {
-            // Non-business DM archive. Session-scoped until
-            // §2.40.8 lands the backend persistence; toggles the
-            // row between Inbox and Archive tabs immediately.
-            const key = rowKey(row);
-            setLocalArchivedKeys((prev) => {
-              const next = new Set(prev);
-              if (next.has(key)) next.delete(key);
-              else next.add(key);
-              return next;
-            });
-          }
+        onPress: () => {
+          const key = rowKey(row);
+          setLocalArchivedKeys((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+          });
         },
       },
       {
@@ -165,23 +109,6 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
       },
     ];
   };
-
-  // Tab routing. Business users (cafe / roaster) get the three-tab
-  // split (business / non-business / archive). Regular users get a
-  // two-tab split (inbox / archive) — same pattern, scoped to DMs
-  // only because they don't have wholesale inquiries. Until the
-  // DM-archive backend ships (§2.40.8), the non-business Archive
-  // tab reads from a local in-memory set populated by the inline
-  // Archive swipe action.
-  const isBusiness = user?.account_type === "cafe" || user?.account_type === "roaster";
-  const [tab, setTab] = useState<InboxTab>(isBusiness ? "business" : "non_business");
-  // Local archive store (non-business only — business inquiries
-  // already route through `wholesale_inquiries.status` on the
-  // server). Key format: `${kind}:${id}`. Session-scoped; the
-  // proper persistence ships with §2.40.8.
-  const [localArchivedKeys, setLocalArchivedKeys] = useState<Set<string>>(new Set());
-  const rowKey = (r: InboxRow) =>
-    r.kind === "wholesale_inquiry" ? `wholesale_inquiry:${r.inquiry_id}` : `direct_message:${r.thread_id}`;
 
   // Sync initialThread when the caller pushes one (e.g. notification
   // tap). Clearing on close is handled below.
@@ -202,9 +129,7 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
     }
   }, [visible, refresh]);
 
-  // Outside-click dismissal (web only). Armed after 150ms so the
-  // opening click doesn't immediately close. Ignores clicks inside
-  // the card or on the navbar (to keep icon-toggle working).
+  // Outside-click dismissal (web only).
   useEffect(() => {
     if (!visible || Platform.OS !== "web" || fullScreen) return;
     let armed = false;
@@ -214,8 +139,6 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
       const card = cardRef.current as any;
       const target = e.target as Node;
       if (card && typeof card.contains === "function" && card.contains(target)) return;
-      // Also skip clicks on anything inside the navbar — those
-      // buttons have their own close/toggle logic.
       const navbar = (typeof document !== "undefined")
         ? document.querySelector('[data-role="navbar"]') : null;
       if (navbar && (navbar as any).contains && (navbar as any).contains(target)) return;
@@ -236,8 +159,7 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
 
   const handleRow = (row: InboxRow) => {
     if (row.unread_count > 0) markRead(row);
-    const id = row.kind === "wholesale_inquiry" ? row.inquiry_id! : row.thread_id!;
-    setActiveThread({ kind: row.kind, id });
+    setActiveThread({ kind: "direct_message", id: row.thread_id });
   };
 
   const backToList = () => {
@@ -285,40 +207,24 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
           </View>
           <View style={s.divider} />
 
-          {/* Tabs. Business users get 3 tabs (business inquiries /
-             non-business DMs / archive). Regular users get 2 tabs
-             (inbox / archive) so they can archive DMs too. */}
-          <>
-            <View style={s.tabRow}>
-              {(isBusiness
-                ? (["business", "non_business", "archive"] as InboxTab[])
-                : (["non_business", "archive"] as InboxTab[])
-              ).map((key) => {
-                const active = key === tab;
-                const label = isBusiness
-                  ? (key === "business" ? "Business"
-                    : key === "non_business" ? "Non-business"
-                    : "Archive")
-                  : (key === "non_business" ? "Inbox" : "Archive");
-                // Unread tallies: for business, use the inquiry
-                // status-based bucketing. For non-business,
-                // Inbox = threads NOT in localArchivedKeys;
-                // Archive = threads IN localArchivedKeys.
-                const unread = isBusiness
-                  ? threads.filter((r) => threadTab(r) === key).reduce((n, r) => n + (r.unread_count || 0), 0)
-                  : threads
-                      .filter((r) => (key === "archive" ? localArchivedKeys.has(rowKey(r)) : !localArchivedKeys.has(rowKey(r))))
-                      .reduce((n, r) => n + (r.unread_count || 0), 0);
-                return (
-                  <HapticPressable haptic="select" key={key} onPress={() => setTab(key)} style={[s.tab, active && s.tabActive]}>
-                    <Text style={[s.tabLabel, active && s.tabLabelActive]}>{label}</Text>
-                    {unread > 0 && <Text style={s.tabUnread}>{unread}</Text>}
-                  </HapticPressable>
-                );
-              })}
-            </View>
-            <View style={s.divider} />
-          </>
+          {/* Inbox / Archive tabs. Local archive store backs the split
+             until §2.40.8 lands the DM-archive backend. */}
+          <View style={s.tabRow}>
+            {(["inbox", "archive"] as InboxTab[]).map((key) => {
+              const active = key === tab;
+              const label = key === "inbox" ? "Inbox" : "Archive";
+              const unread = threads
+                .filter((r) => (key === "archive" ? localArchivedKeys.has(rowKey(r)) : !localArchivedKeys.has(rowKey(r))))
+                .reduce((n, r) => n + (r.unread_count || 0), 0);
+              return (
+                <HapticPressable haptic="select" key={key} onPress={() => setTab(key)} style={[s.tab, active && s.tabActive]}>
+                  <Text style={[s.tabLabel, active && s.tabLabelActive]}>{label}</Text>
+                  {unread > 0 && <Text style={s.tabUnread}>{unread}</Text>}
+                </HapticPressable>
+              );
+            })}
+          </View>
+          <View style={s.divider} />
 
           <ScrollView
             style={[s.list, fullScreen && s.listFullScreen]}
@@ -328,10 +234,11 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
             scrollEventThrottle={fullScreen ? 16 : undefined}
           >
             {(() => {
-              // Filter once per render; cheap enough for small inboxes.
-              const visibleThreads = isBusiness
-                ? threads.filter((r) => threadTab(r) === tab)
-                : threads.filter((r) => (tab === "archive" ? localArchivedKeys.has(rowKey(r)) : !localArchivedKeys.has(rowKey(r))));
+              const visibleThreads = threads.filter((r) =>
+                tab === "archive"
+                  ? localArchivedKeys.has(rowKey(r))
+                  : !localArchivedKeys.has(rowKey(r)),
+              );
               if (loading && threads.length === 0) {
                 return <ActivityIndicator size="small" color="#D798DA" style={{ paddingVertical: 24 }} />;
               }
@@ -346,21 +253,15 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
                 );
               }
               if (visibleThreads.length === 0) {
-                const emptyText = !isBusiness
-                  ? (tab === "archive"
-                      ? "No archived conversations yet. Swipe on a chat to archive it."
-                      : "No conversations yet. Tap the Message button on anyone's profile to start a chat.")
-                  : tab === "business"
-                    ? "No wholesale inquiries in this tab yet."
-                    : tab === "non_business"
-                      ? "No direct messages yet."
-                      : "No archived threads.";
+                const emptyText = tab === "archive"
+                  ? "No archived conversations yet. Swipe on a chat to archive it."
+                  : "No conversations yet. Tap the Message button on anyone's profile to start a chat.";
                 return <Text style={s.empty}>{emptyText}</Text>;
               }
               return visibleThreads.map((row, idx) => {
                 const pres = rowPresenter(row, user?.id);
                 return (
-                  <View key={`${row.kind}:${pres.id}`}>
+                  <View key={`direct_message:${pres.id}`}>
                     {idx > 0 && <View style={s.itemDivider} />}
                     <SwipeableRow actions={buildActions(row)}>
                     <Pressable
@@ -390,9 +291,6 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
                           <Text style={s.itemName} numberOfLines={1}>{pres.name}</Text>
                           <Text style={s.itemTime}>{pres.time ? timeAgo(pres.time) : ""}</Text>
                         </View>
-                        {pres.subline && (
-                          <Text style={s.itemSubline} numberOfLines={1}>{pres.subline}</Text>
-                        )}
                         <Text
                           style={[s.itemPreview, pres.unread > 0 && s.itemPreviewUnread]}
                           numberOfLines={1}
@@ -412,11 +310,7 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
               });
             })()}
           </ScrollView>
-          {/* Compose new message — same visual language as the
-             feed's FAB (same size, same offset from bottom-right,
-             same dark fill, same drop shadow). Users already know
-             this "+" shape from the feed; reusing it here means
-             zero relearning. */}
+          {/* Compose new message — same FAB shape as the feed. */}
           <Pressable
             onPress={() => setPickerOpen(true)}
             style={s.newFab}
@@ -442,9 +336,6 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 12,
   } as any,
-  // List mode is compact. Thread mode is a touch bigger but still far
-  // from viewport-swallowing — keeps the chat usable without feeling
-  // like a page takeover.
   cardList: { width: 340, maxHeight: 440 } as any,
   cardThread: { width: 400, height: 540 } as any,
 
@@ -457,9 +348,6 @@ const s = StyleSheet.create({
   } as any,
   headerTitle: { fontFamily: t.font["body.semibold"], fontSize: 15, color: "#351101" },
   headerUnread: { fontFamily: t.font["body.medium"], fontSize: 10.5, color: "#D798DA" },
-  // Compose-new-message FAB — cloned verbatim from the feed's FAB
-  // (see (tabs)/index.tsx s.fab) so users learn one "+" shape for
-  // "start a new thing" across the app.
   newFab: {
     position: "absolute",
     bottom: 28,
@@ -479,8 +367,6 @@ const s = StyleSheet.create({
   } as any,
   divider: { height: 1, backgroundColor: "#EDE8E1", marginHorizontal: 12 },
 
-  // Tab strip (business users, §2.15). Small enough to fit three
-  // labels inside the 340px card without wrapping.
   tabRow: {
     flexDirection: "row",
     paddingHorizontal: 8,
@@ -509,14 +395,6 @@ const s = StyleSheet.create({
     overflow: "hidden",
   } as any,
   list: { maxHeight: 380 } as any,
-  // FullScreen mode (the mobile Messages tab): the dropdown card's
-  // 380-px cap cuts the inbox list off around the 5th thread. Strip
-  // the cap and flex the list into whatever room the mid-band gives
-  // us between MobileHeader and MobileFooter. The `contentContainer`
-  // paddingBottom keeps the final row from tucking under the
-  // MobileFooter when chrome is fully expanded — `onChromeScroll`
-  // collapses the footer as the user scrolls down, but a static
-  // cushion here guarantees the bottom row is tappable at rest too.
   listFullScreen: { flex: 1, maxHeight: undefined } as any,
   listContentFullScreen: { paddingBottom: t.spacing["4xl"] } as any,
 
@@ -541,10 +419,6 @@ const s = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 14, paddingVertical: 9,
   } as any,
-  // Mobile: ~1.5× the resting height — bigger paddingVertical +
-  // bigger avatar so the row reads as a clearly thumb-sized target.
-  // Row height ≈ 44 (avatar) + 2 × 16 (padding) ≈ 76 px, up from
-  // the ≈50 px desktop row.
   itemTall: { paddingVertical: 16, gap: 12 } as any,
   avatarFbTall: { width: 44, height: 44, borderRadius: 22 } as any,
   itemUnread: { backgroundColor: "rgba(215,152,218,0.06)" },
@@ -556,10 +430,6 @@ const s = StyleSheet.create({
   } as any,
   itemName: { fontFamily: t.font["body.semibold"], fontSize: 12, color: "#351101", flex: 1 },
   itemTime: { fontFamily: t.font["body.regular"], fontSize: 9.5, color: "#A09580" },
-  itemSubline: {
-    fontFamily: t.font["body.medium"], fontSize: 9.5,
-    color: "#684F44", letterSpacing: 0.2,
-  } as any,
   itemPreview: {
     fontFamily: t.font["body.regular"], fontSize: 11,
     color: "#684F44", lineHeight: 15,

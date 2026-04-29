@@ -21,11 +21,10 @@ import { Camera, Plus, X } from "lucide-react-native";
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
 import { t } from "../tokens/useTokens";
 import { HapticPressable } from "./primitives";
-import { PostCafeIcon, PostDrinkIcon, PostLocationPinIcon } from "./icons/FigmaIcons";
+import { PostDrinkIcon, PostLocationPinIcon } from "./icons/FigmaIcons";
 import ImageUploadModal from "./ImageUploadModal";
 import TastingNoteCard from "./TastingNoteCard";
 import PostGallery, { GALLERY_ASPECT, PG_RADIUS } from "./PostGallery";
-import { useCafes } from "../hooks/useCafes";
 
 interface ComposePostProps {
   onSubmit: (data: any) => Promise<void>;
@@ -96,10 +95,6 @@ export default function ComposePost({
   const SHORT_MAX = 300;
   const STORY_MAX = 5000;
   const STORY_MIN = 200;
-  const [cafeSlug, setCafeSlug] = useState<string | null>(null);
-  const [cafePickerOpen, setCafePickerOpen] = useState(false);
-  const { cafes } = useCafes();
-  const selectedCafe = cafeSlug ? cafes.find((c) => c.cafe_slug === cafeSlug) : null;
 
   // Tag a drink — free-text chip (users pick common drinks from a modal
   // or type their own). Stored into the post teaser as context; kept
@@ -286,7 +281,6 @@ export default function ComposePost({
         teaser: teaser.trim(),
         post_type: "note",
         location: location.trim() || null,
-        cafe_slug: cafeSlug,
         drink: drink || null,
         images: imgs,
         cover_image_url: imgs[0] || null,
@@ -449,10 +443,10 @@ export default function ComposePost({
             )}
           </View>
 
-          {/* §2.23c — three optional fields collapsed onto one chip
-             row: Location, Tag a café, Tag a drink. Each chip opens
-             its own picker (or a small text prompt for Location).
-             Filled chips show the value + an X to clear. */}
+          {/* §2.23c — two optional fields on one chip row: Location +
+             Drink. Each chip opens its own picker (or a small text
+             prompt for Location). Filled chips show the value + an
+             X to clear. */}
           <View style={s.chipsRow}>
             <Pressable
               style={[s.fieldChip, !!location && s.fieldChipActive]}
@@ -464,21 +458,6 @@ export default function ComposePost({
               </Text>
               {!!location && (
                 <Pressable onPress={() => setLocation("")} hitSlop={6}>
-                  <X size={11} color={t.color["text.muted"]} />
-                </Pressable>
-              )}
-            </Pressable>
-
-            <Pressable
-              style={[s.fieldChip, !!selectedCafe && s.fieldChipActive]}
-              onPress={() => setCafePickerOpen(true)}
-            >
-              <PostCafeIcon size={12} color={selectedCafe ? t.color["accent.cta"] : t.color.accent} />
-              <Text style={[s.fieldChipLabel, !!selectedCafe && s.fieldChipLabelActive]} numberOfLines={1}>
-                {selectedCafe?.name || "Tag a café"}
-              </Text>
-              {!!selectedCafe && (
-                <Pressable onPress={() => setCafeSlug(null)} hitSlop={6}>
                   <X size={11} color={t.color["text.muted"]} />
                 </Pressable>
               )}
@@ -558,37 +537,6 @@ export default function ComposePost({
                         <Text style={s.pickerRowName}>{d}</Text>
                       </Pressable>
                     ))}
-                  </ScrollView>
-                </View>
-              </View>
-            </Modal>
-          )}
-
-          {/* Café picker modal */}
-          {cafePickerOpen && (
-            <Modal visible transparent animationType="fade" onRequestClose={() => setCafePickerOpen(false)}>
-              <View style={s.pickerOverlay}>
-                <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setCafePickerOpen(false)} />
-                <View style={s.pickerCard}>
-                  <View style={s.pickerHeader}>
-                    <Text style={s.pickerTitle}>Tag a café</Text>
-                    <Pressable onPress={() => setCafePickerOpen(false)}><X size={18} color={t.color["text.primary"]} /></Pressable>
-                  </View>
-                  <ScrollView style={{ maxHeight: 400 }}>
-                    {cafes.length === 0 ? (
-                      <Text style={s.pickerEmpty}>No cafés available</Text>
-                    ) : (
-                      cafes.map((c) => (
-                        <Pressable
-                          key={c.cafe_slug}
-                          onPress={() => { setCafeSlug(c.cafe_slug); setCafePickerOpen(false); }}
-                          style={s.pickerRow}
-                        >
-                          <Text style={s.pickerRowName}>{c.name}</Text>
-                          {c.city && <Text style={s.pickerRowSub}>{c.city}, {c.state}</Text>}
-                        </Pressable>
-                      ))
-                    )}
                   </ScrollView>
                 </View>
               </View>

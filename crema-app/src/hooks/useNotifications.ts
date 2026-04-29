@@ -14,53 +14,13 @@ export type NotificationType =
   | "repost"
   | "comment_like"
   | "reply"
-  // ── Business (catalog change fanout — follower alerts) ────────────
+  // ── Catalog change fanout to roaster followers ────────────────────
   | "product_added"
   | "product_removed"
-  | "menu_added"
-  | "menu_removed"
-  | "menu_updated"
-  // ── Business (§2.20 cross-business follower fanout) ───────────────
-  | "wholesale_available"
-  | "menu_updated_business"
+  // ── Cross-roaster sourcing-story fanout ───────────────────────────
   | "sourcing_story"
-  | "loyalty_changed"
-  // ── Business (wholesale thread + loyalty) ─────────────────────────
-  | "wholesale_inquiry"
-  | "inquiry_reply"
-  | "stamp_awarded"
-  // ── Activity (user ↔ user DMs) ────────────────────────────────────
+  // ── User ↔ user DMs ───────────────────────────────────────────────
   | "direct_message";
-
-// Notifications split into two streams for roaster + café accounts
-// (Phase 1 §2.4). Regular user accounts see a single flat list.
-const BUSINESS_TYPES: ReadonlySet<string> = new Set<string>([
-  "product_added",
-  "product_removed",
-  "menu_added",
-  "menu_removed",
-  "menu_updated",
-  "wholesale_inquiry",
-  "inquiry_reply",
-  "stamp_awarded",
-  // §2.20 cross-business types — only fanned to business followers on
-  // the backend, but classified here too so the Business tab counts
-  // them correctly.
-  "wholesale_available",
-  "menu_updated_business",
-  "sourcing_story",
-  "loyalty_changed",
-]);
-
-export function isBusinessNotification(type: string): boolean {
-  return BUSINESS_TYPES.has(type);
-}
-
-export type NotificationCategory = "activity" | "business";
-
-export function notificationCategory(type: string): NotificationCategory {
-  return BUSINESS_TYPES.has(type) ? "business" : "activity";
-}
 
 export interface Notification {
   id: number;
@@ -74,9 +34,8 @@ export interface Notification {
   actor_zoom: number | null;
   post_id: number | null;
   comment_id: number | null;
-  inquiry_id: number | null;
   direct_thread_id: number | null;
-  // Catalog-change extras: "roaster:blue-tokai-coffee-roasters" or "cafe:prana-goa"
+  // Catalog-change extras: "roaster:blue-tokai-coffee-roasters"
   target_slug: string | null;
   subject: string | null;
   read: boolean;

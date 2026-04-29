@@ -73,15 +73,6 @@ export default function EditableCoffeeCard({
   );
   const [productUrl, setProductUrl] = useState(initialData?.product_url || "");
   const [showUrlInput, setShowUrlInput] = useState(false);
-  // Wholesale availability (§2.2) — a single checkbox. Minimum-kg +
-  // note fields were dropped: roasters only need to declare "yes,
-  // wholesale is on the table for this bean" — the rest (quantity,
-  // price, terms) gets negotiated inline on the inquiry thread where
-  // the café can ask and the roaster can answer with context. This
-  // kept the form from feeling like a procurement SKU editor.
-  const [wholesaleAvailable, setWholesaleAvailable] = useState(
-    initialData?.wholesale_available === 1,
-  );
   const [imageUrl, setImageUrl] = useState(initialData?.image_url || "");
   const [cropY, setCropY] = useState(
     initialData?.image_crop_y != null ? initialData.image_crop_y : 50,
@@ -103,7 +94,6 @@ export default function EditableCoffeeCard({
     setFlavorNotes(""); setPriceInr(""); setWeightGrams(""); setProductUrl("");
     setShowUrlInput(false); setImageUrl(""); setCropY(50);
     setShowImageModal(false); setSaving(false);
-    setWholesaleAvailable(false);
   }, []);
 
   const handleOpenEdit = useCallback(() => {
@@ -163,13 +153,6 @@ export default function EditableCoffeeCard({
       product_url: productUrl.trim() || null,
       image_url: imageUrl || null,
       description_raw: null,
-      // Wholesale availability — just the flag. The backend still
-      // accepts wholesale_minimum_kg + wholesale_note (they're in the
-      // schema for legacy rows), but the roaster-facing form stops
-      // capturing them; null-through both.
-      wholesale_available: wholesaleAvailable ? 1 : 0,
-      wholesale_minimum_kg: null,
-      wholesale_note: null,
     };
     // Edit-an-existing flow: skip the slide-out-to-placeholder
     // animation entirely — the parent closes the hosting modal on
@@ -195,7 +178,7 @@ export default function EditableCoffeeCard({
     });
   }, [coffeeName, beanType, processVal, roastLevel, tastingNotes, origin, varietal,
     altitudeMasl, flavorNotes, priceInr, weightGrams, productUrl, imageUrl,
-    wholesaleAvailable, initialData,
+    initialData,
     saving, onSave, width, resetFields]);
 
   const imageH = Math.round(height * IMAGE_RATIO);
@@ -331,18 +314,6 @@ export default function EditableCoffeeCard({
               </Pressable>
             </View>
 
-            {/* Wholesale flag (§2.2). One row, one checkbox. Tapping
-               toggles wholesale_available; there are no further fields
-               to expand. Café viewers see a Package chip on the card
-               for flagged beans, and negotiate min-kg / price inline
-               in the inquiry thread. */}
-            <View style={s.divider} />
-            <Pressable onPress={() => setWholesaleAvailable((v) => !v)} style={s.wholesaleToggleRow}>
-              <View style={[s.wholesaleCheckbox, wholesaleAvailable && s.wholesaleCheckboxOn]}>
-                {wholesaleAvailable && <Text style={s.wholesaleCheck}>✓</Text>}
-              </View>
-              <Text style={s.wholesaleLabel}>Available wholesale</Text>
-            </Pressable>
           </View>
 
           {/* URL modal */}
@@ -448,29 +419,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 4,
   } as any,
 
-  // Wholesale availability section (§2.2). Row shows a small
-  // checkbox + label; tapping reveals the flag/min/note panel.
-  wholesaleToggleRow: {
-    flexDirection: "row", alignItems: "center", gap: 7,
-    paddingVertical: 2,
-  } as any,
-  wholesaleCheckbox: {
-    width: 12, height: 12, borderRadius: 2, borderWidth: 1,
-    borderColor: t.color["text.secondary"],
-    alignItems: "center", justifyContent: "center",
-  } as any,
-  wholesaleCheckboxOn: {
-    backgroundColor: t.color["text.primary"],
-    borderColor: t.color["text.primary"],
-  } as any,
-  wholesaleCheck: {
-    fontFamily: t.font["body.semibold"], fontSize: 8,
-    color: t.color["text.on-dark"], lineHeight: 10,
-  } as any,
-  wholesaleLabel: {
-    fontFamily: t.font["body.regular"], fontSize: 9.563,
-    color: t.color["text.secondary"],
-  } as any,
   bottomRow: {
     flexDirection: "row", alignItems: "flex-end",
     justifyContent: "space-between", marginTop: "auto" as any,

@@ -18,7 +18,6 @@ import Svg, { Path } from "react-native-svg";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useShelves } from "../../src/hooks/useShelves";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
-import { useCafeResolver } from "../../src/hooks/useCafeResolver";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
@@ -31,9 +30,8 @@ import { showToast } from "../../src/components/shell/Toast";
 import { openPostModal } from "../../src/components/primitives";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import SiteHeader from "../../src/components/SiteHeader";
-import StampBookList from "../../src/components/StampBookList";
 
-type ProfileTab = "posts" | "shelf" | "stamps" | "following";
+type ProfileTab = "posts" | "shelf" | "following";
 type ShelfKey = "open_bags" | "on_the_list";
 const SHELF_KEYS: ShelfKey[] = ["open_bags", "on_the_list"];
 const SHELF_SECTION_LABELS: Record<ShelfKey, string> = {
@@ -82,22 +80,6 @@ function HeroPinIcon() {
       <Path d="M5.202 6.092C5.202 7.076 5.999 7.873 6.982 7.873C7.966 7.873 8.763 7.076 8.763 6.092C8.763 5.109 7.966 4.311 6.982 4.311C5.999 4.311 5.202 5.109 5.202 6.092Z" stroke={t.color.accent} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
-}
-
-// ── FavoriteCafeText: links free-text café reference to its profile ────────────
-
-function FavoriteCafeText({ text }: { text: string }) {
-  const router = useRouter();
-  const { resolve } = useCafeResolver();
-  const cafe = resolve(text);
-  if (cafe) {
-    return (
-      <Pressable onPress={() => router.push(`/cafe/${cafe.cafe_slug}` as any)}>
-        <Text style={[s.infoText, { textDecorationLine: "underline" }] as any}>{cafe.name}</Text>
-      </Pressable>
-    );
-  }
-  return <Text style={s.infoText}>{text}</Text>;
 }
 
 // ── ShelfCarousel — horizontal scroll of coffee cards ────────────────────────
@@ -329,23 +311,10 @@ export default function UserProfilePage() {
           {u.favorite_drink ? (
             <View style={s.infoItem}><HeroCoffeeIcon /><Text style={s.infoText}>{u.favorite_drink}</Text></View>
           ) : null}
-          {u.favorite_cafe_slug ? (
-            // Prefer the FK link when set — tap navigates to the
-            // café, making this a real connection rather than a
-            // stringly-typed label. Falls back to free text for
-            // users whose column wasn't migrated yet.
+          {u.favorite_cafe ? (
             <View style={s.infoItem}>
               <HeroHeartIcon />
-              <Pressable onPress={() => router.push(`/cafe/${u.favorite_cafe_slug}` as any)}>
-                <Text style={[s.infoText, { textDecorationLine: "underline" }]}>
-                  {u.favorite_cafe || u.favorite_cafe_slug}
-                </Text>
-              </Pressable>
-            </View>
-          ) : u.favorite_cafe ? (
-            <View style={s.infoItem}>
-              <HeroHeartIcon />
-              <FavoriteCafeText text={u.favorite_cafe} />
+              <Text style={s.infoText}>{u.favorite_cafe}</Text>
             </View>
           ) : null}
         </View>
@@ -419,11 +388,11 @@ export default function UserProfilePage() {
   );
 
   // ── Tab bar ──
-  const tabs: ProfileTab[] = isOwn ? ["posts", "shelf", "stamps", "following"] : ["posts", "shelf", "stamps"];
+  const tabs: ProfileTab[] = isOwn ? ["posts", "shelf", "following"] : ["posts", "shelf"];
   const tabChildren = tabs.map((tab) => (
     <Pressable key={tab} onPress={() => { setActiveTab(tab); setVisiblePostCount(POSTS_PER_PAGE); }} style={s.tab}>
       <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
-        {tab === "posts" ? "POSTS" : tab === "shelf" ? "COFFEE SHELF" : tab === "stamps" ? "STAMP BOOK" : "FOLLOWING"}
+        {tab === "posts" ? "POSTS" : tab === "shelf" ? "COFFEE SHELF" : "FOLLOWING"}
       </Text>
       {activeTab === tab && <View style={s.tabUnderline} />}
     </Pressable>
@@ -509,12 +478,6 @@ export default function UserProfilePage() {
             <ShelfCarousel coffees={section.entries} isOwner={isOwn} onAddToShelf={(productId: string) => { addToShelf(productId, "open_bags"); }} />
           </View>
         ))}
-      </View>
-    );
-  } else if (activeTab === "stamps") {
-    tabContent = (
-      <View style={s.tabContent}>
-        <StampBookList username={username as string} isOwnProfile={isOwn} />
       </View>
     );
   } else if (activeTab === "following" && isOwn) {

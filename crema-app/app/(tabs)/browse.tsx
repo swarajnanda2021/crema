@@ -12,8 +12,6 @@ import { Image } from "expo-image";
 import { Search, X, ArrowRight } from "lucide-react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
-import { useAuth } from "../../src/hooks/useAuth";
-import { useCafes } from "../../src/hooks/useCafes";
 import { useResource } from "../../src/resources/useResource";
 import { useSearchBarAutoHide } from "../../src/hooks/useSearchBarAutoHide";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
@@ -42,7 +40,7 @@ export default function BrowsePage() {
   const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
   const [query, setQuery] = useState("");
   const [popularity, setPopularity] = useState<Record<string, number>>({});
-  const [activeTab, setActiveTab] = useState<"beans" | "roasters" | "cafes">("beans");
+  const [activeTab, setActiveTab] = useState<"beans" | "roasters">("beans");
   const [sortBy, setSortBy] = useState<string>("featured");
   const [selectedRoasters, setSelectedRoasters] = useState<string[]>([]);
   const [selectedRoasts, setSelectedRoasts] = useState<string[]>([]);
@@ -54,16 +52,7 @@ export default function BrowsePage() {
   // §2.16 — stable search-bar hide that doesn't thrash at
   // end-of-list. Replaces the old raw `y > lastY && y > 10` toggle.
   const { hidden: searchBarHidden, handleScroll: handleBeansScroll } = useSearchBarAutoHide();
-  // Phase 1 §2.2 — business viewers (cafés + roasters) can filter to
-  // wholesale-available beans. Matches CoffeeCard's Package chip,
-  // which is also visible to both account types. A roaster browsing
-  // competitors' offerings can legitimately want to see what's on the
-  // table for bulk orders — e.g. when they need a backup supplier for
-  // a specific origin they're running low on.
-  const { user } = useAuth();
-  const canSeeWholesale = user?.account_type === "cafe" || user?.account_type === "roaster";
-  const [wholesaleOnly, setWholesaleOnly] = useState(false);
-  // Two new lens-style toggles surfaced alongside the wholesale
+  // Two new lens-style toggles for catalog freshness
   // filter: `newOnly` narrows to beans created in the last 30 days
   // (catalog-freshness signal — useful right after an enrichment
   // run); `showSoldOut` flips the default available-only view to
@@ -116,7 +105,6 @@ export default function BrowsePage() {
     if (selectedRoasters.length > 0) list = list.filter((p: any) => selectedRoasters.includes(p.roaster_slug));
     if (selectedRoasts.length > 0) list = list.filter((p: any) => selectedRoasts.includes(p.roast_level));
     if (selectedProcesses.length > 0) list = list.filter((p: any) => selectedProcesses.includes(p.process));
-    if (canSeeWholesale && wholesaleOnly) list = list.filter((p: any) => p.wholesale_available === 1);
 
     // Sort
     if (sortBy === "featured" && Object.keys(popularity).length > 0) {
@@ -133,7 +121,7 @@ export default function BrowsePage() {
       });
     }
     return list;
-  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, sortBy, popularity, canSeeWholesale, wholesaleOnly, newOnly, showSoldOut]);
+  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, sortBy, popularity, newOnly, showSoldOut]);
 
   const filteredRoasterCount = useMemo(() => new Set(filtered.map((p: any) => p.roaster_slug)).size, [filtered]);
 
@@ -153,7 +141,6 @@ export default function BrowsePage() {
     selectedRoasters.length +
     selectedRoasts.length +
     selectedProcesses.length +
-    (canSeeWholesale && wholesaleOnly ? 1 : 0) +
     (newOnly ? 1 : 0) +
     (showSoldOut ? 1 : 0);
   const roastersFilterCount = selectedCities.length;
@@ -170,7 +157,7 @@ export default function BrowsePage() {
     if (activeTab === "roasters") {
       setSelectedCities([]);
     } else {
-      setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]); setQuery(""); setWholesaleOnly(false);
+      setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]); setQuery("");
       setNewOnly(false); setShowSoldOut(false);
     }
   };
@@ -194,7 +181,6 @@ export default function BrowsePage() {
           <View style={[s.tabBarRight, isMobile && s.tabBarRightMobile]}>
             <TabButton label="BEANS" active={activeTab === "beans"} onPress={() => setActiveTab("beans")} />
             <TabButton label="ROASTERS" active={activeTab === "roasters"} onPress={() => setActiveTab("roasters")} />
-            <TabButton label="CAFÉS" active={activeTab === "cafes"} onPress={() => setActiveTab("cafes")} />
             {isMobile && (
               <Pressable
                 onPress={() => setFilterDrawerOpen(true)}
@@ -230,28 +216,6 @@ export default function BrowsePage() {
                 </Pressable>
               )}
 
-              {/* Business-viewer wholesale filter — §2.2 (roaster + café) */}
-              {canSeeWholesale && (
-                <>
-                  <View style={s.filterSection}>
-                    <Pressable
-                      onPress={() => setWholesaleOnly((v) => !v)}
-                      style={s.wholesaleRow}
-                      accessibilityRole="switch"
-                      accessibilityState={{ checked: wholesaleOnly }}
-                    >
-                      <View style={[s.wholesaleBox, wholesaleOnly && s.wholesaleBoxOn]}>
-                        {wholesaleOnly && <Text style={s.wholesaleBoxTick}>{"\u2713"}</Text>}
-                      </View>
-                      <Text style={s.wholesaleLabel}>Wholesale</Text>
-                    </Pressable>
-                    <Text style={s.wholesaleHint}>
-                      Shows products roasters have flagged as available for wholesale orders.
-                    </Text>
-                  </View>
-                  <View style={s.filterDivider} />
-                </>
-              )}
 
               {/* Catalog freshness lenses \u2014 `New` narrows to beans
                  created in the last 30 days; `Sold out` flips the
@@ -365,14 +329,12 @@ export default function BrowsePage() {
             />
           </View>
         </View>
-      ) : activeTab === "roasters" ? (
+      ) : (
         <RoastersList
           cities={cities}
           selectedCities={selectedCities}
           setSelectedCities={setSelectedCities}
         />
-      ) : (
-        <CafesList />
       )}
 
       {/* §2.34 — Mobile filter drawer. Reuses the SlidePanel primitive
@@ -419,24 +381,6 @@ export default function BrowsePage() {
                   />
                 ) : (
                   <>
-                    {canSeeWholesale && (
-                      <>
-                        <View style={s.filterSection}>
-                          <Pressable
-                            onPress={() => setWholesaleOnly((v) => !v)}
-                            style={s.wholesaleRow}
-                            accessibilityRole="switch"
-                            accessibilityState={{ checked: wholesaleOnly }}
-                          >
-                            <View style={[s.wholesaleBox, wholesaleOnly && s.wholesaleBoxOn]}>
-                              {wholesaleOnly && <Text style={s.wholesaleBoxTick}>{"\u2713"}</Text>}
-                            </View>
-                            <Text style={s.wholesaleLabel}>Wholesale</Text>
-                          </Pressable>
-                        </View>
-                        <View style={s.filterDivider} />
-                      </>
-                    )}
                     {/* Catalog freshness lenses \u2014 same checkboxes as
                        the desktop sidebar, bound to the same state
                        so toggling between viewports never resets. */}
@@ -742,146 +686,6 @@ function RoastersList({
               onPress={() => router.push(`/roaster/${r.roaster_slug}`)}
             />
           ))}
-        </ScrollView>
-      </View>
-    </View>
-  );
-}
-
-// ─── Cafés tab ───────────────────────────────────────────────────────────────
-
-function CafeCard({
-  cafe, popularity, width: cardW,
-}: {
-  cafe: any; popularity?: number; width: number;
-}) {
-  const router = useRouter();
-  const subParts: string[] = [];
-  if (cafe.city) subParts.push([cafe.city, cafe.state].filter(Boolean).join(", "));
-  if (popularity != null && popularity > 0) subParts.push(`${popularity} ${popularity === 1 ? "visitor" : "visitors"}`);
-
-  return (
-    <BrowseCard
-      imageUrl={cafe.cover_image_url || cafe.logo_url}
-      fallbackInitial={(cafe.name || "?")[0]}
-      name={cafe.name || ""}
-      subtitle={subParts.join("  \u00B7  ")}
-      onPress={() => router.push(`/cafe/${cafe.cafe_slug}` as any)}
-      width={cardW}
-    />
-  );
-}
-
-function CafesList() {
-  const { cafes, popularity, loading } = useCafes();
-  const { width } = useWindowDimensions();
-  const { isMobile } = useBreakpoint();
-  const isDesktop = width >= 1024;
-  const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
-  const [cafeQuery, setCafeQuery] = useState("");
-  const [selectedCities, setSelectedCities] = useState<string[]>([]);
-  const [containerW, setContainerW] = useState(0);
-  const { hidden: searchBarHidden, handleScroll } = useSearchBarAutoHide();
-
-  const GAP = 20;
-  const TARGET_CARD_W = 240;
-  const GRID_PAD = 16;
-  const CARD_ASPECT = 260 / 240;
-  const availW = containerW > 0 ? containerW - GRID_PAD * 2 : 960;
-  const numCols = Math.max(1, Math.min(8, Math.round((availW + GAP) / (TARGET_CARD_W + GAP))));
-  const cardW = Math.floor((availW - GAP * (numCols - 1)) / numCols);
-  const cardH = Math.floor(cardW * CARD_ASPECT);
-
-  const cities = useMemo(() => {
-    const set = new Set<string>();
-    cafes.forEach((c) => { if (c.city) set.add(c.city); });
-    return Array.from(set).sort();
-  }, [cafes]);
-
-  const filteredCafes = useMemo(() => {
-    let result = cafes;
-    if (cafeQuery) {
-      const q = cafeQuery.toLowerCase();
-      result = result.filter((c) =>
-        (c.name || "").toLowerCase().includes(q) ||
-        (c.city || "").toLowerCase().includes(q) ||
-        (c.about_blurb || "").toLowerCase().includes(q)
-      );
-    }
-    if (selectedCities.length > 0) {
-      result = result.filter((c) => c.city && selectedCities.includes(c.city));
-    }
-    return result;
-  }, [cafes, cafeQuery, selectedCities]);
-
-  const toggleCity = (city: string) => {
-    setSelectedCities(prev => prev.includes(city) ? prev.filter(c => c !== city) : [...prev, city]);
-  };
-
-  return (
-    <View style={[s.browseLayout, isMobile && s.browseLayoutMobile]}>
-      {isDesktop && (
-        <ScrollView
-          style={[s.sidebar, { width: sidebarW, minWidth: sidebarW, maxWidth: sidebarW }]}
-          contentContainerStyle={{ paddingRight: 16, paddingTop: 20, paddingBottom: 60 }}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={s.sidebarCount}>
-            <Text style={s.sidebarCountBold}>{filteredCafes.length}</Text> cafés
-          </Text>
-          <View style={s.filterDivider} />
-          {cities.length > 0 && (
-            <FilterSection
-              title="Location"
-              items={cities.map(c => ({ key: c, label: c }))}
-              selected={selectedCities}
-              onToggle={toggleCity}
-              maxVisible={20}
-            />
-          )}
-        </ScrollView>
-      )}
-
-      {isDesktop && <View style={s.verticalDivider} />}
-
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <View style={[s.searchBarWrap, !isMobile && searchBarHidden && s.searchBarWrapHidden] as any}>
-          <View style={s.stickySearchWrap}>
-            <View style={s.searchBar}>
-              <Search size={16} color={t.color["text.muted"]} />
-              <TextInput placeholder="Search" placeholderTextColor={t.color["text.muted"]} value={cafeQuery} onChangeText={setCafeQuery} style={s.searchInput} />
-              {cafeQuery ? <Pressable onPress={() => setCafeQuery("")} hitSlop={14} accessibilityLabel="Clear café search"><X size={16} color={t.color["text.muted"]} /></Pressable> : null}
-            </View>
-          </View>
-        </View>
-
-        <ScrollView
-          style={{ flex: 1 }}
-          showsVerticalScrollIndicator={false}
-          onScroll={(e) => { onChromeScroll(e); if (!isMobile) handleScroll(e); }}
-          scrollEventThrottle={16}
-          onLayout={(e) => setContainerW(e.nativeEvent.layout.width)}
-          contentContainerStyle={{ paddingBottom: 100 }}
-        >
-          <Text style={s.rPageTitle} numberOfLines={1}>Discover specialty coffee cafés</Text>
-          <View style={s.rDivider} />
-          {loading ? (
-            <Text style={[s.rSub, { padding: 20 }]}>Loading…</Text>
-          ) : filteredCafes.length === 0 ? (
-            <Text style={[s.rSub, { padding: 20 }]}>No cafés match.</Text>
-          ) : (
-            <View style={[s.browseGrid, { gap: GAP, paddingHorizontal: GRID_PAD }]}>
-              {filteredCafes.map((c) => (
-                <CafeCard
-                  key={c.cafe_slug}
-                  cafe={c}
-                  popularity={popularity[c.cafe_slug]}
-                  width={cardW}
-                  height={cardH}
-                />
-              ))}
-            </View>
-          )}
         </ScrollView>
       </View>
     </View>

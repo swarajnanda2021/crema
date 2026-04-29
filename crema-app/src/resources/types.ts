@@ -38,9 +38,8 @@ export interface User {
   avatar_crop_x: number;
   avatar_crop_y: number;
   avatar_zoom: number;
-  account_type: "user" | "roaster" | "cafe";
+  account_type: "user" | "roaster";
   roaster_slug?: string;
-  cafe_slug?: string;
   is_admin?: number;
   created_at: string;
 }
@@ -57,7 +56,6 @@ export interface Post {
   cover_image_url: string | null;
   post_type: "article" | "note" | "repost" | "tasting_note" | "sourcing_story";
   location: string | null;
-  cafe_slug: string | null;
   images: string[];
   repost_of_id: number | null;
   repost_comment: string | null;
@@ -142,9 +140,6 @@ export interface Product {
   enrichment_status: string | null;
   available: boolean | number;
   source: "scraped" | "manual" | "roaster";
-  wholesale_available: number | null;
-  wholesale_minimum_kg: number | null;
-  wholesale_note: string | null;
   created_at: string;
 }
 
@@ -272,128 +267,6 @@ export interface FollowInfo {
   is_roaster: boolean;
 }
 
-// ── Cafés (see CRUD_UTOPIA.md) ──────────────────────────────────────────────
-
-export interface Cafe {
-  cafe_slug: string;
-  name: string;
-  about_blurb: string | null;
-  cover_image_url: string | null;
-  logo_url: string | null;
-  hero_crop_x: number;
-  hero_crop_y: number;
-  hero_zoom: number;
-  logo_crop_x: number;
-  logo_crop_y: number;
-  logo_zoom: number;
-  address: string | null;
-  city: string | null;
-  state: string | null;
-  lat: number | null;
-  lng: number | null;
-  instagram_handle: string | null;
-  website: string | null;
-  phone: string | null;
-  hours_json: Record<string, string> | null;
-  seasonal_open_month: number | null;
-  seasonal_close_month: number | null;
-  stamps_enabled: number;
-  stamp_target: number;
-  stamp_reward: string;
-  // Phase 1 §2.6 — procurement profile (owner-only, shared with roasters
-  // when the café opens a wholesale inquiry §2.1).
-  monthly_volume_kg: number | null;
-  open_to_new_roasters: number;
-  procurement_note: string | null;
-  /** Alt-milk options the café serves with per-cup surcharges. Rendered
-   *  as a sentence at the top of the menu. */
-  milk_options_json: MilkOption[] | null;
-  stamps_given?: number;
-  love_count?: number;
-  rewards_redeemed?: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CafeMenuItem {
-  id: number;
-  cafe_slug: string;
-  drink_name: string;
-  drink_order: number;
-  roaster_slug: string | null;
-  product_id: string | null;
-  manual_roaster_name: string | null;
-  manual_roaster_url: string | null;
-  manual_bean_name: string | null;
-  roast_level: string | null;
-  process: string | null;
-  notes: string | null;
-  hide_roaster: number;
-  /** Per-cup hot price in INR. Null = not priced (column shows —). */
-  price_inr: number | null;
-  /** Iced variant price in INR. Null = not served iced (column shows —). */
-  price_iced_inr: number | null;
-  created_at: string;
-}
-
-/** One alt-milk option a café serves. Stored as a JSON array on
- *  `cafe_profiles.milk_options_json`. Order is preserved (cafés care
- *  that "Oat" comes before "Soy" in the displayed sentence). */
-export interface MilkOption {
-  name: string;
-  /** Extra ₹ per cup. 0 means "no surcharge" — still rendered, just
-   *  without the parenthesized price. */
-  surcharge_inr: number;
-}
-
-// CafeBarista type removed — feature cut.
-
-export interface Stamp {
-  id: number;
-  user_id: number;
-  cafe_slug: string;
-  scanned_at: string;
-}
-
-export interface StampReward {
-  id: number;
-  user_id: number;
-  cafe_slug: string;
-  stamps_used: number;
-  redeemed_at: string;
-}
-
-export interface StampBookEntry {
-  cafe_slug: string;
-  name: string;
-  logo_url: string | null;
-  city: string | null;
-  state: string | null;
-  stamp_target: number;
-  stamp_reward: string;
-  progress: number;
-  total_stamps: number;
-  rewards_redeemed: number;
-  last_visit: string;
-}
-
-export interface QRTokenResponse {
-  token: string;
-  expires_at: string;
-}
-
-export interface StampResult {
-  user_id: number;
-  display_name: string;
-  username: string;
-  avatar_url: string | null;
-  stamps_progress: number;
-  stamp_target: number;
-  reward_earned: boolean;
-  total_stamps_ever: number;
-  rewards_ever: number;
-}
-
 // ── Brew methods (Phase 1 §2.5) ─────────────────────────────────────────────
 
 export type BrewMethodKind =
@@ -428,30 +301,6 @@ export interface BrewMethod {
   author_username: string | null;
 }
 
-// ── Wholesale inquiries (Phase 1 §2.1) ──────────────────────────────────────
-
-export type WholesaleInquiryStatus = "open" | "responded" | "archived";
-
-export interface WholesaleInquiry {
-  id: number;
-  cafe_slug: string;
-  roaster_slug: string;
-  product_id: string | null;
-  note: string | null;
-  status: WholesaleInquiryStatus;
-  created_at: string;
-  updated_at: string | null;
-  // Subfields joined via the registry (see registry.py)
-  cafe_name: string | null;
-  cafe_city: string | null;
-  cafe_state: string | null;
-  cafe_logo_url: string | null;
-  cafe_monthly_volume_kg: number | null;
-  cafe_open_to_new_roasters: number | null;
-  cafe_procurement_note: string | null;
-  product_name: string | null;
-}
-
 // ── Admin Traction Dashboard (see services/admin_stats.py) ──────────────────
 
 export interface DailyPoint {
@@ -462,7 +311,6 @@ export interface DailyPoint {
 export interface EngagementStats {
   total_users: number;
   total_roasters: number;
-  total_cafe_accounts: number;
   dau: number;
   wau: number;
   mau: number;
@@ -514,28 +362,6 @@ export interface CommerceStats {
   };
 }
 
-export interface TopStampedCafe {
-  cafe_slug: string;
-  name: string;
-  city: string | null;
-  stamps: number;
-}
-
-export interface LoyaltyStats {
-  total_stamps: number;
-  stamps_7d: number;
-  stamps_30d: number;
-  stamps_90d: number;
-  unique_stamped_users: number;
-  avg_stamps_per_user: number;
-  avg_days_between_stamps: number;
-  loyal_cohort_3_plus: number;
-  rewards_redeemed: number;
-  reward_conversion_pct: number;
-  top_cafes: TopStampedCafe[];
-  daily_stamps: DailyPoint[];
-}
-
 export interface TopFollowedEntity {
   slug: string;
   name: string;
@@ -548,7 +374,6 @@ export interface NetworkStats {
   unique_followers: number;
   avg_follows_per_user: number;
   top_roasters: TopFollowedEntity[];
-  top_cafes: TopFollowedEntity[];
   reciprocal_pairs: number;
   shared_shelf_pairs_3_plus: number;
 }
@@ -569,61 +394,13 @@ export interface RetentionStats {
   cohorts: RetentionCohort[];
   writer_retention_30d_pct: number;
   writers_total: number;
-  avg_first_to_second_stamp_days: number;
-}
-
-export interface SupplyStats {
-  roasters_total: number;
-  roasters_with_profiles: number;
-  roasters_with_products: number;
-  roasters_with_posts: number;
-  roasters_with_followers: number;
-  products_total: number;
-  products_available: number;
-  products_with_shelf_entry: number;
-  products_with_tasting_note: number;
-  cafes_total: number;
-  cafes_stamps_enabled: number;
-  cafes_with_any_stamp: number;
-  avg_menu_items_per_cafe: number;
-  cafes_using_catalog_roasters: number;
-  ecosystem_density_pct: number;
-  // §2.17 — procurement readiness fields removed (UI + metric dropped).
-  // Phase 1 §2.4 business vs activity notification split (30d)
-  business_notifs_30d: number;
-  activity_notifs_30d: number;
-  business_share_pct: number;
-  // Phase 1 §2.1 wholesale inquiries
-  inquiries_total: number;
-  inquiries_30d: number;
-  inquiries_open: number;
-  inquiries_responded: number;
-  inquiries_archived: number;
-  inquiry_cafes_participating: number;
-  inquiry_roasters_receiving: number;
-  inquiry_response_rate_pct: number;
-  // Phase 1 §2.2 wholesale availability signal
-  wholesale_available_total: number;
-  wholesale_signal_pct: number;
-  roasters_offering_wholesale: number;
-  // Phase 1 §2.3 sourcing stories
-  sourcing_stories_total: number;
-  sourcing_stories_30d: number;
-  sourcing_story_share_pct: number;
-  // Phase 1 §2.5 brew method cards
-  brew_methods_total: number;
-  products_with_recipes: number;
-  recipe_coverage_pct: number;
-  top_brew_method: string | null;
 }
 
 export interface TractionStats {
   engagement: EngagementStats;
   commerce: CommerceStats;
-  loyalty: LoyaltyStats;
   network: NetworkStats;
   retention: RetentionStats;
-  supply: SupplyStats;
   generated_at: string;
 }
 

@@ -16,13 +16,11 @@ interface User {
   brewing_style?: string;
   favorite_drink?: string;
   favorite_cafe?: string;
-  favorite_cafe_slug?: string | null;
   avatar_crop_x?: number;
   avatar_crop_y?: number;
   avatar_zoom?: number;
-  account_type?: "user" | "roaster" | "cafe";
+  account_type?: "user" | "roaster";
   roaster_slug?: string;
-  cafe_slug?: string;
   created_at: string;
 }
 
@@ -30,7 +28,7 @@ export interface SavedAccount {
   username: string;
   display_name: string;
   avatar_url: string | null;
-  account_type?: "user" | "roaster" | "cafe";
+  account_type?: "user" | "roaster";
   token: string;
 }
 
@@ -91,8 +89,8 @@ async function hydrateSavedAccounts(): Promise<void> {
         }
       } else {
         // SecureStore items cap at ~2 KB on iOS. A JSON blob of up to
-        // ~3 accounts (~1.2 KB) fits comfortably — one user, one
-        // roaster, one café + their tokens.
+        // ~2 accounts (~0.8 KB) fits comfortably — one user, one
+        // roaster + their tokens.
         const raw = await SecureStore.getItemAsync(ACCOUNTS_KEY);
         _savedCache = raw ? JSON.parse(raw) : [];
       }
@@ -142,7 +140,7 @@ function upsertAccount(user: User, token: string) {
   // Enforce one account per type — replace any existing saved account
   // with the same account_type (except the current user row we're about
   // to insert/overwrite). Keeps the saved pool at most one user + one
-  // roaster + one café at any moment.
+  // roaster at any moment.
   const type = user.account_type || "user";
   const accounts = readSavedAccounts().filter((a) => {
     if (a.username === user.username) return false; // will re-insert
@@ -171,7 +169,7 @@ function removeAccount(username: string) {
 function assertTrackMatch(user: User, expectedIsBusiness?: boolean) {
   if (expectedIsBusiness === undefined) return;
   const type = user.account_type || "user";
-  const userIsBusiness = type === "roaster" || type === "cafe";
+  const userIsBusiness = type === "roaster";
   if (userIsBusiness === expectedIsBusiness) return;
   if (expectedIsBusiness) {
     throw new Error(
@@ -183,18 +181,14 @@ function assertTrackMatch(user: User, expectedIsBusiness?: boolean) {
   );
 }
 
-/** Where to land a user after a hard-reload switch. Roasters and cafés
- * go to their entity profile so the owner affordances (edit banner,
- * menu controls, scan button) light up immediately; regular users
- * land on their own profile tab (`/profile`) rather than the feed so
- * the "who am I now?" question is answered visually the moment the
- * switch completes. */
+/** Where to land a user after a hard-reload switch. Roasters go to
+ * their storefront so the owner affordances (edit banner, post FAB)
+ * light up immediately; regular users land on their own profile tab
+ * (`/profile`) rather than the feed so the "who am I now?" question
+ * is answered visually the moment the switch completes. */
 function entityHomeFor(user: User): string {
   if (user.account_type === "roaster" && user.roaster_slug) {
     return `/roaster/${user.roaster_slug}`;
-  }
-  if (user.account_type === "cafe" && user.cafe_slug) {
-    return `/cafe/${user.cafe_slug}`;
   }
   return "/profile";
 }
@@ -296,12 +290,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // the session token + fetch the next user FIRST, then hard-
     // navigate, letting the full page reload flush the old state.
     //
-    // Next-account pick order: user → roaster → café (the order
-    // people think of them in).
+    // Next-account pick order: user → roaster (the order people
+    // think of them in).
     const remaining = username
       ? readSavedAccounts().filter((a) => a.username !== username)
       : readSavedAccounts();
-    const typePriority: Record<string, number> = { user: 0, roaster: 1, cafe: 2 };
+    const typePriority: Record<string, number> = { user: 0, roaster: 1 };
     const next = remaining
       .slice()
       .sort((a, b) => (typePriority[a.account_type || "user"] ?? 9)

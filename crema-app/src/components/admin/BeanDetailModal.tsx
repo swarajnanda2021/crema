@@ -77,8 +77,6 @@ const ORDER = [
   "weight_grams",
   "price_inr",
   "available",
-  "wholesale_available",
-  "wholesale_minimum_kg",
   "image_url",
   "product_url",
   "product_id",

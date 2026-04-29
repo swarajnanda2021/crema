@@ -294,12 +294,6 @@ export default function RootLayout() {
                 headerShadowVisible: false,
               }}
             />
-            <Stack.Screen
-              name="cafe/[slug]"
-              options={{
-                headerShown: false,
-              }}
-            />
             {/* Mobile-only destinations behind the MobileHeader
                search + bell icons. Native stack renders a back
                button for free via headerShown:true. On web wide

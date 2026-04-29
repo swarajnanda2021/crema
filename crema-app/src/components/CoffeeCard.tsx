@@ -7,17 +7,15 @@ import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { openExternal } from "../utils/openExternal";
-import { Coffee, Package, Pencil, Trash2 } from "lucide-react-native";
+import { Coffee, Pencil, Trash2 } from "lucide-react-native";
 import { t, cardShadow, SHELF_LABELS, ShelfKey } from "../tokens/useTokens";
 import { HeartIcon, HeartFilledIcon, ShareIcon, CartIcon, UsersIcon } from "./icons/FigmaIcons";
 import CoffeeLabel, { CoffeeLabelPrice } from "./CoffeeLabel";
 import { trackClick } from "../api/client";
 import { useShare } from "../hooks/useShare";
 import { useShelves } from "../hooks/useShelves";
-import { useAuth } from "../hooks/useAuth";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { openPopularityModal } from "./primitives";
-import InterestedButton from "./InterestedButton";
 
 interface CoffeeCardProps {
   coffee: any;
@@ -53,20 +51,10 @@ const BTN_SIZE = 31;
 
 export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 240, height: cardH = 372, shelfMode, isOwner = true, currentShelf, onMoveShelf, onRemove, onAddToShelf, onEdit, forceLandscape = false }: CoffeeCardProps) {
   const [showShelfPicker, setShowShelfPicker] = useState(false);
-  const [showWholesaleInquiry, setShowWholesaleInquiry] = useState(false);
   const [shelvedAs, setShelvedAs] = useState<ShelfKey | null>(currentShelf || null);
   const { share } = useShare();
   const { addToShelf } = useShelves();
-  const { user } = useAuth();
   const { isMobile } = useBreakpoint();
-  // Phase 1 §2.2 — wholesale visibility. Both cafés and roasters are
-  // "business" viewers that see the wholesale affordance; regular
-  // users don't. Neither business type has a personal shelf, so for
-  // them the Package chip replaces the heart in the top-right slot.
-  const isCafeViewer = user?.account_type === "cafe";
-  const isRoasterViewer = user?.account_type === "roaster";
-  const isBusinessViewer = isCafeViewer || isRoasterViewer;
-  const showWholesale = isBusinessViewer && coffee.wholesale_available === 1;
 
   const imageH = Math.round(cardH * IMAGE_RATIO);
   const infoH = cardH - imageH;
@@ -131,7 +119,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
 
           {/* Top-left slot: add-to-shelf heart (non-owner, shelfMode) OR
              social dot (userCount > 0). Same rule as portrait. */}
-          {shelfMode && !isOwner && !isBusinessViewer && onAddToShelf ? (
+          {shelfMode && !isOwner && onAddToShelf ? (
             <Pressable onPress={() => { setShowShelfPicker(!showShelfPicker); }} style={s.tlSlot}>
               {shelvedAs ? <HeartFilledIcon size={BTN_SIZE} /> : <HeartIcon size={BTN_SIZE} />}
             </Pressable>
@@ -152,24 +140,14 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
             </Pressable>
           ) : null}
 
-          {/* Top-right slot: owner bin / business Package / default heart. */}
+          {/* Top-right slot: owner bin or default heart. */}
           {shelfMode && isOwner && onRemove ? (
             <Pressable onPress={onRemove} style={s.trSlot} accessibilityLabel="Remove bean">
               <View style={s.trashCircleLs}>
                 <Trash2 size={16} color="#351101" strokeWidth={1.8} />
               </View>
             </Pressable>
-          ) : !shelfMode && isBusinessViewer && showWholesale ? (
-            <Pressable
-              onPress={() => setShowWholesaleInquiry(true)}
-              style={s.trSlot}
-              accessibilityLabel={`See wholesale details for ${coffee.coffee_name}`}
-            >
-              <View style={s.trashCircleLs}>
-                <Package size={15} color="#351101" strokeWidth={1.7} />
-              </View>
-            </Pressable>
-          ) : !shelfMode && !isBusinessViewer ? (
+          ) : !shelfMode ? (
             <Pressable onPress={() => setShowShelfPicker(!showShelfPicker)} style={s.trSlot}>
               {shelvedAs ? <HeartFilledIcon size={BTN_SIZE} /> : <HeartIcon size={BTN_SIZE} />}
             </Pressable>
@@ -234,19 +212,6 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
             </Pressable>
           </View>
         </View>
-
-        {/* Wholesale inquiry modal — same controlled pattern as the
-           portrait render. */}
-        <InterestedButton
-          roaster_slug={coffee.roaster_slug}
-          roaster_name={coffee.roaster_name}
-          product_id={coffee.product_id}
-          product_name={coffee.coffee_name}
-          wholesale_minimum_kg={coffee.wholesale_minimum_kg}
-          wholesale_note={coffee.wholesale_note}
-          controlledOpen={showWholesaleInquiry}
-          onControlledClose={() => setShowWholesaleInquiry(false)}
-        />
       </View>
     );
   }
@@ -283,19 +248,11 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
       */}
       {shelfMode && isOwner && onRemove ? (
         <Pressable onPress={onRemove} style={s.binBtnRight}>
-          {/* Swapped from the custom 12×13px SVG trash to lucide's
-             Trash2 at 16px inside the cream disc. The old SVG only
-             filled ~35% of the disc and read as "dots on a circle"
-             at screen scale — visually indistinguishable from the
-             social UsersIcon. Lucide's Trash2 is shaped more clearly
-             (lid + body + vertical lines) and at 16px fills the
-             disc properly. Colour stays the site's dark primary
-             per the delete-button spec. */}
           <View style={s.binCircleRight}>
             <Trash2 size={16} color="#351101" strokeWidth={1.8} />
           </View>
         </Pressable>
-      ) : shelfMode && !isOwner && !isBusinessViewer && onAddToShelf ? (
+      ) : shelfMode && !isOwner && onAddToShelf ? (
         <Pressable onPress={() => { setShowShelfPicker(!showShelfPicker); }} style={s.binBtn}>
           {shelvedAs ? <HeartFilledIcon size={BTN_SIZE} /> : <HeartIcon size={BTN_SIZE} />}
         </Pressable>
@@ -314,7 +271,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
       {/* Social dot — circular cream disc, count-free. Lives on the
          LEFT by default. Hidden only when the non-owner add-to-shelf
          heart occupies the same slot. */}
-      {!(shelfMode && !isOwner && !isBusinessViewer && onAddToShelf)
+      {!(shelfMode && !isOwner && onAddToShelf)
         && userCount != null && userCount > 0 && (
           <Pressable
             onPress={() => openPopularityModal({
@@ -332,23 +289,10 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
           </Pressable>
         )}
 
-      {/* Top-right. Business viewers (roaster / café) see the
-         wholesale Package chip here when the bean is flagged
-         available — it displaces the heart because neither account
-         type has a personal shelf. If the bean is NOT wholesale, the
-         slot stays empty for them. Regular users always see the
-         heart. */}
-      {!shelfMode && isBusinessViewer && showWholesale ? (
-        <Pressable
-          onPress={() => setShowWholesaleInquiry(true)}
-          style={s.wholesaleBtn}
-          accessibilityLabel={`See wholesale details for ${coffee.coffee_name}`}
-        >
-          <View style={s.wholesaleCircle}>
-            <Package size={15} color="#351101" strokeWidth={1.7} />
-          </View>
-        </Pressable>
-      ) : !shelfMode && !isBusinessViewer ? (
+      {/* Top-right: heart for non-shelf views (consumer + roaster
+         alike — Phase 1 has no business-flavored top-right
+         affordance). */}
+      {!shelfMode ? (
         <Pressable onPress={() => setShowShelfPicker(!showShelfPicker)} style={s.heartBtn}>
           {shelvedAs ? <HeartFilledIcon size={BTN_SIZE} /> : <HeartIcon size={BTN_SIZE} />}
         </Pressable>
@@ -403,20 +347,6 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
          `crema:open-popularity` via the helper above and the sitewide
          GlobalPopularityModal at root layout handles presentation
          (mid-band on mobile, centered card on web). (§2.40.3) */}
-
-      {/* Controlled wholesale inquiry modal — opens when a café viewer
-         taps the Package chip on the card. Renders nothing for non-café
-         viewers (gated inside InterestedButton). */}
-      <InterestedButton
-        roaster_slug={coffee.roaster_slug}
-        roaster_name={coffee.roaster_name}
-        product_id={coffee.product_id}
-        product_name={coffee.coffee_name}
-        wholesale_minimum_kg={coffee.wholesale_minimum_kg}
-        wholesale_note={coffee.wholesale_note}
-        controlledOpen={showWholesaleInquiry}
-        onControlledClose={() => setShowWholesaleInquiry(false)}
-      />
     </View>
   );
 }

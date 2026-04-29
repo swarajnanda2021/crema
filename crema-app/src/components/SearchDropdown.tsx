@@ -3,20 +3,8 @@
  *
  * Mirrors the site's dropdown language (messages, notifications,
  * profile). Click the navbar glass → dropdown opens below the icon
- * with a styled cream-backed input at the top and four result
- * sections below: Users, Beans, Roasters, Cafés.
- *
- * Behaviour:
- *   - Typing narrows all four sections live. Users hit the backend
- *     (`/users/search?q=...`); the other three filter local caches
- *     (useCoffeeData + useCafes) — cheap and offline-friendly.
- *   - Each section caps at 5 rows; a "See all" affordance routes to
- *     Discover with the query pre-filled.
- *   - Rows navigate and close the dropdown.
- *   - Beans intentionally skip the product image — keeps rows tight
- *     and readable, matches the user's §2.11 call.
- *   - Outside-click dismissal on web, same pattern as
- *     MessagesDropdown / NotificationsDropdown.
+ * with a styled cream-backed input at the top and three result
+ * sections below: Users, Beans, Roasters.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -29,7 +17,6 @@ import { Search as SearchIcon, X } from "lucide-react-native";
 import { t, cardShadow } from "../tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
 import { useCoffeeData } from "../hooks/useCoffeeData";
-import { useCafes } from "../hooks/useCafes";
 import { CroppedAvatar } from "./primitives";
 
 interface Props {
@@ -68,9 +55,8 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
   const debounceRef = useRef<any>(null);
 
   const { products, roasters } = useCoffeeData();
-  const { cafes } = useCafes();
 
-  // Local (cached) filtering for beans / roasters / cafés.
+  // Local (cached) filtering for beans / roasters.
   const q = query.trim().toLowerCase();
   const beanHits = useMemo(() => {
     if (!q) return [] as any[];
@@ -90,15 +76,6 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
         || (r.city || "").toLowerCase().includes(q))
       .slice(0, SECTION_LIMIT);
   }, [roasters, q]);
-
-  const cafeHits = useMemo(() => {
-    if (!q) return [] as any[];
-    return cafes
-      .filter((c) => (c.name || "").toLowerCase().includes(q)
-        || (c.city || "").toLowerCase().includes(q)
-        || (c.about_blurb || "").toLowerCase().includes(q))
-      .slice(0, SECTION_LIMIT);
-  }, [cafes, q]);
 
   // Users hit the backend. Debounced 200ms to avoid a request per
   // keystroke on fast typers.
@@ -169,7 +146,7 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
     setTimeout(() => router.push(path as any), 40);
   };
 
-  const anyResults = userHits.length + beanHits.length + roasterHits.length + cafeHits.length > 0;
+  const anyResults = userHits.length + beanHits.length + roasterHits.length > 0;
 
   // §2.11 — navbar-pinned dropdown. Matches the messages /
   // notifications / profile pattern exactly: no backdrop, no
@@ -222,7 +199,7 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
           ref={inputRef}
           value={query}
           onChangeText={setQuery}
-          placeholder="Search users, beans, roasters, cafés"
+          placeholder="Search users, beans, roasters"
           placeholderTextColor={t.color["text.muted"]}
           style={s.input}
           autoCapitalize="none"
@@ -238,7 +215,7 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
 
       <ScrollView style={s.results} showsVerticalScrollIndicator={false}>
         {!q ? (
-          <Text style={s.hint}>Start typing to find users, beans, roasters, and cafés.</Text>
+          <Text style={s.hint}>Start typing to find users, beans, and roasters.</Text>
         ) : !anyResults ? (
           <Text style={s.hint}>No matches for "{q}".</Text>
         ) : (
@@ -313,30 +290,6 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
                     <View style={s.rowText}>
                       <Text style={s.rowTitle} numberOfLines={1}>{r.name}</Text>
                       {r.city ? <Text style={s.rowMeta} numberOfLines={1}>{r.city}</Text> : null}
-                    </View>
-                  </Pressable>
-                ))}
-              </Section>
-            )}
-
-            {cafeHits.length > 0 && (
-              <Section label="Cafés">
-                {cafeHits.map((c: any) => (
-                  <Pressable
-                    key={`c-${c.cafe_slug}`}
-                    onPress={() => goto(`/cafe/${c.cafe_slug}`)}
-                    style={({ pressed }: any) => [s.row, pressed && s.rowPressed]}
-                  >
-                    {c.logo_url || c.cover_image_url ? (
-                      <Image source={{ uri: resolveUploadUrl(c.logo_url || c.cover_image_url) }} style={s.thumb} />
-                    ) : (
-                      <View style={s.thumbFb}>
-                        <Text style={s.avatarLetter}>{(c.name || "?")[0]}</Text>
-                      </View>
-                    )}
-                    <View style={s.rowText}>
-                      <Text style={s.rowTitle} numberOfLines={1}>{c.name}</Text>
-                      {c.city ? <Text style={s.rowMeta} numberOfLines={1}>{c.city}</Text> : null}
                     </View>
                   </Pressable>
                 ))}
