@@ -75,6 +75,13 @@ def seed_initial_state(conn) -> None:
     # vs bare, trailing slash) stops fragmenting otherwise-identical
     # roasters. Gated on PRAGMA user_version so it runs exactly once.
     normalize_roaster_websites(conn)
+    # Backfill `last_scraped_at` for sources whose linked roaster
+    # already has products but never got the stamp because the legacy
+    # per-roaster runs never threaded `roaster_slug` through to the
+    # bulk-mode stamper. Must run AFTER `normalize_roaster_websites`
+    # so the website-match join works on the canonical form. Gated on
+    # PRAGMA user_version so it runs exactly once.
+    backfill_last_scraped_at(conn)
 
 
 def _seed_roaster_sources_combined(conn) -> None:
@@ -420,7 +427,7 @@ def run_scrape_job(
         )
         if upsert_summary.get("enrichment_setup_error"):
             log(f"note: {upsert_summary['enrichment_setup_error']}")
-        stamped = scrape_runner.stamp_sources_scraped(db)
+        stamped = scrape_runner.stamp_sources_scraped(db, roaster_slug=roaster_slug)
         log(f"stamped {stamped} sources with last_scraped_at")
 
         mark_finished(
@@ -820,6 +827,59 @@ def normalize_roaster_websites(conn) -> None:
             print(f"      {url}")
             for s in slugs:
                 print(f"          ← {s}")
+
+
+def backfill_last_scraped_at(conn) -> None:
+    """One-shot backfill: stamp `roaster_sources.last_scraped_at` for
+    sources whose linked roaster has products but no scrape stamp.
+
+    Why: every per-roaster enrichment run before `run_scrape_job` was
+    patched to thread `roaster_slug` through to `stamp_sources_scraped`
+    fell into the bulk-mode `WHERE enabled = 1` filter, which excluded
+    the typical `enabled=0` state of per-roaster sources. Result:
+    products + Haiku prompt hints exist, yet the per-roaster page
+    reads "Catalog not enriched yet" forever.
+
+    Signal: `MAX(products.created_at)` per linked roaster. `created_at`
+    is set on INSERT only, so this is the date of the most-recent
+    first-seen product — a strict lower bound for "when was this
+    catalog last touched." Better than NULL ("never enriched") and
+    accurate enough for the relative-age hero text.
+
+    Gated on `PRAGMA user_version >= 3` so it runs exactly once per DB.
+    """
+    cur = conn.execute("PRAGMA user_version")
+    version = cur.fetchone()[0]
+    if version >= 3:
+        return
+
+    cur = conn.execute(
+        """
+        UPDATE roaster_sources
+        SET last_scraped_at = (
+            SELECT MAX(p.created_at)
+            FROM products p, roaster_profiles rp
+            WHERE LOWER(rp.website) = LOWER(roaster_sources.website)
+              AND p.roaster_slug = rp.roaster_slug
+        )
+        WHERE last_scraped_at IS NULL
+          AND EXISTS (
+            SELECT 1 FROM products p, roaster_profiles rp
+            WHERE LOWER(rp.website) = LOWER(roaster_sources.website)
+              AND p.roaster_slug = rp.roaster_slug
+          )
+        """
+    )
+    stamped = cur.rowcount
+
+    conn.execute("PRAGMA user_version = 3")
+    conn.commit()
+
+    if stamped:
+        print(
+            f"Backfill last_scraped_at: stamped {stamped} source(s) "
+            f"from products.created_at."
+        )
 
 
 def backfill_prior_scrape_jobs(conn) -> int:
