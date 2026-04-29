@@ -59,6 +59,13 @@ def seed_initial_state(conn) -> None:
     this gate the verified-catalog seed used to re-insert its 39 rows
     on every code change.
     """
+    # Recover orphan jobs first — any `running` row at server boot
+    # was abandoned by a worker that died mid-execution (uvicorn
+    # killed during a scrape, OS crash, OOM, etc.). The worker can't
+    # come back to call `mark_finished`, so the row would otherwise
+    # block `enqueue_job` indefinitely with a 409. Idempotent — once
+    # all running rows are flipped, subsequent boots are no-ops.
+    recover_orphan_jobs(conn)
     _seed_roaster_sources_combined(conn)
     _seed_sca_addresses(conn)
     _seed_sca_tree(conn)
@@ -886,6 +893,34 @@ def backfill_last_scraped_at(conn) -> None:
             f"Backfill last_scraped_at: stamped {stamped} source(s) "
             f"from products.created_at."
         )
+
+
+def recover_orphan_jobs(conn) -> None:
+    """Mark any `running` jobs as `failed` at server boot.
+
+    A job can only be in `running` status if a live worker is
+    iterating it — but if the server is just starting up, no worker
+    is iterating anything. So every `running` row at boot time is
+    by definition an orphan from a prior worker that died (uvicorn
+    killed mid-scrape, OS crash, OOM during per-product Haiku
+    enrichment, …). Without this, `enqueue_job`'s in-flight gate
+    refuses every subsequent kick with a 409 until the admin hand-
+    edits the row.
+
+    Runs unconditionally — the WHERE clause is a no-op when no
+    orphans exist, so there's nothing to gate on.
+    """
+    cur = conn.execute(
+        "UPDATE jobs SET status = 'failed', "
+        "  finished_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), "
+        "  error_message = COALESCE(error_message, '') || "
+        "    CASE WHEN COALESCE(error_message, '') = '' THEN '' ELSE ' · ' END || "
+        "    'Server restarted while job was running — partial state may be staged.' "
+        "WHERE status = 'running'"
+    )
+    if cur.rowcount > 0:
+        conn.commit()
+        print(f"Recovered {cur.rowcount} orphan job(s) from prior worker death.")
 
 
 def backfill_canonical_columns(conn) -> None:
