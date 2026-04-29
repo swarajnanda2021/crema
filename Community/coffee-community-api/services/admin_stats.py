@@ -3,10 +3,10 @@ CRUD Utopia — composite read-only analytics. Lives here because the queries
 span many tables and can't be expressed through the generic CRUD engine.
 See CRUD_UTOPIA.md at repo root.
 
-Admin traction metrics — six sections (engagement, commerce, loyalty,
-network, retention, supply) computed in one pass and returned as a single
-structured payload. The /api/stats/traction endpoint in routes/specific.py
-gates access to the seeded "crema" admin account (is_admin=1).
+Admin traction metrics — four sections (engagement, commerce, network,
+retention) computed in one pass and returned as a single structured
+payload. The /api/stats/traction endpoint in routes/specific.py gates
+access to the seeded "crema" admin account (is_admin=1).
 
 All queries target the live app DB. Every helper returns primitive JSON
 (ints, floats, lists of dicts) — no ORM layer, no SQL constructed from
@@ -84,14 +84,9 @@ def _engagement(db) -> dict:
             "SELECT COUNT(*) FROM users WHERE account_type = 'roaster'"
         ).fetchone()[0]
     )
-    total_cafe_accounts = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM users WHERE account_type = 'cafe'"
-        ).fetchone()[0]
-    )
 
     # Activity-based daily/weekly/monthly — a user is active if they've done
-    # ANY of: tasting note, post, comment, like, shelf entry, or stamp.
+    # ANY of: tasting note, post, comment, like, or shelf entry.
     def _active_since(days: int) -> int:
         since = _days_ago(days)
         row = db.execute(
@@ -106,11 +101,9 @@ def _engagement(db) -> dict:
                 SELECT user_id FROM post_likes WHERE created_at > ?
                 UNION
                 SELECT user_id FROM shelf_entries WHERE added_at > ?
-                UNION
-                SELECT user_id FROM stamps WHERE scanned_at > ?
             )
             """,
-            (since, since, since, since, since, since),
+            (since, since, since, since, since),
         ).fetchone()
         return _n(row[0])
 
@@ -237,8 +230,6 @@ def _engagement(db) -> dict:
               WHERE DATE(created_at) >= DATE('now', '-29 days')
             UNION SELECT DATE(added_at), user_id FROM shelf_entries
               WHERE DATE(added_at) >= DATE('now', '-29 days')
-            UNION SELECT DATE(scanned_at), user_id FROM stamps
-              WHERE DATE(scanned_at) >= DATE('now', '-29 days')
         ) GROUP BY date ORDER BY date
         """,
     )
@@ -256,7 +247,6 @@ def _engagement(db) -> dict:
     return {
         "total_users": total_users,
         "total_roasters": total_roasters,
-        "total_cafe_accounts": total_cafe_accounts,
         "dau": dau,
         "wau": wau,
         "mau": mau,
@@ -390,131 +380,6 @@ def _commerce(db) -> dict:
     }
 
 
-# ── Loyalty ──────────────────────────────────────────────────────────────────
-
-def _loyalty(db) -> dict:
-    total_stamps = _n(db.execute("SELECT COUNT(*) FROM stamps").fetchone()[0])
-    stamps_7 = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM stamps WHERE scanned_at > ?", (_days_ago(7),)
-        ).fetchone()[0]
-    )
-    stamps_30 = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM stamps WHERE scanned_at > ?", (_days_ago(30),)
-        ).fetchone()[0]
-    )
-    stamps_90 = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM stamps WHERE scanned_at > ?", (_days_ago(90),)
-        ).fetchone()[0]
-    )
-
-    unique_stamped = _n(
-        db.execute("SELECT COUNT(DISTINCT user_id) FROM stamps").fetchone()[0]
-    )
-    avg_stamps_per_user = (
-        round(total_stamps / unique_stamped, 2) if unique_stamped else 0.0
-    )
-
-    # Average days between consecutive stamps at the same café
-    # Use SQLite's julianday() for stable diff — window functions available SQLite 3.25+
-    avg_interval_rows = db.execute(
-        """
-        SELECT AVG(julianday(scanned_at) - julianday(prev_at)) AS avg_days
-        FROM (
-            SELECT user_id, cafe_slug, scanned_at,
-                LAG(scanned_at) OVER (
-                    PARTITION BY user_id, cafe_slug ORDER BY scanned_at
-                ) AS prev_at
-            FROM stamps
-        )
-        WHERE prev_at IS NOT NULL
-        """
-    ).fetchone()
-    avg_interval_days = round(_f(avg_interval_rows[0]), 2)
-
-    # Users with 3+ stamps at any single café
-    loyal_rows = db.execute(
-        """
-        SELECT COUNT(DISTINCT user_id) FROM (
-            SELECT user_id, cafe_slug, COUNT(*) AS c
-            FROM stamps GROUP BY user_id, cafe_slug HAVING c >= 3
-        )
-        """
-    ).fetchone()
-    loyal_cohort = _n(loyal_rows[0])
-
-    # Rewards redeemed
-    rewards_total = _n(
-        db.execute("SELECT COUNT(*) FROM stamp_rewards").fetchone()[0]
-    )
-    # Reward conversion: users who EVER reached target vs users who stamped at all
-    # Sum per user-café >= target
-    reached_target = _n(
-        db.execute(
-            """
-            SELECT COUNT(DISTINCT user_id) FROM (
-                SELECT s.user_id, s.cafe_slug, COUNT(*) AS n, cp.stamp_target
-                FROM stamps s JOIN cafe_profiles cp ON cp.cafe_slug = s.cafe_slug
-                GROUP BY s.user_id, s.cafe_slug, cp.stamp_target
-                HAVING n >= cp.stamp_target
-            )
-            """
-        ).fetchone()[0]
-    )
-    reward_conversion_pct = (
-        round(reached_target / unique_stamped * 100.0, 1)
-        if unique_stamped
-        else 0.0
-    )
-
-    # Top cafés by stamp volume
-    top_rows = db.execute(
-        """
-        SELECT s.cafe_slug, cp.name, cp.city, COUNT(*) AS n
-        FROM stamps s LEFT JOIN cafe_profiles cp ON cp.cafe_slug = s.cafe_slug
-        GROUP BY s.cafe_slug
-        ORDER BY n DESC LIMIT 10
-        """
-    ).fetchall()
-    top_cafes = [
-        {
-            "cafe_slug": r["cafe_slug"],
-            "name": r["name"] or r["cafe_slug"],
-            "city": r["city"],
-            "stamps": _n(r["n"]),
-        }
-        for r in top_rows
-    ]
-
-    daily_stamps = _daily_series(
-        db,
-        90,
-        """
-        SELECT DATE(scanned_at) AS date, COUNT(*) AS count
-        FROM stamps
-        WHERE DATE(scanned_at) >= DATE('now', '-89 days')
-        GROUP BY date ORDER BY date
-        """,
-    )
-
-    return {
-        "total_stamps": total_stamps,
-        "stamps_7d": stamps_7,
-        "stamps_30d": stamps_30,
-        "stamps_90d": stamps_90,
-        "unique_stamped_users": unique_stamped,
-        "avg_stamps_per_user": avg_stamps_per_user,
-        "avg_days_between_stamps": avg_interval_days,
-        "loyal_cohort_3_plus": loyal_cohort,
-        "rewards_redeemed": rewards_total,
-        "reward_conversion_pct": reward_conversion_pct,
-        "top_cafes": top_cafes,
-        "daily_stamps": daily_stamps,
-    }
-
-
 # ── Network ──────────────────────────────────────────────────────────────────
 
 def _network(db) -> dict:
@@ -533,7 +398,7 @@ def _network(db) -> dict:
             rp.name, rp.city
         FROM follows f
         LEFT JOIN roaster_profiles rp ON rp.roaster_slug = f.roaster_slug
-        WHERE f.roaster_slug NOT LIKE 'user_%' AND f.roaster_slug NOT LIKE 'cafe_%'
+        WHERE f.roaster_slug NOT LIKE 'user_%'
         GROUP BY f.roaster_slug ORDER BY n DESC LIMIT 10
         """
     ).fetchall()
@@ -545,28 +410,6 @@ def _network(db) -> dict:
             "followers": _n(r["n"]),
         }
         for r in top_roaster_rows
-    ]
-
-    # Top-followed cafés (explicit target_type=cafe OR slug prefix)
-    top_cafe_rows = db.execute(
-        """
-        SELECT f.roaster_slug AS slug, COUNT(*) AS n,
-            cp.name, cp.city
-        FROM follows f
-        LEFT JOIN cafe_profiles cp
-            ON cp.cafe_slug = f.roaster_slug OR 'cafe_' || cp.cafe_slug = f.roaster_slug
-        WHERE f.target_type = 'cafe' OR f.roaster_slug LIKE 'cafe_%'
-        GROUP BY f.roaster_slug ORDER BY n DESC LIMIT 10
-        """
-    ).fetchall()
-    top_cafes = [
-        {
-            "slug": r["slug"],
-            "name": r["name"] or r["slug"],
-            "city": r["city"],
-            "followers": _n(r["n"]),
-        }
-        for r in top_cafe_rows
     ]
 
     # Reciprocal follows — user A follows user_B AND user B follows user_A
@@ -602,7 +445,6 @@ def _network(db) -> dict:
         "unique_followers": unique_followers,
         "avg_follows_per_user": avg_follows_per_user,
         "top_roasters": top_roasters,
-        "top_cafes": top_cafes,
         "reciprocal_pairs": reciprocal_pairs,
         "shared_shelf_pairs_3_plus": shared_shelf_pairs,
     }
@@ -613,7 +455,7 @@ def _network(db) -> dict:
 def _retention(db) -> dict:
     """
     Weekly signup cohorts with D1/D7/D30 retention. Activity = any of:
-    tasting_note, post, comment, like, shelf_entry, or stamp.
+    tasting_note, post, comment, like, or shelf_entry.
     """
     cohorts: list[dict] = []
 
@@ -648,7 +490,7 @@ def _retention(db) -> dict:
             placeholders = ",".join("?" * len(user_ids))
             params = list(user_ids)
             # Compute per-user window edges once in SQL for safety
-            # Activity comes from any of the 6 tables.
+            # Activity comes from any of the 5 tables.
             query = f"""
                 SELECT COUNT(DISTINCT u.id) FROM users u WHERE u.id IN ({placeholders}) AND (
                     EXISTS (SELECT 1 FROM tasting_notes t WHERE t.user_id = u.id
@@ -666,9 +508,6 @@ def _retention(db) -> dict:
                     OR EXISTS (SELECT 1 FROM shelf_entries s WHERE s.user_id = u.id
                         AND s.added_at BETWEEN datetime(u.created_at, '+{start_offset} days')
                                            AND datetime(u.created_at, '+{end_offset} days'))
-                    OR EXISTS (SELECT 1 FROM stamps st WHERE st.user_id = u.id
-                        AND st.scanned_at BETWEEN datetime(u.created_at, '+{start_offset} days')
-                                              AND datetime(u.created_at, '+{end_offset} days'))
                 )
             """
             return _n(db.execute(query, params).fetchone()[0])
@@ -712,505 +551,10 @@ def _retention(db) -> dict:
         else 0.0
     )
 
-    # Stamp-cohort retention — days between first and second stamp (any café)
-    stamp_gap_rows = db.execute(
-        """
-        SELECT AVG(gap) FROM (
-            SELECT julianday(s2.scanned_at) - julianday(s1.scanned_at) AS gap
-            FROM (
-                SELECT user_id, cafe_slug, MIN(scanned_at) AS scanned_at
-                FROM stamps GROUP BY user_id, cafe_slug
-            ) s1
-            JOIN stamps s2 ON s2.user_id = s1.user_id AND s2.cafe_slug = s1.cafe_slug
-                AND s2.scanned_at > s1.scanned_at
-            GROUP BY s1.user_id, s1.cafe_slug
-            HAVING MIN(s2.scanned_at) = s2.scanned_at
-        )
-        """
-    ).fetchone()
-    avg_first_to_second_stamp_days = round(_f(stamp_gap_rows[0]), 2)
-
     return {
         "cohorts": cohorts,
         "writer_retention_30d_pct": writer_retention_pct,
         "writers_total": writer_total,
-        "avg_first_to_second_stamp_days": avg_first_to_second_stamp_days,
-    }
-
-
-# ── Supply / Ecosystem ───────────────────────────────────────────────────────
-
-def _supply(db) -> dict:
-    roasters_total = _n(
-        db.execute(
-            "SELECT COUNT(DISTINCT roaster_slug) FROM roaster_profiles"
-        ).fetchone()[0]
-    )
-    roasters_from_products = _n(
-        db.execute(
-            "SELECT COUNT(DISTINCT roaster_slug) FROM products WHERE available = 1"
-        ).fetchone()[0]
-    )
-    # Union across the two (profiles + scraped/available)
-    roasters_known = _n(
-        db.execute(
-            """
-            SELECT COUNT(*) FROM (
-                SELECT roaster_slug FROM roaster_profiles
-                UNION SELECT roaster_slug FROM products WHERE available = 1
-            )
-            """
-        ).fetchone()[0]
-    )
-    roasters_with_posts = _n(
-        db.execute(
-            "SELECT COUNT(DISTINCT roaster_slug) FROM roaster_posts WHERE roaster_slug NOT LIKE 'user_%' AND roaster_slug NOT LIKE 'cafe_%'"
-        ).fetchone()[0]
-    )
-    roasters_with_followers = _n(
-        db.execute(
-            "SELECT COUNT(DISTINCT roaster_slug) FROM follows WHERE roaster_slug NOT LIKE 'user_%' AND roaster_slug NOT LIKE 'cafe_%'"
-        ).fetchone()[0]
-    )
-
-    products_total = _n(
-        db.execute("SELECT COUNT(*) FROM products").fetchone()[0]
-    )
-    products_available = _n(
-        db.execute("SELECT COUNT(*) FROM products WHERE available = 1").fetchone()[0]
-    )
-    products_with_shelf = _n(
-        db.execute(
-            "SELECT COUNT(DISTINCT product_id) FROM shelf_entries"
-        ).fetchone()[0]
-    )
-    products_with_note = _n(
-        db.execute(
-            "SELECT COUNT(DISTINCT product_id) FROM tasting_notes"
-        ).fetchone()[0]
-    )
-
-    cafes_total = _n(
-        db.execute("SELECT COUNT(*) FROM cafe_profiles").fetchone()[0]
-    )
-    cafes_stamps_enabled = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM cafe_profiles WHERE stamps_enabled = 1"
-        ).fetchone()[0]
-    )
-    cafes_with_stamps = _n(
-        db.execute(
-            "SELECT COUNT(DISTINCT cafe_slug) FROM stamps"
-        ).fetchone()[0]
-    )
-
-    # Average menu items per café
-    menu_rows = db.execute(
-        "SELECT cafe_slug, COUNT(*) AS n FROM cafe_menu_items GROUP BY cafe_slug"
-    ).fetchall()
-    avg_menu_items = (
-        round(sum(_n(r["n"]) for r in menu_rows) / cafes_total, 2)
-        if cafes_total
-        else 0.0
-    )
-
-    # Cafés sourcing from roasters in our catalog (non-null roaster_slug)
-    cafes_using_catalog = _n(
-        db.execute(
-            "SELECT COUNT(DISTINCT cafe_slug) FROM cafe_menu_items WHERE roaster_slug IS NOT NULL AND roaster_slug != ''"
-        ).fetchone()[0]
-    )
-    ecosystem_density_pct = (
-        round(cafes_using_catalog / cafes_total * 100.0, 1)
-        if cafes_total
-        else 0.0
-    )
-
-    # Brew method cards (Phase 1 §2.5) — roaster-submitted recipe cards
-    # per product. Total count, distinct products covered, and the top
-    # method by volume. A healthy catalog has at least one recipe per
-    # flagship bean.
-    brew_methods_total = _n(
-        db.execute("SELECT COUNT(*) FROM brew_methods").fetchone()[0]
-    )
-    products_with_recipes = _n(
-        db.execute(
-            "SELECT COUNT(DISTINCT product_id) FROM brew_methods"
-        ).fetchone()[0]
-    )
-    recipe_coverage_pct = (
-        round(products_with_recipes / max(products_available, 1) * 100.0, 1)
-    )
-    top_method_row = db.execute(
-        "SELECT method, COUNT(*) AS n FROM brew_methods "
-        "GROUP BY method ORDER BY n DESC LIMIT 1"
-    ).fetchone()
-    top_brew_method = top_method_row["method"] if top_method_row else None
-
-    # Sourcing stories (Phase 1 §2.3) — long-form roaster narrative
-    # posts. Counts total + share of roaster posts, plus the 30d window.
-    sourcing_stories_total = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM roaster_posts WHERE post_type = 'sourcing_story'"
-        ).fetchone()[0]
-    )
-    sourcing_stories_30d = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM roaster_posts "
-            "WHERE post_type = 'sourcing_story' AND created_at > ?",
-            (_days_ago(30),),
-        ).fetchone()[0]
-    )
-    roaster_sourced_posts = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM roaster_posts "
-            "WHERE roaster_slug NOT LIKE 'user_%' AND roaster_slug NOT LIKE 'cafe_%'"
-        ).fetchone()[0]
-    )
-    sourcing_story_share_pct = (
-        round(sourcing_stories_total / roaster_sourced_posts * 100.0, 1)
-        if roaster_sourced_posts
-        else 0.0
-    )
-
-    # Wholesale availability (Phase 1 §2.2) — how much of the catalog
-    # roasters have flagged as wholesale-available. Spans both the
-    # scraped `products` table and owner-created `roaster_products`.
-    scraped_wholesale = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM products "
-            "WHERE wholesale_available = 1 AND available = 1"
-        ).fetchone()[0]
-    )
-    roaster_wholesale = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM roaster_products WHERE wholesale_available = 1"
-        ).fetchone()[0]
-    )
-    roaster_products_total = _n(
-        db.execute("SELECT COUNT(*) FROM roaster_products").fetchone()[0]
-    )
-    wholesale_available_total = scraped_wholesale + roaster_wholesale
-    wholesale_signal_pct = (
-        round(
-            wholesale_available_total
-            / max(products_available + roaster_products_total, 1)
-            * 100.0,
-            1,
-        )
-    )
-    roasters_offering_wholesale = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM ("
-            " SELECT DISTINCT roaster_slug FROM products WHERE wholesale_available = 1 "
-            " UNION SELECT DISTINCT roaster_slug FROM roaster_products WHERE wholesale_available = 1"
-            ")"
-        ).fetchone()[0]
-    )
-
-    # Wholesale inquiries (Phase 1 §2.1) — the flagship Phase 1 B2B
-    # metric. Counts how many cafés have reached out to roasters and how
-    # those inquiries are being handled. Response rate = responded or
-    # archived / total; a healthy ecosystem keeps inquiries moving.
-    inquiries_total = _n(
-        db.execute("SELECT COUNT(*) FROM wholesale_inquiries").fetchone()[0]
-    )
-    since_30 = _days_ago(30)
-    inquiries_30d = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM wholesale_inquiries WHERE created_at > ?",
-            (since_30,),
-        ).fetchone()[0]
-    )
-    inquiries_open = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM wholesale_inquiries WHERE status = 'open'"
-        ).fetchone()[0]
-    )
-    inquiries_responded = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM wholesale_inquiries WHERE status = 'responded'"
-        ).fetchone()[0]
-    )
-    inquiries_archived = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM wholesale_inquiries WHERE status = 'archived'"
-        ).fetchone()[0]
-    )
-    cafes_inquiring = _n(
-        db.execute(
-            "SELECT COUNT(DISTINCT cafe_slug) FROM wholesale_inquiries"
-        ).fetchone()[0]
-    )
-    roasters_receiving = _n(
-        db.execute(
-            "SELECT COUNT(DISTINCT roaster_slug) FROM wholesale_inquiries"
-        ).fetchone()[0]
-    )
-    inquiry_response_rate_pct = (
-        round(
-            (inquiries_responded + inquiries_archived)
-            / inquiries_total * 100.0,
-            1,
-        )
-        if inquiries_total
-        else 0.0
-    )
-
-    # Business-stream notification volume (Phase 1 §2.4) — counts all
-    # catalog-change / wholesale / stamp notifications fired in the last
-    # 30 days. The higher this number relative to activity notifications,
-    # the more the ecosystem is behaving like a B2B tool rather than a
-    # pure social feed. Note: excluded from users' Activity tab; surfaced
-    # to roaster + café accounts under their Business tab.
-    business_types = (
-        "product_added", "product_removed",
-        "menu_added", "menu_removed", "menu_updated",
-        "wholesale_inquiry", "stamp_awarded",
-    )
-    since_30 = _days_ago(30)
-    q_marks = ",".join("?" * len(business_types))
-    business_notifs_30d = _n(
-        db.execute(
-            f"SELECT COUNT(*) FROM notifications "
-            f"WHERE type IN ({q_marks}) AND created_at > ?",
-            (*business_types, since_30),
-        ).fetchone()[0]
-    )
-    activity_notifs_30d = _n(
-        db.execute(
-            f"SELECT COUNT(*) FROM notifications "
-            f"WHERE type NOT IN ({q_marks}) AND created_at > ?",
-            (*business_types, since_30),
-        ).fetchone()[0]
-    )
-    business_share_pct = (
-        round(
-            business_notifs_30d
-            / (business_notifs_30d + activity_notifs_30d)
-            * 100.0,
-            1,
-        )
-        if (business_notifs_30d + activity_notifs_30d)
-        else 0.0
-    )
-
-    # §2.17 — café procurement readiness metric removed. The underlying
-    # UI (§2.6 procurement block on café profile) was dropped because
-    # the context it captured is redundant once an inquiry thread
-    # exists. DB columns stay so historic rows don't break, but the
-    # metric doesn't get computed or returned.
-
-    # ── §2.18 expansion: deeper B2B signals ─────────────────────────
-    # Inquiry velocity — last 7 days. Pairs with inquiries_30d as a
-    # leading-edge view; if 7d is high but 30d isn't, the wholesale
-    # surface just turned on.
-    inquiries_7d = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM wholesale_inquiries WHERE created_at > ?",
-            (_days_ago(7),),
-        ).fetchone()[0]
-    )
-
-    # Median hours to first roaster response on inquiries opened in
-    # the last 30 days. Median (not mean) shrugs off the long tail of
-    # never-responded threads. SQLite has no MEDIAN, so the rows come
-    # back as (hours per inquiry) and Python takes the middle one.
-    response_rows = db.execute(
-        """
-        SELECT (julianday(MIN(m.created_at)) - julianday(i.created_at)) * 24.0 AS hours
-        FROM wholesale_inquiries i
-        JOIN inquiry_messages m ON m.inquiry_id = i.id
-        JOIN users u ON m.user_id = u.id
-        WHERE i.created_at > ?
-          AND u.account_type = 'roaster'
-          AND u.roaster_slug = i.roaster_slug
-        GROUP BY i.id
-        """,
-        (since_30,),
-    ).fetchall()
-    response_hours = sorted(
-        float(r["hours"]) for r in response_rows if r["hours"] is not None
-    )
-    median_response_hours = (
-        round(response_hours[len(response_hours) // 2], 1)
-        if response_hours
-        else 0.0
-    )
-
-    # Average messages per inquiry thread. Distinguishes drive-by
-    # interest (1-2 messages) from real procurement conversations.
-    avg_thread_depth = _f(
-        db.execute(
-            "SELECT AVG(c) FROM ("
-            "  SELECT COUNT(*) c FROM inquiry_messages GROUP BY inquiry_id"
-            ")"
-        ).fetchone()[0]
-    )
-    avg_thread_depth = round(avg_thread_depth, 1) if avg_thread_depth else 0.0
-
-    # Cafés that have come back to the *same* roaster for a 2nd+
-    # inquiry. Best proxy for "this sourcing relationship is sticking";
-    # a single inquiry could be drive-by, two means real interest.
-    returning_cafes = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM ("
-            "  SELECT cafe_slug, roaster_slug FROM wholesale_inquiries"
-            "  GROUP BY cafe_slug, roaster_slug HAVING COUNT(*) >= 2"
-            ")"
-        ).fetchone()[0]
-    )
-
-    # Total inquiry message volume (lifetime + 30d). Pairs with
-    # avg_thread_depth as a denominator-side check.
-    inquiry_messages_total = _n(
-        db.execute("SELECT COUNT(*) FROM inquiry_messages").fetchone()[0]
-    )
-    inquiry_messages_30d = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM inquiry_messages WHERE created_at > ?",
-            (since_30,),
-        ).fetchone()[0]
-    )
-
-    # Most-inquired-about beans — product-level demand signal,
-    # equivalent to the top-clicked-products table in Engagement
-    # but for wholesale interest. Joins both `products` and
-    # `roaster_products` so beans authored by either path show up.
-    top_inquired_rows = db.execute(
-        """
-        SELECT i.product_id, COUNT(*) AS n,
-               COALESCE(p.coffee_name, rp_label) AS coffee_name,
-               COALESCE(p.roaster_name, rp_label_r) AS roaster_name
-        FROM wholesale_inquiries i
-        LEFT JOIN products p ON p.product_id = i.product_id
-        LEFT JOIN (
-          SELECT 'rp_' || id AS product_id, coffee_name AS rp_label,
-                 roaster_slug AS rp_label_r
-          FROM roaster_products
-        ) rpx ON rpx.product_id = i.product_id
-        WHERE i.product_id IS NOT NULL AND i.product_id != ''
-        GROUP BY i.product_id
-        ORDER BY n DESC
-        LIMIT 5
-        """
-    ).fetchall()
-    top_inquired_beans = [
-        {
-            "label": r["coffee_name"] or r["product_id"],
-            "sub": r["roaster_name"] or "",
-            "value": _n(r["n"]),
-        }
-        for r in top_inquired_rows
-    ]
-
-    # Most-responded-to roasters — leaderboard by response rate
-    # weighted by volume. Filters to roasters with at least 3
-    # inquiries to dodge the "1 of 1 = 100%" noise.
-    top_responsive_rows = db.execute(
-        """
-        SELECT i.roaster_slug,
-               COUNT(*) AS total,
-               SUM(CASE WHEN i.status IN ('responded','archived') THEN 1 ELSE 0 END) AS responded,
-               rp.name AS roaster_name
-        FROM wholesale_inquiries i
-        LEFT JOIN roaster_profiles rp ON rp.roaster_slug = i.roaster_slug
-        GROUP BY i.roaster_slug
-        HAVING COUNT(*) >= 3
-        ORDER BY (responded * 1.0 / COUNT(*)) DESC, total DESC
-        LIMIT 5
-        """
-    ).fetchall()
-    top_responsive_roasters = [
-        {
-            "label": r["roaster_name"] or r["roaster_slug"],
-            "sub": f"{_n(r['responded'])} of {_n(r['total'])} responded",
-            "value": f"{round(_n(r['responded']) / max(_n(r['total']), 1) * 100.0)}%",
-        }
-        for r in top_responsive_rows
-    ]
-
-    # Inquiry geo distribution — cafés inquiring by city, roasters
-    # receiving by city. Foundation for the Goa-vs-Bangalore-vs-other
-    # network heatmap once enough volume lands. NULL/empty cities are
-    # filtered so the table doesn't degrade into a single "Unknown"
-    # row dominating the leaderboard.
-    inquiry_cafe_cities_rows = db.execute(
-        """
-        SELECT cp.city, COUNT(*) AS n
-        FROM wholesale_inquiries i
-        JOIN cafe_profiles cp ON cp.cafe_slug = i.cafe_slug
-        WHERE cp.city IS NOT NULL AND cp.city != ''
-        GROUP BY cp.city ORDER BY n DESC LIMIT 5
-        """
-    ).fetchall()
-    inquiry_cafe_cities = [
-        {"label": r["city"], "value": _n(r["n"])}
-        for r in inquiry_cafe_cities_rows
-    ]
-
-    inquiry_roaster_cities_rows = db.execute(
-        """
-        SELECT rp.city, COUNT(*) AS n
-        FROM wholesale_inquiries i
-        JOIN roaster_profiles rp ON rp.roaster_slug = i.roaster_slug
-        WHERE rp.city IS NOT NULL AND rp.city != ''
-        GROUP BY rp.city ORDER BY n DESC LIMIT 5
-        """
-    ).fetchall()
-    inquiry_roaster_cities = [
-        {"label": r["city"], "value": _n(r["n"])}
-        for r in inquiry_roaster_cities_rows
-    ]
-
-    return {
-        "roasters_total": roasters_known,
-        "roasters_with_profiles": roasters_total,
-        "roasters_with_products": roasters_from_products,
-        "roasters_with_posts": roasters_with_posts,
-        "roasters_with_followers": roasters_with_followers,
-        "products_total": products_total,
-        "products_available": products_available,
-        "products_with_shelf_entry": products_with_shelf,
-        "products_with_tasting_note": products_with_note,
-        "cafes_total": cafes_total,
-        "cafes_stamps_enabled": cafes_stamps_enabled,
-        "cafes_with_any_stamp": cafes_with_stamps,
-        "avg_menu_items_per_cafe": avg_menu_items,
-        "cafes_using_catalog_roasters": cafes_using_catalog,
-        "ecosystem_density_pct": ecosystem_density_pct,
-        "business_notifs_30d": business_notifs_30d,
-        "activity_notifs_30d": activity_notifs_30d,
-        "business_share_pct": business_share_pct,
-        "inquiries_total": inquiries_total,
-        "inquiries_30d": inquiries_30d,
-        "inquiries_open": inquiries_open,
-        "inquiries_responded": inquiries_responded,
-        "inquiries_archived": inquiries_archived,
-        "inquiry_cafes_participating": cafes_inquiring,
-        "inquiry_roasters_receiving": roasters_receiving,
-        "inquiry_response_rate_pct": inquiry_response_rate_pct,
-        "wholesale_available_total": wholesale_available_total,
-        "wholesale_signal_pct": wholesale_signal_pct,
-        "roasters_offering_wholesale": roasters_offering_wholesale,
-        "sourcing_stories_total": sourcing_stories_total,
-        "sourcing_stories_30d": sourcing_stories_30d,
-        "sourcing_story_share_pct": sourcing_story_share_pct,
-        "brew_methods_total": brew_methods_total,
-        "products_with_recipes": products_with_recipes,
-        "recipe_coverage_pct": recipe_coverage_pct,
-        "top_brew_method": top_brew_method,
-        # §2.18 expansion
-        "inquiries_7d": inquiries_7d,
-        "median_response_hours": median_response_hours,
-        "avg_thread_depth": avg_thread_depth,
-        "returning_cafes": returning_cafes,
-        "inquiry_messages_total": inquiry_messages_total,
-        "inquiry_messages_30d": inquiry_messages_30d,
-        "top_inquired_beans": top_inquired_beans,
-        "top_responsive_roasters": top_responsive_roasters,
-        "inquiry_cafe_cities": inquiry_cafe_cities,
-        "inquiry_roaster_cities": inquiry_roaster_cities,
     }
 
 
@@ -1228,7 +572,7 @@ _SERIES_DEFS: dict[str, str] = {
         "FROM users WHERE account_type = 'user' AND created_at IS NOT NULL "
         "GROUP BY DATE(created_at)"
     ),
-    # DAU is built from the union of six activity tables. Each row
+    # DAU is built from the union of five activity tables. Each row
     # counts as one user-day; COUNT(DISTINCT user_id) per day is what
     # renders as DAU in the chart.
     "dau": (
@@ -1238,7 +582,6 @@ _SERIES_DEFS: dict[str, str] = {
         "  UNION ALL SELECT user_id, created_at AS t FROM post_comments "
         "  UNION ALL SELECT user_id, created_at AS t FROM post_likes "
         "  UNION ALL SELECT user_id, added_at AS t FROM shelf_entries "
-        "  UNION ALL SELECT user_id, scanned_at AS t FROM stamps "
         ") GROUP BY DATE(t)"
     ),
     "daily_posts": (
@@ -1267,39 +610,7 @@ _SERIES_DEFS: dict[str, str] = {
         "SELECT DATE(clicked_at) AS date, COUNT(*) AS count "
         "FROM click_events GROUP BY DATE(clicked_at)"
     ),
-    # ── Loyalty ─────────────────────────────────────────────────────
-    "daily_stamps": (
-        "SELECT DATE(scanned_at) AS date, COUNT(*) AS count "
-        "FROM stamps GROUP BY DATE(scanned_at)"
-    ),
-    "total_stamps": (
-        "SELECT DATE(scanned_at) AS date, COUNT(*) AS count "
-        "FROM stamps GROUP BY DATE(scanned_at)"
-    ),
-    # ── Supply (B2B) ───────────────────────────────────────────────
-    # NOTE: column is `created_at`, not `opened_at` (was a stale typo
-    # from the original §2.18 drill-down work — both keys silently
-    # returned empty series until this fix).
-    "inquiries_total": (
-        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
-        "FROM wholesale_inquiries GROUP BY DATE(created_at)"
-    ),
-    "inquiries_30d": (
-        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
-        "FROM wholesale_inquiries GROUP BY DATE(created_at)"
-    ),
-    "inquiries_7d": (
-        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
-        "FROM wholesale_inquiries GROUP BY DATE(created_at)"
-    ),
-    "inquiry_messages_total": (
-        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
-        "FROM inquiry_messages GROUP BY DATE(created_at)"
-    ),
-    "inquiry_messages_30d": (
-        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
-        "FROM inquiry_messages GROUP BY DATE(created_at)"
-    ),
+    # ── Sourcing stories / brew methods ─────────────────────────────
     "sourcing_stories_total": (
         "SELECT DATE(created_at) AS date, COUNT(*) AS count "
         "FROM roaster_posts WHERE post_type = 'sourcing_story' "
@@ -1339,10 +650,8 @@ def compute_traction(db) -> dict:
     for name, fn in (
         ("engagement", _engagement),
         ("commerce", _commerce),
-        ("loyalty", _loyalty),
         ("network", _network),
         ("retention", _retention),
-        ("supply", _supply),
     ):
         try:
             sections[name] = fn(db)

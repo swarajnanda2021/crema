@@ -13,7 +13,6 @@ from resources.registry import get_resource
 from resources.envelope import ok
 from services.auth import get_current_user, get_optional_user
 from services.admin_stats import compute_traction
-from services.qr_tokens import issue_qr_token, verify_qr_token
 
 router = APIRouter(prefix="/api", tags=["Specific"])
 
@@ -368,7 +367,7 @@ def update_roaster_profile(slug: str, body: dict, user=Depends(get_current_user)
         db.commit()
         row = db.execute("SELECT * FROM roaster_profiles WHERE roaster_slug = ?", (slug,)).fetchone()
         # Mirror the logo onto the owner's user.avatar_url so the navbar
-        # reflects the new image (same convention as cafes).
+        # reflects the new image.
         if row and "logo_url" in body:
             run_hook(
                 "sync_roaster_logo_to_user", db, item=dict(row),
@@ -529,16 +528,12 @@ def create_roaster_product(slug: str, body: dict, user=Depends(get_current_user)
         db.execute(
             "INSERT INTO roaster_products (roaster_slug, user_id, coffee_name, roast_level, tasting_notes, "
             "origin, process, varietal, altitude_masl, bean_type, flavor_notes, weight_grams, price_inr, "
-            "image_url, product_url, description_raw, available, "
-            "wholesale_available, wholesale_minimum_kg, wholesale_note, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?)",
+            "image_url, product_url, description_raw, available, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
             (slug, user["id"], body.get("coffee_name"), body.get("roast_level"), body.get("tasting_notes"),
              body.get("origin"), body.get("process"), body.get("varietal"), body.get("altitude_masl"),
              body.get("bean_type"), body.get("flavor_notes"), body.get("weight_grams"), body.get("price_inr"),
              body.get("image_url"), body.get("product_url"), body.get("description_raw"),
-             1 if body.get("wholesale_available") else 0,
-             body.get("wholesale_minimum_kg"),
-             body.get("wholesale_note"),
              now),
         )
         db.commit()
@@ -548,16 +543,6 @@ def create_roaster_product(slug: str, body: dict, user=Depends(get_current_user)
             "slug": slug, "kind": "roaster", "change": "product_added",
             "subject": body.get("coffee_name") or "a new coffee",
         })
-        # §2.20 — additional Business-tab fanout when the new bean is
-        # offered for wholesale. The registry hook on `products` only
-        # fires for the unified products table; this path writes to
-        # `roaster_products`, so the hook is invoked manually here.
-        if body.get("wholesale_available"):
-            run_hook("notify_wholesale_available", db, current_user=user, item={
-                "roaster_slug": slug,
-                "coffee_name": body.get("coffee_name"),
-                "wholesale_available": 1,
-            })
         return ok(dict(row), resource="roaster_products")
     finally:
         db.close()
@@ -581,8 +566,7 @@ def update_roaster_product(slug: str, product_id: int, body: dict,
         "coffee_name", "roast_level", "tasting_notes", "origin", "process",
         "varietal", "altitude_masl", "flavor_notes", "price_inr",
         "weight_grams", "product_url", "image_url", "image_crop_y",
-        "bean_type", "description_raw", "wholesale_available",
-        "wholesale_minimum_kg", "wholesale_note",
+        "bean_type", "description_raw",
     }
     updates = {k: v for k, v in (body or {}).items() if k in ALLOWED}
     if not updates:
@@ -608,17 +592,6 @@ def update_roaster_product(slug: str, product_id: int, body: dict,
             "SELECT * FROM roaster_products WHERE id = ? AND roaster_slug = ?",
             (product_id, slug),
         ).fetchone()
-        # §2.20 — fire the wholesale_available fanout when the saved row
-        # carries the flag. Like the create path above, this is a manual
-        # invocation because the registry hook only fires on `products`,
-        # not the roaster-managed `roaster_products` table.
-        if row and int(row["wholesale_available"] or 0) == 1:
-            from services.notifications import run_hook
-            run_hook("notify_wholesale_available", db, current_user=user, item={
-                "roaster_slug": slug,
-                "coffee_name": row["coffee_name"],
-                "wholesale_available": 1,
-            })
         return ok(dict(row), resource="roaster_products")
     finally:
         db.close()
@@ -842,66 +815,13 @@ def feed_timeline(limit: int = 30, offset: int = 0, authorization: str = Header(
         db.close()
 
 
-# ── Café composite endpoints (see CRUD_UTOPIA.md) ────────────────────────────
-
-
-@router.post("/me/qr-token")
-def my_qr_token(user=Depends(get_current_user)):
-    """Issue a short-lived QR token for the current user's identity card.
-    Only regular users get QR tokens (sellers scan, they don't get scanned)."""
-    if user.get("account_type") != "user":
-        from fastapi import HTTPException
-        raise HTTPException(403, "Only users can generate QR tokens")
-    db = get_db()
-    try:
-        payload = issue_qr_token(db, user["id"])
-        return ok(payload, resource="qr_token")
-    finally:
-        db.close()
-
-
-@router.post("/qr-token/resolve")
-def qr_token_resolve(body: dict, user=Depends(get_current_user)):
-    """Decode a scanned QR token into a user preview WITHOUT creating a
-    stamp. The café owner's client calls this right after the camera
-    decodes a QR; the owner then taps the circular stamp button to commit
-    the actual stamp via /cafes/{slug}/stamp.
-    """
-    from fastapi import HTTPException
-    if user.get("account_type") != "cafe":
-        raise HTTPException(403, "Only café owners can resolve QR tokens")
-    token = (body or {}).get("qr_token")
-    if not token:
-        raise HTTPException(422, "qr_token is required")
-    db = get_db()
-    try:
-        resolved = verify_qr_token(db, token)
-        if not resolved:
-            raise HTTPException(400, "Invalid or expired QR token")
-        if resolved.get("account_type") != "user":
-            raise HTTPException(400, "Only user accounts can be stamped")
-        return ok({
-            "user_id": resolved["id"],
-            "username": resolved.get("username"),
-            "display_name": resolved.get("display_name"),
-            "avatar_url": resolved.get("avatar_url"),
-            "avatar_crop_x": resolved.get("avatar_crop_x"),
-            "avatar_crop_y": resolved.get("avatar_crop_y"),
-            "avatar_zoom": resolved.get("avatar_zoom"),
-            "location": resolved.get("location"),
-        }, resource="qr_token_resolved")
-    finally:
-        db.close()
-
 
 @router.get("/users/search")
 def users_search(q: str = "", limit: int = 20):
-    """Café-owner-facing user picker. Matches username or display_name
-    case-insensitively, returns only regular user accounts (not roasters /
-    cafés). The caller is authenticated at the enclosing action (stamp);
-    search itself is intentionally open because usernames are already
-    public (/users/{username} pages render unauthenticated).
-    """
+    """User picker. Matches username or display_name case-insensitively,
+    returns only regular user accounts (not roasters). Search is
+    intentionally open — usernames are already public (/users/{username}
+    pages render unauthenticated)."""
     q = (q or "").strip()
     if len(q) < 1:
         return ok([], resource="users")
@@ -930,518 +850,16 @@ def users_search(q: str = "", limit: int = 20):
         db.close()
 
 
-@router.post("/cafes/{slug}/stamp")
-def cafe_stamp(slug: str, body: dict, user=Depends(get_current_user)):
-    """Café owner directly stamps a user by id. No QR token — the owner
-    searches the user by name, confirms on the avatar card, and taps the
-    stamp button. Rate limit: max 1 stamp per user per café per 24h."""
-    from fastapi import HTTPException
-    import datetime as _dt
-
-    # Verify caller is the owner of this café
-    if user.get("account_type") != "cafe" or user.get("cafe_slug") != slug:
-        raise HTTPException(403, "Only the café owner can award stamps at this café")
-
-    target_user_id = body.get("user_id")
-    if not target_user_id:
-        raise HTTPException(422, "user_id is required")
-    try:
-        target_user_id = int(target_user_id)
-    except (TypeError, ValueError):
-        raise HTTPException(422, "user_id must be an integer")
-
-    db = get_db()
-    try:
-        stamped_user = db.execute(
-            "SELECT id, username, display_name, avatar_url, account_type "
-            "FROM users WHERE id = ?",
-            (target_user_id,),
-        ).fetchone()
-        if not stamped_user:
-            raise HTTPException(404, "User not found")
-        if stamped_user["account_type"] != "user":
-            raise HTTPException(400, "Only user accounts can receive stamps")
-
-        # Rate limit check — 24h window
-        yesterday = (_dt.datetime.utcnow() - _dt.timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        recent = db.execute(
-            "SELECT id FROM stamps WHERE user_id = ? AND cafe_slug = ? AND scanned_at > ? LIMIT 1",
-            (stamped_user["id"], slug, yesterday),
-        ).fetchone()
-        if recent:
-            raise HTTPException(429, "Already stamped this user within the last 24 hours")
-
-        # Fetch café config
-        cafe = db.execute(
-            "SELECT stamp_target, name FROM cafe_profiles WHERE cafe_slug = ?", (slug,)
-        ).fetchone()
-        if not cafe:
-            raise HTTPException(404, "Café not found")
-
-        # Insert stamp
-        now_str = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        db.execute(
-            "INSERT INTO stamps (user_id, cafe_slug, scanned_at) VALUES (?, ?, ?)",
-            (stamped_user["id"], slug, now_str),
-        )
-        db.commit()
-
-        # Compute progress (total stamps minus consumed stamps)
-        total_stamps = db.execute(
-            "SELECT COUNT(*) as c FROM stamps WHERE user_id = ? AND cafe_slug = ?",
-            (stamped_user["id"], slug),
-        ).fetchone()["c"]
-        rewards = db.execute(
-            "SELECT COUNT(*) as c FROM stamp_rewards WHERE user_id = ? AND cafe_slug = ?",
-            (stamped_user["id"], slug),
-        ).fetchone()["c"]
-        target = cafe["stamp_target"]
-        progress = total_stamps - (rewards * target)
-        reward_earned = progress >= target
-
-        return ok({
-            "user_id": stamped_user["id"],
-            "display_name": stamped_user["display_name"],
-            "username": stamped_user["username"],
-            "avatar_url": stamped_user["avatar_url"],
-            "stamps_progress": progress,
-            "stamp_target": target,
-            "reward_earned": reward_earned,
-            "total_stamps_ever": total_stamps,
-            "rewards_ever": rewards,
-        }, resource="stamp")
-    finally:
-        db.close()
-
-
-@router.post("/cafes/{slug}/redeem")
-def cafe_redeem(slug: str, body: dict, user=Depends(get_current_user)):
-    """Café owner redeems a user's reward. Creates a stamp_rewards row."""
-    from fastapi import HTTPException
-    import datetime as _dt
-
-    if user.get("account_type") != "cafe" or user.get("cafe_slug") != slug:
-        raise HTTPException(403, "Only the café owner can redeem rewards")
-
-    target_user_id = body.get("user_id")
-    if not target_user_id:
-        raise HTTPException(422, "user_id is required")
-
-    db = get_db()
-    try:
-        cafe = db.execute(
-            "SELECT stamp_target FROM cafe_profiles WHERE cafe_slug = ?", (slug,)
-        ).fetchone()
-        if not cafe:
-            raise HTTPException(404, "Café not found")
-
-        target = cafe["stamp_target"]
-
-        # Verify the user actually has enough stamps to redeem
-        total_stamps = db.execute(
-            "SELECT COUNT(*) as c FROM stamps WHERE user_id = ? AND cafe_slug = ?",
-            (target_user_id, slug),
-        ).fetchone()["c"]
-        rewards = db.execute(
-            "SELECT COUNT(*) as c FROM stamp_rewards WHERE user_id = ? AND cafe_slug = ?",
-            (target_user_id, slug),
-        ).fetchone()["c"]
-        progress = total_stamps - (rewards * target)
-        if progress < target:
-            raise HTTPException(400, f"Not enough stamps: {progress}/{target}")
-
-        now_str = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        db.execute(
-            "INSERT INTO stamp_rewards (user_id, cafe_slug, stamps_used, redeemed_at) VALUES (?, ?, ?, ?)",
-            (target_user_id, slug, target, now_str),
-        )
-        db.commit()
-
-        return ok({
-            "user_id": target_user_id,
-            "cafe_slug": slug,
-            "stamps_used": target,
-            "redeemed_at": now_str,
-        }, resource="stamp_reward")
-    finally:
-        db.close()
-
-
-@router.get("/cafes/popularity")
-def cafes_popularity():
-    """Unique visitor count per café, mirrors /products/popularity pattern."""
-    db = get_db()
-    try:
-        rows = db.execute(
-            "SELECT cafe_slug, COUNT(DISTINCT user_id) AS visitors FROM stamps GROUP BY cafe_slug"
-        ).fetchall()
-        return ok({r["cafe_slug"]: r["visitors"] for r in rows}, resource="cafe_popularity")
-    finally:
-        db.close()
-
-
-@router.get("/users/{username}/stamp-book")
-def user_stamp_book(username: str, authorization: str = Header(None)):
-    """Return every café the user has been stamped at, with progress.
-    Mirrors the shelf pattern — semi-public: list is visible, QR is own-only."""
-    from fastapi import HTTPException
-    db = get_db()
-    try:
-        user_row = db.execute(
-            "SELECT id FROM users WHERE username = ?", (username,)
-        ).fetchone()
-        if not user_row:
-            raise HTTPException(404, "User not found")
-        uid = user_row["id"]
-
-        rows = db.execute("""
-            SELECT
-                cp.cafe_slug,
-                cp.name,
-                cp.logo_url,
-                cp.city,
-                cp.state,
-                cp.stamp_target,
-                cp.stamp_reward,
-                (SELECT COUNT(*) FROM stamps s WHERE s.user_id = ? AND s.cafe_slug = cp.cafe_slug) AS total_stamps,
-                (SELECT COUNT(*) FROM stamp_rewards sr WHERE sr.user_id = ? AND sr.cafe_slug = cp.cafe_slug) AS rewards_redeemed,
-                (SELECT MAX(scanned_at) FROM stamps s WHERE s.user_id = ? AND s.cafe_slug = cp.cafe_slug) AS last_visit
-            FROM cafe_profiles cp
-            WHERE EXISTS (SELECT 1 FROM stamps s WHERE s.user_id = ? AND s.cafe_slug = cp.cafe_slug)
-            ORDER BY last_visit DESC
-        """, (uid, uid, uid, uid)).fetchall()
-
-        entries = []
-        for r in rows:
-            target = r["stamp_target"] or 10
-            total = r["total_stamps"]
-            redeemed = r["rewards_redeemed"]
-            progress = total - (redeemed * target)
-            entries.append({
-                "cafe_slug": r["cafe_slug"],
-                "name": r["name"],
-                "logo_url": r["logo_url"],
-                "city": r["city"],
-                "state": r["state"],
-                "stamp_target": target,
-                "stamp_reward": r["stamp_reward"],
-                "progress": progress,
-                "total_stamps": total,
-                "rewards_redeemed": redeemed,
-                "last_visit": r["last_visit"],
-            })
-
-        return ok(entries, resource="stamp_book", total=len(entries))
-    finally:
-        db.close()
-
-
-# ── Favorite café "like" ────────────────────────────────────────────────────
+# ── Messages inbox (DM-only) ─────────────────────────────────────────────────
 #
-# One per user, scarce. Distinct from follows (plural, casual). Stored
-# as a single FK on users.favorite_cafe_slug; switching cafés just
-# overwrites the column. The café-side "love_count" is the primary
-# cult-status signal — computed server-side on every read via the
-# registry's counts declaration.
-
-@router.post("/cafes/{slug}/like")
-def toggle_cafe_like(slug: str, user=Depends(get_current_user)):
-    """Toggle the current user's favorite café. If they already love
-    this café, clears the field (unlike). Otherwise sets it, replacing
-    whatever café they previously loved (one love per user).
-    Returns the new like state + current love_count in one round-trip
-    so the UI can update both in-place without re-fetching."""
-    from fastapi import HTTPException
-    if not user:
-        raise HTTPException(401, "Authentication required")
-    # Only regular users can "love" a café — roaster + café accounts
-    # don't have a personal favorite in the product sense. We allow
-    # the column to be set for any account_type, but don't surface
-    # the UI for business accounts.
-    db = get_db()
-    try:
-        exists = db.execute(
-            "SELECT 1 FROM cafe_profiles WHERE cafe_slug = ?", (slug,),
-        ).fetchone()
-        if not exists:
-            raise HTTPException(404, f"Café {slug} not found")
-        current = db.execute(
-            "SELECT favorite_cafe_slug FROM users WHERE id = ?", (user["id"],),
-        ).fetchone()
-        already_loved = (current and current["favorite_cafe_slug"] == slug)
-        if already_loved:
-            db.execute(
-                "UPDATE users SET favorite_cafe_slug = NULL WHERE id = ?",
-                (user["id"],),
-            )
-            liked = False
-        else:
-            db.execute(
-                "UPDATE users SET favorite_cafe_slug = ? WHERE id = ?",
-                (slug, user["id"]),
-            )
-            liked = True
-        db.commit()
-        love_count = db.execute(
-            "SELECT COUNT(*) AS n FROM users WHERE favorite_cafe_slug = ?", (slug,),
-        ).fetchone()["n"]
-        return ok({"liked": liked, "love_count": love_count},
-                  resource="cafe_love")
-    finally:
-        db.close()
-
-
-@router.get("/cafes/{slug}/regulars")
-def cafe_regulars(slug: str):
-    """List users who have this café set as their favorite (aka
-    regulars). Public — the signal is meant to be visible, same as
-    follower lists. Returns enough per-user info for the modal row to
-    render (avatar + crop + display name + username)."""
-    db = get_db()
-    try:
-        rows = db.execute(
-            "SELECT id, username, display_name, avatar_url, "
-            "avatar_crop_x, avatar_crop_y, avatar_zoom "
-            "FROM users WHERE favorite_cafe_slug = ? "
-            "ORDER BY display_name ASC",
-            (slug,),
-        ).fetchall()
-        items = [dict(r) for r in rows]
-        return ok(items, resource="cafe_regulars", total=len(items))
-    finally:
-        db.close()
-
-
-@router.get("/cafes/{slug}/love")
-def cafe_love_status(slug: str, authorization: str = Header(None)):
-    """Read-only status + count. Anonymous callers only get the count;
-    authenticated callers also get whether *they* love this café."""
-    user = get_optional_user(authorization)
-    db = get_db()
-    try:
-        row = db.execute(
-            "SELECT COUNT(*) AS n FROM users WHERE favorite_cafe_slug = ?", (slug,),
-        ).fetchone()
-        love_count = row["n"] if row else 0
-        liked = False
-        if user:
-            me = db.execute(
-                "SELECT favorite_cafe_slug FROM users WHERE id = ?", (user["id"],),
-            ).fetchone()
-            liked = bool(me and me["favorite_cafe_slug"] == slug)
-        return ok({"liked": liked, "love_count": love_count},
-                  resource="cafe_love")
-    finally:
-        db.close()
-
-
-# ── Wholesale inquiries (Phase 1 §2.1) ──────────────────────────────────────
-#
-# The generic list endpoint can't safely list wholesale_inquiries: a café
-# should see only their sent inquiries, a roaster should see only inquiries
-# targeted at their own roaster_slug. Exposing /api/wholesale_inquiries with
-# query filters would let anyone pass roaster_slug=X and read someone else's
-# leads. These two endpoints do the scoping server-side.
-
-@router.get("/my-wholesale-inquiries")
-def my_wholesale_inquiries(user=Depends(get_current_user)):
-    """Inquiries relevant to the current account.
-    - Café account → inquiries this café has sent (as sender).
-    - Roaster account → inquiries targeting this roaster (as recipient).
-    - Regular user → empty list (no inquiries belong to them).
-    The response stream is identical to the generic list payload so the
-    frontend can reuse the same row renderer for both perspectives; the
-    perspective field tells the UI which tab context it's in.
-    """
-    from fastapi import HTTPException
-    if not user:
-        raise HTTPException(401, "Authentication required")
-
-    account_type = user.get("account_type")
-    db = get_db()
-    try:
-        res = get_resource("wholesale_inquiries")
-        select = build_select(res, current_user_id=user["id"])
-
-        if account_type == "cafe" and user.get("cafe_slug"):
-            where_col, where_val = "cafe_slug", user["cafe_slug"]
-            perspective = "sent"
-        elif account_type == "roaster" and user.get("roaster_slug"):
-            where_col, where_val = "roaster_slug", user["roaster_slug"]
-            perspective = "received"
-        else:
-            return ok([], resource="wholesale_inquiries", total=0,
-                      limit=100, offset=0, perspective="none")
-
-        order = res.get("order", "created_at DESC")
-        sql = f"{select}\n    WHERE t.{where_col} = ?\n    ORDER BY {order}\n    LIMIT 100"
-        rows = db.execute(sql, (where_val,)).fetchall()
-        items = [row_to_dict(r, res) for r in rows]
-        return ok(items, resource="wholesale_inquiries",
-                  total=len(items), limit=100, offset=0,
-                  perspective=perspective)
-    finally:
-        db.close()
-
-
-# ── Inquiry thread (short-form chat between café + roaster) ─────────────
-#
-# Both parties authenticated against the same inquiry. Ownership check:
-# the current user must be either the café that opened the inquiry or a
-# roaster user on the target roaster_slug. Regular users get 403.
-
-def _require_inquiry_party(db, inquiry_id: int, user):
-    from fastapi import HTTPException
-    if not user:
-        raise HTTPException(401, "Authentication required")
-    row = db.execute(
-        "SELECT id, cafe_slug, roaster_slug, status FROM wholesale_inquiries WHERE id = ?",
-        (inquiry_id,),
-    ).fetchone()
-    if not row:
-        raise HTTPException(404, "Inquiry not found")
-    is_cafe = user.get("account_type") == "cafe" and user.get("cafe_slug") == row["cafe_slug"]
-    is_roaster = user.get("account_type") == "roaster" and user.get("roaster_slug") == row["roaster_slug"]
-    if not (is_cafe or is_roaster):
-        raise HTTPException(403, "Not a party to this inquiry")
-    return row
-
-
-@router.get("/wholesale-inquiries/{inquiry_id}/thread")
-def get_inquiry_thread(inquiry_id: int, user=Depends(get_current_user)):
-    """Return the inquiry record (with café context) plus the message
-    list, ordered oldest→newest. One round-trip powers the entire
-    inquiry-thread modal."""
-    from resources.crud import get_resource_by_id
-    db = get_db()
-    try:
-        _require_inquiry_party(db, inquiry_id, user)
-        inquiry = get_resource_by_id(
-            db, "wholesale_inquiries", inquiry_id, current_user_id=user["id"],
-        )
-        rows = db.execute(
-            """SELECT m.id, m.inquiry_id, m.user_id, m.body, m.created_at,
-                      u.username, u.display_name, u.avatar_url,
-                      u.avatar_crop_x, u.avatar_crop_y, u.avatar_zoom,
-                      u.account_type
-               FROM inquiry_messages m
-               JOIN users u ON u.id = m.user_id
-               WHERE m.inquiry_id = ?
-               ORDER BY m.created_at ASC""",
-            (inquiry_id,),
-        ).fetchall()
-        messages = [dict(r) for r in rows]
-        return ok({"inquiry": inquiry, "messages": messages},
-                  resource="wholesale_inquiry_thread")
-    finally:
-        db.close()
-
-
-@router.post("/wholesale-inquiries/{inquiry_id}/messages", status_code=201)
-def post_inquiry_message(inquiry_id: int, body: dict,
-                         user=Depends(get_current_user)):
-    """Add a message to the thread. Notifies the *other* party so the
-    thread surfaces in their Business tab."""
-    from fastapi import HTTPException
-    from services.notifications import create_notification
-    import datetime as _dt
-
-    text = (body or {}).get("body", "").strip()
-    if not text:
-        raise HTTPException(400, "body is required")
-    if len(text) > 2000:
-        raise HTTPException(400, "body too long (max 2000 chars)")
-
-    db = get_db()
-    try:
-        row = _require_inquiry_party(db, inquiry_id, user)
-        now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        cur = db.execute(
-            "INSERT INTO inquiry_messages (inquiry_id, user_id, body, created_at) "
-            "VALUES (?, ?, ?, ?)",
-            (inquiry_id, user["id"], text, now),
-        )
-        mid = cur.lastrowid
-        # Touch the parent inquiry so updated_at reflects last activity.
-        # ALSO — if the roaster is the one replying AND the inquiry is
-        # still marked 'open', flip the status to 'responded' so the
-        # café sees the state change + the analytics "Open inquiries"
-        # count decrements immediately. Roasters shouldn't have to
-        # manually click Mark-replied after replying in the thread.
-        auto_responded = False
-        if (
-            user.get("account_type") == "roaster"
-            and row.get("status") == "open"
-        ):
-            db.execute(
-                "UPDATE wholesale_inquiries SET status = 'responded', updated_at = ? WHERE id = ?",
-                (now, inquiry_id),
-            )
-            auto_responded = True
-        else:
-            db.execute(
-                "UPDATE wholesale_inquiries SET updated_at = ? WHERE id = ?",
-                (now, inquiry_id),
-            )
-
-        # Fan-out notification to the other party. If the sender is a
-        # café, recipients are every roaster-account user on that slug.
-        # If the sender is a roaster, recipient is the café-owner user
-        # tied to the inquiry's cafe_slug.
-        snippet = text if len(text) <= 60 else text[:57] + "…"
-        if user.get("account_type") == "cafe":
-            recipients = db.execute(
-                "SELECT id FROM users WHERE account_type = 'roaster' AND roaster_slug = ?",
-                (row["roaster_slug"],),
-            ).fetchall()
-        else:
-            recipients = db.execute(
-                "SELECT id FROM users WHERE account_type = 'cafe' AND cafe_slug = ?",
-                (row["cafe_slug"],),
-            ).fetchall()
-        for r in recipients:
-            if r["id"] == user["id"]:
-                continue
-            # Reuses the create_notification helper from services.
-            db.execute(
-                "INSERT INTO notifications (user_id, type, actor_id, inquiry_id, "
-                "target_slug, subject, read, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
-                (
-                    r["id"], "inquiry_reply", user["id"], inquiry_id,
-                    f"cafe:{row['cafe_slug']}", snippet, now,
-                ),
-            )
-        db.commit()
-
-        # Return the freshly inserted row in the same shape the thread
-        # endpoint returns so the client can append without re-fetching.
-        msg = db.execute(
-            """SELECT m.id, m.inquiry_id, m.user_id, m.body, m.created_at,
-                      u.username, u.display_name, u.avatar_url,
-                      u.avatar_crop_x, u.avatar_crop_y, u.avatar_zoom,
-                      u.account_type
-               FROM inquiry_messages m JOIN users u ON u.id = m.user_id
-               WHERE m.id = ?""",
-            (mid,),
-        ).fetchone()
-        return ok(dict(msg), resource="inquiry_messages")
-    finally:
-        db.close()
-
-
-# ── Messages inbox (unified: wholesale inquiries + direct messages) ─────────
-#
-# The navbar Messages dropdown hits /my-threads which returns both
-# kinds in one ordered-by-activity list. /my-inquiry-threads stays
-# for any call-site that explicitly wants only inquiries.
+# The navbar Messages dropdown hits /my-threads which returns the user's
+# direct-message threads ordered by most-recent activity.
 
 @router.get("/my-threads")
 def my_threads(user=Depends(get_current_user)):
-    """Unified inbox: wholesale inquiries + direct message threads the
-    current user is a party to. Each row carries a `kind` discriminator
-    the client uses to route taps to the right thread-view. Ordered by
-    most-recent activity across both kinds."""
+    """Direct-message inbox for the current user. Each row carries a
+    `kind: "direct_message"` discriminator (kept for client compatibility
+    even though it's the only value)."""
     from fastapi import HTTPException
     if not user:
         raise HTTPException(401, "Authentication required")
@@ -1449,56 +867,8 @@ def my_threads(user=Depends(get_current_user)):
     db = get_db()
     try:
         uid = user["id"]
-        account_type = user.get("account_type")
         results: list[dict] = []
 
-        # ── Wholesale inquiries (café + roaster accounts only) ──────────
-        if account_type == "cafe" and user.get("cafe_slug"):
-            where_col, where_val = "cafe_slug", user["cafe_slug"]
-            last_read_col = "cafe_last_read_at"
-        elif account_type == "roaster" and user.get("roaster_slug"):
-            where_col, where_val = "roaster_slug", user["roaster_slug"]
-            last_read_col = "roaster_last_read_at"
-        else:
-            where_col = where_val = last_read_col = None
-
-        if where_col:
-            inquiry_rows = db.execute(
-                f"""
-                SELECT
-                    wi.id AS inquiry_id,
-                    wi.cafe_slug, wi.roaster_slug,
-                    wi.product_id, wi.note AS inquiry_note,
-                    wi.status, wi.created_at AS opened_at,
-                    wi.{last_read_col} AS last_read_at,
-                    (SELECT cp.name FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_name,
-                    (SELECT cp.logo_url FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_url,
-                    (SELECT cp.logo_crop_x FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_crop_x,
-                    (SELECT cp.logo_crop_y FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_crop_y,
-                    (SELECT cp.logo_zoom   FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_zoom,
-                    (SELECT rp.name FROM roaster_profiles rp WHERE rp.roaster_slug = wi.roaster_slug) AS roaster_name,
-                    (SELECT rp.logo_url FROM roaster_profiles rp WHERE rp.roaster_slug = wi.roaster_slug) AS roaster_logo_url,
-                    (SELECT p.coffee_name FROM products p WHERE p.product_id = wi.product_id) AS product_name,
-                    (SELECT m.body FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
-                    (SELECT m.created_at FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
-                    (SELECT m.user_id FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_user_id,
-                    (SELECT COUNT(*) FROM inquiry_messages m
-                        WHERE m.inquiry_id = wi.id
-                          AND m.user_id != ?
-                          AND (wi.{last_read_col} IS NULL OR m.created_at > wi.{last_read_col})
-                    ) AS unread_count
-                FROM wholesale_inquiries wi
-                WHERE wi.{where_col} = ?
-                """,
-                (uid, where_val),
-            ).fetchall()
-            for r in inquiry_rows:
-                d = dict(r)
-                d["kind"] = "wholesale_inquiry"
-                d["sort_at"] = d.get("last_message_at") or d.get("opened_at")
-                results.append(d)
-
-        # ── Direct message threads (any account type) ───────────────────
         dm_rows = db.execute(
             """
             SELECT
@@ -1548,97 +918,10 @@ def my_threads(user=Depends(get_current_user)):
         db.close()
 
 
-@router.get("/my-inquiry-threads")
-def my_inquiry_threads(user=Depends(get_current_user)):
-    from fastapi import HTTPException
-    if not user:
-        raise HTTPException(401, "Authentication required")
-    account_type = user.get("account_type")
-    db = get_db()
-    try:
-        if account_type == "cafe" and user.get("cafe_slug"):
-            where_col, where_val = "cafe_slug", user["cafe_slug"]
-            last_read_col = "cafe_last_read_at"
-        elif account_type == "roaster" and user.get("roaster_slug"):
-            where_col, where_val = "roaster_slug", user["roaster_slug"]
-            last_read_col = "roaster_last_read_at"
-        else:
-            return ok([], resource="inquiry_threads", total=0)
-
-        # One query: inquiry + counterparty display fields + latest
-        # message preview + a per-thread unread count scoped to
-        # messages authored by the other party after last_read.
-        rows = db.execute(
-            f"""
-            SELECT
-                wi.id AS inquiry_id,
-                wi.cafe_slug, wi.roaster_slug,
-                wi.product_id, wi.note AS inquiry_note,
-                wi.status, wi.created_at AS opened_at,
-                wi.{last_read_col} AS last_read_at,
-                (SELECT cp.name FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_name,
-                (SELECT cp.logo_url FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_url,
-                (SELECT cp.logo_crop_x FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_crop_x,
-                (SELECT cp.logo_crop_y FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_crop_y,
-                (SELECT cp.logo_zoom   FROM cafe_profiles cp WHERE cp.cafe_slug = wi.cafe_slug) AS cafe_logo_zoom,
-                (SELECT rp.name FROM roaster_profiles rp WHERE rp.roaster_slug = wi.roaster_slug) AS roaster_name,
-                (SELECT rp.logo_url FROM roaster_profiles rp WHERE rp.roaster_slug = wi.roaster_slug) AS roaster_logo_url,
-                (SELECT p.coffee_name FROM products p WHERE p.product_id = wi.product_id) AS product_name,
-                (SELECT m.body FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
-                (SELECT m.created_at FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
-                (SELECT m.user_id FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_user_id,
-                (SELECT COUNT(*) FROM inquiry_messages m
-                    WHERE m.inquiry_id = wi.id
-                      AND m.user_id != ?
-                      AND (wi.{last_read_col} IS NULL OR m.created_at > wi.{last_read_col})
-                ) AS unread_count
-            FROM wholesale_inquiries wi
-            WHERE wi.{where_col} = ?
-            ORDER BY COALESCE(
-                (SELECT m.created_at FROM inquiry_messages m WHERE m.inquiry_id = wi.id ORDER BY m.created_at DESC LIMIT 1),
-                wi.created_at
-            ) DESC
-            LIMIT 100
-            """,
-            (user["id"], where_val),
-        ).fetchall()
-
-        threads = [dict(r) for r in rows]
-        total_unread = sum(int(t.get("unread_count") or 0) for t in threads)
-        return ok(threads, resource="inquiry_threads",
-                  total=len(threads), total_unread=total_unread,
-                  perspective="cafe" if account_type == "cafe" else "roaster")
-    finally:
-        db.close()
-
-
-@router.post("/wholesale-inquiries/{inquiry_id}/read")
-def mark_inquiry_read(inquiry_id: int, user=Depends(get_current_user)):
-    """Stamp the current party's last_read_at so new messages from the
-    other side no longer count as unread in the inbox. Safe to call
-    multiple times."""
-    import datetime as _dt
-    db = get_db()
-    try:
-        row = _require_inquiry_party(db, inquiry_id, user)
-        col = "cafe_last_read_at" if user.get("account_type") == "cafe" else "roaster_last_read_at"
-        now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        db.execute(
-            f"UPDATE wholesale_inquiries SET {col} = ? WHERE id = ?",
-            (now, inquiry_id),
-        )
-        db.commit()
-        return ok({"id": inquiry_id, "last_read_at": now},
-                  resource="wholesale_inquiries")
-    finally:
-        db.close()
-
-
 # ── Direct message threads ──────────────────────────────────────────────
 #
-# User ↔ user chat. Same ergonomics as inquiry threads but without any
-# business context strip. Canonical pair ordering on the direct_threads
-# row keeps uniqueness regardless of who initiated.
+# User ↔ user chat. Canonical pair ordering on the direct_threads row
+# keeps uniqueness regardless of who initiated.
 
 def _require_dm_party(db, thread_id: int, user):
     from fastapi import HTTPException
@@ -1828,45 +1111,6 @@ def mark_direct_thread_read(thread_id: int, user=Depends(get_current_user)):
         db.close()
 
 
-@router.post("/wholesale-inquiries/{inquiry_id}/respond")
-def respond_to_inquiry(inquiry_id: int, body: dict,
-                       user=Depends(get_current_user)):
-    """Roaster-side status change. body.status ∈ {'responded','archived'}.
-    Only the inquiry's roaster can transition state; the café side uses the
-    generic PUT to edit note/product_id before the roaster acts.
-    """
-    from fastapi import HTTPException
-    if not user or user.get("account_type") != "roaster":
-        raise HTTPException(403, "Roasters only")
-
-    new_status = (body or {}).get("status")
-    if new_status not in ("responded", "archived", "open"):
-        raise HTTPException(400, "status must be open, responded, or archived")
-
-    db = get_db()
-    try:
-        row = db.execute(
-            "SELECT id, roaster_slug FROM wholesale_inquiries WHERE id = ?",
-            (inquiry_id,),
-        ).fetchone()
-        if not row:
-            raise HTTPException(404, "Inquiry not found")
-        if row["roaster_slug"] != user.get("roaster_slug"):
-            raise HTTPException(403, "Not your inquiry to respond to")
-
-        import datetime as _dt
-        now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        db.execute(
-            "UPDATE wholesale_inquiries SET status = ?, updated_at = ? WHERE id = ?",
-            (new_status, now, inquiry_id),
-        )
-        db.commit()
-        return ok({"id": inquiry_id, "status": new_status, "updated_at": now},
-                  resource="wholesale_inquiries")
-    finally:
-        db.close()
-
-
 # ── Business analytics (roaster / café owners only) ─────────────────────────
 # The counterpart to /stats/traction — but per-business, only the
 # slug's owner can read it. Admin override intentional: the seeded
@@ -1874,13 +1118,12 @@ def respond_to_inquiry(inquiry_id: int, body: dict,
 # the traction dashboard read permission.
 
 def _require_business_owner(user, *, kind: str, slug: str):
-    """Owner or admin gate. `kind` must be 'roaster' or 'cafe'."""
+    """Owner or admin gate. `kind` must be 'roaster'."""
     from fastapi import HTTPException
     if not user:
         raise HTTPException(401, "Sign in required")
     is_admin = user.get("is_admin") == 1 and user.get("username") == "crema"
-    owner_slug_field = "roaster_slug" if kind == "roaster" else "cafe_slug"
-    owned = (user.get("account_type") == kind and user.get(owner_slug_field) == slug)
+    owned = (user.get("account_type") == kind and user.get("roaster_slug") == slug)
     if not (owned or is_admin):
         raise HTTPException(403, f"Not the owner of this {kind}")
 
@@ -1892,17 +1135,6 @@ def business_stats_roaster(slug: str, user=Depends(get_current_user)):
     db = get_db()
     try:
         return ok(compute_roaster_business(db, slug), resource="business_stats")
-    finally:
-        db.close()
-
-
-@router.get("/stats/business/cafe/{slug}")
-def business_stats_cafe(slug: str, user=Depends(get_current_user)):
-    _require_business_owner(user, kind="cafe", slug=slug)
-    from services.business_stats import compute_cafe_business
-    db = get_db()
-    try:
-        return ok(compute_cafe_business(db, slug), resource="business_stats")
     finally:
         db.close()
 

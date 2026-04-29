@@ -31,7 +31,6 @@ ENTITY_MAP = {
     "post_comments":    {"table": "post_comments",  "pk": "id",        "owner_col": "user_id",    "owner_kind": "user"},
     "tasting_notes":    {"table": "tasting_notes",  "pk": "id",        "owner_col": "user_id",    "owner_kind": "user"},
     "shelf_entries":    {"table": "shelf_entries",  "pk": "id",        "owner_col": "user_id",    "owner_kind": "user"},
-    "cafe_menu_items":  {"table": "cafe_menu_items","pk": "id",        "owner_col": "cafe_slug",  "owner_kind": "cafe"},
     "brew_methods":     {"table": "brew_methods",   "pk": "id",        "owner_col": "roaster_slug","owner_kind": "roaster"},
     "roaster_products": {"table": "roaster_products","pk": "product_id","owner_col": "roaster_slug","owner_kind": "roaster"},
 }
@@ -50,9 +49,6 @@ def _label_for(entity_type: str, row: dict) -> str:
         return f"Tasting note · {row.get('product_id', '')}"[:80]
     if entity_type == "shelf_entries":
         return f"Shelf · {row.get('product_id', '')}"[:80]
-    if entity_type == "cafe_menu_items":
-        parts = [row.get("drink_name") or "", row.get("manual_roaster_name") or row.get("roaster_slug") or ""]
-        return " · ".join([p for p in parts if p])[:80] or "Menu item"
     if entity_type == "brew_methods":
         return f"{row.get('method', 'Brew method')} · {row.get('product_id', '')}"[:80]
     if entity_type == "roaster_products":
@@ -74,11 +70,6 @@ def _resolve_owner_user_id(db, entity_type: str, row: dict) -> int:
     kind = meta["owner_kind"]
     if kind == "user":
         return int(val)
-    if kind == "cafe":
-        r = db.execute("SELECT id FROM users WHERE cafe_slug = ? LIMIT 1", (val,)).fetchone()
-        if not r:
-            raise HTTPException(500, f"trash: no user owns cafe_slug={val}")
-        return int(r["id"])
     if kind == "roaster":
         r = db.execute("SELECT id FROM users WHERE roaster_slug = ? LIMIT 1", (val,)).fetchone()
         if not r:

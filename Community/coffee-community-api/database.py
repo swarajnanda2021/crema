@@ -799,6 +799,78 @@ _MIGRATIONS = [
     "ALTER TABLE roaster_profiles ADD COLUMN tagline TEXT",
     "ALTER TABLE roaster_profiles ADD COLUMN instagram_handle TEXT",
     "ALTER TABLE roaster_profiles ADD COLUMN contact_email TEXT",
+    # ── §2.42 café-removal pivot ───────────────────────────────────────
+    # Hard-delete every café / wholesale / stamp / QR surface. Phase 1
+    # is consumer + roaster only; cafés return as a Phase N rewrite-
+    # from-scratch. Order matters: row deletions BEFORE column drops,
+    # child tables BEFORE parent tables. The `init_db` migration loop
+    # wraps each statement in try/except so re-running this block on a
+    # cleaned DB is a no-op.
+    #
+    # NOTE: SQLite 3.35+ is required for ALTER TABLE … DROP COLUMN.
+    # The runtime build is 3.37; verify with `sqlite3 --version`
+    # before running on a different host.
+    #
+    # Row-impact at draft time (audit 2026-04-29):
+    #   users.account_type='cafe'        : 10
+    #   cafe_profiles                    : 9   (cascades to children)
+    #   cafe_menu_items                  : 39
+    #   cafe_baristas                    : 4
+    #   stamps                           : 2
+    #   stamp_rewards                    : 0
+    #   qr_tokens                        : 1
+    #   wholesale_inquiries              : 5   (cascades to inquiry_messages)
+    #   inquiry_messages                 : 1
+    #   notifications (café-flavored)    : 7   (5 wholesale_inquiry + 2 inquiry_reply)
+    #   roaster_posts.cafe_slug NOT NULL : 0
+    "DELETE FROM roaster_posts WHERE cafe_slug IS NOT NULL",
+    "DELETE FROM users WHERE account_type='cafe'",
+    """DELETE FROM notifications WHERE type IN (
+        'wholesale_inquiry','inquiry_reply','stamp_awarded',
+        'menu_updated_business','loyalty_changed','wholesale_available',
+        'menu_added','menu_removed','menu_updated'
+    )""",
+    # Drop child tables first — even with PRAGMA foreign_keys = ON, this
+    # ordering keeps us safe if any FK clause turns out to lack ON DELETE
+    # CASCADE.
+    "DROP INDEX IF EXISTS idx_inquiry_msgs_inquiry",
+    "DROP TABLE IF EXISTS inquiry_messages",
+    "DROP INDEX IF EXISTS idx_winquiries_status",
+    "DROP INDEX IF EXISTS idx_winquiries_cafe",
+    "DROP INDEX IF EXISTS idx_winquiries_roaster",
+    "DROP TABLE IF EXISTS wholesale_inquiries",
+    "DROP INDEX IF EXISTS idx_qr_user",
+    "DROP TABLE IF EXISTS qr_tokens",
+    "DROP INDEX IF EXISTS idx_rewards_user_cafe",
+    "DROP TABLE IF EXISTS stamp_rewards",
+    "DROP INDEX IF EXISTS idx_stamps_user_cafe",
+    "DROP INDEX IF EXISTS idx_stamps_cafe",
+    "DROP INDEX IF EXISTS idx_stamps_user",
+    "DROP TABLE IF EXISTS stamps",
+    "DROP INDEX IF EXISTS idx_baristas_cafe",
+    "DROP TABLE IF EXISTS cafe_baristas",
+    "DROP INDEX IF EXISTS idx_menu_cafe",
+    "DROP TABLE IF EXISTS cafe_menu_items",
+    "DROP INDEX IF EXISTS idx_cafes_city",
+    "DROP TABLE IF EXISTS cafe_profiles",
+    # Column drops on surviving tables. account_type 'cafe' has no
+    # CHECK-constraint enforcement at the DB level (verified — it's
+    # purely Pydantic-side), so no table rebuild is required for that
+    # decision.
+    "DROP INDEX IF EXISTS idx_users_fav_cafe",
+    "ALTER TABLE users DROP COLUMN favorite_cafe_slug",
+    "ALTER TABLE users DROP COLUMN cafe_slug",
+    "DROP INDEX IF EXISTS idx_posts_cafe",
+    "ALTER TABLE roaster_posts DROP COLUMN cafe_slug",
+    "DROP INDEX IF EXISTS idx_products_wholesale",
+    "ALTER TABLE products DROP COLUMN wholesale_available",
+    "ALTER TABLE products DROP COLUMN wholesale_minimum_kg",
+    "ALTER TABLE products DROP COLUMN wholesale_note",
+    "DROP INDEX IF EXISTS idx_rproducts_wholesale",
+    "ALTER TABLE roaster_products DROP COLUMN wholesale_available",
+    "ALTER TABLE roaster_products DROP COLUMN wholesale_minimum_kg",
+    "ALTER TABLE roaster_products DROP COLUMN wholesale_note",
+    "ALTER TABLE notifications DROP COLUMN inquiry_id",
 ]
 
 

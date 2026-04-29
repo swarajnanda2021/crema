@@ -12,7 +12,7 @@
 # point in the Dockerfile sets the same host/port for the prod
 # container. See LAUNCH_TODO §1.3.
 
-.PHONY: dev install seed-cafes
+.PHONY: dev install
 
 # Default: start uvicorn with LAN bind + reload. Run from this folder.
 dev:
@@ -22,7 +22,3 @@ dev:
 # changes that touch requirements.txt (e.g. adding python-dotenv).
 install:
 	pip install -r requirements.txt
-
-# Seed the 9 Goa pilot cafés (idempotent — re-running is a no-op).
-seed-cafes:
-	python seed_cafes.py

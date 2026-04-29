@@ -256,10 +256,8 @@ def create_resource(db, name, data, *, current_user=None):
             if auto == "current_user" and current_user:
                 row_data[fname] = current_user["id"]
             elif auto == "user_slug" and current_user:
-                # Cafés get cafe_<slug>, roasters get their roaster_slug, regular users get user_<id>
-                if current_user.get("cafe_slug"):
-                    row_data[fname] = f"cafe_{current_user['cafe_slug']}"
-                elif current_user.get("roaster_slug"):
+                # Roasters get their roaster_slug, regular users get user_<id>.
+                if current_user.get("roaster_slug"):
                     row_data[fname] = current_user["roaster_slug"]
                 else:
                     row_data[fname] = f"user_{current_user['id']}"
@@ -267,13 +265,8 @@ def create_resource(db, name, data, *, current_user=None):
                 row_data[fname] = now
             elif auto == "current_user_optional":
                 row_data[fname] = current_user["id"] if current_user else None
-            elif auto == "user_cafe_slug" and current_user:
-                # Set to the user's cafe_slug if they're a café account, else null
-                row_data[fname] = current_user.get("cafe_slug")
         elif fdef.get("auto") == "now" and fname not in data:
             row_data[fname] = now
-        elif fdef.get("auto") == "user_cafe_slug" and fname not in data and current_user:
-            row_data[fname] = current_user.get("cafe_slug")
         elif fdef.get("auto") == "user_slug" and fname not in data and current_user:
             row_data[fname] = current_user.get("roaster_slug") or f"user_{current_user['id']}"
         elif fname in data:
@@ -307,7 +300,7 @@ def update_resource(db, name, id_val, data, *, current_user=None):
 
     # Ownership check — supports two patterns:
     #   1. "owner": "user_id"          → row[owner_col] == current_user["id"]  (default)
-    #   2. "owner": "cafe_slug", "owner_user_field": "cafe_slug"  → row[owner_col] == current_user["cafe_slug"]
+    #   2. "owner": "roaster_slug", "owner_user_field": "roaster_slug"  → row[owner_col] == current_user["roaster_slug"]
     if res.get("owner") and current_user:
         owner_col = res["owner"]
         owner_user_field = res.get("owner_user_field", "id")

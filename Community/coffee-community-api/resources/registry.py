@@ -38,7 +38,6 @@ RESOURCES = {
             "brewing_style": {"type": "str"},
             "favorite_drink": {"type": "str"},
             "favorite_cafe": {"type": "str"},
-            "favorite_cafe_slug": {"type": "str"},
             "avatar_crop_x": {"type": "float", "default": 50},
             "avatar_crop_y": {"type": "float", "default": 50},
             "avatar_zoom": {"type": "float", "default": 1},
@@ -66,7 +65,6 @@ RESOURCES = {
             "cover_image_url": {"type": "str"},
             "post_type": {"type": "str", "default": "note"},
             "location": {"type": "str"},
-            "cafe_slug": {"type": "str", "auto": "user_cafe_slug"},  # auto-set if poster is a café account; otherwise user supplies via tag
             "images_json": {"type": "json"},
             "repost_of_id": {"type": "int"},
             "repost_comment": {"type": "str"},
@@ -330,7 +328,6 @@ RESOURCES = {
             "actor_id": {"type": "int"},
             "post_id": {"type": "int"},
             "comment_id": {"type": "int"},
-            "inquiry_id": {"type": "int"},
             "direct_thread_id": {"type": "int"},
             "target_slug": {"type": "str"},
             "subject": {"type": "str"},
@@ -372,12 +369,6 @@ RESOURCES = {
             "description_raw": {"type": "str"},
             "available": {"type": "int", "default": 1},
             "source": {"type": "str", "default": "scraped"},
-            # Phase 1 §2.2 wholesale availability signal. Set by the
-            # roaster owner in the product editor; rendered as a badge
-            # on CoffeeCard (café viewers only).
-            "wholesale_available": {"type": "int", "default": 0},
-            "wholesale_minimum_kg": {"type": "int"},
-            "wholesale_note": {"type": "str"},
             # Phase 3+ enricher fields — populated by Sonnet at staging
             # time, surfaced on the per-product card and the per-roaster
             # Coffees section.
@@ -398,14 +389,6 @@ RESOURCES = {
             {"name": "roaster_city", "sql": "(SELECT rp.city FROM roaster_profiles rp WHERE rp.roaster_slug = t.roaster_slug)"},
             {"name": "roaster_state", "sql": "(SELECT rp.state FROM roaster_profiles rp WHERE rp.roaster_slug = t.roaster_slug)"},
         ],
-        # §2.20 — fan a wholesale_available notification to business
-        # followers whenever a wholesale-flagged product is created or
-        # saved. Roaster-side writes that go through the hand-rolled
-        # routes/specific.py endpoints fire the same hook explicitly.
-        "hooks": {
-            "on_create": ["notify_wholesale_available"],
-            "on_update": ["notify_wholesale_available"],
-        },
     },
 
     # ── Roaster Profiles ─────────────────────────────────────────────────
@@ -485,138 +468,6 @@ RESOURCES = {
     },
 
     # ── Café entity (see CRUD_UTOPIA.md) ─────────────────────────────────
-    "cafe_profiles": {
-        "table": "cafe_profiles",
-        "pk": "cafe_slug",
-        "fields": {
-            "cafe_slug": {"type": "str", "required": True},
-            "name": {"type": "str", "required": True},
-            "about_blurb": {"type": "str"},
-            "cover_image_url": {"type": "str"},
-            "logo_url": {"type": "str"},
-            "hero_crop_x": {"type": "float", "default": 50},
-            "hero_crop_y": {"type": "float", "default": 50},
-            "hero_zoom": {"type": "float", "default": 1},
-            "logo_crop_x": {"type": "float", "default": 50},
-            "logo_crop_y": {"type": "float", "default": 50},
-            "logo_zoom": {"type": "float", "default": 1},
-            "address": {"type": "str"},
-            "city": {"type": "str"},
-            "state": {"type": "str"},
-            "lat": {"type": "float"},
-            "lng": {"type": "float"},
-            "instagram_handle": {"type": "str"},
-            "website": {"type": "str"},
-            "phone": {"type": "str"},
-            "hours_json": {"type": "json"},
-            "seasonal_open_month": {"type": "int"},
-            "seasonal_close_month": {"type": "int"},
-            "stamps_enabled": {"type": "int", "default": 0},
-            "stamp_target": {"type": "int", "default": 10},
-            "stamp_reward": {"type": "str", "default": "Free coffee"},
-            # Procurement profile (Phase 1 §2.6) — enriches the wholesale
-            # inquiry notification so roasters can qualify a café lead.
-            "monthly_volume_kg": {"type": "int"},
-            "open_to_new_roasters": {"type": "int", "default": 0},
-            "procurement_note": {"type": "str"},
-            # Alt-milk surcharges. Array of { name, surcharge_inr }. The
-            # café page renders this as a sentence at the top of the menu
-            # ("Serves Oat ₹30, Almond ₹40, Soy, Coconut") and provides
-            # an owner-edit modal in edit mode.
-            "milk_options_json": {"type": "json"},
-            "created_at": {"type": "str", "ro": True, "auto": "now"},
-            "updated_at": {"type": "str", "ro": True, "auto": "now"},
-        },
-        "auth": {"list": None, "read": None, "create": "required", "update": "owner", "delete": "owner"},
-        "owner": "cafe_slug",
-        "owner_user_field": "cafe_slug",  # user.cafe_slug must match row.cafe_slug
-        "pk_type": "str",
-        "counts": [
-            {"name": "stamps_given", "table": "stamps", "fk": "cafe_slug"},
-            {"name": "rewards_redeemed", "table": "stamp_rewards", "fk": "cafe_slug"},
-            # "Love count" — the scarce favorite-café signal. One per
-            # user, so this is just COUNT(users WHERE favorite_cafe_slug).
-            {"name": "love_count", "table": "users", "fk": "favorite_cafe_slug"},
-        ],
-        # When the café owner changes the logo, mirror it onto their
-        # user.avatar_url so the navbar avatar reflects the new image.
-        # notify_loyalty_changed (§2.20) is a no-op when stamps_enabled=0
-        # so it can sit alongside without gating logic in the registry.
-        "hooks": {"on_update": ["sync_cafe_logo_to_user", "notify_loyalty_changed"]},
-        "order": "name ASC",
-        "limit": 100,
-    },
-
-    "cafe_menu_items": {
-        "table": "cafe_menu_items",
-        "pk": "id",
-        "fields": {
-            "id": {"type": "int", "ro": True},
-            "cafe_slug": {"type": "str", "required": True},
-            "drink_name": {"type": "str", "required": True},
-            "drink_order": {"type": "int", "default": 0},
-            "roaster_slug": {"type": "str"},
-            "product_id": {"type": "str"},
-            "manual_roaster_name": {"type": "str"},
-            "manual_roaster_url": {"type": "str"},
-            "manual_bean_name": {"type": "str"},
-            "roast_level": {"type": "str"},
-            "process": {"type": "str"},
-            "notes": {"type": "str"},
-            "hide_roaster": {"type": "int", "default": 0},
-            # Per-cup pricing — `price_inr` is the hot-cup price, the
-            # iced variant is captured separately so the menu table can
-            # render two adjacent columns.
-            "price_inr": {"type": "int"},
-            "price_iced_inr": {"type": "int"},
-            "created_at": {"type": "str", "ro": True, "auto": "now"},
-        },
-        "parent": "cafe_profiles",
-        "parent_table": "cafe_profiles",
-        "fk": "cafe_slug",
-        "auth": {"list": None, "read": None, "create": "required", "update": "owner", "delete": "owner"},
-        "owner": "cafe_slug",
-        "owner_user_field": "cafe_slug",
-        # Menu changes fan out to the café's followers as notifications.
-        # `notify_menu_updated_business` (§2.20) is the B2B-flavored
-        # parallel: same trigger, but only goes to followers whose
-        # account_type is roaster/cafe and lands as `menu_updated_business`
-        # so the Business tab can read it as procurement signal rather
-        # than activity.
-        "hooks": {
-            "on_create": ["notify_menu_added"],
-            "on_update": ["notify_menu_updated", "notify_menu_updated_business"],
-            "on_delete": ["notify_menu_removed"],
-        },
-        "order": "drink_order ASC, id ASC",
-        "limit": 50,
-    },
-
-    # cafe_baristas registry removed — baristas feature was cut. Existing
-    # DB keeps the (now unused) table as dead weight; no DROP migration.
-
-    "stamps": {
-        "table": "stamps",
-        "pk": "id",
-        "fields": {
-            "id": {"type": "int", "ro": True},
-            "user_id": {"type": "int", "required": True},
-            "cafe_slug": {"type": "str", "required": True},
-            "scanned_at": {"type": "str", "ro": True, "auto": "now"},
-        },
-        # Creation happens via specific endpoint (QR verification + rate limit);
-        # list allowed so user profiles can show stamp history
-        "auth": {"list": None, "read": None, "create": "blocked", "delete": "blocked"},
-        "order": "scanned_at DESC",
-        "limit": 500,
-    },
-
-    # ── Brew methods (Phase 1 §2.5) ─────────────────────────────────────
-    # Roaster-authored recipe cards for a specific product. Nested under
-    # `products` — list via /api/products/{product_id}/brew_methods.
-    # Create/update/delete require auth; the owner filter is enforced by
-    # the "owner": "roaster_slug" + the user having a matching
-    # roaster_slug on their account.
     "brew_methods": {
         "table": "brew_methods",
         "pk": "id",
@@ -653,72 +504,6 @@ RESOURCES = {
         "order": "created_at ASC",
         "limit": 50,
     },
-
-    # ── Wholesale inquiries (Phase 1 §2.1) ──────────────────────────────
-    # Lightweight café-to-roaster "Interested" handshake. Auth is
-    # "required" on all verbs; the specific route enforces the inquiry
-    # filter (callers only see their own inquiries or inquiries sent to
-    # their own roaster). Notifications fire via the on_create hook so
-    # the roaster sees it in their Business tab (§2.4). Café context is
-    # pulled in via subfields — the generic join helper only joins on
-    # users.id, so we use subqueries the same way products does.
-    "wholesale_inquiries": {
-        "table": "wholesale_inquiries",
-        "pk": "id",
-        "fields": {
-            "id": {"type": "int", "ro": True},
-            "cafe_slug": {"type": "str", "required": True, "auto": "user_cafe_slug"},
-            "roaster_slug": {"type": "str", "required": True},
-            "product_id": {"type": "str"},
-            "note": {"type": "str"},
-            "status": {"type": "str", "default": "open"},
-            "cafe_last_read_at": {"type": "str"},
-            "roaster_last_read_at": {"type": "str"},
-            "created_at": {"type": "str", "ro": True, "auto": "now"},
-            "updated_at": {"type": "str"},
-        },
-        # list + read are blocked on the generic endpoint to prevent one café
-        # from peeking at another's leads or a roaster from harvesting
-        # inquiries sent to others. Use GET /api/my-wholesale-inquiries
-        # (see routes/specific.py) which scopes to the current account.
-        "auth": {"list": "blocked", "read": "blocked", "create": "required", "update": "owner", "delete": "owner"},
-        "owner": "cafe_slug",
-        "subfields": [
-            {"name": "cafe_name", "sql": "(SELECT cp.name FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
-            {"name": "cafe_city", "sql": "(SELECT cp.city FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
-            {"name": "cafe_state", "sql": "(SELECT cp.state FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
-            {"name": "cafe_logo_url", "sql": "(SELECT cp.logo_url FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
-            {"name": "cafe_monthly_volume_kg", "sql": "(SELECT cp.monthly_volume_kg FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
-            {"name": "cafe_open_to_new_roasters", "sql": "(SELECT cp.open_to_new_roasters FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
-            {"name": "cafe_procurement_note", "sql": "(SELECT cp.procurement_note FROM cafe_profiles cp WHERE cp.cafe_slug = t.cafe_slug)"},
-            {"name": "product_name", "sql": "(SELECT p.coffee_name FROM products p WHERE p.product_id = t.product_id)"},
-        ],
-        "order": "created_at DESC",
-        "limit": 100,
-        "hooks": {"on_create": ["notify_wholesale_inquiry"]},
-    },
-
-    "stamp_rewards": {
-        "table": "stamp_rewards",
-        "pk": "id",
-        "fields": {
-            "id": {"type": "int", "ro": True},
-            "user_id": {"type": "int", "required": True},
-            "cafe_slug": {"type": "str", "required": True},
-            "stamps_used": {"type": "int", "required": True},
-            "redeemed_at": {"type": "str", "ro": True, "auto": "now"},
-        },
-        "auth": {"list": None, "read": None, "create": "blocked", "delete": "blocked"},
-        "order": "redeemed_at DESC",
-        "limit": 200,
-    },
-
-    # ── Catalog Ops admin tabs (v0, local-only) ───────────────────────────
-    # These three resources are admin-gated (`auth: {"list": "admin", ...}`).
-    # The generic CRUD route in `routes/resources.py` enforces the admin
-    # predicate (`is_admin=1 AND username='crema'`) on every verb tagged
-    # "admin" — same shape as `_require_admin` in `routes/specific.py` so
-    # there's exactly one definition of who counts as admin.
 
     "roaster_sources": {
         "table": "roaster_sources",
