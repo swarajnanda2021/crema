@@ -13,7 +13,14 @@ export function CoffeeDataProvider({ children }: { children: ReactNode }) {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetchRaw<any>("/products");
+      // Explicit high limit — the registry default is 500 and the
+      // catalog passed that mark with the late-April scrape batch
+      // (currently ~780 rows). Without this, alphabetically late
+      // products silently disappear from Discover BEANS + the
+      // per-roaster consumer page (both flow through this hook).
+      // Bumping to 5000 covers headroom through Phase 2 catalog
+      // growth before we'd ever need true pagination on Discover.
+      const res = await apiFetchRaw<any>("/products?limit=5000");
       const data = res?.data ?? res;
       setProducts(Array.isArray(data) ? data : []);
     } catch {
