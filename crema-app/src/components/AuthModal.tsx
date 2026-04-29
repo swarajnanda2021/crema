@@ -340,7 +340,7 @@ const s = StyleSheet.create({
   } as any,
   error: {
     fontFamily: t.font["body.regular"], fontSize: 12.5,
-    color: "#C8553D",
+    color: t.color["accent.cta"],
     textAlign: "center",
   },
   submit: {

@@ -321,7 +321,7 @@ const s = StyleSheet.create({
 
   errorText: {
     fontFamily: t.font["body.regular"], fontSize: 13,
-    color: "#C8553D",
+    color: t.color["accent.cta"],
     textAlign: "center",
     marginTop: 2,
   },

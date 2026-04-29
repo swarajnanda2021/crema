@@ -226,7 +226,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    CanelaText_Regular: require("../assets/fonts/CanelaText-Regular.otf"),
+    NewSpiritTRIAL_Regular: require("../assets/fonts/NewSpiritTRIAL-Regular.otf"),
     Inter_400Regular: require("../assets/fonts/Inter_400Regular.ttf"),
     Inter_500Medium: require("../assets/fonts/Inter_500Medium.ttf"),
     Inter_600SemiBold: require("../assets/fonts/Inter_600SemiBold.ttf"),

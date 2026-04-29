@@ -180,8 +180,8 @@ const s = StyleSheet.create({
     fontFamily: t.font["body.semibold"], fontSize: 12,
     letterSpacing: 0.3,
   },
-  deltaUp: { color: t.color["accent.positive"] || "#5A8F5A" },
-  deltaDown: { color: t.color["accent.cta"] || "#B5393C" },
+  deltaUp: { color: t.color["accent.positive"] },
+  deltaDown: { color: t.color["accent.cta"] },
 
   chartWrap: {
     paddingTop: 6, paddingBottom: 4,

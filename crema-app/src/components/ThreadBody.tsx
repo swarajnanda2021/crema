@@ -287,7 +287,7 @@ const s = StyleSheet.create({
   bubbleTimeSelf: { color: "rgba(250,248,240,0.55)" } as any,
   error: {
     fontFamily: t.font["body.medium"], fontSize: 10,
-    color: "#B5393C", textAlign: "center", paddingVertical: 3,
+    color: t.color["accent.cta"], textAlign: "center", paddingVertical: 3,
   } as any,
   composer: {
     flexDirection: "row",

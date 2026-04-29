@@ -19,12 +19,18 @@ interface RetentionTableProps {
   info?: string;
 }
 
+// Brand Crema (#D798DA) = rgb(215,152,218). Heat-tint cells layer alpha
+// over the cell, so we expose the rgb tuple here rather than hard-code
+// the hex repeatedly. If the brand accent ever changes, update this
+// tuple alongside `t.color.accent` in design-tokens.json.
+const ACCENT_RGB = "215,152,218";
+
 function heatColor(pct: number): string {
   if (pct <= 0) return "transparent";
-  // Linear alpha from 0% (clear) to 100% (full accent). Purple #D798DA.
+  // Linear alpha from 0% (clear) to 100% (full accent).
   const clamped = Math.max(0, Math.min(100, pct));
   const alpha = (clamped / 100) * 0.35;
-  return `rgba(215,152,218,${alpha.toFixed(2)})`;
+  return `rgba(${ACCENT_RGB},${alpha.toFixed(2)})`;
 }
 
 export default function RetentionTable({ cohorts, info }: RetentionTableProps) {

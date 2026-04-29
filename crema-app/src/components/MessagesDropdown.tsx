@@ -103,7 +103,7 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
       {
         key: "delete",
         label: "Delete",
-        background: "#B5393C",
+        background: t.color["accent.cta"],
         icon: <Trash2 size={18} color={ICON} strokeWidth={2} />,
         onPress: () => commingSoon("Delete"),
       },
@@ -405,7 +405,7 @@ const s = StyleSheet.create({
   } as any,
   errorText: {
     fontFamily: t.font["body.regular"], fontSize: 11.5,
-    color: "#B5393C", textAlign: "center", paddingHorizontal: 18,
+    color: t.color["accent.cta"], textAlign: "center", paddingHorizontal: 18,
   } as any,
   retryText: {
     fontFamily: t.font["body.semibold"], fontSize: 11,
