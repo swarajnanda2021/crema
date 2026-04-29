@@ -27,7 +27,7 @@
  * message so the long-press doesn't feel broken.
  */
 
-import { Modal, View, Text, Pressable, ScrollView, StyleSheet, Platform, Dimensions } from "react-native";
+import { Modal, View, Text, Pressable, ScrollView, StyleSheet, Platform, useWindowDimensions } from "react-native";
 import { X } from "lucide-react-native";
 
 import { t } from "../tokens/useTokens";
@@ -103,6 +103,14 @@ export default function CoffeeDetailSheet({
   // state. Closing puts it back to harmless.
   const c: Record<string, any> = coffee || {};
 
+  // Hook-based window height — computing inside the component fires
+  // on every render, after the Dimensions API has settled. Doing this
+  // once at module load (the previous `Dimensions.get` call inside
+  // StyleSheet.create) returned 0 on iOS Expo Go cold start, which
+  // collapsed the card to its intrinsic header height.
+  const { height: winH } = useWindowDimensions();
+  const cardHeight = Math.min(760, Math.round(winH * 0.78));
+
   const roasterBlurb = (c.roaster_blurb || "").toString().trim();
   const origin = (c.origin || "").toString().trim();
   const cityState = [c.roaster_city, c.roaster_state].filter(Boolean).join(", ");
@@ -137,7 +145,7 @@ export default function CoffeeDetailSheet({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.overlayWrap}>
         <Pressable style={s.overlayBg} onPress={onClose} />
-        <View style={s.card}>
+        <View style={[s.card, { height: cardHeight }]}>
           <View style={s.header}>
             <View style={{ flex: 1 }}>
               <Text style={s.title} numberOfLines={2}>
@@ -277,12 +285,9 @@ const s = StyleSheet.create({
     borderRadius: t.radius.lg,
     width: "94%",
     maxWidth: 560,
-    // Concrete height (75% of screen) so the inner ScrollView has a
-    // definite parent to flex into. Same fix the BeanDetailModal got
-    // — `maxHeight: "85%"` alone collapses the scroll body to 0px on
-    // iOS.
-    height: Math.round(Dimensions.get("window").height * 0.78),
-    maxHeight: 760,
+    // height applied inline via useWindowDimensions (78% of viewport,
+    // capped at 760). Computing here at module load returned 0 on
+    // iOS cold start and collapsed the card to header-only height.
     overflow: "hidden",
     zIndex: 1,
   } as any,

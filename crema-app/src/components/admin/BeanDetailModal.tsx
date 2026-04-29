@@ -19,7 +19,7 @@ import {
   ScrollView,
   StyleSheet,
   Platform,
-  Dimensions,
+  useWindowDimensions,
 } from "react-native";
 import { X } from "lucide-react-native";
 
@@ -96,6 +96,13 @@ export default function BeanDetailModal({
   visible: boolean;
   onClose: () => void;
 }) {
+  // Hook-based viewport height — `Dimensions.get("window")` evaluated
+  // at module load returned 0 on iOS Expo Go cold start, leaving the
+  // card with `height: 0` and the inner ScrollView collapsed to a
+  // header-only sliver. `useWindowDimensions` reads after RN settles.
+  const { height: winH } = useWindowDimensions();
+  const cardHeight = Math.min(720, Math.round(winH * 0.75));
+
   // Defensive coercion — see `_coerceState`. Handles the regular case
   // (server pre-parsed the JSON), the rare case (server shipped the
   // raw `_json` string), and the missing case (proposed_state is null
@@ -136,7 +143,7 @@ export default function BeanDetailModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.detailOverlayWrap}>
         <Pressable style={s.detailOverlayBg} onPress={onClose} />
-        <View style={s.detailCard}>
+        <View style={[s.detailCard, { height: cardHeight }]}>
           <View style={s.detailHeader}>
             <View style={{ flex: 1 }}>
               <Text style={s.detailTitle} numberOfLines={2}>
@@ -229,13 +236,9 @@ const s = StyleSheet.create({
     borderRadius: t.radius.lg,
     width: "94%",
     maxWidth: 560,
-    // Concrete height (75% of the screen) so the inner ScrollView has
-    // a fixed parent to flex into. The prior `maxHeight: "85%"` only
-    // capped overflow — without a concrete height, the ScrollView
-    // (style flex: 1) collapsed to 0 px on iOS, leaving the header
-    // visible but every field row clipped.
-    height: Math.round(Dimensions.get("window").height * 0.75),
-    maxHeight: 720,
+    // Height applied inline via useWindowDimensions (75% of viewport,
+    // capped at 720). Computing here at module load returned 0 on
+    // iOS cold start and collapsed the ScrollView to a sliver.
     overflow: "hidden",
     zIndex: 1,
   } as any,
