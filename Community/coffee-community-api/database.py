@@ -619,9 +619,9 @@ _MIGRATIONS = [
     #     scraper crawls (seeded from Scraper/verified_roasters_catalog.json
     #     once, then editable via the admin tab).
     #   * Taste Graph tab — `sca_addresses` is the per-tag → SCA address
-    #     resolution store (replaces tmp/tag_resolutions.json as the live
-    #     source). `sca_tree_versions` keeps every uploaded SCA tree JSON
-    #     by version with exactly one row marked active.
+    #     resolution store (replaces tasting_notes_tags/tag_resolutions.json
+    #     as the live source). `sca_tree_versions` keeps every uploaded SCA
+    #     tree JSON by version with exactly one row marked active.
     #   * Both tabs — `jobs` records every triggered background job (scrape
     #     / geolocate / tree_validate) with status, timing, and a log tail.
     # See LAUNCH_TODO §3.8 — the prod-deployment hardening (queue worker,

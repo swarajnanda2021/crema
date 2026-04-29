@@ -1,0 +1,1314 @@
+[
+  [
+    "Dark Chocolate",
+    66
+  ],
+  [
+    "Caramel",
+    59
+  ],
+  [
+    "Chocolate",
+    58
+  ],
+  [
+    "Milk Chocolate",
+    36
+  ],
+  [
+    "Citrus",
+    35
+  ],
+  [
+    "Sweet",
+    31
+  ],
+  [
+    "Fruity",
+    27
+  ],
+  [
+    "Nutty",
+    26
+  ],
+  [
+    "Cocoa",
+    25
+  ],
+  [
+    "Honey",
+    19
+  ],
+  [
+    "Brown Sugar",
+    18
+  ],
+  [
+    "Floral",
+    18
+  ],
+  [
+    "Spice",
+    17
+  ],
+  [
+    "Roasted Nuts",
+    16
+  ],
+  [
+    "Earthy",
+    15
+  ],
+  [
+    "Smooth",
+    15
+  ],
+  [
+    "Vanilla",
+    15
+  ],
+  [
+    "Strawberry",
+    14
+  ],
+  [
+    "Apricot",
+    13
+  ],
+  [
+    "Malt",
+    13
+  ],
+  [
+    "Plum",
+    13
+  ],
+  [
+    "Smoky",
+    13
+  ],
+  [
+    "Cherry",
+    12
+  ],
+  [
+    "Green Apple",
+    12
+  ],
+  [
+    "Nutmeg",
+    12
+  ],
+  [
+    "Orange",
+    12
+  ],
+  [
+    "Rich",
+    12
+  ],
+  [
+    "Pineapple",
+    11
+  ],
+  [
+    "Toffee",
+    11
+  ],
+  [
+    "Aromatic",
+    10
+  ],
+  [
+    "Cacao",
+    10
+  ],
+  [
+    "Cinnamon",
+    10
+  ],
+  [
+    "Hazelnut",
+    10
+  ],
+  [
+    "Jaggery",
+    10
+  ],
+  [
+    "Nuts",
+    10
+  ],
+  [
+    "Stone Fruit",
+    10
+  ],
+  [
+    "Banana",
+    9
+  ],
+  [
+    "Cacao Nibs",
+    9
+  ],
+  [
+    "Clove",
+    9
+  ],
+  [
+    "Prunes",
+    9
+  ],
+  [
+    "Raisin",
+    9
+  ],
+  [
+    "Bold",
+    8
+  ],
+  [
+    "Molasses",
+    8
+  ],
+  [
+    "Oak",
+    8
+  ],
+  [
+    "Orange Zest",
+    8
+  ],
+  [
+    "Pomegranate",
+    8
+  ],
+  [
+    "Toasted Nuts",
+    8
+  ],
+  [
+    "Jasmine",
+    7
+  ],
+  [
+    "Mandarin",
+    7
+  ],
+  [
+    "Orange Blossom",
+    7
+  ],
+  [
+    "Raisins",
+    7
+  ],
+  [
+    "Almonds",
+    6
+  ],
+  [
+    "Berries",
+    6
+  ],
+  [
+    "Bittersweet",
+    6
+  ],
+  [
+    "Black Tea",
+    6
+  ],
+  [
+    "Blueberry",
+    6
+  ],
+  [
+    "Full-Bodied",
+    6
+  ],
+  [
+    "Peach",
+    6
+  ],
+  [
+    "Raspberry",
+    6
+  ],
+  [
+    "Red Apple",
+    6
+  ],
+  [
+    "Roasted Almonds",
+    6
+  ],
+  [
+    "Roasted Hazelnut",
+    6
+  ],
+  [
+    "Spices",
+    6
+  ],
+  [
+    "Toasted Almonds",
+    6
+  ],
+  [
+    "White Chocolate",
+    6
+  ],
+  [
+    "Apple",
+    5
+  ],
+  [
+    "Balanced",
+    5
+  ],
+  [
+    "Berry",
+    5
+  ],
+  [
+    "Cocoa Nibs",
+    5
+  ],
+  [
+    "Gooseberry",
+    5
+  ],
+  [
+    "Grapefruit",
+    5
+  ],
+  [
+    "Mango",
+    5
+  ],
+  [
+    "Mulberry",
+    5
+  ],
+  [
+    "Nougat",
+    5
+  ],
+  [
+    "Rum",
+    5
+  ],
+  [
+    "Sweet Lime",
+    5
+  ],
+  [
+    "Tropical Fruits",
+    5
+  ],
+  [
+    "Almond",
+    4
+  ],
+  [
+    "Cherries",
+    4
+  ],
+  [
+    "Clean",
+    4
+  ],
+  [
+    "Cranberry",
+    4
+  ],
+  [
+    "Creamy",
+    4
+  ],
+  [
+    "Figs",
+    4
+  ],
+  [
+    "Full Body",
+    4
+  ],
+  [
+    "Grapes",
+    4
+  ],
+  [
+    "Green Grapes",
+    4
+  ],
+  [
+    "Jackfruit",
+    4
+  ],
+  [
+    "Maple Syrup",
+    4
+  ],
+  [
+    "Muskmelon",
+    4
+  ],
+  [
+    "Orange Peel",
+    4
+  ],
+  [
+    "Pink Guava",
+    4
+  ],
+  [
+    "Red Grapes",
+    4
+  ],
+  [
+    "Roasted Almond",
+    4
+  ],
+  [
+    "Smoke",
+    4
+  ],
+  [
+    "Smokey",
+    4
+  ],
+  [
+    "Spicy",
+    4
+  ],
+  [
+    "Tropical Fruit",
+    4
+  ],
+  [
+    "Walnut",
+    4
+  ],
+  [
+    "Watermelon",
+    4
+  ],
+  [
+    "Bayleaf",
+    3
+  ],
+  [
+    "Betel Leaf",
+    3
+  ],
+  [
+    "Bitter",
+    3
+  ],
+  [
+    "Burnt Caramel",
+    3
+  ],
+  [
+    "Buttery",
+    3
+  ],
+  [
+    "Candy",
+    3
+  ],
+  [
+    "Chamomile",
+    3
+  ],
+  [
+    "Cloves",
+    3
+  ],
+  [
+    "Complex",
+    3
+  ],
+  [
+    "Damson Plum",
+    3
+  ],
+  [
+    "Dates",
+    3
+  ],
+  [
+    "Dried Apple",
+    3
+  ],
+  [
+    "Dried Apricot",
+    3
+  ],
+  [
+    "Dried Berries",
+    3
+  ],
+  [
+    "Elderflower",
+    3
+  ],
+  [
+    "Golden Raisin",
+    3
+  ],
+  [
+    "Hibiscus",
+    3
+  ],
+  [
+    "Java Plum",
+    3
+  ],
+  [
+    "Lemon Peel",
+    3
+  ],
+  [
+    "Lemon Zest",
+    3
+  ],
+  [
+    "Marigold",
+    3
+  ],
+  [
+    "Papaya",
+    3
+  ],
+  [
+    "Red Grape",
+    3
+  ],
+  [
+    "Red Wine",
+    3
+  ],
+  [
+    "Silky",
+    3
+  ],
+  [
+    "Sour Cherry",
+    3
+  ],
+  [
+    "Stone Fruits",
+    3
+  ],
+  [
+    "Tangy",
+    3
+  ],
+  [
+    "Toasted Almond",
+    3
+  ],
+  [
+    "Toasted Cashews",
+    3
+  ],
+  [
+    "Wild Honey",
+    3
+  ],
+  [
+    "Amla",
+    2
+  ],
+  [
+    "Bakers Chocolate",
+    2
+  ],
+  [
+    "Black Currant",
+    2
+  ],
+  [
+    "Black Grapes",
+    2
+  ],
+  [
+    "Blackberries",
+    2
+  ],
+  [
+    "Blackberry",
+    2
+  ],
+  [
+    "Brown Butter",
+    2
+  ],
+  [
+    "Brown Spice",
+    2
+  ],
+  [
+    "Butterscotch",
+    2
+  ],
+  [
+    "Cardamom",
+    2
+  ],
+  [
+    "Cashew",
+    2
+  ],
+  [
+    "Cedar",
+    2
+  ],
+  [
+    "Chocolate Buttercream",
+    2
+  ],
+  [
+    "Coconut",
+    2
+  ],
+  [
+    "Coffee Blossom",
+    2
+  ],
+  [
+    "Date",
+    2
+  ],
+  [
+    "Dragon Fruit",
+    2
+  ],
+  [
+    "Dried Fruit",
+    2
+  ],
+  [
+    "Dried Mango",
+    2
+  ],
+  [
+    "Dry Fruits",
+    2
+  ],
+  [
+    "Fig",
+    2
+  ],
+  [
+    "Honeysuckle",
+    2
+  ],
+  [
+    "Irish Cream",
+    2
+  ],
+  [
+    "Lemon",
+    2
+  ],
+  [
+    "Mandarin Tea",
+    2
+  ],
+  [
+    "Mellow",
+    2
+  ],
+  [
+    "Mild",
+    2
+  ],
+  [
+    "Mild Bitterness",
+    2
+  ],
+  [
+    "Mixed Berries",
+    2
+  ],
+  [
+    "Mosambi",
+    2
+  ],
+  [
+    "Mulberries",
+    2
+  ],
+  [
+    "Natural Sweetness",
+    2
+  ],
+  [
+    "Oaky",
+    2
+  ],
+  [
+    "Orange Marmalade",
+    2
+  ],
+  [
+    "Passion Fruit",
+    2
+  ],
+  [
+    "Passionfruit",
+    2
+  ],
+  [
+    "Peach Tea",
+    2
+  ],
+  [
+    "Pecan",
+    2
+  ],
+  [
+    "Pepper",
+    2
+  ],
+  [
+    "Plum Cake",
+    2
+  ],
+  [
+    "Raw Cacao",
+    2
+  ],
+  [
+    "Red Berries",
+    2
+  ],
+  [
+    "Roasted Hazelnuts",
+    2
+  ],
+  [
+    "Subtropical Fruit",
+    2
+  ],
+  [
+    "Sweet Cream",
+    2
+  ],
+  [
+    "Sweet Fruits",
+    2
+  ],
+  [
+    "Tamarind",
+    2
+  ],
+  [
+    "Tea Rose",
+    2
+  ],
+  [
+    "Tobacco",
+    2
+  ],
+  [
+    "Walnuts",
+    2
+  ],
+  [
+    "Wood",
+    2
+  ],
+  [
+    "Woody",
+    2
+  ],
+  [
+    "Acidity",
+    1
+  ],
+  [
+    "Alphonso Mango",
+    1
+  ],
+  [
+    "Baked Apple",
+    1
+  ],
+  [
+    "Baker's Chocolate",
+    1
+  ],
+  [
+    "Baking Spice",
+    1
+  ],
+  [
+    "Balanced Acidity",
+    1
+  ],
+  [
+    "Barbados Cherry",
+    1
+  ],
+  [
+    "Berry Compote",
+    1
+  ],
+  [
+    "Bing Cherries",
+    1
+  ],
+  [
+    "Bittersweet Chocolate",
+    1
+  ],
+  [
+    "Black Cherry",
+    1
+  ],
+  [
+    "Black Pepper",
+    1
+  ],
+  [
+    "Blackberry Jam",
+    1
+  ],
+  [
+    "Blood Orange",
+    1
+  ],
+  [
+    "Blueberry Jam",
+    1
+  ],
+  [
+    "Bold Roast",
+    1
+  ],
+  [
+    "Bourbon",
+    1
+  ],
+  [
+    "Bright Acidity",
+    1
+  ],
+  [
+    "Bubblegum",
+    1
+  ],
+  [
+    "Butter",
+    1
+  ],
+  [
+    "Butter Biscuit",
+    1
+  ],
+  [
+    "Butter Biscuits",
+    1
+  ],
+  [
+    "Butter Cookies",
+    1
+  ],
+  [
+    "Buttercup",
+    1
+  ],
+  [
+    "Cacao Bitters",
+    1
+  ],
+  [
+    "Candied Mango",
+    1
+  ],
+  [
+    "Candied Nuts",
+    1
+  ],
+  [
+    "Candied Orange",
+    1
+  ],
+  [
+    "Candied Pear",
+    1
+  ],
+  [
+    "Cane Sugar",
+    1
+  ],
+  [
+    "Caramelised Nuts",
+    1
+  ],
+  [
+    "Cascara",
+    1
+  ],
+  [
+    "Cashew Butter",
+    1
+  ],
+  [
+    "Cereals",
+    1
+  ],
+  [
+    "Champakali",
+    1
+  ],
+  [
+    "Cherry Jam",
+    1
+  ],
+  [
+    "Chocolate Biscuit",
+    1
+  ],
+  [
+    "Chocolate Brownie",
+    1
+  ],
+  [
+    "Citric",
+    1
+  ],
+  [
+    "Citrus Blossom",
+    1
+  ],
+  [
+    "Cotton Candy",
+    1
+  ],
+  [
+    "Cumin",
+    1
+  ],
+  [
+    "Dark Berries",
+    1
+  ],
+  [
+    "Dark Caramel",
+    1
+  ],
+  [
+    "Dark Cocoa",
+    1
+  ],
+  [
+    "Dark Plum",
+    1
+  ],
+  [
+    "Delicate",
+    1
+  ],
+  [
+    "Dried Apricots",
+    1
+  ],
+  [
+    "Dried Cranberries",
+    1
+  ],
+  [
+    "Dried Figs",
+    1
+  ],
+  [
+    "Dried Plum",
+    1
+  ],
+  [
+    "Dry Fruit",
+    1
+  ],
+  [
+    "Dry Raisins",
+    1
+  ],
+  [
+    "Florals",
+    1
+  ],
+  [
+    "Fresh Fruit",
+    1
+  ],
+  [
+    "Fruit",
+    1
+  ],
+  [
+    "Fruit Jam",
+    1
+  ],
+  [
+    "Gooseberries",
+    1
+  ],
+  [
+    "Grape",
+    1
+  ],
+  [
+    "Green Tea",
+    1
+  ],
+  [
+    "Guava",
+    1
+  ],
+  [
+    "Haw Flakes",
+    1
+  ],
+  [
+    "Hazelnuts",
+    1
+  ],
+  [
+    "Heavy Body",
+    1
+  ],
+  [
+    "Jammy",
+    1
+  ],
+  [
+    "Jamun",
+    1
+  ],
+  [
+    "Kinnow",
+    1
+  ],
+  [
+    "Kiwi",
+    1
+  ],
+  [
+    "Layered",
+    1
+  ],
+  [
+    "Layered Acidity",
+    1
+  ],
+  [
+    "Lemon Verbena",
+    1
+  ],
+  [
+    "Lemongrass",
+    1
+  ],
+  [
+    "Licorice",
+    1
+  ],
+  [
+    "Lifted Acidity",
+    1
+  ],
+  [
+    "Lime Zest",
+    1
+  ],
+  [
+    "Liquorice",
+    1
+  ],
+  [
+    "Low Acidity",
+    1
+  ],
+  [
+    "Lychee",
+    1
+  ],
+  [
+    "Mandarin Orange",
+    1
+  ],
+  [
+    "Maple",
+    1
+  ],
+  [
+    "Marmalade",
+    1
+  ],
+  [
+    "Melon",
+    1
+  ],
+  [
+    "Mexican Chocolate",
+    1
+  ],
+  [
+    "Mild Acidity",
+    1
+  ],
+  [
+    "Mixed Fruit Jam",
+    1
+  ],
+  [
+    "Musty",
+    1
+  ],
+  [
+    "Naturally Sweet",
+    1
+  ],
+  [
+    "Nectarine",
+    1
+  ],
+  [
+    "Orange Berry",
+    1
+  ],
+  [
+    "Oranges",
+    1
+  ],
+  [
+    "Peaches",
+    1
+  ],
+  [
+    "Pear",
+    1
+  ],
+  [
+    "Peppermint",
+    1
+  ],
+  [
+    "Persimmon",
+    1
+  ],
+  [
+    "Petrichor",
+    1
+  ],
+  [
+    "Pineapple Jam",
+    1
+  ],
+  [
+    "Pistachio",
+    1
+  ],
+  [
+    "Plum Blossom",
+    1
+  ],
+  [
+    "Plum Jam",
+    1
+  ],
+  [
+    "Praline",
+    1
+  ],
+  [
+    "Raw Honey",
+    1
+  ],
+  [
+    "Red Fruit",
+    1
+  ],
+  [
+    "Red Mace",
+    1
+  ],
+  [
+    "Refreshing",
+    1
+  ],
+  [
+    "Rich Body",
+    1
+  ],
+  [
+    "Rich Cocoa",
+    1
+  ],
+  [
+    "Rich Crema",
+    1
+  ],
+  [
+    "Roasted Coffee",
+    1
+  ],
+  [
+    "Roasted Jackfruit Seed",
+    1
+  ],
+  [
+    "Roasted Pecan",
+    1
+  ],
+  [
+    "Roasted Popcorn",
+    1
+  ],
+  [
+    "Rose Water",
+    1
+  ],
+  [
+    "Salted Caramel",
+    1
+  ],
+  [
+    "Shiraz",
+    1
+  ],
+  [
+    "Single Malt Whiskey",
+    1
+  ],
+  [
+    "Sour",
+    1
+  ],
+  [
+    "Sparkling Acidity",
+    1
+  ],
+  [
+    "Spiced",
+    1
+  ],
+  [
+    "Spiced Chocolate",
+    1
+  ],
+  [
+    "Spiced Mandarin",
+    1
+  ],
+  [
+    "Star Fruit",
+    1
+  ],
+  [
+    "Starfruit",
+    1
+  ],
+  [
+    "Stoned Fruits",
+    1
+  ],
+  [
+    "Stout",
+    1
+  ],
+  [
+    "Strong",
+    1
+  ],
+  [
+    "Strong Aftertaste",
+    1
+  ],
+  [
+    "Sugarcane",
+    1
+  ],
+  [
+    "Sweet Berries",
+    1
+  ],
+  [
+    "Sweet Cherry",
+    1
+  ],
+  [
+    "Sweet Citrus",
+    1
+  ],
+  [
+    "Sweet Smoke",
+    1
+  ],
+  [
+    "Sweet Spices",
+    1
+  ],
+  [
+    "Sweetness",
+    1
+  ],
+  [
+    "Syrupy",
+    1
+  ],
+  [
+    "Toasted Bread",
+    1
+  ],
+  [
+    "Toasted Walnuts",
+    1
+  ],
+  [
+    "Tropical Sweetness",
+    1
+  ],
+  [
+    "Tutti Frutti",
+    1
+  ],
+  [
+    "Velvety",
+    1
+  ],
+  [
+    "Vibrant",
+    1
+  ],
+  [
+    "White Floral",
+    1
+  ],
+  [
+    "Wild Berries",
+    1
+  ],
+  [
+    "Wine",
+    1
+  ],
+  [
+    "Wine-like",
+    1
+  ],
+  [
+    "Winy",
+    1
+  ],
+  [
+    "Wood Apple",
+    1
+  ]
+]

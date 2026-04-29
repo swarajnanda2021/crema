@@ -4,9 +4,10 @@ Catalog Ops — job lifecycle + first-boot seeding for the admin tabs.
 Two responsibilities:
 
   * `seed_initial_state(conn)` — populates `roaster_sources` from the
-    on-disk catalog JSON, `sca_addresses` from `tmp/tag_resolutions.json`,
-    and `sca_tree_versions` with the canonical SCA tree. Idempotent;
-    called from `database.init_db()` after the new tables exist.
+    on-disk catalog JSON, `sca_addresses` from
+    `tasting_notes_tags/tag_resolutions.json`, and `sca_tree_versions`
+    with the canonical SCA tree. Idempotent; called from
+    `database.init_db()` after the new tables exist.
 
   * `enqueue_*` / `run_*_job` helpers — called from the admin endpoints
     in `routes/specific.py`. Each `run_*` function opens its own DB
@@ -33,7 +34,11 @@ from services import sca_geolocator, scrape_runner
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 CATALOG_SEED_PATH = PROJECT_ROOT / "Scraper" / "verified_roasters_catalog.json"
-RESOLUTIONS_SEED_PATH = PROJECT_ROOT / "tmp" / "tag_resolutions.json"
+# Tag resolutions live alongside their generator scripts in
+# tasting_notes_tags/ — moved out of tmp/ so the exploratory
+# pipeline + its cached output are colocated. The seeder is
+# gated on `sca_addresses` being empty so this only fires once.
+RESOLUTIONS_SEED_PATH = PROJECT_ROOT / "tasting_notes_tags" / "tag_resolutions.json"
 
 
 # ── Time helper ─────────────────────────────────────────────────────────────
@@ -149,10 +154,10 @@ def _seed_roaster_sources_combined(conn) -> None:
 
 def _seed_sca_addresses(conn) -> None:
     """Import the cached tag → address resolutions from
-    `tmp/tag_resolutions.json` — but only on a fresh table. Once the
-    admin starts running classification jobs, the runner writes here
-    and we don't want a stale cache file resurrecting deleted rows
-    on the next restart.
+    `tasting_notes_tags/tag_resolutions.json` — but only on a fresh
+    table. Once the admin starts running classification jobs, the
+    runner writes here and we don't want a stale cache file
+    resurrecting deleted rows on the next restart.
     """
     existing_count = conn.execute(
         "SELECT COUNT(*) FROM sca_addresses"

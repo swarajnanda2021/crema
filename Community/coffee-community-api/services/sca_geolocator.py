@@ -21,8 +21,8 @@ admin Taste Graph tab can call:
     `would_change_meaning`).
 
 The classification logic stays consistent with the standalone script so
-output cached in `tmp/tag_resolutions.json` is interchangeable with rows
-written by this service.
+output cached in `tasting_notes_tags/tag_resolutions.json` is
+interchangeable with rows written by this service.
 """
 
 from __future__ import annotations
