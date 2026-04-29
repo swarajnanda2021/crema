@@ -332,11 +332,13 @@ export default function BrowsePage() {
               )}
 
 
-              {/* Catalog freshness lenses \u2014 `New` narrows to beans
+              {/* Catalog-narrowing lenses. Shaped to match every
+                 other filter section: titled `filterTitle` header
+                 followed by the controls. `New` narrows to beans
                  created in the last 30 days; `Sold out` flips the
-                 default in-stock lens to show only retired stock.
-                 Same checkbox geometry as the wholesale row above. */}
+                 default in-stock lens to show only retired stock. */}
               <View style={s.filterSection}>
+                <Text style={s.filterTitle}>Show only</Text>
                 <Pressable
                   onPress={() => setNewOnly((v) => !v)}
                   style={s.wholesaleRow}
@@ -504,6 +506,26 @@ export default function BrowsePage() {
                 contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 }}
                 showsVerticalScrollIndicator={false}
               >
+                {/* Live result count — mirrors the desktop sidebar's
+                    `sidebarCount` so the mobile drawer also tells the
+                    user how many beans are still in scope as filters
+                    flip on / off. The denominator is the BEANS view
+                    even on the ROASTERS tab so the number reads as
+                    "your current Discover surface". */}
+                <View style={s.filterDrawerCountWrap}>
+                  <Text style={s.sidebarCount}>
+                    <Text style={s.sidebarCountBold}>{filtered.length}</Text>{" "}
+                    {filtered.length === 1 ? "coffee" : "coffees"} from{" "}
+                    <Text style={s.sidebarCountBold}>{filteredRoasterCount}</Text>{" "}
+                    {filteredRoasterCount === 1 ? "roaster" : "roasters"}
+                  </Text>
+                  {hasActiveFilters && (
+                    <Pressable onPress={clearAll} hitSlop={6}>
+                      <Text style={s.clearText}>Clear all</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <View style={s.filterDivider} />
                 {activeTab === "roasters" ? (
                   // ROASTERS tab — Location only, per the Figma 40:2769
                   // sidebar spec. Bean-attribute filters belong to the
@@ -517,10 +539,12 @@ export default function BrowsePage() {
                   />
                 ) : (
                   <>
-                    {/* Catalog freshness lenses \u2014 same checkboxes as
-                       the desktop sidebar, bound to the same state
-                       so toggling between viewports never resets. */}
+                    {/* Catalog-narrowing lenses \u2014 titled section
+                       header to match every other filter group;
+                       state is shared with the desktop sidebar so
+                       viewport toggles never reset. */}
                     <View style={s.filterSection}>
+                      <Text style={s.filterTitle}>Show only</Text>
                       <Pressable
                         onPress={() => setNewOnly((v) => !v)}
                         style={s.wholesaleRow}
@@ -1075,6 +1099,18 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: t.color["border.light"],
     backgroundColor: t.color.bg,
+  } as any,
+  // Sits at the top of the mobile drawer's ScrollView, mirroring the
+  // desktop sidebar's count + clear-all row. Same `sidebarCount` text
+  // style; this wrapper just lays out the count + the inline clear-all
+  // pressable side-by-side so the action stays reachable without
+  // scrolling.
+  filterDrawerCountWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: t.spacing.sm,
+    marginBottom: t.spacing.sm,
   } as any,
   filterResetBtn: {
     flex: 1,
