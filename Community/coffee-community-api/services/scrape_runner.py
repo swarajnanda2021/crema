@@ -185,7 +185,8 @@ PRODUCT_LITE_COLS = (
     "flavor_notes, weight_grams, price_inr, image_url, product_url, "
     "available, source, "
     "process_raw, producer, brew_recommendation_json, enrichment_status, "
-    "roast_level_name, roaster_blurb"
+    "roast_level_name, roaster_blurb, "
+    "origin_region, varietal_canonical"
 )
 
 
@@ -223,6 +224,8 @@ def _product_lite_from_row(row) -> dict:
         "enrichment_status": _g("enrichment_status"),
         "roast_level_name": _g("roast_level_name"),
         "roaster_blurb": _g("roaster_blurb"),
+        "origin_region": _g("origin_region"),
+        "varietal_canonical": _g("varietal_canonical"),
     }
 
 
@@ -232,6 +235,7 @@ def _product_lite_from_scraped(p: dict, *, enrichment_status: str = "pending") -
     Phase-1 enrichment fields when the LLM filled them, plus the
     `enrichment_status` flag so the admin tab can render a small
     "needs re-enrichment" affordance on rows where Sonnet failed."""
+    from services.canonicalize import canonical_region, canonical_varietal
     flavor_notes = p.get("flavor_notes")
     if isinstance(flavor_notes, list):
         flavor_notes = json.dumps(flavor_notes)
@@ -272,6 +276,13 @@ def _product_lite_from_scraped(p: dict, *, enrichment_status: str = "pending") -
         # re-enrich a single product to retry.
         "roast_level_name": p.get("roast_level_name"),
         "roaster_blurb": p.get("roaster_blurb"),
+        # Discover filter axes — light-touch regex pass over free-text
+        # origin / varietal. Heavier curation lands later via the
+        # Coffee Standardization sub-tab.
+        "origin_region": canonical_region(
+            p.get("origin"), p.get("description_raw"),
+        ),
+        "varietal_canonical": canonical_varietal(p.get("varietal")),
     }
 
 
@@ -775,9 +786,10 @@ def _exec_insert(db, pid: str, proposed: dict) -> None:
            flavor_notes, weight_grams, price_inr, image_url, product_url,
            description_raw, available, source, process_raw, producer,
            brew_recommendation_json, enrichment_status,
-           roast_level_name, roaster_blurb, created_at)
+           roast_level_name, roaster_blurb,
+           origin_region, varietal_canonical, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?,
-                'scraped', ?, ?, ?, ?, ?, ?, ?)
+                'scraped', ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             pid,
@@ -803,6 +815,8 @@ def _exec_insert(db, pid: str, proposed: dict) -> None:
             proposed.get("enrichment_status") or "pending",
             proposed.get("roast_level_name"),
             proposed.get("roaster_blurb"),
+            proposed.get("origin_region"),
+            proposed.get("varietal_canonical"),
             _now(),
         ),
     )
@@ -838,6 +852,8 @@ def _exec_update(db, pid: str, target: dict, live: dict) -> None:
             enrichment_status = ?,
             roast_level_name = ?,
             roaster_blurb = ?,
+            origin_region = ?,
+            varietal_canonical = ?,
             source = COALESCE(?, source)
         WHERE product_id = ?
         """,
@@ -864,6 +880,8 @@ def _exec_update(db, pid: str, target: dict, live: dict) -> None:
             target.get("enrichment_status") or "pending",
             target.get("roast_level_name"),
             target.get("roaster_blurb"),
+            target.get("origin_region"),
+            target.get("varietal_canonical"),
             live.get("source"),
             pid,
         ),

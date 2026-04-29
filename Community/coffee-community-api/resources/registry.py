@@ -380,6 +380,15 @@ RESOURCES = {
             # (third-person, distilled from the roaster's own copy).
             "roast_level_name": {"type": "str"},
             "roaster_blurb": {"type": "str"},
+            # Discover filter axes — light-touch canonicalization of
+            # the free-text origin / varietal columns so the BEANS
+            # filter drawer can offer chip-based Region + Varietal
+            # filters. Populated by `services/canonicalize.py` at
+            # scrape-time + via the user_version=4 backfill. Heavier
+            # curation lands later via the Coffee Standardization
+            # sub-tab — same column, admin overrides win.
+            "origin_region": {"type": "str"},
+            "varietal_canonical": {"type": "str"},
             "created_at": {"type": "str", "ro": True, "auto": "now"},
         },
         "auth": {"list": None, "read": None, "create": "required", "delete": "required"},

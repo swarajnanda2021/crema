@@ -874,6 +874,19 @@ _MIGRATIONS = [
     "ALTER TABLE roaster_products DROP COLUMN wholesale_minimum_kg",
     "ALTER TABLE roaster_products DROP COLUMN wholesale_note",
     "ALTER TABLE notifications DROP COLUMN inquiry_id",
+    # ── Discover filter axes (specialty-catalog nuance) ────────────────
+    # Two canonical columns derived from free-text origin / varietal so
+    # the Discover BEANS filter drawer can offer chip-based Region +
+    # Varietal filters without exposing 397 raw flavor-tokens or
+    # estate-specific origin strings. Populated by
+    # `services/canonicalize.py` — both at scrape-time (in
+    # `_product_lite_from_scraped`) and via the one-shot backfill in
+    # `services/catalog_ops.py:backfill_canonical_columns`. Heavier
+    # curation lives in the planned Coffee Standardization sub-tab.
+    "ALTER TABLE products ADD COLUMN origin_region TEXT",
+    "ALTER TABLE products ADD COLUMN varietal_canonical TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_products_origin_region ON products(origin_region)",
+    "CREATE INDEX IF NOT EXISTS idx_products_varietal_canonical ON products(varietal_canonical)",
 ]
 
 

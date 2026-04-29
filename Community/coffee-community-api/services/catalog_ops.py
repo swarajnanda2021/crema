@@ -82,6 +82,12 @@ def seed_initial_state(conn) -> None:
     # so the website-match join works on the canonical form. Gated on
     # PRAGMA user_version so it runs exactly once.
     backfill_last_scraped_at(conn)
+    # Populate `origin_region` + `varietal_canonical` for every
+    # existing product so the Discover filter drawer has chip-ready
+    # data on next app launch. Uses the same `services.canonicalize`
+    # helpers that the per-scrape staging path now calls inline.
+    # Gated on PRAGMA user_version so it runs exactly once.
+    backfill_canonical_columns(conn)
 
 
 def _seed_roaster_sources_combined(conn) -> None:
@@ -880,6 +886,60 @@ def backfill_last_scraped_at(conn) -> None:
             f"Backfill last_scraped_at: stamped {stamped} source(s) "
             f"from products.created_at."
         )
+
+
+def backfill_canonical_columns(conn) -> None:
+    """One-shot backfill: populate `products.origin_region` +
+    `products.varietal_canonical` for every existing row.
+
+    These columns drive the Discover filter drawer's Region + Varietal
+    chip sets. Per-scrape population happens in
+    `scrape_runner._product_lite_from_scraped`; this backfill closes
+    the gap for rows that landed before that hook existed.
+
+    The canonicalization is the light-touch regex pass in
+    `services/canonicalize.py`. Heavier curation lands later via the
+    Coffee Standardization sub-tab (planned). When that ships, this
+    backfill stays as the *seed* — admin overrides write into the
+    same columns.
+
+    Gated on `PRAGMA user_version >= 4` so it runs exactly once per DB.
+    """
+    cur = conn.execute("PRAGMA user_version")
+    version = cur.fetchone()[0]
+    if version >= 4:
+        return
+
+    # Import inside the function to keep `services.canonicalize` out
+    # of the module-load graph for environments that don't need it
+    # (e.g., test fixtures stub `services.catalog_ops`).
+    from services.canonicalize import canonical_region, canonical_varietal
+
+    rows = conn.execute(
+        "SELECT product_id, origin, varietal, description_raw FROM products"
+    ).fetchall()
+    region_updates = 0
+    varietal_updates = 0
+    for r in rows:
+        region = canonical_region(r["origin"], r["description_raw"])
+        varietal = canonical_varietal(r["varietal"])
+        conn.execute(
+            "UPDATE products SET origin_region = ?, varietal_canonical = ? "
+            "WHERE product_id = ?",
+            (region, varietal, r["product_id"]),
+        )
+        if region:
+            region_updates += 1
+        if varietal:
+            varietal_updates += 1
+
+    conn.execute("PRAGMA user_version = 4")
+    conn.commit()
+
+    print(
+        f"Backfill canonical columns: {region_updates}/{len(rows)} rows "
+        f"got a region chip, {varietal_updates}/{len(rows)} got a varietal chip."
+    )
 
 
 def backfill_prior_scrape_jobs(conn) -> int:
