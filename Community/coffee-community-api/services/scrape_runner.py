@@ -11,8 +11,7 @@ The pipeline (per-job, called from `services.catalog_ops.run_scrape_job`):
   2. Spawn `python scraper/main.py` as a subprocess with cwd=Scraper/,
      capture stdout/stderr, enforce a 30-min timeout.
   3. Parse `Scraper/output/products.json` and upsert into the `products`
-     table. Owner-set columns (`wholesale_available`,
-     `wholesale_minimum_kg`, `wholesale_note`) are preserved on update.
+     table. The owner-set `source` column is preserved on update.
   4. Stamp `roaster_sources.last_scraped_at` for every source in the run.
   5. Return a result summary { scraped: N, new_products: M, updated: K, ... }.
 
@@ -32,13 +31,6 @@ import threading
 import time
 from pathlib import Path
 from typing import Callable, Optional
-
-# Owner-controlled columns that NEVER get rewritten on update — set by
-# the roaster via the product editor (Phase 1 §2.2). When applying an
-# `update` proposal we COALESCE the existing row's value back into the
-# UPDATE statement so admin approval can't accidentally clobber them.
-PRESERVED_ON_UPDATE_DECL = ("wholesale_available", "wholesale_minimum_kg",
-                              "wholesale_note", "source")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 SCRAPER_DIR = PROJECT_ROOT / "Scraper"
@@ -191,7 +183,7 @@ PRODUCT_LITE_COLS = (
     "product_id, roaster_slug, roaster_name, coffee_name, roast_level, "
     "tasting_notes, origin, process, varietal, altitude_masl, bean_type, "
     "flavor_notes, weight_grams, price_inr, image_url, product_url, "
-    "available, source, wholesale_available, "
+    "available, source, "
     "process_raw, producer, brew_recommendation_json, enrichment_status, "
     "roast_level_name, roaster_blurb"
 )
@@ -225,7 +217,6 @@ def _product_lite_from_row(row) -> dict:
         "product_url": row["product_url"],
         "available": row["available"],
         "source": row["source"],
-        "wholesale_available": row["wholesale_available"],
         "process_raw": _g("process_raw"),
         "producer": _g("producer"),
         "brew_recommendation_json": _g("brew_recommendation_json"),
@@ -269,7 +260,6 @@ def _product_lite_from_scraped(p: dict, *, enrichment_status: str = "pending") -
         "product_url": p.get("product_url"),
         "available": 1 if p.get("available", True) else 0,
         "source": "scraped",
-        "wholesale_available": 0,
         # Phase 1 enrichment fields — null when the LLM didn't produce
         # them (or wasn't available). The runner copies enrichment_status
         # in too so the admin sees which rows are still raw.
@@ -670,14 +660,6 @@ def _meta_sample_extracted(p: dict) -> dict:
     return out
 
 
-# Owner-controlled columns that NEVER get rewritten on update — set by
-# the roaster via the product editor (Phase 1 §2.2). When applying an
-# `update` proposal we COALESCE the existing row's value back into the
-# UPDATE statement so admin approval can't accidentally clobber them.
-PRESERVED_ON_UPDATE = (
-    "wholesale_available", "wholesale_minimum_kg", "wholesale_note", "source",
-)
-
 # Columns that the scraper writes, that we use for the diff check.
 COMPARE_COLS = (
     "roaster_slug", "roaster_name", "coffee_name", "roast_level",
@@ -727,9 +709,9 @@ def _insert_proposal(db, job_id: int, product_id: str, change_type: str,
 # ── Apply / reject / undo helpers ──────────────────────────────────────────
 
 def apply_proposal(db, proposal: dict) -> None:
-    """Commit a single proposal to the `products` table. Owner-controlled
-    columns (`wholesale_*`, `source`) survive the apply so a roaster's
-    edits aren't overwritten."""
+    """Commit a single proposal to the `products` table. The owner-controlled
+    `source` column survives the apply so a roaster's edits aren't
+    overwritten."""
     pid = proposal["product_id"]
     ctype = proposal["change_type"]
     proposed = json.loads(proposal["proposed_state_json"]) if proposal["proposed_state_json"] else None
@@ -827,9 +809,8 @@ def _exec_insert(db, pid: str, proposed: dict) -> None:
 
 
 def _exec_update(db, pid: str, target: dict, live: dict) -> None:
-    """Update with owner-controlled columns coalesced from `live` so
-    `wholesale_*` / `source` survive. Phase-1 enrichment columns
-    (process_raw / producer / brew_recommendation_json /
+    """Update with `source` coalesced from `live` so it survives. Phase-1
+    enrichment columns (process_raw / producer / brew_recommendation_json /
     enrichment_status) overwrite — they're scraper-owned, not roaster-
     owned."""
     db.execute(
@@ -857,9 +838,6 @@ def _exec_update(db, pid: str, target: dict, live: dict) -> None:
             enrichment_status = ?,
             roast_level_name = ?,
             roaster_blurb = ?,
-            wholesale_available = COALESCE(?, wholesale_available),
-            wholesale_minimum_kg = COALESCE(?, wholesale_minimum_kg),
-            wholesale_note = COALESCE(?, wholesale_note),
             source = COALESCE(?, source)
         WHERE product_id = ?
         """,
@@ -886,9 +864,6 @@ def _exec_update(db, pid: str, target: dict, live: dict) -> None:
             target.get("enrichment_status") or "pending",
             target.get("roast_level_name"),
             target.get("roaster_blurb"),
-            live.get("wholesale_available"),
-            live.get("wholesale_minimum_kg"),
-            live.get("wholesale_note"),
             live.get("source"),
             pid,
         ),
