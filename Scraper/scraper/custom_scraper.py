@@ -10,6 +10,7 @@ Strategy (in order):
 For each candidate product page, extract name, price, weight, image, description.
 """
 
+import json
 import re
 import time
 import requests
@@ -77,8 +78,8 @@ _PRICE_PATTERNS = [
 
 # Keywords in a URL path that suggest a product page
 _PRODUCT_URL_SEGMENTS = [
-    "/product/", "/products/", "/coffee/", "/shop/",
-    "/buy/", "/store/", "/item/",
+    "/product/", "/products/", "/product-page/", "/coffee/",
+    "/shop/", "/buy/", "/store/", "/item/",
 ]
 
 # Keywords in link text that suggest a coffee product link
@@ -184,25 +185,56 @@ def _links_from_text(soup: BeautifulSoup, base_url: str, domain: str) -> set:
 
 
 def _links_from_sitemap(domain: str) -> set:
-    """Try sitemap.xml to find product URLs."""
-    links = set()
-    for sitemap_url in [
+    """Try sitemap.xml to find product URLs.
+
+    Many sites (Wix, large WooCommerce installs, sites with multiple
+    business lines) emit a *sitemap index* at `/sitemap.xml` whose
+    `<loc>` entries point to child sitemaps, not products. We follow
+    each child once. Also probes well-known per-platform paths:
+    `/store-products-sitemap.xml` is the Wix Stores convention.
+
+    A safety cap (20 sitemaps total) prevents runaway recursion on
+    pathological cases.
+    """
+    links: set = set()
+    seen: set = set()
+    queue = [
         f"https://{domain}/sitemap.xml",
         f"https://www.{domain}/sitemap.xml",
-    ]:
+        f"https://{domain}/store-products-sitemap.xml",
+        f"https://www.{domain}/store-products-sitemap.xml",
+    ]
+
+    while queue and len(seen) < 20:
+        sitemap_url = queue.pop(0)
+        if sitemap_url in seen:
+            continue
+        seen.add(sitemap_url)
+
         html = _fetch_html(sitemap_url)
         if not html:
             continue
-        # Parse as XML — look for <loc> tags
         soup = BeautifulSoup(html, "lxml")
+
+        # Sitemap *index*: enqueue child sitemaps; nothing to extract here.
+        if soup.find("sitemap"):
+            for child in soup.find_all("sitemap"):
+                loc = child.find("loc")
+                if loc:
+                    child_url = loc.get_text(strip=True)
+                    if child_url and child_url not in seen:
+                        queue.append(child_url)
+            continue
+
+        # Leaf sitemap: extract product URLs by path-segment match.
         for loc in soup.find_all("loc"):
             url = loc.get_text(strip=True)
-            if domain in url:
-                path = urlparse(url).path.lower()
-                if any(seg in path for seg in _PRODUCT_URL_SEGMENTS):
-                    links.add(url)
-        if links:
-            break
+            if domain not in url:
+                continue
+            path = urlparse(url).path.lower()
+            if any(seg in path for seg in _PRODUCT_URL_SEGMENTS):
+                links.add(url)
+
     return links
 
 
@@ -231,12 +263,96 @@ def _find_product_links(
 
 # ── Per-product page scraper ──────────────────────────────────────────────────
 
+def _extract_jsonld_product(soup: BeautifulSoup) -> Optional[dict]:
+    """If the page emits a JSON-LD `Product` schema, return that dict.
+
+    Wix (and many other JS-rendered platforms) emit complete Product
+    schemas in `<script type="application/ld+json">` for SEO, even
+    when the visible HTML is a hydration shell. The schema may live
+    at the top level, inside an array, or wrapped in `@graph`.
+    """
+    for tag in soup.find_all("script", type="application/ld+json"):
+        try:
+            payload = json.loads(tag.string or "")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        candidates = payload if isinstance(payload, list) else [payload]
+        if isinstance(payload, dict) and isinstance(payload.get("@graph"), list):
+            candidates = payload["@graph"]
+        for c in candidates:
+            if isinstance(c, dict) and str(c.get("@type", "")).lower() == "product":
+                return c
+    return None
+
+
+def _product_from_jsonld(
+    ld: dict, url: str, roaster: dict, domain: str,
+) -> Optional[dict]:
+    """Convert a JSON-LD Product object into the dict shape the rest
+    of the pipeline expects. Tolerates Wix's non-standard `Offers`
+    capitalization alongside the schema.org-canonical `offers`."""
+    name = (ld.get("name") or "").strip()
+    if not name:
+        return None
+
+    desc = (ld.get("description") or "").strip()
+
+    offers = ld.get("offers") or ld.get("Offers") or {}
+    if isinstance(offers, list):
+        offers = offers[0] if offers else {}
+
+    price = None
+    raw_price = offers.get("price") if isinstance(offers, dict) else None
+    if raw_price is not None:
+        try:
+            price = float(str(raw_price).replace(",", ""))
+        except (ValueError, TypeError):
+            pass
+
+    image_url = None
+    images = ld.get("image")
+    if isinstance(images, list) and images:
+        first = images[0]
+        if isinstance(first, dict):
+            image_url = first.get("contentUrl") or first.get("url")
+        elif isinstance(first, str):
+            image_url = first
+    elif isinstance(images, dict):
+        image_url = images.get("contentUrl") or images.get("url")
+    elif isinstance(images, str):
+        image_url = images
+
+    return {
+        "_roaster": roaster,
+        "_domain": domain,
+        "_platform": "custom",
+        "_product_url": url,
+        "title": name,
+        "body_html": desc,
+        "price_raw": price,
+        "image_raw": image_url,
+        "tags": [],
+        "product_type": "",
+        "variants": [],
+    }
+
+
 def _scrape_product_page(url: str, roaster: dict, domain: str) -> Optional[dict]:
     html = _fetch_html(url)
     if not html:
         return None
 
     soup = BeautifulSoup(html, "lxml")
+
+    # JSON-LD path — preferred when the page emits a Product schema.
+    # Bypasses the CSS-selector heuristics that fail on JS-rendered
+    # pages (Wix, Squarespace, bespoke React/Vue themes) where the
+    # static HTML has no hydrated product cards.
+    ld = _extract_jsonld_product(soup)
+    if ld:
+        product = _product_from_jsonld(ld, url, roaster, domain)
+        if product:
+            return product
 
     # Title
     name = None
