@@ -1,380 +1,222 @@
-# Prompt for next Claude instance — Café removal pivot + outstanding items
+# Prompt for next Claude instance — design + build the tasting-notes Discover surface
 
 > Paste this as the first message to a fresh Claude Code session in
-> `/Users/swarajnanda/Coffee_Aggregator`. The previous session ran
-> through the BEANS-tab restructure, Haiku enricher rewrite, per-roaster
-> site-prompt addendum, Discover ↔ Catalog 1:1, long-press detail
-> sheets, and a stack of UX polish. Café removal is the next major
-> pivot. **Read first, propose the execution plan, get user sign-off
-> before deleting code.**
+> `/Users/swarajnanda/Coffee_Aggregator`. Branch: `feat/mobile-readiness`.
+> Don't open the conversation with a recap; pick up the task directly.
 
 ---
 
-## 1. The big pivot — café removal
+## TL;DR
 
-The user is reverting Crema to a **pure roaster-beans-users platform**.
-Every café-related concept gets removed. Specifically:
+Discover today has two browsing lenses — **BEANS** (a grid of coffees
+filtered by attribute chips) and **ROASTERS** (a vertical list of
+roaster cards). The filter chips just shipped a faceted-counts pass
+across all sections, plus a fresh canonical-tag substrate from the
+five-task Catalog Standardization run (tasting / origin / varietal /
+roast / process).
 
-- Café tab on the consumer Discover surface
-- Café profile pages (consumer + admin)
-- Stamps / loyalty UI (the café stamp-card system)
-- Wholesale tags / wholesale-related signals (the cafe-as-wholesale-buyer flow)
-- Business chat / Business notification tab (café-roaster wholesale messaging)
-- Café data model: `cafe_profiles`, `cafe_menu_items`, `stamps`,
-  `stamp_rewards`, `qr_tokens`, `wholesale_inquiries`, `inquiry_messages`
-- Café user account type (`account_type='cafe'` value in `users`)
-- Seed data: `seed_cafes.py`
-- Specs / docs: `NORTH_STAR.md` café mentions, `specs/COMMUNITY_SPEC.md`,
-  `BUILD_ROADMAP.md` café sections
-
-### Inventory (already audited last session)
-
-**Files to delete entirely (11):**
-```
-crema-app/app/cafe/[slug].tsx                        (3,767 LOC)
-crema-app/src/hooks/useCafes.ts                      (63 LOC)
-crema-app/src/hooks/useCafeResolver.ts               (40 LOC)
-crema-app/src/hooks/useInquiryInbox.ts               (~50 LOC)
-crema-app/src/components/StampBookList.tsx           (122 LOC)
-crema-app/src/components/StampBookModal.tsx          (136 LOC)
-crema-app/src/components/QRModal.tsx                 (~80 LOC)
-crema-app/src/components/ScannerModal.tsx            (~70 LOC)
-crema-app/src/components/InterestedButton.tsx        (~70 LOC)
-Community/coffee-community-api/seed_cafes.py         (441 LOC)
-Community/coffee-community-api/services/qr_tokens.py (~70 LOC)
-```
-
-**Files to modify surgically (~22):**
-- Frontend: `browse.tsx` (CafeCard + tab), `profile.tsx` (favorite café
-  + Stamps tab), `messages.tsx` (wholesale_inquiry branch), `_layout.tsx`
-  (route), `CoffeeCard.tsx` (Package chip + wholesale modal),
-  `NotificationsDropdown.tsx`, `MessagesDropdown.tsx`,
-  `TractionDashboard.tsx`, `BusinessAnalytics.tsx`, `types.ts`,
-  `primitives/index.ts`
-- Backend: `database.py` (DROP migrations), `registry.py` (delete 7
-  resources, update users + roaster_posts + products + notifications),
-  `resources/crud.py` (café hook dispatch), `routes/specific.py`
-  (delete 9 café endpoints), `models.py`, `services/notifications.py`
-  (delete wholesale + stamp handlers), `services/business_stats.py`,
-  `services/admin_stats.py`
-- Docs: `NORTH_STAR.md` (café participant + roles), `BUILD_ROADMAP.md`
-  (mark café phases superseded), `specs/COMMUNITY_SPEC.md`
-
-**Total scope:** ~6,200 LOC removed, ~60-65 files touched, ~7 tables
-DROPPED, ~5-8 columns dropped from existing tables. Estimated effort:
-**6-7 hours** for a careful execution with verification.
-
-### Decisions the user needs to make BEFORE deletion starts
-
-1. **Wholesale columns on `products`** — `wholesale_available`,
-   `wholesale_minimum_kg`, `wholesale_note`. Keep for any future
-   roaster-roaster B2B flagging, or delete entirely? Default: **delete**
-   (re-add later if needed).
-2. **`favorite_cafe_slug` on `users`** — confirm full removal (no
-   roasters use this currently).
-3. **`menu_updated_business` notification** — does it survive when
-   roasters update their catalogs (rename to `menu_updated`), or get
-   deleted entirely?
-4. **`account_type` enum** — drop the `'cafe'` value entirely, or keep
-   the enum value but guard new registrations? Existing café user rows
-   need to be NULL'd or deleted before any DROP migration.
-
-Confirm those four before touching code.
-
-### Pre-removal checklist
-
-```
-[ ] Get user sign-off on the four decisions above.
-[ ] Back up the DB:
-    cp Community/coffee-community-api/coffee_community.db \
-       Community/coffee-community-api/coffee_community.db.bak
-[ ] Check existing café user count:
-    sqlite3 ...db "SELECT COUNT(*) FROM users WHERE account_type='cafe';"
-[ ] Check active café_profiles count + dependent FKs.
-[ ] Confirm uvicorn is OFF before running schema migrations
-    (or accept the --reload race risk).
-```
-
-### Risk flags
-
-- **`account_type` enum tightening** — existing café user rows will
-  break queries. Backfill or delete them first.
-- **Cascade deletes** — dropping `cafe_profiles` cascades to
-  `cafe_menu_items`, `stamps`, `wholesale_inquiries`,
-  `inquiry_messages`. Verify the cascade fires cleanly; some FK paths
-  may not have ON DELETE CASCADE set.
-- **CoffeeCard top-right slot** — currently shows
-  heart/bin/Package depending on viewer type. Removing the Package
-  chip leaves the slot for the heart only. Verify no other future
-  affordance was planned for it.
-- **Roaster-to-roaster DMs** — `direct_threads` / `direct_messages`
-  have no café dependency. Stays.
+The next thing to build is a **third browsing lens — flavor-led
+Discovery via the SCA flavor tree** — that turns the catalog's tasting
+notes into a navigable surface in their own right. Consumers should
+be able to start from a flavor ("Citrus", "Honey", "Dark Chocolate")
+and land on coffees that taste like that, without having to know any
+roaster names or origin facts up front. The SCA tree we already use
+for tasting-tag canonicalization (`services/sca_geolocator.py:CANONICAL_TREE`)
+is the navigation backbone.
 
 ---
 
-## 2. Outstanding items from this session (deferred)
+## What's already in place (don't redo)
 
-These shipped partially in the previous session but the user wants
-them finished. Pick them up after (or interleave with) the café
-removal — they touch different surfaces.
-
-### 2a. Days-since-enriched on the roaster admin page hero
-
-Show "Last enriched 2d ago" as a third line under the
-**name + city/state** in the admin roaster page hero
-(`crema-app/app/admin/roaster/[slug].tsx`). Pulls from
-`source.last_scraped_at`. Falls back to "Never enriched" when null.
-
-Trivial — small Text addition in the hero block. ~10 LOC.
-
-### 2b. Discover BEANS — coffee count + new/sold-out filters
-
-User wants:
-- **Coffee count** under the BEANS search bar — "1,247 coffees"
-- **Filter chips** for "New" (recent) and "Sold out" (`available=0`)
-- Need to actually surface sold-out items in the list (currently
-  the consumer Discover only shows `available=1` products)
-
-The new filter chips go alongside the existing roast-level + process
-+ roaster filters in the right-side filter drawer. Sold-out filter
-needs the consumer endpoint to start returning `available=0` rows
-(currently filtered out). Affected:
-`crema-app/app/(tabs)/browse.tsx`, possibly the products endpoint /
-useCoffeeData hook.
-
-### 2c. Drift-tolerant profile→source lookup on the admin roaster page
-
-The admin roaster page matches profile to source by exact
-`website` string — a www./trailing-slash drift breaks the join and
-the page shows "Not enriched yet" even when products are in the
-catalog. Fix: lower-case + strip www. + strip trailing slash on both
-sides before comparing. The backend's `_website_form_variants`
-helper in `services/scrape_runner.py` is the reference.
-
-Affected: `crema-app/app/admin/roaster/[slug].tsx` (the
-`Promise.all([...]).then(([profRes, srcRes]) => ...)` block, ~5-10
-LOC).
-
-### 2d. One-shot backfill: stamp Leo Coffee + collapse duplicate source row
-
-Leo Coffee currently has TWO source rows
-(`https://leocoffee.co.in` and `https://www.leocoffee.co.in/`)
-because the bio re-enrich upserted the non-canonical form
-post-migration. The migration already auto-merges collisions but
-this row was added after the migration ran. One-shot SQL: stamp
-`last_scraped_at` on Leo's source from the last successful job, and
-delete the duplicate row.
-
-```sql
--- pseudo:
-UPDATE roaster_sources
-SET last_scraped_at = '2026-04-28T07:33:03Z'
-WHERE website = 'https://leocoffee.co.in';
-
-DELETE FROM roaster_sources WHERE website = 'https://www.leocoffee.co.in/';
-
--- Optional: re-run the URL normalization migration with PRAGMA bump
--- to clean any other drift introduced post-migration.
-```
-
-### 2e. Apply refresh dud — error surfacing already shipped
-
-The previous session shipped error surfacing for the approve/reject
-bulk handlers (`JobProposalsCarousel.tsx` — `actionError` state +
-banner). Remaining: monitor whether the user actually hits errors
-on the next "Apply refresh all" run. If they do, the banner will
-show the error message; otherwise the dud was likely the same
-silent-poll-failure pattern that affected the spinner (also
-patched).
-
-### 2f. Spinner-stuck + token-flatline on long enrichment runs
-
-Already patched — polling has a 12-error circuit breaker (~24s) and
-a 20-min hard ceiling. If a job actually hangs, the spinner now
-clears and surfaces an error. If it's the same root cause as the
-G-Shot / Korebi incidents (job actually finishes but Metro bundle
-on the phone is stale), reload Metro on the phone after every code
-push.
+- **`sca_addresses`** table populated by the standardization run —
+  every harvested tasting tag in the in-stock catalog has either a
+  3-tier address (`address_t1`, `address_t2`, `address_t3`) or a
+  null row marking "not a flavor". Walk
+  `services/sca_geolocator.py` for the schema + `tag_resolutions.json`
+  for the seed mapping.
+- **Canonical SCA tree** lives in code at
+  `Community/coffee-community-api/services/sca_geolocator.py`
+  (`CANONICAL_TREE`). 3-tier hierarchy: tier-1 categories like
+  "Sweet" / "Fruity" / "Nutty/Cocoa" / "Spices" / "Floral" /
+  "Roasted" / "Other"; tier-2 sub-groups; tier-3 leaves.
+  The same tree is exposed read-only via
+  `GET /api/admin/standardize/trees` for the admin inspector — same
+  shape works for a consumer-side Discover renderer.
+- **Products carry `tasting_notes` + `flavor_notes`** — the harvester
+  in `harvest_product_tags` reads both. The consumer-side
+  `tasting_notes_tags/tag_resolutions.json` already maps thousands of
+  catalog tags to their SCA addresses; the same lookup powers any new
+  Discover surface.
+- **Discover BEANS filter** got a faceted-counts pass. Each chip
+  shows "label · N" where N = how many coffees would remain in view if
+  that chip were toggled on, considering all OTHER active filters.
+  See `crema-app/app/(tabs)/browse.tsx` for the pattern (`baseExcept`
+  helper, every option memo). Replicate that mental model for the new
+  lens — every flavor node should carry a count.
 
 ---
 
-## 3. State of play (what just shipped, in this session)
+## The new surface, sketched
 
-**Major work landed:**
+A third lens on Discover, sitting alongside BEANS and ROASTERS. Working
+title: **FLAVOR** (or **TASTE**). Consumer mental model:
 
-- **Bean enricher: Haiku 4.5 + per-roaster site prompt addendum**
-  - `Scraper/enrich.py` swapped from Sonnet to
-    `claude-haiku-4-5-20251001`. Layered context (URL + variants +
-    page text + tags + listing description) per call.
-  - New `services/site_prompt_generator.py` — Sonnet meta-call once
-    per roaster (3-5 sample products + page text excerpt + extracted
-    fields summary), generates a terse bullet-list addendum.
-    Token-efficient: ~8K input + ~150 output, prompt-cached system
-    block, ~$0.03/run.
-  - Soft target: 3000 chars; hard backstop trim: 10000 chars
-    (hidden from the model). Concise-mode framing in system prompt.
-  - Hint stored in `roaster_profiles.enrichment_prompt_hint`,
-    surfaced in a collapsible "Site enrichment hint" panel on the
-    admin roaster page (scrollable inner ScrollView so the card
-    stays compact).
-  - Sticky "Regenerate site hint on next run" checkbox — auto-
-    clears once the run kicks off. Backend route accepts
-    `regenerate_prompt` flag; runner threads it through.
+> "I want a coffee that tastes like dark chocolate and cherry."
 
-- **BEANS sub-tab merged into Roasters & Beans**
-  - Old `ScraperPanel.tsx` deleted; `JobHistory.tsx` extracted
-    with the operational diagnostics (recent runs collapsible, log
-    modal, undo confirm). `RoastersPanel.tsx` absorbed BEANS:
-    Last-enriched filter in the drawer, recent-runs collapsible at
-    bottom.
-  - CatalogOps now renders only `ROASTERS & BEANS` + `MAPPING`.
+Implementation candidates (pick one or hybridize after exploring):
 
-- **Discover ↔ Catalog 1:1**
-  - Discover ROASTERS now reads `roaster_profiles` (filtered to
-    `published=1`) directly, not products-derived. Identity-only
-    roasters appear without beans.
-  - `useFocusEffect` on browse + RoastersList — admin approvals
-    propagate to Discover without an app reload.
+### Option A — Tier-1 chip ladder
 
-- **Long-press detail sheets**
-  - New `CoffeeDetailSheet.tsx` — consumer-friendly modal with
-    grouped sections (About, Origin, Roast & process, Brew guide,
-    Tasting, Pack). Wired from `CoffeeList` (Discover BEANS) and
-    `CoffeeGrid` (consumer roaster page).
+Top of the Flavor tab is 7 large chips for the tier-1 SCA categories
+(Sweet, Fruity, Nutty/Cocoa, Spices, Floral, Roasted, Other). Tap a
+chip → drill into tier-2 groups. Tap a tier-2 → drill into tier-3
+leaves OR show beans at that depth. At any depth the result list is a
+CoffeeCard grid filtered to beans whose tasting tags address-match
+the selected node.
 
-- **Cultivar fix in the enricher schema**
-  - SLN 9 was incorrectly listed as Robusta. Fixed: SLN 9 is
-    Indian Selection 9, an ARABICA hybrid (Tafarikela × Hibrido
-    de Timor, CCRI 1985, leaf-rust tolerant). Schema now lists
-    SLN 274 + S5B as the canonical Indian Robustas, with an
-    explicit "common confusion" note on SLN 9.
+Pros: Familiar mobile pattern (category → subcategory). Counts at each
+depth give the consumer a sense of where the catalog is rich.
 
-- **Roaster page hero & action button reorganization**
-  - Re-enrich bio button moved above the Coffees heading
-    (standalone brown filled, right-aligned). Catalog enrichment
-    "Run enrichment" stays in the Coffees section header.
-  - Remove roaster button moved to top-right of the hero (mirror
-    of back button geometry, dark overlay, white Trash2). Bottom
-    action row deleted entirely.
+### Option B — Flavor wheel viz
 
-- **Spinner + dud fixes**
-  - Polling circuit breaker (12 consecutive errors / 20-min
-    ceiling) on the catalog enrichment run.
-  - JobProposalsCarousel now surfaces approve/reject errors via a
-    pink banner; reads the backend's `{applied, skipped}` shape.
+Render the SCA tree as a radial wheel (the Specialty Coffee
+Association's canonical visualisation). Each wedge is a tier-1
+category; tier-2 + tier-3 nest as sub-arcs. Tap any arc → filter beans
+to that node and its descendants.
 
-- **Display name sync (the freshest item)**
-  - Bio enrichment writes `roaster_profiles.name`; previously the
-    feed post header still showed `users.display_name` (the slug)
-    because there was no sync.
-  - New `services/notifications.py:sync_roaster_name_to_user`
-    helper. Wired as `roaster_profiles.on_update` registry hook
-    AND called explicitly in `/admin/roasters/enrich` (bypasses
-    registry CRUD).
-  - One-shot backfill ran: 6 roaster accounts updated (Blue Tokai
-    `blue-tokai-coffee-roasters` → `Blue Tokai Coffee Roasters`,
-    plus Nada, Grey Soul, Maverick & Farmer, Third Wave, G-Shot).
+Pros: Iconic, instantly readable for anyone who's looked at coffee
+flavor materials before. Works as a brand surface.
+Cons: Needs `react-native-svg` work; mobile small-screen ergonomics
+are tricky.
 
-- **Stamp_sources_scraped honor per-roaster scope**
-  - The previous bulk-mode behavior only stamped `enabled=1` rows;
-    per-roaster runs left `last_scraped_at` NULL because the source
-    rows have `enabled=0`. Now accepts an optional `roaster_slug`
-    param and stamps via website-form-variant lookup
-    (`_website_form_variants` helper). Already wired in
-    `catalog_ops.run_scrape_job` → `stage_scrape_proposals`.
+### Option C — Search-first, address-shaped
 
-- **Backend hint backfill**
-  - `roaster_profiles.enrichment_prompt_hint` column added.
-    Already populated for several roasters (Leo Coffee, Korebi,
-    G-Shot, etc.).
+A search input at top ("citrus, dark chocolate, …") that auto-completes
+from the flavor tree. Selected flavors render as removable chips. The
+result is the intersection / union of beans matching those addresses.
+Empty state is a curated list of "Try these flavor combos" presets.
+
+Pros: Multi-flavor compounds are first-class. Fastest path to
+"give me beans that taste like X AND Y".
+Cons: Less browseable for consumers who don't know what they want yet.
+
+### Recommended starting shape
+
+Probably **A + sprinkle of C** — the chip ladder is the primary
+navigation, but the tier-1 row sits below an always-visible search
+field that lets power users skip straight to a known leaf. Build A
+first; add C in the same surface once A's depth-of-nav is solid.
 
 ---
 
-## 4. Recommended next-session execution order
+## Things to think through before you start cutting code
 
-1. **Collect the four decisions** (wholesale columns, favorite_cafe_slug,
-   menu_updated_business, account_type enum) from the user.
-2. **DB backup** + count café-related rows so the migration impact is
-   measurable.
-3. **Café removal — backend first** (delete services, update registry,
-   add DROP migrations, NULL-out FK fields). Don't run migrations
-   yet — let the user sign off on the SQL.
-4. **Café removal — frontend** (delete files, surgical edits, route
-   cleanup). Test in Expo as you go.
-5. **Run migrations**. Verify table drops are clean. No orphaned FKs.
-6. **Docs cleanup** — NORTH_STAR.md, BUILD_ROADMAP.md (mark phases
-   superseded, don't delete history), specs/.
-7. **Commit** as one or several logical chunks
-   ("backend café removal", "frontend café removal", "DB migrations",
-   "docs pivot").
-8. **Then pick up the deferred items** from §2 above.
+1. **Empty leaves vs catalog depth.** The SCA tree has dozens of tier-3
+   leaves the catalog has zero beans against (e.g. "Asparagus" under
+   Vegetative). The chip count must be 0 for those — they shouldn't
+   crowd the navigation. Either hide zero-count chips at every depth,
+   or grey them out and disable the tap. Probably hide.
 
----
+2. **Fan-out and roll-up.** A bean tagged with three tasting notes
+   shows up under each note's address AND under each ancestor's
+   address. So "Cherry" (Fruity → Berry → Cherry) means the bean
+   counts under "Cherry", "Berry", and "Fruity" simultaneously.
+   That's correct for "I'm browsing Fruity, what's there?". Be sure
+   the count math doesn't double-count a single bean within one chip
+   (use a Set).
 
-## 5. Critical files (in priority order, last session)
+3. **The address table is the authoritative join, not free-text
+   `tasting_notes`**. A bean that says "tobacco-like aftertaste"
+   maps via `sca_addresses` to whatever address the standardization
+   run resolved. Always join through that table; never grep raw
+   tasting notes from the consumer side.
 
-1. `Scraper/enrich.py` — Haiku 4.5 enricher with layered context.
-2. `Community/coffee-community-api/services/site_prompt_generator.py`
-   — Sonnet meta-call for per-roaster prompt addendum.
-3. `Community/coffee-community-api/services/scrape_runner.py` —
-   per-roaster stamping, hint loading, meta-call trigger.
-4. `Community/coffee-community-api/services/notifications.py` —
-   `sync_roaster_name_to_user` helper + hook.
-5. `Community/coffee-community-api/resources/registry.py` — new
-   `enrichment_prompt_hint` field, registry hook wiring,
-   `roaster_profiles.on_update` dispatch.
-6. `crema-app/app/admin/roaster/[slug].tsx` — full admin roaster page
-   with Re-enrich bio + Run enrichment + site-hint panel + delete
-   floating button.
-7. `crema-app/src/components/admin/JobProposalsCarousel.tsx` —
-   approve/reject error surfacing (banner).
-8. `crema-app/src/components/admin/RoastersPanel.tsx` — merged
-   Roasters & Beans surface with Last-enriched filter and
-   RecentEnrichmentRuns at the bottom.
-9. `crema-app/src/components/CoffeeDetailSheet.tsx` — consumer-side
-   long-press detail modal.
-10. `crema-app/app/(tabs)/browse.tsx` — Discover with
-    profile-derived ROASTERS list + focus refetch + long-press wired
-    to CoffeeDetailSheet.
+4. **Perf.** The harvest-product-tags walk is O(products × tags-per-
+   product) but stays under 5k entries today. For consumer renders,
+   pre-compute a `flavor_index` map on the products useMemo so each
+   chip's count is O(1). Mirror the `baseExcept` pattern from the
+   BEANS faceted counts.
+
+5. **Cross-lens linking.** From a BEANS card, tapping a tasting-note
+   chip should jump into the FLAVOR lens with that node selected.
+   From a roaster page, tapping a flavor chip on a bean does the same.
+   Plumbing-wise: Expo Router params on `/browse?tab=flavor&node=Cherry`.
+
+6. **Tier-2 vs tier-3 default depth.** When the consumer opens the
+   Flavor tab fresh, what do they see? Tier-1 chip row plus a
+   "what's popular" rail (e.g. top-3 catalog flavors by bean count).
+   Don't dump them straight to the wheel unless we go Option B — pick
+   one default-state design and stick with it.
 
 ---
 
-## 6. Operational notes (unchanged from prior session)
+## Implementation pointers
 
-- Backend: `cd Community/coffee-community-api && make dev`. Binds
-  `--host 0.0.0.0 --port 8000 --reload`.
-- Frontend: user runs `npx expo start --clear` from `crema-app/`, port
-  8081. **Don't try to launch your own preview** — Metro takes
-  ~14-20 s per bundle and the preview tooling times out before ready.
-  Source-side diagnostics + token grep are the verification pattern.
-- `ANTHROPIC_API_KEY` lives in
-  `Community/coffee-community-api/.env`, loaded by `load_dotenv` in
-  `main.py`. If you see a 503 with "ANTHROPIC_API_KEY is not set,"
-  uvicorn needs a fresh restart (`pkill -f "uvicorn main:app"`).
-- Today's date: **2026-04-29**.
-
----
-
-## 7. How to start the conversation
-
-1. Acknowledge the substantial work that just shipped (the §3 list).
-2. **Confirm the four café-removal decisions** in §1 with the user
-   before touching code.
-3. Read the relevant files BEFORE proposing the removal plan — there
-   may be edge cases the audit missed (e.g., test files, dev seeds).
-4. Plan the removal in writing (file-by-file, in execution order),
-   get sign-off, then execute.
-5. CRUD_UTOPIA token discipline still applies: every visual value
-   from `useTokens`, every API call via `apiFetchRaw` /
-   `useResource`, every backend resource declared in `registry.py`.
-6. **Don't break uncommitted work** — there is a substantial pile of
-   uncommitted changes in the working tree (last commit was 7 days
-   ago; the entire BEANS-tab merge + Haiku enricher + per-roaster
-   site hint + Discover 1:1 + long-press detail sheet + cultivar fix
-   sit uncommitted). Suggest committing them as one or several
-   logical commits BEFORE starting the café removal so the diff for
-   the removal is reviewable.
+- **Frontend route:** new `(tabs)/browse.tsx` tab alongside BEANS /
+  ROASTERS. The TabButton + activeTab state already exists; add a
+  third value.
+- **Component:** `src/components/discover/FlavorBrowse.tsx`. Owns the
+  tier-1/2/3 navigation state, the catalog index, and the result
+  grid. Mirror the structure of `RoastersList` (which lives inside
+  the same browse.tsx today).
+- **Data:** the frontend already has `useCoffeeData()` returning
+  products. To get each product's SCA addresses, two paths:
+  - **(a) Backend serves them.** Add a `/api/products/with_addresses`
+    endpoint that joins products × sca_addresses and returns each bean
+    with a `flavor_addresses` field (`Array<[t1, t2?, t3?]>`).
+  - **(b) Frontend joins.** Fetch `sca_addresses` once, fetch
+    products once, do the join in memory. Cheaper RPC, more client
+    code. Probably the right v0 — caches in `useCoffeeData`.
+- **Counts:** every node in the tree gets a count = how many beans
+  have at least one address ending under or at that node. Compute
+  once per products+addresses change, store as `Map<nodeKey, number>`
+  keyed by `t1` / `t1>t2` / `t1>t2>t3`.
 
 ---
 
-*End of prompt. Don't pre-build; align first.*
+## Don't get distracted by
+
+- The existing standardization tab — it's working as of this commit.
+  Don't refactor unless explicitly asked.
+- Building wheel-viz immediately. Option A's chip ladder is the
+  faster path to a usable surface; the wheel is a nice-to-have second
+  pass.
+- Roast-level / process / origin filters in the Flavor lens.
+  Consumers in this lens are starting from taste, not provenance.
+  Layer those in only if the result list gets too big to scan.
+- The MAPPING tab's old paste-upload flow — gone for good per a prior
+  pass, don't try to revive it.
+
+---
+
+## Files to study before designing
+
+- `crema-app/app/(tabs)/browse.tsx` — current Discover, faceted-count
+  pattern, tab plumbing.
+- `crema-app/src/components/discover/CoffeeCard.tsx` — the result
+  grid's primitive. Reuse, don't fork.
+- `Community/coffee-community-api/services/sca_geolocator.py` —
+  `CANONICAL_TREE`, `harvest_product_tags`, `is_valid_address`.
+- `tasting_notes_tags/tag_resolutions.json` — concrete examples of
+  what a populated address table looks like.
+- `BUILD_ROADMAP.md` §1.5 — Catalog Ops history, including the
+  five-task standardization run that fed `sca_addresses`.
+
+---
+
+## Standing rules (from CLAUDE.md / NORTH_STAR.md)
+
+- Phase 1 surface — discovery + retention. Should make a Phase-1
+  consumer want to come back tomorrow because they found a flavor
+  combo they didn't know existed.
+- Token-only styling (palette: Espresso #351101, Crema #D798DA,
+  Crema White #FAF8F0). NewSpirit display, Inter body.
+- No new top-level `.md` files. If you build the wheel and it deserves
+  its own design doc, add a note inline in `BUILD_ROADMAP.md` instead.
+- Update `BUILD_ROADMAP.md` when a piece of this lands — move "Flavor
+  Discover lens" out of the next-build section as it ships.
+
+When in doubt about scope, ship Option A's chip ladder end-to-end
+(tab → tier-1 row → drill → result grid) before any other variant.
+That's the minimum useful surface; everything else is an enhancement
+on top.

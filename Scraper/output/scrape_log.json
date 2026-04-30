@@ -1,28 +1,20 @@
 [
   {
-    "roaster": "Dope Coffee Roasters",
-    "website": "https://dopecoffee.in",
-    "platform_catalog": "shopify",
-    "platform_detected": "shopify",
+    "roaster": "7 Elements Coffee Roasters",
+    "website": "https://7elementscoffee.com",
+    "platform_catalog": "woocommerce",
+    "platform_detected": "woocommerce",
     "status": "success",
-    "products_found": 49,
-    "coffee_products": 27,
-    "non_coffee_excluded": 22,
+    "products_found": 0,
+    "coffee_products": 0,
+    "non_coffee_excluded": 0,
     "confidence_breakdown": {
-      "high": 14,
-      "medium": 13,
+      "high": 0,
+      "medium": 0,
       "low": 0
     },
-    "flags_summary": [
-      "missing_tasting_notes: 27",
-      "altitude_not_found: 25",
-      "missing_process: 25",
-      "needs_llm_review: 19",
-      "missing_roast_level: 10",
-      "altitude_suspicious: 2",
-      "weight_unknown: 2"
-    ],
-    "scrape_duration_seconds": 0.86,
-    "scraped_at": "2026-04-29T05:40:27Z"
+    "flags_summary": [],
+    "scrape_duration_seconds": 36.43,
+    "scraped_at": "2026-04-30T06:29:22Z"
   }
 ]

@@ -5,6 +5,7 @@ These have fixed paths that would otherwise be shadowed by /{resource}/{id}.
 """
 
 import json
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Header
 from database import get_db
@@ -1310,95 +1311,194 @@ def _now_iso() -> str:
     return _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-@router.post("/admin/geolocate/run", status_code=202)
-def admin_geolocate_run(background_tasks: BackgroundTasks,
-                         user=Depends(get_current_user)):
-    """Enqueue a classification job. The runner harvests every distinct
-    flavor-note tag from the products table that isn't yet in
-    `sca_addresses`, sends them to Haiku in one batch, validates against
-    the active SCA tree, and writes results back."""
+@router.post("/admin/standardize/run", status_code=202)
+def admin_standardize_run(body: Optional[dict] = None,
+                           background_tasks: BackgroundTasks = None,
+                           user=Depends(get_current_user)):
+    """Enqueue a Catalog Standardization job. The runner harvests every
+    distinct catalog input across the SELECTED tasks, Haiku-classifies
+    the unclassified ones, and writes results to address tables +
+    denormalized product columns.
+
+    Body:
+      • regenerate_exemplars: bool — force-resample all selected tasks'
+        exemplars before the call.
+      • tasks: list[str] — subset of ("tasting", "origin", "varietal",
+        "roast", "process"). Empty / omitted = run all five.
+    """
     _require_admin(user)
+    body = body or {}
+    regenerate = bool(body.get("regenerate_exemplars"))
+    tasks = body.get("tasks")
+    if tasks is not None and not isinstance(tasks, list):
+        from fastapi import HTTPException
+        raise HTTPException(400, "tasks must be an array of task names")
     db = get_db()
     try:
         try:
-            job_id = catalog_ops.enqueue_job(db, "geolocate", started_by=user["id"])
+            job_id = catalog_ops.enqueue_job(db, "standardize", started_by=user["id"])
         except catalog_ops.JobConflict as e:
             from fastapi import HTTPException
             raise HTTPException(409, str(e), headers={"X-Live-Job-Id": str(e.live_job_id)})
-        background_tasks.add_task(catalog_ops.run_geolocate_job, job_id)
+        background_tasks.add_task(
+            catalog_ops.run_standardize_job, job_id,
+            regenerate_exemplars=regenerate,
+            tasks=tasks,
+        )
         return ok(_job_to_response(db, job_id), resource="jobs")
     finally:
         db.close()
 
 
-@router.get("/admin/geolocate/stats")
-def admin_geolocate_stats(user=Depends(get_current_user)):
-    """Tag counts for the Taste Graph sub-tab top section. Cheap enough
-    to recompute every poll — single SELECT * over `sca_addresses` plus a
-    walk over `products`."""
+@router.get("/admin/standardize/stats")
+def admin_standardize_stats(user=Depends(get_current_user)):
+    """3-way stats for the STANDARDIZATION sub-tab — drives the hero
+    counts (N tags · M origins · K varietals to classify) plus per-task
+    breakdowns (multi-estate / international / unknown / morphology)."""
     _require_admin(user)
     db = get_db()
     try:
-        return ok(sca_geolocator.compute_geolocate_stats(db), resource="geolocate_stats")
+        return ok(
+            sca_geolocator.compute_standardize_stats(db),
+            resource="standardize_stats",
+        )
     finally:
         db.close()
 
 
-@router.post("/admin/geolocate/tree", status_code=201)
-async def admin_geolocate_tree_upload(file: UploadFile = File(...),
-                                        notes: str = Form(""),
+@router.get("/admin/standardize/prompt")
+def admin_standardize_prompt(user=Depends(get_current_user)):
+    """Render the FIVE per-task Haiku system prompts verbatim. Read-only;
+    the inspector modal on the STANDARDIZATION sub-tab opens this so
+    the admin can see exactly what each task's call will send."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        sca_tree = sca_geolocator.get_active_tree(db)
+        variety_tree = sca_geolocator.load_variety_tree()
+        # Reuse cached exemplars without forcing a refresh — the inspector
+        # shows what's in flight, not a resample as a side effect.
+        tag_exs = sca_geolocator.get_or_refresh_exemplars(db, "tasting", regenerate=False)
+        origin_exs = sca_geolocator.get_or_refresh_exemplars(db, "origin", regenerate=False)
+        varietal_exs = sca_geolocator.get_or_refresh_exemplars(db, "varietal", regenerate=False)
+        roast_exs = sca_geolocator.get_or_refresh_exemplars(db, "roast", regenerate=False)
+        process_exs = sca_geolocator.get_or_refresh_exemplars(db, "process", regenerate=False)
+        tasting_prompt = sca_geolocator.build_tasting_prompt(sca_tree, tag_exs)
+        origin_prompt = sca_geolocator.build_origin_prompt(origin_exs)
+        varietal_prompt = sca_geolocator.build_varietal_prompt(variety_tree, varietal_exs)
+        roast_prompt = sca_geolocator.build_roast_prompt(roast_exs)
+        process_prompt = sca_geolocator.build_process_prompt(process_exs)
+        return ok({
+            "prompts": {
+                "tasting": tasting_prompt,
+                "origin": origin_prompt,
+                "varietal": varietal_prompt,
+                "roast": roast_prompt,
+                "process": process_prompt,
+            },
+            "char_counts": {
+                "tasting": len(tasting_prompt),
+                "origin": len(origin_prompt),
+                "varietal": len(varietal_prompt),
+                "roast": len(roast_prompt),
+                "process": len(process_prompt),
+            },
+            "exemplar_counts": {
+                "tasting": len(tag_exs),
+                "origin": len(origin_exs),
+                "varietal": len(varietal_exs),
+                "roast": len(roast_exs),
+                "process": len(process_exs),
+            },
+        }, resource="standardize_prompt")
+    finally:
+        db.close()
+
+
+@router.get("/admin/standardize/trees")
+def admin_standardize_trees(user=Depends(get_current_user)):
+    """Inspect the active reference trees. Both ship in code (the SCA
+    tree as a Python constant, the variety tree as a seed JSON file) so
+    they're not editable through the admin UI — the admin pastes / edits
+    via a code change. This endpoint is read-only and used by the
+    inspect-only modal on the STANDARDIZATION tab."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        return ok({
+            "sca_tree": sca_geolocator.get_active_tree(db),
+            "variety_tree": sca_geolocator.load_variety_tree(),
+        }, resource="standardize_trees")
+    finally:
+        db.close()
+
+
+@router.get("/admin/standardize/exemplars")
+def admin_standardize_exemplars(user=Depends(get_current_user)):
+    """Per-task exemplar status + cached content. Status fields drive
+    the regen toggle (and the "Last sampled …" stamp on each task
+    card); the `exemplars` list is what the standardization tab's
+    per-card dropdown renders so ops can see the actual house-style
+    examples Haiku is being primed with.
+
+    Each row's `exemplars_json` is parsed inline so the client doesn't
+    have to. Empty list when no row exists yet for a task."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT task, regenerate_next, generated_at, exemplars_json "
+            "FROM standardize_exemplars"
+        ).fetchall()
+        out: dict = {}
+        for r in rows:
+            try:
+                exemplars = json.loads(r["exemplars_json"]) if r["exemplars_json"] else []
+            except (json.JSONDecodeError, TypeError):
+                exemplars = []
+            out[r["task"]] = {
+                "regenerate_next": bool(r["regenerate_next"]),
+                "generated_at": r["generated_at"],
+                "exemplars": exemplars,
+            }
+        for task in ("tasting", "origin", "varietal", "roast", "process"):
+            out.setdefault(task, {
+                "regenerate_next": False,
+                "generated_at": None,
+                "exemplars": [],
+            })
+        return ok(out, resource="standardize_exemplars")
+    finally:
+        db.close()
+
+
+@router.post("/admin/standardize/exemplars/regenerate")
+def admin_standardize_exemplars_regen(body: Optional[dict] = None,
                                         user=Depends(get_current_user)):
-    """Multipart upload of a new SCA tree JSON. Validates the structure,
-    runs the diff against `sca_addresses`, persists the tree as a NEW
-    row with `is_active=0` (activation is a separate explicit POST). The
-    diff is returned inline so the admin can review before activating.
+    """Flip `regenerate_next` on one task (or all three) so the next
+    standardization run resamples its exemplars. Mirrors the site-prompt-
+    hint regen toggle on the per-roaster admin page.
+
+    Body: { "task": "tasting" | "origin" | "varietal" | "all",
+             "value": bool (default true) }
     """
     _require_admin(user)
-    raw = await file.read()
-    try:
-        tree = sca_geolocator.parse_tree_json(raw.decode("utf-8", errors="strict"))
-    except (UnicodeDecodeError, ValueError) as e:
+    body = body or {}
+    task = body.get("task") or "all"
+    value = bool(body.get("value", True))
+    if task not in ("tasting", "origin", "varietal", "roast", "process", "all"):
         from fastapi import HTTPException
-        raise HTTPException(422, f"Invalid tree JSON: {e}")
+        raise HTTPException(400, f"unknown task: {task!r}")
     db = get_db()
     try:
-        diff = sca_geolocator.validate_tree_against_addresses(db, tree)
-        cur = db.execute(
-            "INSERT INTO sca_tree_versions "
-            "(uploaded_at, uploaded_by, tree_json, is_active, notes) "
-            "VALUES (?, ?, ?, 0, ?)",
-            (_now_iso(), user["id"], json.dumps(tree), notes or None),
+        targets = (
+            ("tasting", "origin", "varietal", "roast", "process")
+            if task == "all" else (task,)
         )
-        db.commit()
-        version_id = cur.lastrowid
-        return ok({
-            "version_id": version_id,
-            "diff": diff,
-        }, resource="sca_tree_versions")
-    finally:
-        db.close()
-
-
-@router.post("/admin/geolocate/tree/{version_id}/activate")
-def admin_geolocate_tree_activate(version_id: int,
-                                    user=Depends(get_current_user)):
-    """Flip `is_active=1` to a previously uploaded tree version. Only one
-    row carries `is_active=1` at a time — the SQL is two statements
-    inside a single transaction so a crash mid-flip can't leave us with
-    zero active trees."""
-    _require_admin(user)
-    db = get_db()
-    try:
-        target = db.execute(
-            "SELECT id FROM sca_tree_versions WHERE id = ?", (version_id,)
-        ).fetchone()
-        if not target:
-            from fastapi import HTTPException
-            raise HTTPException(404, f"Tree version {version_id} not found")
-        db.execute("UPDATE sca_tree_versions SET is_active = 0 WHERE is_active = 1")
-        db.execute("UPDATE sca_tree_versions SET is_active = 1 WHERE id = ?", (version_id,))
-        db.commit()
-        return ok({"activated": version_id}, resource="sca_tree_versions")
+        for t in targets:
+            sca_geolocator.set_regenerate_next(db, t, value)
+        return ok({"updated": list(targets), "value": value},
+                  resource="standardize_exemplars")
     finally:
         db.close()
 
@@ -1713,265 +1813,6 @@ def admin_re_enrich_roaster(slug: str, user=Depends(get_current_user)):
         db.close()
 
     return admin_enrich_roaster({"website": website}, user=user)
-
-
-@router.post("/admin/roasters/{slug}/refresh-stream")
-def admin_refresh_roaster_stream(
-    slug: str,
-    body: dict = None,
-    background_tasks: BackgroundTasks = None,
-    user=Depends(get_current_user),
-):
-    """SSE variant of /refresh-all. Same end-state — fresh profile +
-    queued scrape job — but streams Sonnet's tool_use JSON deltas to
-    the client as they arrive so the per-roaster admin page can fill
-    in fields token-by-token instead of waiting 5–10 s for the full
-    payload.
-
-    Event stream format:
-
-      event: delta
-      data: <raw partial_json fragment from Anthropic>
-
-      event: complete
-      data: {"profile": {...}, "source": {...}, "job_id": 123}
-
-      event: error
-      data: {"message": "<human-readable>"}
-
-      event: done
-      data: {}
-
-    The frontend buffers `delta` payloads and runs a partial-JSON
-    extractor against the accumulated string to surface field
-    values as soon as they're complete. `complete` carries the
-    canonical post-DB-upsert state and the queued scrape job id;
-    the existing job poll path picks up from there.
-    """
-    _require_admin(user)
-    body = body or {}
-    regenerate_prompt = bool(body.get("regenerate_prompt"))
-
-    db = get_db()
-    try:
-        row = db.execute(
-            "SELECT website FROM roaster_profiles WHERE roaster_slug = ?",
-            (slug,),
-        ).fetchone()
-        if not row or not row["website"]:
-            from fastapi import HTTPException
-            raise HTTPException(404, f"No website on file for roaster {slug}")
-        website = row["website"]
-    finally:
-        db.close()
-
-    def _sse(event, data):
-        # SSE framing — `event: <name>\ndata: <json>\n\n`. `data`
-        # accepts either a dict (json-encoded) or a raw string
-        # (delta passthrough — Anthropic's partial_json IS the data
-        # payload, so we wrap it in {"text": "..."} to keep the
-        # content-type uniformly JSON on the wire).
-        if isinstance(data, str):
-            data = {"text": data}
-        return f"event: {event}\ndata: {json.dumps(data)}\n\n"
-
-    def event_stream():
-        try:
-            yield _sse("phase", {"phase": "bio_streaming"})
-            payload = None
-            for ev_type, ev_data in roaster_enricher.enrich_roaster_from_url_stream(website):
-                if ev_type == "delta":
-                    yield _sse("delta", ev_data)
-                elif ev_type == "complete":
-                    payload = ev_data
-
-            if payload is None:
-                yield _sse("error", {"message": "Sonnet returned no tool_use block"})
-                yield _sse("done", {})
-                return
-
-            # Apply the DB upsert + source mirror — same logic as
-            # admin_enrich_roaster, kept inline here to stay in the
-            # streaming context. Uses a fresh DB handle since
-            # outer-scope `db` was closed above.
-            profile = payload["profile"]
-            source = payload["source"]
-            db2 = get_db()
-            try:
-                now = _now_iso()
-                existing_by_website = db2.execute(
-                    "SELECT roaster_slug FROM roaster_profiles WHERE website = ?",
-                    (profile["website"],),
-                ).fetchone()
-                slug_use = existing_by_website["roaster_slug"] if existing_by_website else profile["roaster_slug"]
-                existing = db2.execute(
-                    "SELECT roaster_slug FROM roaster_profiles WHERE roaster_slug = ?",
-                    (slug_use,),
-                ).fetchone()
-                specialties_json = json.dumps(profile.get("specialties") or [])
-                if existing:
-                    db2.execute(
-                        "UPDATE roaster_profiles SET "
-                        " name = COALESCE(?, name), "
-                        " about_blurb = COALESCE(?, about_blurb), "
-                        " tagline = COALESCE(?, tagline), "
-                        " specialties = COALESCE(?, specialties), "
-                        " city = COALESCE(?, city), "
-                        " state = COALESCE(?, state), "
-                        " instagram_handle = COALESCE(?, instagram_handle), "
-                        " contact_email = COALESCE(?, contact_email), "
-                        " website = COALESCE(?, website), "
-                        " logo_url = COALESCE(?, logo_url), "
-                        " hero_image_url = COALESCE(?, hero_image_url), "
-                        " updated_at = ? "
-                        "WHERE roaster_slug = ?",
-                        (
-                            profile.get("name"),
-                            profile.get("about_blurb") or None,
-                            profile.get("tagline"),
-                            specialties_json if profile.get("specialties") else None,
-                            profile.get("city"),
-                            profile.get("state"),
-                            profile.get("instagram_handle"),
-                            profile.get("contact_email"),
-                            profile.get("website"),
-                            profile.get("logo_url"),
-                            profile.get("hero_image_url"),
-                            now,
-                            slug_use,
-                        ),
-                    )
-                else:
-                    db2.execute(
-                        "INSERT INTO roaster_profiles "
-                        "(roaster_slug, name, about_blurb, tagline, specialties, "
-                        " website, city, state, instagram_handle, contact_email, "
-                        " logo_url, hero_image_url, hero_crop_x, hero_crop_y, "
-                        " hero_zoom, published, updated_at) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 50, 50, 1, 0, ?)",
-                        (
-                            slug_use, profile.get("name"), profile.get("about_blurb"),
-                            profile.get("tagline"), specialties_json,
-                            profile.get("website"), profile.get("city"),
-                            profile.get("state"), profile.get("instagram_handle"),
-                            profile.get("contact_email"),
-                            profile.get("logo_url"),
-                            profile.get("hero_image_url"),
-                            now,
-                        ),
-                    )
-
-                if profile.get("name"):
-                    from services.notifications import sync_roaster_name_to_user
-                    sync_roaster_name_to_user(db2, slug_use, profile["name"])
-
-                # Mirror source row (shop_url + platform).
-                existing_src = db2.execute(
-                    "SELECT id FROM roaster_sources WHERE website = ?",
-                    (profile["website"],),
-                ).fetchone()
-                if not existing_src:
-                    db2.execute(
-                        "INSERT INTO roaster_sources "
-                        "(name, website, shop_url, platform, city, state, enabled, added_at) "
-                        "VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
-                        (
-                            profile.get("name") or slug_use,
-                            profile["website"],
-                            source.get("shop_url"),
-                            source.get("platform"),
-                            profile.get("city"),
-                            profile.get("state"),
-                            now,
-                        ),
-                    )
-                else:
-                    db2.execute(
-                        "UPDATE roaster_sources SET "
-                        " shop_url = COALESCE(?, shop_url), "
-                        " platform = COALESCE(?, platform), "
-                        " city = COALESCE(?, city), "
-                        " state = COALESCE(?, state) "
-                        "WHERE id = ?",
-                        (
-                            source.get("shop_url"),
-                            source.get("platform"),
-                            profile.get("city"),
-                            profile.get("state"),
-                            existing_src["id"],
-                        ),
-                    )
-                db2.commit()
-
-                # Re-fetch the canonical row shape so the frontend
-                # gets exactly what the registry would have served.
-                from resources.crud import get_resource_by_id
-                full_profile = get_resource_by_id(db2, "roaster_profiles", slug_use,
-                                                    current_user_id=user["id"])
-
-                # Kick the scrape job.
-                src_row = db2.execute(
-                    "SELECT shop_url, platform FROM roaster_sources rs "
-                    "JOIN roaster_profiles rp ON rp.website = rs.website "
-                    "WHERE rp.roaster_slug = ?",
-                    (slug_use,),
-                ).fetchone()
-                if not src_row or not src_row["shop_url"] or not src_row["platform"]:
-                    yield _sse("complete", {
-                        "profile": full_profile,
-                        "source": source,
-                        "job_id": None,
-                        "warning": "Bio enrichment finished but the catalog "
-                                    "source is missing shop_url or platform — "
-                                    "no scrape job kicked.",
-                    })
-                    yield _sse("done", {})
-                    return
-
-                try:
-                    job_id = catalog_ops.enqueue_job(db2, "scrape", started_by=user["id"])
-                except catalog_ops.JobConflict as e:
-                    yield _sse("complete", {
-                        "profile": full_profile,
-                        "source": source,
-                        "job_id": None,
-                        "warning": str(e),
-                    })
-                    yield _sse("done", {})
-                    return
-                background_tasks.add_task(
-                    catalog_ops.run_scrape_job, job_id,
-                    roaster_slug=slug_use,
-                    regenerate_prompt=regenerate_prompt,
-                )
-                yield _sse("complete", {
-                    "profile": full_profile,
-                    "source": source,
-                    "job_id": job_id,
-                })
-                yield _sse("done", {})
-            finally:
-                db2.close()
-        except roaster_enricher.RoasterEnricherError as e:
-            yield _sse("error", {"message": str(e)})
-            yield _sse("done", {})
-        except Exception as e:
-            yield _sse("error", {"message": f"{type(e).__name__}: {e}"})
-            yield _sse("done", {})
-
-    from fastapi.responses import StreamingResponse
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            # Disable proxy buffering so events flush immediately on
-            # nginx / Cloudflare. uvicorn dev doesn't need this but
-            # production reverse-proxies do.
-            "X-Accel-Buffering": "no",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        },
-    )
 
 
 @router.post("/admin/roasters/{slug}/refresh-all", status_code=202)

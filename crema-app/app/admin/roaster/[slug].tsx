@@ -54,7 +54,7 @@ import {
 } from "lucide-react-native";
 
 import { t } from "../../../src/tokens/useTokens";
-import { apiFetchRaw, apiStream, resolveUploadUrl } from "../../../src/api/client";
+import { apiFetchRaw, resolveUploadUrl } from "../../../src/api/client";
 import { onChromeScroll } from "../../../src/utils/chromeScroll";
 import { useBreakpoint } from "../../../src/hooks/useBreakpoint";
 import SiteHeader from "../../../src/components/SiteHeader";
@@ -71,134 +71,6 @@ import type {
   RoasterSource,
   ScrapeProposal,
 } from "../../../src/resources/types";
-
-// ── Partial JSON field extraction (for streaming refresh) ────────────────
-//
-// Sonnet streams its tool_use input as a series of `input_json_delta`
-// chunks that concatenate into the final JSON object. The page wants
-// to surface field values as soon as they're recognizable so the
-// admin sees the form filling in chatbot-style. These two helpers
-// run against the running buffer on every delta tick:
-//
-//   `extractFieldsFromBuffer` returns a snapshot of every known string
-//   key whose value (complete or in-progress) can be read out of the
-//   buffer. Handles JSON escapes (\\n, \\", \\\\) so partial bio prose
-//   renders correctly. Cheap: regex pass per key, ~10 keys total,
-//   runs ~once every 50–100 ms during streaming.
-//
-//   `currentlyStreamingKey` returns the key whose value is still
-//   in-progress (last quote not yet matched) — drives the status
-//   strip's "Filling about_blurb…" label so the user sees what
-//   field Sonnet is currently writing.
-
-const STREAM_STRING_KEYS = [
-  "name",
-  "tagline",
-  "city",
-  "state",
-  "instagram_handle",
-  "contact_email",
-  "about_blurb",
-  // platform + bean_catalog_url stream too but they map to `source`
-  // not `profile`; the SSE `complete` event delivers them canonically
-  // so we don't need partial visibility on the profile form.
-] as const;
-
-const FIELD_LABELS: Record<string, string> = {
-  name: "name",
-  tagline: "tagline",
-  city: "city",
-  state: "state",
-  instagram_handle: "Instagram",
-  contact_email: "email",
-  about_blurb: "bio",
-};
-
-function decodeJsonStringEscapes(raw: string): string {
-  // Minimal JSON-string unescape — \" \\ \/ \n \r \t \b \f and
-  // \uXXXX. Handles partial inputs gracefully (a trailing lone
-  // backslash is preserved as-is rather than throwing).
-  let out = "";
-  let i = 0;
-  while (i < raw.length) {
-    const ch = raw[i];
-    if (ch !== "\\") {
-      out += ch;
-      i += 1;
-      continue;
-    }
-    if (i + 1 >= raw.length) {
-      // Lone trailing backslash — keep, will resolve next delta.
-      break;
-    }
-    const next = raw[i + 1];
-    if (next === '"') { out += '"'; i += 2; }
-    else if (next === "\\") { out += "\\"; i += 2; }
-    else if (next === "/") { out += "/"; i += 2; }
-    else if (next === "n") { out += "\n"; i += 2; }
-    else if (next === "r") { out += "\r"; i += 2; }
-    else if (next === "t") { out += "\t"; i += 2; }
-    else if (next === "b") { out += "\b"; i += 2; }
-    else if (next === "f") { out += "\f"; i += 2; }
-    else if (next === "u" && i + 5 < raw.length) {
-      const hex = raw.slice(i + 2, i + 6);
-      const code = parseInt(hex, 16);
-      if (Number.isFinite(code)) {
-        out += String.fromCharCode(code);
-        i += 6;
-      } else {
-        out += ch; i += 1;
-      }
-    } else {
-      // Unknown escape — copy verbatim.
-      out += ch; i += 1;
-    }
-  }
-  return out;
-}
-
-function extractFieldsFromBuffer(buffer: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const key of STREAM_STRING_KEYS) {
-    // Match `"key" : "value-so-far` where value can contain escaped
-    // quotes (\\") but not unescaped ones — that would mark the
-    // close. The value is captured up to (but not including) the
-    // closing quote OR the end-of-buffer.
-    const re = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)`);
-    const m = re.exec(buffer);
-    if (m) {
-      out[key] = decodeJsonStringEscapes(m[1]);
-    }
-  }
-  return out;
-}
-
-function currentlyStreamingKey(buffer: string): string | null {
-  // The currently-streaming key is the LAST key whose opening `"key": "`
-  // appears in the buffer without a matching closing quote yet.
-  // Approximation: find every `"key": "..."` pattern, strip those
-  // out, then look for a trailing `"key": "` start.
-  let latest: string | null = null;
-  for (const key of STREAM_STRING_KEYS) {
-    // Closed pattern: "key": "complete value"
-    const closedRe = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`);
-    // Open-only pattern: "key": "incomplete value-so-far (no closing
-    // quote, possibly empty)
-    const openRe = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)$`);
-    if (closedRe.test(buffer)) continue;
-    if (openRe.test(buffer)) {
-      latest = key;
-      // Don't break — a later key in our enum may have started
-      // already (Sonnet emits them in schema order, so the latest
-      // wins).
-    }
-  }
-  return latest;
-}
-
-function prettyFieldLabel(key: string): string {
-  return FIELD_LABELS[key] || key.replace(/_/g, " ");
-}
 
 export default function AdminRoasterPage() {
   const router = useRouter();
@@ -456,6 +328,10 @@ export default function AdminRoasterPage() {
           // Auto-clear the "Done." status after a brief moment so the
           // strip doesn't linger forever once everything's settled.
           if (job.status === "succeeded") {
+            // Now (and only now) is it safe to clear the regen toggle.
+            // If we'd cleared on Run-tap and the job ended up failing,
+            // the user would have to re-tick before retrying.
+            setRegeneratePromptOnNext(false);
             setTimeout(() => {
               setRefreshPhase((cur) => (cur === "done" ? "idle" : cur));
             }, 2500);
@@ -489,13 +365,13 @@ export default function AdminRoasterPage() {
     }, 2000);
   };
 
-  // Combined refresh — bio enrich + catalog scrape in one click,
-  // streamed end-to-end. Hits the SSE endpoint and pipes Sonnet's
-  // tool_use JSON deltas straight into the form so the admin sees
-  // each field populate as it arrives instead of waiting 5–10 s for
-  // the whole payload. Status strip narrates which field is currently
-  // filling. Falls back to the non-streaming /refresh-all endpoint if
-  // the runtime doesn't expose a Response body reader.
+  // Combined refresh — bio enrich + catalog scrape in one click.
+  // Single POST: the backend runs Sonnet against the homepage,
+  // upserts the profile, and enqueues a per-roaster scrape job.
+  // The status strip narrates the bio-enrichment phase via the
+  // synchronous response, then the strip switches to "Fetching
+  // catalog…" and the existing poll picks up live progress out of
+  // the job's `log_tail`.
   const refreshAll = async () => {
     if (!profile) return;
     hapticCommit();
@@ -504,143 +380,15 @@ export default function AdminRoasterPage() {
     setError(null);
     setRefreshPhase("bio");
     setPhaseProgress(null);
+    // Capture the regen intent for the API call but DON'T reset the
+    // toggle here — if the API or the job that follows fails, the user
+    // would have to re-tick. The toggle is reset once the job's
+    // status flips to "succeeded" inside `startPoll`.
     const sendRegenerate = regeneratePromptOnNext;
-    setRegeneratePromptOnNext(false);
 
-    let resp: Response | null = null;
-    try {
-      resp = await apiStream(
-        `/admin/roasters/${profile.roaster_slug}/refresh-stream`,
-        {
-          method: "POST",
-          body: JSON.stringify({ regenerate_prompt: sendRegenerate }),
-        },
-      );
-    } catch (e: any) {
-      setEnrichError(e?.message || "Couldn't open refresh stream");
-      setRefreshPhase("idle");
-      setEnrichBusy(false);
-      return;
-    }
-
-    const reader = resp.body?.getReader?.();
-    if (!reader) {
-      // Streaming not available on this runtime — silently fall
-      // through to the non-streaming /refresh-all endpoint so the
-      // admin still gets the workflow, just without the cascade.
-      return refreshAllNonStreaming(sendRegenerate);
-    }
-
-    const decoder = new TextDecoder("utf-8");
-    let textBuffer = "";   // SSE wire frame buffer
-    let jsonBuffer = "";   // accumulated tool_use JSON across deltas
-    try {
-      // Streaming loop. Each iteration either receives more bytes
-      // or hits done; we parse SSE frames out of `textBuffer` and
-      // dispatch by event name.
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        textBuffer += decoder.decode(value, { stream: true });
-        let sepIdx: number;
-        while ((sepIdx = textBuffer.indexOf("\n\n")) >= 0) {
-          const frame = textBuffer.slice(0, sepIdx);
-          textBuffer = textBuffer.slice(sepIdx + 2);
-          let eventName = "message";
-          let dataStr = "";
-          for (const line of frame.split("\n")) {
-            if (line.startsWith("event:")) eventName = line.slice(6).trim();
-            else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
-          }
-          if (!dataStr) continue;
-          let parsed: any;
-          try { parsed = JSON.parse(dataStr); } catch { continue; }
-
-          if (eventName === "delta") {
-            jsonBuffer += String(parsed.text ?? "");
-            const fields = extractFieldsFromBuffer(jsonBuffer);
-            // Apply only the fields that are in our streaming set —
-            // setProfile merges so other fields stay put. Cast to
-            // any since EditableField + the registry shape both
-            // accept extra optional keys.
-            setProfile((prev) => {
-              if (!prev) return prev;
-              const next: any = { ...prev };
-              if (fields.name !== undefined) next.name = fields.name;
-              if (fields.tagline !== undefined) next.tagline = fields.tagline;
-              if (fields.city !== undefined) next.city = fields.city;
-              if (fields.state !== undefined) next.state = fields.state;
-              if (fields.instagram_handle !== undefined) next.instagram_handle = fields.instagram_handle;
-              if (fields.contact_email !== undefined) next.contact_email = fields.contact_email;
-              if (fields.about_blurb !== undefined) next.about_blurb = fields.about_blurb;
-              return next;
-            });
-            const cur = currentlyStreamingKey(jsonBuffer);
-            if (cur) setPhaseProgress(`Filling ${prettyFieldLabel(cur)}…`);
-          } else if (eventName === "complete") {
-            // Apply canonical post-DB-upsert profile + transition
-            // to the scrape phase if a job was queued.
-            if (parsed.profile) {
-              setProfile(parsed.profile);
-            }
-            refetch();
-            await fetchCatalogProducts();
-            if (parsed.warning) {
-              setEnrichError(parsed.warning);
-            }
-            if (parsed.job_id) {
-              setEnrichJobId(parsed.job_id);
-              setRefreshPhase("scraping");
-              setPhaseProgress("Fetching catalog…");
-              startPoll(parsed.job_id);
-            } else {
-              setRefreshPhase("done");
-              setEnrichBusy(false);
-              setTimeout(() => {
-                setRefreshPhase((cur) => (cur === "done" ? "idle" : cur));
-                setPhaseProgress(null);
-              }, 2500);
-            }
-          } else if (eventName === "error") {
-            setEnrichError(parsed.message || "Streaming refresh failed");
-            setRefreshPhase("idle");
-            setEnrichBusy(false);
-            try { reader.cancel(); } catch {}
-            return;
-          }
-          // "phase" + "done" events are advisory — the state
-          // transitions happen on `complete`, so they don't need
-          // explicit handling here.
-        }
-      }
-    } catch (e: any) {
-      setEnrichError(e?.message || "Stream read failed");
-      setRefreshPhase("idle");
-      setEnrichBusy(false);
-    } finally {
-      // Defensive: if the stream ended without a `complete` or
-      // `error` event landing (network drop, server kill, etc.),
-      // the busy state would otherwise stick. The branches above
-      // already clear busy when either event lands, so this only
-      // fires on the cut-off-mid-stream edge case.
-      setRefreshPhase((cur) => {
-        if (cur === "bio") {
-          setEnrichBusy(false);
-          return "idle";
-        }
-        return cur;
-      });
-    }
-  };
-
-  // Non-streaming fallback — used only when the runtime can't read
-  // response.body. Same end-state as the streaming path; just no
-  // field-by-field cascade.
-  const refreshAllNonStreaming = async (sendRegenerate: boolean) => {
     try {
       const res: any = await apiFetchRaw(
-        `/admin/roasters/${profile!.roaster_slug}/refresh-all`,
+        `/admin/roasters/${profile.roaster_slug}/refresh-all`,
         {
           method: "POST",
           body: JSON.stringify({ regenerate_prompt: sendRegenerate }),
@@ -650,14 +398,21 @@ export default function AdminRoasterPage() {
       const updatedProfile = data?.profile as RoasterProfile | undefined;
       const job = data?.job as { id: number } | undefined;
       if (updatedProfile) setProfile(updatedProfile);
+      if (data?.warning) setEnrichError(data.warning);
       refetch();
+      await fetchCatalogProducts();
       if (job?.id) {
         setEnrichJobId(job.id);
         setRefreshPhase("scraping");
+        setPhaseProgress("Fetching catalog…");
         startPoll(job.id);
       } else {
         setRefreshPhase("done");
         setEnrichBusy(false);
+        setTimeout(() => {
+          setRefreshPhase((cur) => (cur === "done" ? "idle" : cur));
+          setPhaseProgress(null);
+        }, 2500);
       }
     } catch (e: any) {
       setEnrichError(e?.message || "Refresh failed");
@@ -948,56 +703,18 @@ export default function AdminRoasterPage() {
             </Pressable>
           </View>
 
-          {/* ── 3. About ────────────────────────────────────────────── */}
+          {/* ── Refresh inputs ──────────────────────────────────────────
+             The two URLs the Refresh roaster button reads from: the
+             roaster's homepage drives Sonnet's bio enrichment; the
+             shop URL drives the catalog scrape. Pinned right under
+             the CTA so the cause-effect is obvious — edit either to
+             point Sonnet / the scraper at a different page. */}
           <View style={s.section}>
-            <EditableField
-              label="About"
-              value={profile.about_blurb || ""}
-              placeholder="Sonnet's synthesized bio will land here."
-              multiline
-              saving={savingField === "about_blurb"}
-              onSave={(next) => saveProfileField("about_blurb", next)}
-            />
-          </View>
-
-          {/* ── 4. Specialties ──────────────────────────────────────── */}
-          <View style={s.section}>
-            <Text style={s.sectionHead}>Specialties</Text>
-            {specialties.length > 0 ? (
-              <View style={s.chipRow}>
-                {specialties.map((sp, i) => (
-                  <View key={`${sp}-${i}`} style={s.specialtyChip}>
-                    <Text style={s.specialtyChipText}>{sp}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <Text style={s.emptyText}>No specialties on file yet.</Text>
-            )}
-          </View>
-
-          {/* ── 5. Location ─────────────────────────────────────────── */}
-          <View style={s.section}>
-            <Text style={s.sectionHead}>Location</Text>
-            <EditableField
-              label="City"
-              value={profile.city || ""}
-              placeholder="e.g. New Delhi"
-              saving={savingField === "city"}
-              onSave={(next) => saveProfileField("city", next)}
-            />
-            <EditableField
-              label="State"
-              value={profile.state || ""}
-              placeholder="e.g. Delhi"
-              saving={savingField === "state"}
-              onSave={(next) => saveProfileField("state", next)}
-            />
-          </View>
-
-          {/* ── 6. Contact / online presence ────────────────────────── */}
-          <View style={s.section}>
-            <Text style={s.sectionHead}>Contact</Text>
+            <Text style={s.sectionHead}>Sources</Text>
+            <Text style={s.configHelper}>
+              Bio refresh reads the website; the catalog scrape crawls
+              the shop URL — narrower beats the generic /shop.
+            </Text>
             <EditableField
               label="Website"
               value={profile.website || ""}
@@ -1006,60 +723,26 @@ export default function AdminRoasterPage() {
               onSave={(next) => saveProfileField("website", next)}
             />
             <EditableField
-              label="Instagram"
-              value={profile.instagram_handle || ""}
-              placeholder="handle without @"
-              saving={savingField === "instagram_handle"}
-              onSave={(next) => saveProfileField("instagram_handle", next)}
-            />
-            <EditableField
-              label="Email"
-              value={profile.contact_email || ""}
-              placeholder="contact email"
-              saving={savingField === "contact_email"}
-              onSave={(next) => saveProfileField("contact_email", next)}
-            />
-          </View>
-
-          {/* ── 7. Coffees ──────────────────────────────────────────────
-             Per-roaster catalog. The combined "Refresh roaster" CTA
-             above runs bio enrich + scrape in one click; this section
-             surfaces the resulting proposals for review and the live
-             catalog products with delete-per-card. The catalog-source
-             config (Shop URL · Platform) sits inline as plain
-             EditableFields — no card chrome — so the page reads as
-             one continuous form. The Enabled pill from the prior
-             design was a relic of the dormant bulk-scrape workflow
-             and is gone. */}
-          <View style={s.section}>
-            <Text style={s.sectionHead}>Coffees</Text>
-            <Text style={s.configHelper}>
-              Verify the bean-catalog URL points at the specialty-coffee
-              listing — narrower beats the generic /shop.
-            </Text>
-            <EditableField
               label="Shop URL"
               value={source?.shop_url || ""}
               placeholder="https://roaster.example.com/collections/coffee"
               saving={savingScrapeField === "shop_url"}
               onSave={(next) => saveScrapeField("shop_url", next)}
             />
-            <EditableField
-              label="Platform"
-              value={source?.platform || ""}
-              placeholder="shopify · woocommerce · custom"
-              saving={savingScrapeField === "platform"}
-              onSave={(next) => saveScrapeField("platform", next)}
-            />
+          </View>
 
-            {/* Site enrichment hint — Sonnet writes this once after
-               the first per-roaster Haiku run, capturing what's
-               idiosyncratic about THIS roaster's product pages
-               (units, where info is buried, naming quirks). On
-               subsequent runs Haiku prepends it to its system
-               prompt for free past-experience. The toggle below
-               opts the next run into a regen — auto-clears once
-               that run kicks off. */}
+          {/* ── Site enrichment hint ──────────────────────────────────
+             Sonnet writes a 1-2 paragraph addendum to Haiku's
+             extraction system prompt after the first per-roaster
+             enrichment run, capturing what's idiosyncratic about
+             this roaster's product pages (units, where info is
+             buried, naming conventions). Surfaced above About so
+             the admin sees enrichment status — generated, pending,
+             or stale — on every roaster page, not just ones that
+             happen to have catalog activity. The toggle below opts
+             the next run into a regen; auto-clears once that run
+             kicks off. */}
+          <View style={s.section}>
             <View style={s.hintCard}>
               <Pressable
                 onPress={() => {
@@ -1078,8 +761,12 @@ export default function AdminRoasterPage() {
                   <Text style={s.hintTitle}>Site enrichment hint</Text>
                   <Text style={s.hintSubtitle}>
                     {profile?.enrichment_prompt_hint
-                      ? "Haiku prepends this to its system prompt on every run for this roaster."
-                      : "Will be generated automatically on the first enrichment run for this roaster."}
+                      ? `Haiku prepends this to its system prompt on every run for this roaster${
+                          profile?.enrichment_prompt_hint_updated_at
+                            ? ` · updated ${relativeAge(profile.enrichment_prompt_hint_updated_at)}`
+                            : ""
+                        }.`
+                      : "Not enriched yet — generated automatically on the first enrichment run."}
                   </Text>
                 </View>
                 <Text style={s.hintToggleText}>
@@ -1143,6 +830,93 @@ export default function AdminRoasterPage() {
                 </View>
               ) : null}
             </View>
+          </View>
+
+          {/* ── 3. About ────────────────────────────────────────────── */}
+          <View style={s.section}>
+            <EditableField
+              label="About"
+              value={profile.about_blurb || ""}
+              placeholder="Sonnet's synthesized bio will land here."
+              multiline
+              saving={savingField === "about_blurb"}
+              onSave={(next) => saveProfileField("about_blurb", next)}
+            />
+          </View>
+
+          {/* ── 4. Specialties ──────────────────────────────────────── */}
+          <View style={s.section}>
+            <Text style={s.sectionHead}>Specialties</Text>
+            {specialties.length > 0 ? (
+              <View style={s.chipRow}>
+                {specialties.map((sp, i) => (
+                  <View key={`${sp}-${i}`} style={s.specialtyChip}>
+                    <Text style={s.specialtyChipText}>{sp}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={s.emptyText}>No specialties on file yet.</Text>
+            )}
+          </View>
+
+          {/* ── 5. Location ─────────────────────────────────────────── */}
+          <View style={s.section}>
+            <Text style={s.sectionHead}>Location</Text>
+            <EditableField
+              label="City"
+              value={profile.city || ""}
+              placeholder="e.g. New Delhi"
+              saving={savingField === "city"}
+              onSave={(next) => saveProfileField("city", next)}
+            />
+            <EditableField
+              label="State"
+              value={profile.state || ""}
+              placeholder="e.g. Delhi"
+              saving={savingField === "state"}
+              onSave={(next) => saveProfileField("state", next)}
+            />
+          </View>
+
+          {/* ── 6. Contact / online presence ──────────────────────────
+             Website moved up under the Refresh CTA — it's an
+             enrichment input, not a contact channel. */}
+          <View style={s.section}>
+            <Text style={s.sectionHead}>Contact</Text>
+            <EditableField
+              label="Instagram"
+              value={profile.instagram_handle || ""}
+              placeholder="handle without @"
+              saving={savingField === "instagram_handle"}
+              onSave={(next) => saveProfileField("instagram_handle", next)}
+            />
+            <EditableField
+              label="Email"
+              value={profile.contact_email || ""}
+              placeholder="contact email"
+              saving={savingField === "contact_email"}
+              onSave={(next) => saveProfileField("contact_email", next)}
+            />
+          </View>
+
+          {/* ── 7. Coffees ──────────────────────────────────────────────
+             Per-roaster catalog. The combined "Refresh roaster" CTA
+             above runs bio enrich + scrape in one click; this section
+             surfaces the resulting proposals for review and the live
+             catalog products with delete-per-card. Shop URL moved up
+             under the CTA — it's an enrichment input. Platform
+             (which strategy the scraper picks) stays here since it's
+             a metadata classifier, not a URL the admin pastes. */}
+          <View style={s.section}>
+            <Text style={s.sectionHead}>Coffees</Text>
+            <EditableField
+              label="Platform"
+              value={source?.platform || ""}
+              placeholder="shopify · woocommerce · custom"
+              saving={savingScrapeField === "platform"}
+              onSave={(next) => saveScrapeField("platform", next)}
+            />
 
             <Text style={s.coffeesStatusLine}>{enrichmentStatusText}</Text>
 
@@ -1819,16 +1593,13 @@ const s = StyleSheet.create({
     paddingTop: t.spacing.sm,
   } as any,
 
-  // Site enrichment hint — collapsible inline section. Was a card in
-  // the prior design; flattened to match the rest of the Coffees
-  // section's plain-row rhythm. Top hairline border separates it
-  // from the EditableFields above.
-  hintCard: {
-    borderTopWidth: 1,
-    borderTopColor: t.color["border.light"],
-    paddingTop: t.spacing.md,
-    marginTop: t.spacing.sm,
-  } as any,
+  // Site enrichment hint — collapsible block. Lives in its own
+  // section right under the Refresh CTA so the admin can see the
+  // cached Haiku prompt addendum (and its freshness) before deciding
+  // whether to regenerate. Section spacing handles outer padding;
+  // this style is a no-op container kept in place so the JSX stays
+  // grouped semantically.
+  hintCard: {} as any,
   hintHead: {
     flexDirection: "row",
     alignItems: "center",

@@ -745,6 +745,82 @@ _MIGRATIONS = [
     # Admin can opt to regenerate by toggling the per-run flag on
     # the roaster page.
     "ALTER TABLE roaster_profiles ADD COLUMN enrichment_prompt_hint TEXT",
+    # Tracks when the hint was last written by the Sonnet meta-call —
+    # distinct from `updated_at`, which moves on any profile edit. The
+    # admin's roaster page reads this to surface "Updated 2d ago" so
+    # the operator can tell at a glance whether the cached hint is
+    # stale relative to recent changes on the roaster's storefront.
+    "ALTER TABLE roaster_profiles ADD COLUMN enrichment_prompt_hint_updated_at TEXT",
+    # ── Catalog Standardization ─────────────────────────────────────────────
+    # The MAPPING tab (renamed STANDARDIZATION) runs a single Haiku pass
+    # that maps three roaster-side fields onto Crema canonical values:
+    #   • tasting tags → SCA address (existing `sca_addresses` table)
+    #   • origin → estate name / Multi-estate / International / Unknown
+    #   • varietal → canonical variety + species + morphology
+    # Each address table mirrors `sca_addresses`'s shape so the
+    # exemplar-selection / classification machinery can be shared.
+    """CREATE TABLE IF NOT EXISTS origin_addresses (
+        raw_string TEXT PRIMARY KEY,
+        estate_canonical TEXT,
+        source TEXT NOT NULL,
+        classified_at TEXT NOT NULL,
+        model_version TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_origin_addresses_canonical ON origin_addresses(estate_canonical)",
+    """CREATE TABLE IF NOT EXISTS varietal_addresses (
+        raw_string TEXT PRIMARY KEY,
+        canonical_varietal TEXT,
+        bean_type TEXT,
+        morphology TEXT,
+        source TEXT NOT NULL,
+        classified_at TEXT NOT NULL,
+        model_version TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_varietal_addresses_canonical ON varietal_addresses(canonical_varietal)",
+    "CREATE INDEX IF NOT EXISTS idx_varietal_addresses_morphology ON varietal_addresses(morphology)",
+    # Products writeback columns. `varietal_canonical` already exists —
+    # the standardization pass starts writing it (superseding the
+    # `services/canonicalize.py` regex backfill). Estate and morphology
+    # are new. `bean_type_canonical` lets standardization refine the
+    # scraper-set `bean_type` without clobbering it; consumer queries
+    # COALESCE(bean_type_canonical, bean_type).
+    "ALTER TABLE products ADD COLUMN origin_estate_canonical TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_products_origin_estate ON products(origin_estate_canonical)",
+    "ALTER TABLE products ADD COLUMN bean_type_canonical TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_products_bean_type_canonical ON products(bean_type_canonical)",
+    "ALTER TABLE products ADD COLUMN morphology TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_products_morphology ON products(morphology)",
+    # Cached exemplar block — one row per task. The standardization run
+    # reuses the cached block across calls so Anthropic's prompt cache
+    # stays warm. Admin can flip `regenerate_next` on the
+    # STANDARDIZATION sub-tab; the next run resamples then resets the
+    # flag (sticky for one click). Tasks are: tasting, origin,
+    # varietal, roast, process.
+    """CREATE TABLE IF NOT EXISTS standardize_exemplars (
+        task TEXT PRIMARY KEY,
+        exemplars_json TEXT NOT NULL,
+        regenerate_next INTEGER NOT NULL DEFAULT 0,
+        generated_at TEXT NOT NULL
+    )""",
+    # ── Standardization expansion: roast + process ──────────────────────────
+    # `roast_addresses` is new; `process_addresses` was prepped earlier
+    # for the Process Graph admin tab — we now wire it up. Both mirror
+    # the varietal_addresses shape: raw_string PK → canonical bucket.
+    """CREATE TABLE IF NOT EXISTS roast_addresses (
+        raw_string TEXT PRIMARY KEY,
+        roast_canonical TEXT,
+        source TEXT NOT NULL,
+        classified_at TEXT NOT NULL,
+        model_version TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_roast_addresses_canonical ON roast_addresses(roast_canonical)",
+    # Denormalized canonical columns on products. Consumer Discover
+    # filters read these directly (with the legacy column as fallback)
+    # so chips stay accurate without per-row joins.
+    "ALTER TABLE products ADD COLUMN roast_level_canonical TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_products_roast_canonical ON products(roast_level_canonical)",
+    "ALTER TABLE products ADD COLUMN process_canonical TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_products_process_canonical ON products(process_canonical)",
     # Discoverability gate: enriched roasters land here as `published=0` so
     # the admin reviews the synthesized bio + edits it before pushing the
     # row to the public Discover surface. Existing 121 profiles all default

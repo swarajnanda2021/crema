@@ -26,25 +26,25 @@ import {
 
 import { t } from "../../tokens/useTokens";
 import RoastersPanel from "./RoastersPanel";
-import TasteGraphPanel from "./TasteGraphPanel";
+import StandardizationPanel from "./StandardizationPanel";
 
-export type CatalogOpsSection = "roasters" | "mapping";
+export type CatalogOpsSection = "roasters" | "standardization";
 
-const SECTIONS: CatalogOpsSection[] = ["roasters", "mapping"];
+const SECTIONS: CatalogOpsSection[] = ["roasters", "standardization"];
 
 const SECTION_LABEL: Record<CatalogOpsSection, string> = {
   roasters: "ROASTERS & BEANS",
-  mapping: "MAPPING",
+  standardization: "STANDARDIZATION",
 };
 
 const SECTION_TITLE: Record<CatalogOpsSection, string> = {
   roasters: "Roasters & Beans",
-  mapping: "Mapping",
+  standardization: "Catalog Standardization",
 };
 
 const SECTION_BLURB: Record<CatalogOpsSection, string> = {
   roasters: "Manage roaster identities + run per-roaster bean enrichment from the same surface.",
-  mapping: "Classify flavor notes + processing methods, browse the catalog.",
+  standardization: "Five sequential Haiku passes that map tasting notes, origins, varietals, roast levels, and processes onto Crema canonical references.",
 };
 
 export default function CatalogOps() {
@@ -91,7 +91,7 @@ export default function CatalogOps() {
         {section === "roasters" ? (
           <RoastersPanel />
         ) : (
-          <TasteGraphPanel />
+          <StandardizationPanel />
         )}
       </View>
     </View>

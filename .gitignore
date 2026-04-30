@@ -12,6 +12,10 @@ dist/
 
 # Database (user data, recreated on first run)
 *.db
+*.db.bak.*
+
+# Local design references (mockups, screenshots) — not source
+Feed_mock_ups/
 
 # Uploads (user-generated profile photos)
 Community/coffee-community-api/uploads/

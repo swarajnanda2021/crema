@@ -26,6 +26,7 @@ import json
 import subprocess
 import threading
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Optional
 
@@ -1031,6 +1032,491 @@ def backfill_prior_scrape_jobs(conn) -> int:
         print(f"Catalog-ops backfill: created {inserted} retroactive proposals "
                f"for {len(rows)} prior scrape jobs")
     return inserted
+
+
+def run_standardize_job(job_id: int, *, regenerate_exemplars: bool = False,
+                          tasks: Optional[list] = None) -> None:
+    """Catalog Standardization runner — formerly the SCA-only geolocate job,
+    extended to also map origins → estate names and varietals → canonical
+    cultivar + species + morphology. One Haiku call covers all three tasks
+    via a shared cache-controlled system prompt.
+
+    Writes results into:
+      • sca_addresses (existing)
+      • origin_addresses, varietal_addresses (new)
+      • products.origin_estate_canonical / .varietal_canonical /
+        .bean_type_canonical / .morphology (denormalized for query speed)
+
+    Cached exemplars are reused unless `regenerate_exemplars` is true, in
+    which case all three exemplar lists are resampled before the call.
+    """
+    db = get_db()
+    log_lines: list[str] = []
+
+    def log(line: str) -> None:
+        ts = datetime.datetime.utcnow().strftime("%H:%M:%S")
+        log_lines.append(f"[{ts}] {line}")
+
+    try:
+        mark_running(db, job_id)
+
+        sca_tree = sca_geolocator.get_active_tree(db)
+        variety_tree = sca_geolocator.load_variety_tree()
+
+        # Per-task selection — admin can opt subsets via the
+        # STANDARDIZATION sub-tab toggles. Empty / None = run all five.
+        ALL_TASKS = ("tasting", "origin", "varietal", "roast", "process")
+        if not tasks:
+            selected_tasks = set(ALL_TASKS)
+        else:
+            selected_tasks = {t for t in tasks if t in ALL_TASKS}
+        if not selected_tasks:
+            mark_finished(
+                db, job_id, status="failed",
+                error_message="No tasks selected. Toggle at least one task on.",
+                log_tail="\n".join(log_lines)[-10_000:],
+            )
+            return
+        log(f"selected tasks: {sorted(selected_tasks)}")
+
+        # Harvest unique input strings per selected task only — we
+        # don't need to walk the catalog for tasks the admin skipped.
+        tag_counts = sca_geolocator.harvest_product_tags(db) if "tasting" in selected_tasks else Counter()
+        origin_counts = sca_geolocator.harvest_origins(db) if "origin" in selected_tasks else Counter()
+        varietal_counts = sca_geolocator.harvest_varietals(db) if "varietal" in selected_tasks else Counter()
+        roast_counts = sca_geolocator.harvest_roasts(db) if "roast" in selected_tasks else Counter()
+        process_counts = sca_geolocator.harvest_processes(db) if "process" in selected_tasks else Counter()
+
+        # Diff against existing address tables. Re-classifying entries
+        # we've already mapped wastes tokens and risks drift.
+        def _existing(table: str, col: str) -> set:
+            return {r[col] for r in db.execute(f"SELECT {col} FROM {table}").fetchall()}
+
+        sca_existing = _existing("sca_addresses", "tag") if "tasting" in selected_tasks else set()
+        origin_existing = _existing("origin_addresses", "raw_string") if "origin" in selected_tasks else set()
+        varietal_existing = _existing("varietal_addresses", "raw_string") if "varietal" in selected_tasks else set()
+        roast_existing = _existing("roast_addresses", "raw_string") if "roast" in selected_tasks else set()
+        process_existing = _existing("process_addresses", "raw_string") if "process" in selected_tasks else set()
+
+        unclassified_tags = sorted(t for t in tag_counts if t not in sca_existing)
+        unclassified_origins = sorted(s for s in origin_counts if s not in origin_existing)
+        unclassified_varietals = sorted(s for s in varietal_counts if s not in varietal_existing)
+        unclassified_roasts = sorted(s for s in roast_counts if s not in roast_existing)
+        unclassified_processes = sorted(s for s in process_counts if s not in process_existing)
+
+        log(
+            "unclassified — "
+            f"tasting:{len(unclassified_tags)}, "
+            f"origins:{len(unclassified_origins)}, "
+            f"varietals:{len(unclassified_varietals)}, "
+            f"roasts:{len(unclassified_roasts)}, "
+            f"processes:{len(unclassified_processes)}"
+        )
+
+        if not (unclassified_tags or unclassified_origins or unclassified_varietals
+                or unclassified_roasts or unclassified_processes):
+            mark_finished(
+                db, job_id, status="succeeded",
+                log_tail="\n".join(log_lines + ["nothing to classify — exiting"]),
+                result_summary={
+                    t: {"unclassified_input": 0, "classified": 0}
+                    for t in selected_tasks
+                },
+            )
+            return
+
+        # Exemplars — cached across runs unless the admin opted to refresh.
+        # Only fetch for selected tasks.
+        tag_exemplars = sca_geolocator.get_or_refresh_exemplars(
+            db, "tasting", regenerate=regenerate_exemplars, log=log,
+        ) if "tasting" in selected_tasks else []
+        origin_exemplars = sca_geolocator.get_or_refresh_exemplars(
+            db, "origin", regenerate=regenerate_exemplars, log=log,
+        ) if "origin" in selected_tasks else []
+        varietal_exemplars = sca_geolocator.get_or_refresh_exemplars(
+            db, "varietal", regenerate=regenerate_exemplars, log=log,
+        ) if "varietal" in selected_tasks else []
+        roast_exemplars = sca_geolocator.get_or_refresh_exemplars(
+            db, "roast", regenerate=regenerate_exemplars, log=log,
+        ) if "roast" in selected_tasks else []
+        process_exemplars = sca_geolocator.get_or_refresh_exemplars(
+            db, "process", regenerate=regenerate_exemplars, log=log,
+        ) if "process" in selected_tasks else []
+
+        # Sequential per-task Haiku calls. Each task gets a dedicated
+        # focused prompt → smaller per-call output budget than a
+        # combined approach, and per-task failures don't poison the
+        # others. Within each task, chunking handles input lists too
+        # big to fit in MAX_TOKENS of output.
+        TASTING_CHUNK = 250
+        ORIGIN_CHUNK = 250
+        VARIETAL_CHUNK = 150
+        ROAST_CHUNK = 200
+        PROCESS_CHUNK = 200
+
+        def _chunk(lst, size):
+            return [lst[i:i + size] for i in range(0, len(lst), size)]
+
+        def _run_task(task_name: str, inputs: list, chunk_size: int, classifier_fn):
+            if not inputs:
+                return {}, None
+            chunks = _chunk(inputs, chunk_size)
+            log(f"── {task_name}: {len(inputs)} unclassified, {len(chunks)} call(s)")
+            merged: dict = {}
+            for i, ch in enumerate(chunks):
+                log(f"   [{task_name} {i + 1}/{len(chunks)}] {len(ch)} entries")
+                try:
+                    merged.update(classifier_fn(ch))
+                except sca_geolocator.GeolocatorError as e:
+                    err = (
+                        f"{task_name} aborted at chunk {i + 1}/{len(chunks)}: {e}. "
+                        f"Keeping {len(merged)} resolved entries."
+                    )
+                    log(err)
+                    return merged, err
+            return merged, None
+
+        # Per-task classifier closures.
+        def _tasting_call(batch):
+            return sca_geolocator.classify_tasting(batch, sca_tree, tag_exemplars, log=log)
+
+        def _origin_call(batch):
+            return sca_geolocator.classify_origins(batch, origin_exemplars, log=log)
+
+        def _varietal_call(batch):
+            return sca_geolocator.classify_varietals(batch, variety_tree, varietal_exemplars, log=log)
+
+        def _roast_call(batch):
+            return sca_geolocator.classify_roasts(batch, roast_exemplars, log=log)
+
+        def _process_call(batch):
+            return sca_geolocator.classify_processes(batch, process_exemplars, log=log)
+
+        log("starting selected per-task Haiku calls")
+        tasting_resolved, tasting_err = (_run_task(
+            "tasting", unclassified_tags, TASTING_CHUNK, _tasting_call,
+        ) if "tasting" in selected_tasks else ({}, None))
+        origin_resolved, origin_err = (_run_task(
+            "origin", unclassified_origins, ORIGIN_CHUNK, _origin_call,
+        ) if "origin" in selected_tasks else ({}, None))
+        varietal_resolved, varietal_err = (_run_task(
+            "varietal", unclassified_varietals, VARIETAL_CHUNK, _varietal_call,
+        ) if "varietal" in selected_tasks else ({}, None))
+        roast_resolved, roast_err = (_run_task(
+            "roast", unclassified_roasts, ROAST_CHUNK, _roast_call,
+        ) if "roast" in selected_tasks else ({}, None))
+        process_resolved, process_err = (_run_task(
+            "process", unclassified_processes, PROCESS_CHUNK, _process_call,
+        ) if "process" in selected_tasks else ({}, None))
+
+        resolved = {
+            "tasting": tasting_resolved,
+            "origin": origin_resolved,
+            "varietal": varietal_resolved,
+            "roast": roast_resolved,
+            "process": process_resolved,
+        }
+
+        # Aggregate any partial-failure messages so the admin sees them
+        # all in one result_summary.error field. Each task's failure is
+        # independent; if all selected tasks failed AND nothing
+        # committed, we mark the job failed below.
+        task_errors = [e for e in (
+            tasting_err, origin_err, varietal_err, roast_err, process_err,
+        ) if e]
+        partial_failure: Optional[str] = None
+        if task_errors:
+            partial_failure = " | ".join(task_errors)
+        # Nothing committed at all → fail hard so the row reads as a
+        # clean failure rather than a silent zero-row success.
+        if (
+            not any(resolved.values())
+            and task_errors
+        ):
+            mark_finished(
+                db, job_id, status="failed",
+                error_message=partial_failure,
+                log_tail="\n".join(log_lines)[-10_000:],
+            )
+            return
+
+        now = _now()
+
+        # Tasting writeback.
+        tasting_classified = 0
+        tasting_null = 0
+        if "tasting" in selected_tasks:
+            for tag, addr in resolved["tasting"].items():
+                t1, t2, t3, is_null = sca_geolocator.address_to_columns(addr)
+                if is_null:
+                    tasting_null += 1
+                else:
+                    tasting_classified += 1
+                db.execute(
+                    "INSERT OR REPLACE INTO sca_addresses "
+                    "(tag, address_t1, address_t2, address_t3, is_null, source, "
+                    " classified_at, model_version) "
+                    "VALUES (?, ?, ?, ?, ?, 'haiku', ?, ?)",
+                    (tag, t1, t2, t3, is_null, now, sca_geolocator.MODEL_VERSION),
+                )
+            # Tags Haiku didn't return → null row so we don't re-call them.
+            for tag in unclassified_tags:
+                if tag not in resolved["tasting"]:
+                    db.execute(
+                        "INSERT OR REPLACE INTO sca_addresses "
+                        "(tag, address_t1, address_t2, address_t3, is_null, source, "
+                        " classified_at, model_version) "
+                        "VALUES (?, NULL, NULL, NULL, 1, 'haiku', ?, ?)",
+                        (tag, now, sca_geolocator.MODEL_VERSION),
+                    )
+
+        # Origins writeback.
+        origin_classified = 0
+        if "origin" in selected_tasks:
+            for raw, estate in resolved["origin"].items():
+                db.execute(
+                    "INSERT OR REPLACE INTO origin_addresses "
+                    "(raw_string, estate_canonical, source, classified_at, model_version) "
+                    "VALUES (?, ?, 'haiku', ?, ?)",
+                    (raw, estate, now, sca_geolocator.MODEL_VERSION),
+                )
+                if estate is not None:
+                    origin_classified += 1
+            for raw in unclassified_origins:
+                if raw not in resolved["origin"]:
+                    db.execute(
+                        "INSERT OR REPLACE INTO origin_addresses "
+                        "(raw_string, estate_canonical, source, classified_at, model_version) "
+                        "VALUES (?, NULL, 'haiku', ?, ?)",
+                        (raw, now, sca_geolocator.MODEL_VERSION),
+                    )
+
+        # Varietals writeback.
+        varietal_classified = 0
+        if "varietal" in selected_tasks:
+            for raw, fields in resolved["varietal"].items():
+                db.execute(
+                    "INSERT OR REPLACE INTO varietal_addresses "
+                    "(raw_string, canonical_varietal, bean_type, morphology, "
+                    " source, classified_at, model_version) "
+                    "VALUES (?, ?, ?, ?, 'haiku', ?, ?)",
+                    (raw, fields["canonical_varietal"], fields["bean_type"],
+                     fields["morphology"], now, sca_geolocator.MODEL_VERSION),
+                )
+                varietal_classified += 1
+            for raw in unclassified_varietals:
+                if raw not in resolved["varietal"]:
+                    db.execute(
+                        "INSERT OR REPLACE INTO varietal_addresses "
+                        "(raw_string, canonical_varietal, bean_type, morphology, "
+                        " source, classified_at, model_version) "
+                        "VALUES (?, NULL, NULL, NULL, 'haiku', ?, ?)",
+                        (raw, now, sca_geolocator.MODEL_VERSION),
+                    )
+
+        # Roast writeback.
+        roast_classified = 0
+        if "roast" in selected_tasks:
+            for raw, canonical in resolved["roast"].items():
+                db.execute(
+                    "INSERT OR REPLACE INTO roast_addresses "
+                    "(raw_string, roast_canonical, source, classified_at, model_version) "
+                    "VALUES (?, ?, 'haiku', ?, ?)",
+                    (raw, canonical, now, sca_geolocator.MODEL_VERSION),
+                )
+                if canonical is not None:
+                    roast_classified += 1
+            for raw in unclassified_roasts:
+                if raw not in resolved["roast"]:
+                    db.execute(
+                        "INSERT OR REPLACE INTO roast_addresses "
+                        "(raw_string, roast_canonical, source, classified_at, model_version) "
+                        "VALUES (?, NULL, 'haiku', ?, ?)",
+                        (raw, now, sca_geolocator.MODEL_VERSION),
+                    )
+
+        # Process writeback.
+        process_classified = 0
+        if "process" in selected_tasks:
+            for raw, canonical in resolved["process"].items():
+                db.execute(
+                    "INSERT OR REPLACE INTO process_addresses "
+                    "(raw_string, canonical, is_null, source, classified_at, model_version) "
+                    "VALUES (?, ?, ?, 'haiku', ?, ?)",
+                    (raw, canonical, 1 if canonical is None else 0,
+                     now, sca_geolocator.MODEL_VERSION),
+                )
+                if canonical is not None:
+                    process_classified += 1
+            for raw in unclassified_processes:
+                if raw not in resolved["process"]:
+                    db.execute(
+                        "INSERT OR REPLACE INTO process_addresses "
+                        "(raw_string, canonical, is_null, source, classified_at, model_version) "
+                        "VALUES (?, NULL, 1, 'haiku', ?, ?)",
+                        (raw, now, sca_geolocator.MODEL_VERSION),
+                    )
+
+        db.commit()
+
+        # Denormalize address-table results onto products. One pass per
+        # field. Only refresh columns whose task ran this time.
+        if "origin" in selected_tasks:
+            db.execute(
+                "UPDATE products SET origin_estate_canonical = ("
+                "  SELECT estate_canonical FROM origin_addresses "
+                "  WHERE raw_string = products.origin"
+                ") WHERE products.origin IS NOT NULL AND products.origin != ''"
+            )
+        if "varietal" in selected_tasks:
+            db.execute(
+                "UPDATE products SET varietal_canonical = ("
+                "  SELECT canonical_varietal FROM varietal_addresses "
+                "  WHERE raw_string = products.varietal"
+                ") WHERE products.varietal IS NOT NULL AND products.varietal != ''"
+            )
+            db.execute(
+                "UPDATE products SET bean_type_canonical = ("
+                "  SELECT bean_type FROM varietal_addresses "
+                "  WHERE raw_string = products.varietal"
+                ") WHERE products.varietal IS NOT NULL AND products.varietal != ''"
+            )
+            db.execute(
+                "UPDATE products SET morphology = ("
+                "  SELECT morphology FROM varietal_addresses "
+                "  WHERE raw_string = products.varietal"
+                ") WHERE products.varietal IS NOT NULL AND products.varietal != ''"
+            )
+        if "roast" in selected_tasks:
+            # Lookup uses roast_level_name first (the verbatim term we
+            # harvested), falling back to the bucketed roast_level when
+            # the verbatim is empty — same precedence as the harvester.
+            db.execute(
+                "UPDATE products SET roast_level_canonical = ("
+                "  SELECT roast_canonical FROM roast_addresses "
+                "  WHERE raw_string = COALESCE(NULLIF(products.roast_level_name, ''), products.roast_level)"
+                ") WHERE COALESCE(products.roast_level_name, products.roast_level) IS NOT NULL"
+            )
+        if "process" in selected_tasks:
+            db.execute(
+                "UPDATE products SET process_canonical = ("
+                "  SELECT canonical FROM process_addresses "
+                "  WHERE raw_string = COALESCE(NULLIF(products.process_raw, ''), products.process)"
+                ") WHERE COALESCE(products.process_raw, products.process) IS NOT NULL"
+            )
+        db.commit()
+        log("denormalized canonical values onto products rows")
+
+        # Feed the canonical values BACK into the legacy product
+        # columns so standardization becomes the source of truth for
+        # the catalog (per user direction). The verbatim raw inputs
+        # stay preserved in the address tables — admins can always
+        # recover the original from origin_addresses.raw_string /
+        # varietal_addresses.raw_string / etc. Tasting notes are
+        # explicitly NOT touched (the per-row `tasting_notes` /
+        # `flavor_notes` columns hold the roaster's free-text prose
+        # which the SCA address table maps separately).
+        if "origin" in selected_tasks:
+            db.execute(
+                "UPDATE products SET origin = origin_estate_canonical "
+                "WHERE origin_estate_canonical IS NOT NULL "
+                "  AND origin_estate_canonical != 'Unknown'"
+            )
+        if "varietal" in selected_tasks:
+            db.execute(
+                "UPDATE products SET varietal = varietal_canonical "
+                "WHERE varietal_canonical IS NOT NULL"
+            )
+            db.execute(
+                "UPDATE products SET bean_type = bean_type_canonical "
+                "WHERE bean_type_canonical IS NOT NULL"
+            )
+        if "roast" in selected_tasks:
+            db.execute(
+                "UPDATE products SET roast_level = roast_level_canonical "
+                "WHERE roast_level_canonical IS NOT NULL"
+            )
+        if "process" in selected_tasks:
+            db.execute(
+                "UPDATE products SET process = process_canonical "
+                "WHERE process_canonical IS NOT NULL"
+            )
+        db.commit()
+        log("wrote canonical values back into legacy product columns")
+
+        log(
+            f"wrote — tasting:{tasting_classified}+{tasting_null}n, "
+            f"origins:{origin_classified}, varietals:{varietal_classified}, "
+            f"roasts:{roast_classified}, processes:{process_classified}"
+        )
+
+        # Post-success exemplar refresh. For each task that ran and
+        # didn't error, resample exemplars from the freshly-populated
+        # address table — this fixes the cold-start bootstrap where
+        # the FIRST run sees empty address tables (no anchor exemplars
+        # to draw from), classifies anyway, but the cached exemplar
+        # list stays empty for every subsequent run. Also resets the
+        # `regenerate_next` flag (only after success — if the run
+        # failed, the regen intent must persist for the retry).
+        per_task_errors = {
+            "tasting": tasting_err, "origin": origin_err,
+            "varietal": varietal_err, "roast": roast_err,
+            "process": process_err,
+        }
+        for task in selected_tasks:
+            if per_task_errors.get(task):
+                continue  # leave the regen intent + cache alone for retry
+            try:
+                sca_geolocator.refresh_exemplars_post_run(db, task, log=log)
+            except Exception as e:
+                log(f"  post-run exemplar refresh for {task} failed: {e}")
+
+        # If a chunk failed mid-run we still got committed work from the
+        # earlier chunks. Mark the job 'failed' so the admin knows to
+        # re-run it, but keep the stats so they can see the progress.
+        final_status = "failed" if partial_failure else "succeeded"
+        mark_finished(
+            db, job_id,
+            status=final_status,
+            error_message=partial_failure,
+            log_tail="\n".join(log_lines)[-10_000:],
+            result_summary={
+                "tasting": {
+                    "unclassified_input": len(unclassified_tags),
+                    "classified": tasting_classified,
+                    "null_resolved": tasting_null,
+                },
+                "origin": {
+                    "unclassified_input": len(unclassified_origins),
+                    "classified": origin_classified,
+                },
+                "varietal": {
+                    "unclassified_input": len(unclassified_varietals),
+                    "classified": varietal_classified,
+                },
+                "roast": {
+                    "unclassified_input": len(unclassified_roasts),
+                    "classified": roast_classified,
+                },
+                "process": {
+                    "unclassified_input": len(unclassified_processes),
+                    "classified": process_classified,
+                },
+                "selected_tasks": sorted(selected_tasks),
+            },
+        )
+    except Exception as e:
+        log(f"unexpected error: {type(e).__name__}: {e}")
+        try:
+            mark_finished(
+                db, job_id, status="failed",
+                error_message=f"{type(e).__name__}: {e}",
+                log_tail="\n".join(log_lines)[-10_000:],
+            )
+        except Exception:
+            pass
+    finally:
+        db.close()
 
 
 def run_geolocate_job(job_id: int) -> None:

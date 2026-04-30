@@ -122,9 +122,27 @@ export interface Product {
   /** Verbatim process text — preserves experimental specificity. */
   process_raw: string | null;
   varietal: string | null;
+  /** Standardization output — canonical cultivar name (or
+   * "Multi-cultivar"). Replaces the regex backfill once a
+   * standardization run completes. */
+  varietal_canonical: string | null;
   altitude_masl: number | null;
   bean_type: string | null;
+  /** Standardization output — species inferred from the variety
+   * tree. Consumer chips read COALESCE(bean_type_canonical, bean_type). */
+  bean_type_canonical: string | null;
   flavor_notes: string | null;
+  /** Regex-derived legacy chip column. Consumer Discover chips now
+   * read `origin_estate_canonical` first; this stays for any pages
+   * that haven't migrated. */
+  origin_region: string | null;
+  /** Standardization output — estate name normalised to "X Estate",
+   * or one of "Multi-estate" / "International" / "Unknown". The
+   * Discover Location filter hides Unknown. */
+  origin_estate_canonical: string | null;
+  /** Natural mutation — currently only "Peaberry" populates. NOT a
+   * varietal; lives in its own filter section. */
+  morphology: string | null;
   weight_grams: number | null;
   price_inr: number | null;
   image_url: string | null;
@@ -251,6 +269,13 @@ export interface RoasterProfile {
    * roaster page so they can read what Haiku is being told.
    */
   enrichment_prompt_hint: string | null;
+  /**
+   * ISO timestamp of the most recent Sonnet meta-call that wrote
+   * `enrichment_prompt_hint`. Distinct from `updated_at` (which
+   * moves on any profile edit) so the admin page can surface
+   * accurate hint freshness.
+   */
+  enrichment_prompt_hint_updated_at: string | null;
   updated_at: string | null;
 }
 
@@ -445,7 +470,7 @@ export interface DeletedRoaster {
 /** Background job tracked in the `jobs` table. */
 export interface CatalogJob {
   id: number;
-  kind: "scrape" | "geolocate" | "tree_validate";
+  kind: "scrape" | "geolocate" | "tree_validate" | "standardize" | "manual_sold_out";
   status: "queued" | "running" | "succeeded" | "failed";
   started_by: number;
   started_at: string | null;
@@ -485,6 +510,84 @@ export interface GeolocateStats {
   null_resolved: number;
   unclassified: number;
   total_classified_rows: number;
+}
+
+/** Per-task summary for the STANDARDIZATION sub-tab. Each block carries
+ * `total` (distinct input strings in the in-stock catalog) and
+ * `classified` (rows in the address table). The breakdown fields below
+ * differ per task — origins surface multi-estate / international /
+ * unknown counts, varietals surface multi-cultivar + morphology hits,
+ * roast / process surface their canonical-bucket distributions. */
+export interface StandardizeStats {
+  tasting: {
+    total: number;
+    classified: number;
+    geolocated: number;
+    unclassified: number;
+  };
+  origin: {
+    total: number;
+    classified: number;
+    unclassified: number;
+    specific_estate: number;
+    multi_estate: number;
+    international: number;
+    unknown: number;
+  };
+  varietal: {
+    total: number;
+    classified: number;
+    unclassified: number;
+    specific_varietal: number;
+    multi_cultivar: number;
+    with_morphology: number;
+  };
+  roast: {
+    total: number;
+    classified: number;
+    unclassified: number;
+    buckets: Record<string, number>;
+  };
+  process: {
+    total: number;
+    classified: number;
+    unclassified: number;
+    buckets: Record<string, number>;
+  };
+}
+
+/** Per-task exemplar-cache status surfaced by
+ * /api/admin/standardize/exemplars. `regenerate_next` is the toggle the
+ * admin flips to force a resample on the next run; `generated_at`
+ * answers "when was this list last refreshed?". */
+export interface StandardizeExemplarStatus {
+  regenerate_next: boolean;
+  generated_at: string | null;
+  /**
+   * Cached exemplar list, parsed from the row's `exemplars_json`. The
+   * shape varies by task (e.g. tasting uses `{tag, address}`, origin
+   * uses `{input, estate}`); admin UI renders these as raw key/value
+   * pairs so ops can see exactly what Haiku is being primed with.
+   */
+  exemplars: any[];
+}
+export type StandardizeTask =
+  | "tasting"
+  | "origin"
+  | "varietal"
+  | "roast"
+  | "process";
+
+export type StandardizeExemplarMap = Record<
+  StandardizeTask,
+  StandardizeExemplarStatus
+>;
+
+/** Read-only payload from /api/admin/standardize/trees — both reference
+ * trees ship in code, so the inspect modal renders these verbatim. */
+export interface StandardizeTrees {
+  sca_tree: any;
+  variety_tree: any;
 }
 
 /** Diff bucket returned by the tree-upload validation step. */

@@ -9,14 +9,14 @@
  *     surface.
  *
  *   * `<JobHistory />` — the row list itself, exported so
- *     TasteGraphPanel can reuse it for geolocate jobs (no proposal
- *     carousels there, just rows + log links).
+ *     StandardizationPanel can reuse it for standardize jobs (no
+ *     proposal carousels there, just rows + log links).
  *
  *   * `<JobLogModal />` — the full stdout/stderr viewer, also reused
- *     by TasteGraphPanel.
+ *     by StandardizationPanel.
  *
  *   * `parseResult`, `formatRelative` — pure helpers also imported by
- *     RoastersPanel + TasteGraphPanel.
+ *     RoastersPanel + StandardizationPanel.
  *
  * Pulled out of the prior `ScraperPanel.tsx` when BEANS was merged
  * into Roasters & Beans. The browse-list shape that ScraperPanel
@@ -172,7 +172,7 @@ export function RecentEnrichmentRuns() {
 }
 
 // ── JobHistory ──────────────────────────────────────────────────────────
-// Row list. Reused by TasteGraphPanel for geolocate jobs (no
+// Row list. Reused by StandardizationPanel for standardize jobs (no
 // onUndo / onProposalsChanged passed there).
 
 export function JobHistory({
@@ -426,7 +426,7 @@ function UndoConfirmModal({
   );
 }
 
-// ── Helpers (re-exported for TasteGraphPanel + RoastersPanel) ──────────
+// ── Helpers (re-exported for StandardizationPanel + RoastersPanel) ─────
 
 export function parseResult(raw: any): Record<string, any> {
   if (!raw) return {};
@@ -711,9 +711,11 @@ const s = StyleSheet.create({
     borderRadius: t.radius.lg,
     width: "92%",
     maxWidth: 720,
+    minHeight: 280,
     maxHeight: "85%",
     overflow: "hidden",
     zIndex: 1,
+    flexDirection: "column",
   } as any,
   modalHeader: {
     flexDirection: "row",

@@ -20,7 +20,7 @@
  * Every visual value reads from `useTokens` per CRUD_UTOPIA Rule 4.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -44,14 +44,17 @@ import { formatRelative, RecentEnrichmentRuns } from "./JobHistory";
 import { tap as hapticTap, commit as hapticCommit } from "../../utils/haptics";
 
 type RoasterFilter = "all" | "published" | "drafts" | "has_products" | "no_products";
-type ScrapedBucket = "any" | "1d" | "7d" | "30d" | "stale";
+type ScrapedBucket = "any" | "over_1d" | "over_7d" | "over_30d";
 
+// Staleness ladder — the admin uses this to surface roasters whose
+// catalogs need a fresh pull, not to find ones that were just
+// refreshed. Each bucket includes never-enriched roasters because
+// those are the most extreme form of stale.
 const BUCKET_OPTIONS: { key: ScrapedBucket; label: string }[] = [
   { key: "any", label: "Any time" },
-  { key: "1d", label: "Within last 24 hours" },
-  { key: "7d", label: "Within last 7 days" },
-  { key: "30d", label: "Within last 30 days" },
-  { key: "stale", label: "Stale (older than 30 days, or never)" },
+  { key: "over_1d", label: "Older than 24 hours" },
+  { key: "over_7d", label: "Older than 7 days" },
+  { key: "over_30d", label: "Older than 30 days, or never" },
 ];
 
 function ageHours(iso: string | null | undefined): number | null {
@@ -155,9 +158,11 @@ export default function RoastersPanel() {
       list = list.filter((r) => {
         const src = r.website ? sourceByWebsite.get(r.website) : null;
         const h = ageHours(src?.last_scraped_at || null);
-        if (scraped === "1d") return h != null && h <= 24;
-        if (scraped === "7d") return h != null && h <= 24 * 7;
-        if (scraped === "30d") return h != null && h <= 24 * 30;
+        // Predicate is "stale-by-at-least-X" — `h == null` (never
+        // enriched) satisfies every bucket since never-enriched is
+        // the most-stale case the admin wants to surface.
+        if (scraped === "over_1d") return h == null || h > 24;
+        if (scraped === "over_7d") return h == null || h > 24 * 7;
         return h == null || h > 24 * 30;
       });
     }
@@ -430,7 +435,10 @@ export default function RoastersPanel() {
             >
               {/* Lifecycle — single-select radios. Replaces the inline
                  chip row that used to sit above the rows. */}
-              <Text style={s.drawerSectionLabel}>Lifecycle</Text>
+              <CollapsibleSection
+                title="Lifecycle"
+                activeCount={filter !== "all" ? 1 : 0}
+              >
               {FILTER_OPTIONS.map((opt) => {
                 const count =
                   opt.key === "all" ? counts.total
@@ -454,13 +462,17 @@ export default function RoastersPanel() {
                   </Pressable>
                 );
               })}
+              </CollapsibleSection>
 
               <View style={s.drawerSectionDivider} />
 
               {/* Last enriched — bean-context filter pulled in from
                  the merged Beans tab. Surfaces stale roasters whose
                  catalogs need a fresh pull. */}
-              <Text style={s.drawerSectionLabel}>Last enriched</Text>
+              <CollapsibleSection
+                title="Last enriched"
+                activeCount={scraped !== "any" ? 1 : 0}
+              >
               {BUCKET_OPTIONS.map((opt) => {
                 const active = scraped === opt.key;
                 return (
@@ -478,10 +490,14 @@ export default function RoastersPanel() {
                   </Pressable>
                 );
               })}
+              </CollapsibleSection>
 
               <View style={s.drawerSectionDivider} />
 
-              <Text style={s.drawerSectionLabel}>Location</Text>
+              <CollapsibleSection
+                title="Location"
+                activeCount={selectedCities.length}
+              >
               {cities.length === 0 ? (
                 <Text style={s.emptyText}>No cities yet.</Text>
               ) : (
@@ -503,6 +519,7 @@ export default function RoastersPanel() {
                   );
                 })
               )}
+              </CollapsibleSection>
             </ScrollView>
             <View style={s.locDrawerFooter}>
               <Pressable
@@ -537,6 +554,51 @@ export default function RoastersPanel() {
     </View>
   );
 }
+
+// ── Collapsible filter section ─────────────────────────────────────────────
+// Wraps each filter group inside the admin location-drawer so the ops
+// person can scan all available filter groups at a glance and only
+// expand the ones they want to act on. A section auto-opens when its
+// `activeCount` rises above 0 — the active selection is the strongest
+// signal that the operator cares about this dimension.
+
+function CollapsibleSection({
+  title,
+  activeCount,
+  children,
+}: {
+  title: string;
+  activeCount: number;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(activeCount > 0);
+  useEffect(() => {
+    if (activeCount > 0) setOpen(true);
+  }, [activeCount]);
+  return (
+    <View>
+      <Pressable
+        onPress={() => setOpen((v) => !v)}
+        style={s.collapsibleHead}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+      >
+        <Text style={s.drawerSectionLabel}>{title}</Text>
+        {activeCount > 0 ? (
+          <Text style={s.collapsibleBadge}>{activeCount}</Text>
+        ) : null}
+        <View style={{ flex: 1 }} />
+        {open ? (
+          <ChevronDown size={t.size["icon.sm"]} color={t.color["text.muted"]} strokeWidth={1.75} />
+        ) : (
+          <ChevronRight size={t.size["icon.sm"]} color={t.color["text.muted"]} strokeWidth={1.75} />
+        )}
+      </Pressable>
+      {open ? children : null}
+    </View>
+  );
+}
+
 
 // ── Styles — every value is a token reference ────────────────────────────
 
@@ -705,6 +767,26 @@ const s = StyleSheet.create({
     letterSpacing: 0.8,
     paddingTop: t.spacing.sm,
     paddingBottom: t.spacing.xs,
+  } as any,
+  // Collapsible section header — gestures to collapse/expand the
+  // filter group; inherits drawerSectionLabel styling for the title.
+  collapsibleHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: t.spacing.sm,
+  } as any,
+  collapsibleBadge: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: 11,
+    color: t.color["text.on-dark"],
+    backgroundColor: t.color.accent,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 6,
+    textAlign: "center",
+    lineHeight: 18,
+    overflow: "hidden",
   } as any,
   drawerSectionDivider: {
     height: 1,

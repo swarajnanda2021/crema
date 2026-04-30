@@ -601,9 +601,11 @@ def stage_scrape_proposals(db, job_id: int,
                     meta_prompt_addendum = addendum
                     db.execute(
                         "UPDATE roaster_profiles "
-                        "SET enrichment_prompt_hint = ?, updated_at = ? "
+                        "SET enrichment_prompt_hint = ?, "
+                        "    enrichment_prompt_hint_updated_at = ?, "
+                        "    updated_at = ? "
                         "WHERE roaster_slug = ?",
-                        (addendum, now, roaster_slug),
+                        (addendum, now, now, roaster_slug),
                     )
                     db.commit()
                     if log:

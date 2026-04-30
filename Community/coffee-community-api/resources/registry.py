@@ -433,6 +433,11 @@ RESOURCES = {
             # the roaster page so they can read what the model is
             # being told about THIS roaster on every run.
             "enrichment_prompt_hint": {"type": "str"},
+            # Timestamp of the most recent hint write — see database.py
+            # migration. The admin page surfaces this as "Updated 2d
+            # ago" inside the hint card so freshness is visible without
+            # diving into a job log.
+            "enrichment_prompt_hint_updated_at": {"type": "str"},
             "updated_at": {"type": "str"},
         },
         "auth": {"list": None, "read": None, "update": "required"},

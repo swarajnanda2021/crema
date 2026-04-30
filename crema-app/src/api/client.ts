@@ -108,36 +108,6 @@ export async function apiFetchRaw<T = any>(
   return res.json();
 }
 
-/**
- * Open a streaming request and hand the raw Response back to the
- * caller. Used by the SSE-driven Sonnet roaster enricher so the admin
- * page can read `response.body.getReader()` directly. Same auth
- * plumbing as `apiFetchRaw`; caller is responsible for consuming /
- * disposing the stream.
- *
- * Throws on non-2xx (drains the body for the error message). On 2xx
- * it returns the live Response; the caller should check
- * `response.body` before reading.
- */
-export async function apiStream(
-  path: string,
-  options: RequestInit = {},
-): Promise<Response> {
-  const token = await getToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: "text/event-stream",
-    ...(options.headers as Record<string, string>),
-  };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API ${res.status}: ${text}`);
-  }
-  return res;
-}
-
 /** Upload a file (e.g. avatar). Uses FormData — no JSON content-type. */
 export async function apiUpload<T = any>(
   path: string,

@@ -1,0 +1,183 @@
+{
+  "version": "1.0.0",
+  "source": "World Coffee Research (varieties.worldcoffeeresearch.org) + India Coffee Board / CCRI selections",
+  "species": ["Arabica", "Robusta", "Liberica", "Excelsa"],
+
+  "groups": {
+    "Bourbon-Typica (Arabica)": {
+      "species": "Arabica",
+      "varieties": [
+        {"name": "Typica",            "synonyms": ["Bourbon Typica", "Common Typica"]},
+        {"name": "Bourbon",           "synonyms": ["Common Bourbon"]},
+        {"name": "Red Bourbon",       "synonyms": []},
+        {"name": "Yellow Bourbon",    "synonyms": []},
+        {"name": "Caturra",           "synonyms": ["Catura"]},
+        {"name": "Catuai",            "synonyms": ["Red Catuai", "Yellow Catuai"]},
+        {"name": "Mundo Novo",        "synonyms": []},
+        {"name": "Pacas",             "synonyms": []},
+        {"name": "Pacamara",          "synonyms": []},
+        {"name": "Maragogype",        "synonyms": ["Elephant Bean", "Maragogipe"]},
+        {"name": "Tekisic",           "synonyms": []},
+        {"name": "Villa Sarchi",      "synonyms": ["Villalobos"]},
+        {"name": "Mibirizi",          "synonyms": []},
+        {"name": "Jackson",           "synonyms": ["Jackson 2/1257"]},
+        {"name": "Java",              "synonyms": []},
+        {"name": "Kent",              "synonyms": ["Kents"]},
+        {"name": "Pache",             "synonyms": []},
+        {"name": "San Ramon",         "synonyms": ["San Ramón"]}
+      ]
+    },
+
+    "Ethiopian Landrace (Arabica)": {
+      "species": "Arabica",
+      "varieties": [
+        {"name": "Geisha",       "synonyms": ["Gesha", "Panama Geisha", "Brown Tip Panama Geisha"]},
+        {"name": "Harar",        "synonyms": ["Harrar"]},
+        {"name": "Heirloom",     "synonyms": ["Ethiopian Heirloom", "Landrace"]},
+        {"name": "Tafarikela",   "synonyms": []}
+      ]
+    },
+
+    "Kenya & East-Africa (Arabica)": {
+      "species": "Arabica",
+      "varieties": [
+        {"name": "SL 14",     "synonyms": ["SL14"]},
+        {"name": "SL 28",     "synonyms": ["SL28", "Selection 28"]},
+        {"name": "SL 34",     "synonyms": ["SL34"]},
+        {"name": "K7",        "synonyms": []},
+        {"name": "Ruiru 11",  "synonyms": []},
+        {"name": "Batian",    "synonyms": []}
+      ]
+    },
+
+    "Catimor — Caturra × Hybrido de Timor (Arabica × Robusta introgressed)": {
+      "species": "Arabica",
+      "varieties": [
+        {"name": "Catimor",        "synonyms": ["Catimore"]},
+        {"name": "Cauvery",        "synonyms": ["SLN 12", "Selection 12"]},
+        {"name": "Catimor 129",    "synonyms": ["Cat129", "Nyika"]},
+        {"name": "Catisic",        "synonyms": []},
+        {"name": "Costa Rica 95",  "synonyms": ["CR95"]},
+        {"name": "IHCAFE 90",      "synonyms": []},
+        {"name": "Lempira",        "synonyms": []},
+        {"name": "Oro Azteca",     "synonyms": []},
+        {"name": "Anacafe 14",     "synonyms": []},
+        {"name": "T5175",          "synonyms": []},
+        {"name": "T8667",          "synonyms": []}
+      ]
+    },
+
+    "Sarchimor — Villa Sarchi × Hybrido de Timor (Arabica × Robusta introgressed)": {
+      "species": "Arabica",
+      "varieties": [
+        {"name": "IAPAR 59",     "synonyms": []},
+        {"name": "Marsellesa",   "synonyms": []},
+        {"name": "Cuscatleco",   "synonyms": []},
+        {"name": "Limani",       "synonyms": []},
+        {"name": "Obata",        "synonyms": ["Obata Red"]},
+        {"name": "Parainema",    "synonyms": []},
+        {"name": "Starmaya",     "synonyms": []},
+        {"name": "T5296",        "synonyms": []},
+        {"name": "Chandragiri",  "synonyms": ["SLN 13", "Selection 13"]},
+        {"name": "Hemavathi",    "synonyms": []},
+        {"name": "Sachimore",    "synonyms": ["Sarchimore"]}
+      ]
+    },
+
+    "Indian Bourbon-Lineage Selections (Arabica)": {
+      "species": "Arabica",
+      "varieties": [
+        {"name": "S 795",   "synonyms": ["S795", "SL 795", "SL795", "Selection 795",
+                                          "SLN 795", "SLN795", "SLN-795", "S.795",
+                                          "SLN 795 HG", "Sln 795"]},
+        {"name": "SLN 5A",  "synonyms": ["S 5A", "Sln 5A", "Selection 5A"]},
+        {"name": "SLN 5B",  "synonyms": ["S 5B", "Sln 5B", "Selection 5B", "SLN 5", "S 2931"]},
+        {"name": "SLN 6",   "synonyms": ["S 2828", "Sln 6", "Selection 6"]},
+        {"name": "SLN 7",   "synonyms": ["Sln 7.3", "Selection 7"]},
+        {"name": "SLN 9",   "synonyms": ["Sln 9", "S 9", "SL 9", "SL9", "SLN9",
+                                          "SLN-9", "Sln. 9", "Selection 9"]},
+        {"name": "SLN 10",  "synonyms": ["Sln 10", "Selection 10"]},
+        {"name": "SLN 11",  "synonyms": ["Sln 11", "Selection 11"]},
+        {"name": "Devamachy", "synonyms": []}
+      ]
+    },
+
+    "F1 Modern Hybrids (Arabica)": {
+      "species": "Arabica",
+      "varieties": [
+        {"name": "Centroamericano",  "synonyms": ["H1"]},
+        {"name": "H3",               "synonyms": []},
+        {"name": "Casiopea",         "synonyms": []},
+        {"name": "Esperanza",        "synonyms": ["L4 A5"]},
+        {"name": "Evaluna",          "synonyms": ["EC18"]},
+        {"name": "Mundo Maya",       "synonyms": ["EC16"]},
+        {"name": "Nayarita",         "synonyms": ["EC19"]},
+        {"name": "Milenio",          "synonyms": ["H10"]}
+      ]
+    },
+
+    "Heritage / Heirloom (Other Arabica)": {
+      "species": "Arabica",
+      "varieties": [
+        {"name": "Old Peradeniya",   "synonyms": ["Peradeniya"]},
+        {"name": "Caripe",           "synonyms": []},
+        {"name": "Monte Claro",      "synonyms": []},
+        {"name": "AB3",              "synonyms": []},
+        {"name": "BPL10",            "synonyms": []}
+      ]
+    },
+
+    "Robusta — Indian Selections": {
+      "species": "Robusta",
+      "varieties": [
+        {"name": "S 274",   "synonyms": ["S274", "Selection 274"]},
+        {"name": "CXR",     "synonyms": ["C×R", "CxR", "Congensis × Robusta"]},
+        {"name": "SLN 1R",  "synonyms": ["Sln.1R", "SLN-1R"]},
+        {"name": "SLN 2R",  "synonyms": ["Sln.2R", "SLN-2R"]},
+        {"name": "SLN 3R",  "synonyms": ["Sln.3R", "SLN-3R"]}
+      ]
+    },
+
+    "Robusta — International Selections": {
+      "species": "Robusta",
+      "varieties": [
+        {"name": "Erecta",                  "synonyms": ["Coffea quillou"]},
+        {"name": "Nganda",                  "synonyms": ["Coffea ugandae"]},
+        {"name": "BP 534",                  "synonyms": []},
+        {"name": "BP 936",                  "synonyms": []},
+        {"name": "BRS 1216",                "synonyms": []},
+        {"name": "BRS 2299",                "synonyms": []},
+        {"name": "BRS 2336",                "synonyms": []},
+        {"name": "BRS 3193",                "synonyms": []},
+        {"name": "KR1",                     "synonyms": ["NARO Kituza KR1"]},
+        {"name": "TR4",                     "synonyms": []},
+        {"name": "TR9",                     "synonyms": []},
+        {"name": "Roubi",                   "synonyms": []},
+        {"name": "Old Peradeniya Robusta",  "synonyms": []}
+      ]
+    },
+
+    "Liberica": {
+      "species": "Liberica",
+      "varieties": [{"name": "Liberica", "synonyms": ["Coffea liberica"]}]
+    },
+
+    "Excelsa": {
+      "species": "Excelsa",
+      "varieties": [{"name": "Excelsa", "synonyms": ["Coffea excelsa"]}]
+    }
+  },
+
+  "morphologies": [
+    {
+      "name": "Peaberry",
+      "synonyms": ["Caracol", "Caracoli", "Caracolillo"],
+      "definition": "Single-seed natural mutation. Occurs ~5–10% in any variety, independent of altitude / region / processing. Populates a separate `morphology` field — NOT a varietal."
+    },
+    {
+      "name": "Triangular",
+      "synonyms": [],
+      "definition": "Multi-seed mutation (3+ seeds per cherry). Rare commercial occurrence. Treated as a defect grade, not a varietal."
+    }
+  ]
+}

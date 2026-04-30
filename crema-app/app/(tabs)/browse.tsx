@@ -9,7 +9,7 @@ import { useCallback, useMemo, useState, useEffect } from "react";
 import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { Image } from "expo-image";
-import { Search, X, ArrowRight } from "lucide-react-native";
+import { Search, X, ArrowRight, ChevronDown, ChevronRight } from "lucide-react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useResource } from "../../src/resources/useResource";
@@ -80,30 +80,27 @@ export default function BrowsePage() {
   // any chip in the section is active (no "Other" bucket — see the
   // canonicalize.py module on the backend for the matching rule).
   const [selectedBeanTypes, setSelectedBeanTypes] = useState<string[]>([]);
-  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  // Location filter — values are canonical estate names from the
+  // standardization pass (`origin_estate_canonical`), plus the synthetic
+  // "Multi-estate" / "International" buckets. "Unknown" rows are hidden
+  // from the chip list per the standardization spec.
+  const [selectedEstates, setSelectedEstates] = useState<string[]>([]);
+  // Varietal + natural-mutation filter — one combined section. Keys
+  // can be canonical varieties (SLN 9, Geisha, …) OR morphologies
+  // (Peaberry); the predicate matches against either column.
   const [selectedVarietals, setSelectedVarietals] = useState<string[]>([]);
   const [selectedAltitudes, setSelectedAltitudes] = useState<string[]>([]);
   const [selectedPriceBands, setSelectedPriceBands] = useState<string[]>([]);
-  // Roasters tab — Location filter. Lifted to BrowsePage so the
-  // mobile filter drawer (rendered here) can edit the same array
-  // that the desktop sidebar inside RoastersList reads.
+  // Roasters tab — Location filter (city) and Estate-exposure filter.
+  // Both lifted to BrowsePage so the mobile filter drawer (rendered
+  // here) can edit the same arrays that the desktop sidebar inside
+  // RoastersList reads. Estate exposure asks "which roasters source
+  // from estate X" — derived from products' `origin_estate_canonical`.
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
+  const [selectedRoasterEstates, setSelectedRoasterEstates] = useState<string[]>([]);
   // §2.16 — stable search-bar hide that doesn't thrash at
   // end-of-list. Replaces the old raw `y > lastY && y > 10` toggle.
   const { hidden: searchBarHidden, handleScroll: handleBeansScroll } = useSearchBarAutoHide();
-  // Two new lens-style toggles for catalog freshness
-  // filter: `newOnly` narrows to beans created in the last 30 days
-  // (catalog-freshness signal — useful right after an enrichment
-  // run); `showSoldOut` flips the default available-only view to
-  // show ONLY sold-out beans (admin-y diagnostic — pre-launch the
-  // soft plan is to drop sold-outs from the catalog entirely; for
-  // now this lens lets us see them).
-  const [newOnly, setNewOnly] = useState(false);
-  const [showSoldOut, setShowSoldOut] = useState(false);
-  // 30 days expressed in milliseconds — `created_at` is ISO so a
-  // single Date.parse + arithmetic gets the cutoff. Defined once
-  // outside the filter useMemo so it stays cheap.
-  const NEW_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
   // §2.34 — mobile filter drawer. On narrow screens the sidebar is
   // hidden; a Filters button next to the search bar slides this in
   // from the right using the shared SlidePanel primitive.
@@ -118,20 +115,11 @@ export default function BrowsePage() {
 
   // Inline filtering (replaces filterCoffees utility)
   const filtered = useMemo(() => {
-    // Default lens: in-stock only. `showSoldOut` flips it to
-    // sold-out only — the two are exclusive, never overlapping
-    // (consumer browsing wants either fresh stock or the "what's
-    // gone missing" lens, not a mix).
-    let list = showSoldOut
-      ? products.filter((p: any) => p.available === false || p.available === 0)
-      : products.filter((p: any) => p.available !== false && p.available !== 0);
-    if (newOnly) {
-      const cutoff = Date.now() - NEW_WINDOW_MS;
-      list = list.filter((p: any) => {
-        const ts = Date.parse(p.created_at || "");
-        return Number.isFinite(ts) && ts >= cutoff;
-      });
-    }
+    // In-stock only — sold-out beans are dropped from the consumer
+    // catalog entirely.
+    let list = products.filter(
+      (p: any) => p.available !== false && p.available !== 0,
+    );
     if (query) {
       const q = query.toLowerCase();
       list = list.filter((p: any) =>
@@ -145,13 +133,28 @@ export default function BrowsePage() {
     if (selectedRoasts.length > 0) list = list.filter((p: any) => selectedRoasts.includes(p.roast_level));
     if (selectedProcesses.length > 0) list = list.filter((p: any) => selectedProcesses.includes(p.process));
     if (selectedBeanTypes.length > 0) {
-      list = list.filter((p: any) => p.bean_type && selectedBeanTypes.includes(p.bean_type));
+      // bean_type_canonical wins when standardization has filled it;
+      // legacy bean_type is the fallback so newly-scraped rows stay
+      // searchable in the moments before the next standardization run.
+      list = list.filter((p: any) => {
+        const bt = p.bean_type_canonical || p.bean_type;
+        return bt && selectedBeanTypes.includes(bt);
+      });
     }
-    if (selectedRegions.length > 0) {
-      list = list.filter((p: any) => p.origin_region && selectedRegions.includes(p.origin_region));
+    if (selectedEstates.length > 0) {
+      list = list.filter((p: any) =>
+        p.origin_estate_canonical &&
+        p.origin_estate_canonical !== "Unknown" &&
+        selectedEstates.includes(p.origin_estate_canonical),
+      );
     }
     if (selectedVarietals.length > 0) {
-      list = list.filter((p: any) => p.varietal_canonical && selectedVarietals.includes(p.varietal_canonical));
+      // Combined varietal + morphology filter. A bean passes if its
+      // canonical_varietal OR its morphology lands in the selection.
+      list = list.filter((p: any) =>
+        (!!p.varietal_canonical && selectedVarietals.includes(p.varietal_canonical)) ||
+        (!!p.morphology && selectedVarietals.includes(p.morphology)),
+      );
     }
     if (selectedAltitudes.length > 0) {
       list = list.filter((p: any) => {
@@ -188,58 +191,295 @@ export default function BrowsePage() {
       });
     }
     return list;
-  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, selectedBeanTypes, selectedRegions, selectedVarietals, selectedAltitudes, selectedPriceBands, sortBy, popularity, newOnly, showSoldOut]);
+  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, selectedBeanTypes, selectedEstates, selectedVarietals, selectedAltitudes, selectedPriceBands, sortBy, popularity]);
 
   const filteredRoasterCount = useMemo(() => new Set(filtered.map((p: any) => p.roaster_slug)).size, [filtered]);
 
   // Cities derived once for the mobile drawer — same shape the
   // RoastersList sidebar uses, kept in sync because both consume the
-  // same `roasters` from useCoffeeData.
+  // same `roasters` from useCoffeeData. Plain array; the count-bearing
+  // option list is `cityOptions` below.
   const cities = useMemo(() => {
     const set = new Set<string>();
     (roasters as any[]).forEach((r: any) => { if (r.city) set.add(r.city); });
     return Array.from(set).sort();
   }, [roasters]);
 
-  // Bean Type chip set — filter the canonical 5 down to species that
-  // actually have ≥1 product in the current catalog so the drawer
-  // doesn't list dead chips.
-  const beanTypeOptions = useMemo(() => {
-    const present = new Set<string>();
-    (products as any[]).forEach((p: any) => { if (p.bean_type) present.add(p.bean_type); });
-    return BEAN_TYPES.filter(b => present.has(b.key));
+  // Estate-exposure map for the ROASTERS tab: roaster_slug → Set of
+  // estates that roaster has on shelf. Driven by products'
+  // `origin_estate_canonical` — only specific estate names land here,
+  // since "Multi-estate" / "International" / "Unknown" don't add
+  // discoverable signal at the roaster level.
+  const roasterEstateMap = useMemo(() => {
+    const map: Record<string, Set<string>> = {};
+    (products as any[]).forEach((p: any) => {
+      const slug = p.roaster_slug;
+      const e = p.origin_estate_canonical;
+      if (!slug || !e) return;
+      if (e === "Unknown" || e === "Multi-estate" || e === "International") return;
+      if (!map[slug]) map[slug] = new Set();
+      map[slug].add(e);
+    });
+    return map;
   }, [products]);
 
-  // Region chip set — derived from `products.origin_region` (populated
-  // by services/canonicalize.py). Sorted by product count descending,
-  // alphabetical tiebreak — high-signal regions surface first.
-  const regionOptions = useMemo(() => {
+  // Faceted count helpers for the ROASTERS tab. The "base list of
+  // roasters" excludes the chip-set we're counting so each chip's
+  // number reads as "how many roasters remain if I toggle this on?".
+  const baseRoastersExcept = (skip: "city" | "estate") => {
+    let list = roasters as any[];
+    if (skip !== "city" && selectedCities.length > 0) {
+      list = list.filter((r) => r.city && selectedCities.includes(r.city));
+    }
+    if (skip !== "estate" && selectedRoasterEstates.length > 0) {
+      list = list.filter((r) => {
+        const exposes = roasterEstateMap[r.slug];
+        if (!exposes) return false;
+        return selectedRoasterEstates.some((e) => exposes.has(e));
+      });
+    }
+    return list;
+  };
+
+  const cityOptions = useMemo(() => {
+    const base = baseRoastersExcept("city");
     const counts = new Map<string, number>();
-    (products as any[]).forEach((p: any) => {
-      const r = p.origin_region;
-      if (r) counts.set(r, (counts.get(r) || 0) + 1);
+    base.forEach((r: any) => {
+      if (r.city) counts.set(r.city, (counts.get(r.city) || 0) + 1);
     });
     return Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .map(([key]) => ({ key, label: key }));
-  }, [products]);
+      .map(([key, count]) => ({ key, label: key, count }))
+      .sort((a, b) => b.count - a.count);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roasters, roasterEstateMap, selectedRoasterEstates]);
 
-  // Varietal chip set — derived from `products.varietal_canonical`.
-  // Cultivars with only 1 product in the catalog are omitted (they
-  // stay searchable but don't pollute the chip set with singletons).
-  // Heavier curation lands later via the Coffee Standardization
-  // sub-tab in Catalog Ops.
-  const varietalOptions = useMemo(() => {
+  const roasterEstateOptions = useMemo(() => {
+    const base = baseRoastersExcept("estate");
     const counts = new Map<string, number>();
-    (products as any[]).forEach((p: any) => {
+    base.forEach((r: any) => {
+      const exposes = roasterEstateMap[r.slug];
+      if (!exposes) return;
+      exposes.forEach((e) => counts.set(e, (counts.get(e) || 0) + 1));
+    });
+    return Array.from(counts.entries())
+      .map(([key, count]) => ({ key, label: key, count }))
+      .sort((a, b) => b.count - a.count);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roasters, roasterEstateMap, selectedCities]);
+
+  // Faceted counts — for each section X, count is computed against the
+  // products list with all OTHER active filters applied. The number
+  // beside each chip answers "if I toggle this on now, how many
+  // coffees remain in view?". Sorted descending so the highest-yield
+  // chips surface first.
+  //
+  // Predicates are pure (read each chip's selection state from the
+  // closure) so the helper below can swap in / out individual filters
+  // by name when computing per-section base lists.
+  const passRoasters = (p: any) =>
+    selectedRoasters.length === 0 || selectedRoasters.includes(p.roaster_slug);
+  const passRoasts = (p: any) =>
+    selectedRoasts.length === 0 || (!!p.roast_level && selectedRoasts.includes(p.roast_level));
+  const passProcesses = (p: any) =>
+    selectedProcesses.length === 0 || (!!p.process && selectedProcesses.includes(p.process));
+  const passBeanTypes = (p: any) => {
+    if (selectedBeanTypes.length === 0) return true;
+    const bt = p.bean_type_canonical || p.bean_type;
+    return !!bt && selectedBeanTypes.includes(bt);
+  };
+  const passEstates = (p: any) =>
+    selectedEstates.length === 0 ||
+    (!!p.origin_estate_canonical &&
+     p.origin_estate_canonical !== "Unknown" &&
+     selectedEstates.includes(p.origin_estate_canonical));
+  const passVarietals = (p: any) => {
+    if (selectedVarietals.length === 0) return true;
+    if (p.varietal_canonical && selectedVarietals.includes(p.varietal_canonical)) return true;
+    if (p.morphology && selectedVarietals.includes(p.morphology)) return true;
+    return false;
+  };
+  const passAltitudes = (p: any) =>
+    selectedAltitudes.length === 0 ||
+    selectedAltitudes.some((k) => {
+      const band = ALTITUDE_BANDS.find((b) => b.key === k);
+      return band && p.altitude_masl != null && band.test(p.altitude_masl);
+    });
+  const passPriceBands = (p: any) => {
+    if (selectedPriceBands.length === 0) return true;
+    if (p.price_inr == null || !p.weight_grams) return false;
+    const ppg = (p.price_inr / p.weight_grams) * 100;
+    return selectedPriceBands.some((k) => {
+      const band = PRICE_BANDS.find((b) => b.key === k);
+      return band && band.test(ppg);
+    });
+  };
+  const passQuery = (p: any) => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return (p.coffee_name || "").toLowerCase().includes(q)
+      || (p.roaster_name || "").toLowerCase().includes(q)
+      || (p.tasting_notes || "").toLowerCase().includes(q)
+      || (p.origin || "").toLowerCase().includes(q);
+  };
+
+  // `inStock` shrinks the universe to in-stock products once; every
+  // section's base list starts here.
+  const inStock = useMemo(
+    () => (products as any[]).filter((p: any) => p.available !== false && p.available !== 0),
+    [products],
+  );
+
+  const baseExcept = (skip: string) =>
+    inStock.filter((p: any) =>
+      (skip === "roasters" || passRoasters(p)) &&
+      (skip === "roast" || passRoasts(p)) &&
+      (skip === "process" || passProcesses(p)) &&
+      (skip === "beanType" || passBeanTypes(p)) &&
+      (skip === "estate" || passEstates(p)) &&
+      (skip === "varietal" || passVarietals(p)) &&
+      (skip === "altitude" || passAltitudes(p)) &&
+      (skip === "price" || passPriceBands(p)) &&
+      passQuery(p),
+    );
+
+  // Bean Type chip set — present-only, reading the canonical column
+  // first (set by standardization) with the legacy `bean_type` as
+  // fallback for products that haven't been re-standardized yet.
+  const beanTypeOptions = useMemo(() => {
+    const base = baseExcept("beanType");
+    const counts = new Map<string, number>();
+    base.forEach((p: any) => {
+      const bt = p.bean_type_canonical || p.bean_type;
+      if (bt) counts.set(bt, (counts.get(bt) || 0) + 1);
+    });
+    return BEAN_TYPES
+      .filter((b) => counts.has(b.key))
+      .map((b) => ({ ...b, count: counts.get(b.key)! }))
+      .sort((a, b) => b.count - a.count);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inStock, query, selectedRoasters, selectedRoasts, selectedProcesses, selectedEstates, selectedVarietals, selectedAltitudes, selectedPriceBands]);
+
+  // Location chip set — derived from `products.origin_estate_canonical`
+  // (set by the standardization pass). "Unknown" is hidden — that's
+  // the standardization bucket for "no farm-level provenance to
+  // surface".
+  const estateOptions = useMemo(() => {
+    const base = baseExcept("estate");
+    const counts = new Map<string, number>();
+    base.forEach((p: any) => {
+      const e = p.origin_estate_canonical;
+      if (e && e !== "Unknown") counts.set(e, (counts.get(e) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([key, count]) => ({ key, label: key, count }))
+      .sort((a, b) => b.count - a.count);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inStock, query, selectedRoasters, selectedRoasts, selectedProcesses, selectedBeanTypes, selectedVarietals, selectedAltitudes, selectedPriceBands]);
+
+  // Varietal chip set — combines `varietal_canonical` (named cultivars
+  // + "Multi-cultivar") with `morphology` (Peaberry, Triangular)
+  // because mutations and cultivars are conceptually one filter
+  // surface from the consumer's standpoint. A bean tagged as both
+  // Geisha + Peaberry shows up under either chip and both are
+  // selectable in the same section.
+  const varietalOptions = useMemo(() => {
+    const base = baseExcept("varietal");
+    const counts = new Map<string, number>();
+    base.forEach((p: any) => {
       const v = p.varietal_canonical;
       if (v) counts.set(v, (counts.get(v) || 0) + 1);
+      const m = p.morphology;
+      if (m && m !== v) counts.set(m, (counts.get(m) || 0) + 1);
+    });
+    // Drop singleton named varietals (≥2-product threshold) but keep
+    // every morphology even when a single bean carries it — Peaberry
+    // is a small but meaningful filter even at low counts.
+    const isMorphology = (k: string) => k === "Peaberry" || k === "Triangular";
+    return Array.from(counts.entries())
+      .filter(([key, n]) => isMorphology(key) || n >= 2)
+      .map(([key, count]) => ({ key, label: key, count }))
+      .sort((a, b) => b.count - a.count);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inStock, query, selectedRoasters, selectedRoasts, selectedProcesses, selectedBeanTypes, selectedEstates, selectedAltitudes, selectedPriceBands]);
+
+  // Roast Level chip set — faceted, descending count. `<UNKNOWN>` is
+  // hidden from the chip list — that's a placeholder Sonnet writes
+  // when it can't infer a roast level, and it adds nothing to the
+  // consumer's filter surface.
+  const roastOptions = useMemo(() => {
+    const base = baseExcept("roast");
+    const counts = new Map<string, number>();
+    base.forEach((p: any) => {
+      const r = p.roast_level;
+      if (r && r !== "<UNKNOWN>") counts.set(r, (counts.get(r) || 0) + 1);
     });
     return Array.from(counts.entries())
-      .filter(([, n]) => n >= 2)
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .map(([key]) => ({ key, label: key }));
-  }, [products]);
+      .map(([key, count]) => ({ key, label: key, count }))
+      .sort((a, b) => b.count - a.count);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inStock, query, selectedRoasters, selectedProcesses, selectedBeanTypes, selectedEstates, selectedVarietals, selectedAltitudes, selectedPriceBands]);
+
+  // Process chip set — same shape; `<UNKNOWN>` hidden.
+  const processOptions = useMemo(() => {
+    const base = baseExcept("process");
+    const counts = new Map<string, number>();
+    base.forEach((p: any) => {
+      const pr = p.process;
+      if (pr && pr !== "<UNKNOWN>") counts.set(pr, (counts.get(pr) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([key, count]) => ({ key, label: key, count }))
+      .sort((a, b) => b.count - a.count);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inStock, query, selectedRoasters, selectedRoasts, selectedBeanTypes, selectedEstates, selectedVarietals, selectedAltitudes, selectedPriceBands]);
+
+  // Roasters chip set — count = how many products this roaster has in
+  // the faceted base list. Pulls slug from products + label from the
+  // `roasters` map fed by useCoffeeData.
+  const roasterOptions = useMemo(() => {
+    const base = baseExcept("roasters");
+    const counts = new Map<string, number>();
+    base.forEach((p: any) => {
+      const slug = p.roaster_slug;
+      if (slug) counts.set(slug, (counts.get(slug) || 0) + 1);
+    });
+    const labelBySlug = new Map<string, string>();
+    (roasters as any[]).forEach((r: any) => {
+      if (r.slug) labelBySlug.set(r.slug, r.name || r.slug);
+    });
+    return Array.from(counts.entries())
+      .map(([key, count]) => ({ key, label: labelBySlug.get(key) || key, count }))
+      .sort((a, b) => b.count - a.count);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inStock, roasters, query, selectedRoasts, selectedProcesses, selectedBeanTypes, selectedEstates, selectedVarietals, selectedAltitudes, selectedPriceBands]);
+
+  // Altitude bands — count = how many in-base products fall in each
+  // band. Bands themselves stay in fixed order (lowland → SHB) since
+  // that's the consumer's mental model; only counts vary with facets.
+  const altitudeOptions = useMemo(() => {
+    const base = baseExcept("altitude");
+    return ALTITUDE_BANDS.map((b) => {
+      const count = base.filter((p: any) =>
+        p.altitude_masl != null && b.test(p.altitude_masl),
+      ).length;
+      return { key: b.key, label: b.label, count };
+    }).filter((x) => x.count > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inStock, query, selectedRoasters, selectedRoasts, selectedProcesses, selectedBeanTypes, selectedEstates, selectedVarietals, selectedPriceBands]);
+
+  // Price bands — same idea; ppg = price per 100g.
+  const priceOptions = useMemo(() => {
+    const base = baseExcept("price");
+    return PRICE_BANDS.map((b) => {
+      const count = base.filter((p: any) => {
+        if (p.price_inr == null || !p.weight_grams) return false;
+        const ppg = (p.price_inr / p.weight_grams) * 100;
+        return b.test(ppg);
+      }).length;
+      return { key: b.key, label: b.label, count };
+    }).filter((x) => x.count > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inStock, query, selectedRoasters, selectedRoasts, selectedProcesses, selectedBeanTypes, selectedEstates, selectedVarietals, selectedAltitudes]);
 
   // Per-tab filter activity. The drawer + the filter-icon dot need
   // to reflect what's actually editable from the current tab, not
@@ -249,13 +489,11 @@ export default function BrowsePage() {
     selectedRoasts.length +
     selectedProcesses.length +
     selectedBeanTypes.length +
-    selectedRegions.length +
+    selectedEstates.length +
     selectedVarietals.length +
     selectedAltitudes.length +
-    selectedPriceBands.length +
-    (newOnly ? 1 : 0) +
-    (showSoldOut ? 1 : 0);
-  const roastersFilterCount = selectedCities.length;
+    selectedPriceBands.length;
+  const roastersFilterCount = selectedCities.length + selectedRoasterEstates.length;
   const activeFilterCount = activeTab === "roasters" ? roastersFilterCount : beansFilterCount;
   const hasActiveFilters = activeTab === "roasters"
     ? roastersFilterCount > 0
@@ -268,12 +506,12 @@ export default function BrowsePage() {
   const clearAll = () => {
     if (activeTab === "roasters") {
       setSelectedCities([]);
+      setSelectedRoasterEstates([]);
     } else {
       setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]);
-      setSelectedBeanTypes([]); setSelectedRegions([]); setSelectedVarietals([]);
+      setSelectedBeanTypes([]); setSelectedEstates([]); setSelectedVarietals([]);
       setSelectedAltitudes([]); setSelectedPriceBands([]);
       setQuery("");
-      setNewOnly(false); setShowSoldOut(false);
     }
   };
 
@@ -299,12 +537,15 @@ export default function BrowsePage() {
             {isMobile && (
               <Pressable
                 onPress={() => setFilterDrawerOpen(true)}
-                style={s.tabBarFilterBtn}
+                style={({ pressed }) => [
+                  s.tabBarFilterBtn,
+                  pressed && s.tabBarFilterBtnPressed,
+                ]}
                 hitSlop={8}
                 accessibilityLabel={`Filters${activeFilterCount > 0 ? `, ${activeFilterCount} active` : ""}`}
                 accessibilityRole="button"
               >
-                <SlidersHorizontal size={24} color={t.color["text.primary"]} strokeWidth={1.75} />
+                <SlidersHorizontal size={t.size["icon.lg"]} color={t.color["text.primary"]} strokeWidth={1.75} />
                 {activeFilterCount > 0 && <View style={s.tabBarFilterDot} />}
               </Pressable>
             )}
@@ -332,38 +573,6 @@ export default function BrowsePage() {
               )}
 
 
-              {/* Catalog-narrowing lenses. Shaped to match every
-                 other filter section: titled `filterTitle` header
-                 followed by the controls. `New` narrows to beans
-                 created in the last 30 days; `Sold out` flips the
-                 default in-stock lens to show only retired stock. */}
-              <View style={s.filterSection}>
-                <Text style={s.filterTitle}>Show only</Text>
-                <Pressable
-                  onPress={() => setNewOnly((v) => !v)}
-                  style={s.wholesaleRow}
-                  accessibilityRole="switch"
-                  accessibilityState={{ checked: newOnly }}
-                >
-                  <View style={[s.wholesaleBox, newOnly && s.wholesaleBoxOn]}>
-                    {newOnly && <Text style={s.wholesaleBoxTick}>{"\u2713"}</Text>}
-                  </View>
-                  <Text style={s.wholesaleLabel}>New (last 30 days)</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setShowSoldOut((v) => !v)}
-                  style={s.wholesaleRow}
-                  accessibilityRole="switch"
-                  accessibilityState={{ checked: showSoldOut }}
-                >
-                  <View style={[s.wholesaleBox, showSoldOut && s.wholesaleBoxOn]}>
-                    {showSoldOut && <Text style={s.wholesaleBoxTick}>{"\u2713"}</Text>}
-                  </View>
-                  <Text style={s.wholesaleLabel}>Sold out</Text>
-                </Pressable>
-              </View>
-              <View style={s.filterDivider} />
-
               <View style={s.filterSection}>
                 <Text style={s.filterTitle}>Sort By</Text>
                 {[
@@ -381,21 +590,21 @@ export default function BrowsePage() {
                 ))}
               </View>
               <View style={s.filterDivider} />
-              <FilterSection title="Roast" items={roastLevels.map((l: string) => ({ key: l, label: l }))} selected={selectedRoasts} onToggle={v => toggleArray(selectedRoasts, setSelectedRoasts, v)} />
+              <FilterSection title="Roast" items={roastOptions} selected={selectedRoasts} onToggle={v => toggleArray(selectedRoasts, setSelectedRoasts, v)} />
               <View style={s.filterDivider} />
               <FilterSection title="Bean Type" items={beanTypeOptions} selected={selectedBeanTypes} onToggle={v => toggleArray(selectedBeanTypes, setSelectedBeanTypes, v)} />
               <View style={s.filterDivider} />
-              <FilterSection title="Region" items={regionOptions} selected={selectedRegions} onToggle={v => toggleArray(selectedRegions, setSelectedRegions, v)} maxVisible={12} />
+              <FilterSection title="Location" items={estateOptions} selected={selectedEstates} onToggle={v => toggleArray(selectedEstates, setSelectedEstates, v)} maxVisible={12} />
               <View style={s.filterDivider} />
               <FilterSection title="Varietal" items={varietalOptions} selected={selectedVarietals} onToggle={v => toggleArray(selectedVarietals, setSelectedVarietals, v)} maxVisible={12} />
               <View style={s.filterDivider} />
-              <FilterSection title="Altitude" items={ALTITUDE_BANDS.map(b => ({ key: b.key, label: b.label }))} selected={selectedAltitudes} onToggle={v => toggleArray(selectedAltitudes, setSelectedAltitudes, v)} />
+              <FilterSection title="Altitude" items={altitudeOptions} selected={selectedAltitudes} onToggle={v => toggleArray(selectedAltitudes, setSelectedAltitudes, v)} />
               <View style={s.filterDivider} />
-              <FilterSection title="Price" items={PRICE_BANDS.map(b => ({ key: b.key, label: b.label }))} selected={selectedPriceBands} onToggle={v => toggleArray(selectedPriceBands, setSelectedPriceBands, v)} />
+              <FilterSection title="Price" items={priceOptions} selected={selectedPriceBands} onToggle={v => toggleArray(selectedPriceBands, setSelectedPriceBands, v)} />
               <View style={s.filterDivider} />
-              <FilterSection title="Roasters" items={roasters.map((r: any) => ({ key: r.slug, label: r.name }))} selected={selectedRoasters} onToggle={v => toggleArray(selectedRoasters, setSelectedRoasters, v)} maxVisible={20} />
+              <FilterSection title="Roasters" items={roasterOptions} selected={selectedRoasters} onToggle={v => toggleArray(selectedRoasters, setSelectedRoasters, v)} maxVisible={20} />
               <View style={s.filterDivider} />
-              <FilterSection title="Process" items={processes.map((p: string) => ({ key: p, label: p }))} selected={selectedProcesses} onToggle={v => toggleArray(selectedProcesses, setSelectedProcesses, v)} />
+              <FilterSection title="Process" items={processOptions} selected={selectedProcesses} onToggle={v => toggleArray(selectedProcesses, setSelectedProcesses, v)} />
             </ScrollView>
           )}
 
@@ -422,15 +631,12 @@ export default function BrowsePage() {
                 {/* Live coffee + roaster count under the search bar.
                    Always visible (not just on desktop sidebar) so the
                    admin can watch numbers move as enrichment runs
-                   land new beans. Reflects whatever filter lens is
-                   active (sold-out, new, wholesale, etc.). */}
+                   land new beans. */}
                 <Text style={s.beansCount}>
                   <Text style={s.beansCountBold}>{filtered.length}</Text>{" "}
                   {filtered.length === 1 ? "coffee" : "coffees"} from{" "}
                   <Text style={s.beansCountBold}>{filteredRoasterCount}</Text>{" "}
                   {filteredRoasterCount === 1 ? "roaster" : "roasters"}
-                  {showSoldOut ? " · sold-out lens" : ""}
-                  {newOnly ? " · added in last 30 days" : ""}
                 </Text>
               </View>
             </View>
@@ -445,7 +651,7 @@ export default function BrowsePage() {
                     <View style={s.activeChips}>
                       {selectedRoasts.map(v => <ActiveChip key={`rl:${v}`} label={v} onRemove={() => toggleArray(selectedRoasts, setSelectedRoasts, v)} />)}
                       {selectedBeanTypes.map(v => <ActiveChip key={`bt:${v}`} label={v} onRemove={() => toggleArray(selectedBeanTypes, setSelectedBeanTypes, v)} />)}
-                      {selectedRegions.map(v => <ActiveChip key={`rg:${v}`} label={v} onRemove={() => toggleArray(selectedRegions, setSelectedRegions, v)} />)}
+                      {selectedEstates.map(v => <ActiveChip key={`es:${v}`} label={v} onRemove={() => toggleArray(selectedEstates, setSelectedEstates, v)} />)}
                       {selectedVarietals.map(v => <ActiveChip key={`vt:${v}`} label={v} onRemove={() => toggleArray(selectedVarietals, setSelectedVarietals, v)} />)}
                       {selectedAltitudes.map(k => {
                         const band = ALTITUDE_BANDS.find(b => b.key === k);
@@ -469,9 +675,13 @@ export default function BrowsePage() {
         </View>
       ) : (
         <RoastersList
-          cities={cities}
+          cityOptions={cityOptions}
           selectedCities={selectedCities}
           setSelectedCities={setSelectedCities}
+          estateOptions={roasterEstateOptions}
+          selectedEstates={selectedRoasterEstates}
+          setSelectedEstates={setSelectedRoasterEstates}
+          roasterEstateMap={roasterEstateMap}
         />
       )}
 
@@ -527,48 +737,32 @@ export default function BrowsePage() {
                 </View>
                 <View style={s.filterDivider} />
                 {activeTab === "roasters" ? (
-                  // ROASTERS tab — Location only, per the Figma 40:2769
-                  // sidebar spec. Bean-attribute filters belong to the
-                  // BEANS tab and have nothing to say about a roaster.
-                  <FilterSection
-                    title="Location"
-                    items={cities.map(c => ({ key: c, label: c }))}
-                    selected={selectedCities}
-                    onToggle={v => toggleArray(selectedCities, setSelectedCities, v)}
-                    maxVisible={20}
-                  />
+                  // ROASTERS tab — Location (city) + Estate exposure.
+                  // The estate filter narrows the roaster list to ones
+                  // whose catalog exposes the chosen estates.
+                  <>
+                    <FilterSection
+                      title="Location"
+                      items={cityOptions}
+                      selected={selectedCities}
+                      onToggle={v => toggleArray(selectedCities, setSelectedCities, v)}
+                      maxVisible={20}
+                    />
+                    {roasterEstateOptions.length > 0 ? (
+                      <>
+                        <View style={s.filterDivider} />
+                        <FilterSection
+                          title="Estate exposure"
+                          items={roasterEstateOptions}
+                          selected={selectedRoasterEstates}
+                          onToggle={v => toggleArray(selectedRoasterEstates, setSelectedRoasterEstates, v)}
+                          maxVisible={20}
+                        />
+                      </>
+                    ) : null}
+                  </>
                 ) : (
                   <>
-                    {/* Catalog-narrowing lenses \u2014 titled section
-                       header to match every other filter group;
-                       state is shared with the desktop sidebar so
-                       viewport toggles never reset. */}
-                    <View style={s.filterSection}>
-                      <Text style={s.filterTitle}>Show only</Text>
-                      <Pressable
-                        onPress={() => setNewOnly((v) => !v)}
-                        style={s.wholesaleRow}
-                        accessibilityRole="switch"
-                        accessibilityState={{ checked: newOnly }}
-                      >
-                        <View style={[s.wholesaleBox, newOnly && s.wholesaleBoxOn]}>
-                          {newOnly && <Text style={s.wholesaleBoxTick}>{"\u2713"}</Text>}
-                        </View>
-                        <Text style={s.wholesaleLabel}>New (last 30 days)</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => setShowSoldOut((v) => !v)}
-                        style={s.wholesaleRow}
-                        accessibilityRole="switch"
-                        accessibilityState={{ checked: showSoldOut }}
-                      >
-                        <View style={[s.wholesaleBox, showSoldOut && s.wholesaleBoxOn]}>
-                          {showSoldOut && <Text style={s.wholesaleBoxTick}>{"\u2713"}</Text>}
-                        </View>
-                        <Text style={s.wholesaleLabel}>Sold out</Text>
-                      </Pressable>
-                    </View>
-                    <View style={s.filterDivider} />
                     <View style={s.filterSection}>
                       <Text style={s.filterTitle}>Sort By</Text>
                       {[
@@ -586,21 +780,21 @@ export default function BrowsePage() {
                       ))}
                     </View>
                     <View style={s.filterDivider} />
-                    <FilterSection title="Roast" items={roastLevels.map((l: string) => ({ key: l, label: l }))} selected={selectedRoasts} onToggle={v => toggleArray(selectedRoasts, setSelectedRoasts, v)} />
+                    <FilterSection title="Roast" items={roastOptions} selected={selectedRoasts} onToggle={v => toggleArray(selectedRoasts, setSelectedRoasts, v)} />
                     <View style={s.filterDivider} />
                     <FilterSection title="Bean Type" items={beanTypeOptions} selected={selectedBeanTypes} onToggle={v => toggleArray(selectedBeanTypes, setSelectedBeanTypes, v)} />
                     <View style={s.filterDivider} />
-                    <FilterSection title="Region" items={regionOptions} selected={selectedRegions} onToggle={v => toggleArray(selectedRegions, setSelectedRegions, v)} maxVisible={12} />
+                    <FilterSection title="Location" items={estateOptions} selected={selectedEstates} onToggle={v => toggleArray(selectedEstates, setSelectedEstates, v)} maxVisible={12} />
                     <View style={s.filterDivider} />
                     <FilterSection title="Varietal" items={varietalOptions} selected={selectedVarietals} onToggle={v => toggleArray(selectedVarietals, setSelectedVarietals, v)} maxVisible={12} />
                     <View style={s.filterDivider} />
-                    <FilterSection title="Altitude" items={ALTITUDE_BANDS.map(b => ({ key: b.key, label: b.label }))} selected={selectedAltitudes} onToggle={v => toggleArray(selectedAltitudes, setSelectedAltitudes, v)} />
+                    <FilterSection title="Altitude" items={altitudeOptions} selected={selectedAltitudes} onToggle={v => toggleArray(selectedAltitudes, setSelectedAltitudes, v)} />
                     <View style={s.filterDivider} />
-                    <FilterSection title="Price" items={PRICE_BANDS.map(b => ({ key: b.key, label: b.label }))} selected={selectedPriceBands} onToggle={v => toggleArray(selectedPriceBands, setSelectedPriceBands, v)} />
+                    <FilterSection title="Price" items={priceOptions} selected={selectedPriceBands} onToggle={v => toggleArray(selectedPriceBands, setSelectedPriceBands, v)} />
                     <View style={s.filterDivider} />
-                    <FilterSection title="Roasters" items={roasters.map((r: any) => ({ key: r.slug, label: r.name }))} selected={selectedRoasters} onToggle={v => toggleArray(selectedRoasters, setSelectedRoasters, v)} maxVisible={20} />
+                    <FilterSection title="Roasters" items={roasterOptions} selected={selectedRoasters} onToggle={v => toggleArray(selectedRoasters, setSelectedRoasters, v)} maxVisible={20} />
                     <View style={s.filterDivider} />
-                    <FilterSection title="Process" items={processes.map((p: string) => ({ key: p, label: p }))} selected={selectedProcesses} onToggle={v => toggleArray(selectedProcesses, setSelectedProcesses, v)} />
+                    <FilterSection title="Process" items={processOptions} selected={selectedProcesses} onToggle={v => toggleArray(selectedProcesses, setSelectedProcesses, v)} />
                   </>
                 )}
               </ScrollView>
@@ -647,29 +841,71 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
 }
 
 function FilterSection({ title, items, selected, onToggle, maxVisible = 10 }: {
-  title: string; items: { key: string; label: string }[];
+  title: string;
+  // count is optional \u2014 when present the chip renders "Label \u00b7 N"
+  // where N = how many products would remain in view if this chip
+  // were toggled on (faceted, considering other active filters).
+  items: { key: string; label: string; count?: number }[];
   selected: string[]; onToggle: (key: string) => void; maxVisible?: number;
 }) {
+  // Each section starts collapsed so the consumer can scan every
+  // available filter category at a glance, then expand only the ones
+  // they want to act on. A section auto-opens whenever it has an
+  // active selection \u2014 the visible chip is the strongest signal that
+  // the consumer cares about this dimension, and re-collapsing on
+  // every render would just hide the toggles they're using.
+  const hasSelection = selected.length > 0;
+  const [open, setOpen] = useState(hasSelection);
+  useEffect(() => {
+    if (hasSelection) setOpen(true);
+  }, [hasSelection]);
+
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? items : items.slice(0, maxVisible);
   const hasMore = items.length > maxVisible;
 
   return (
     <View style={s.filterSection}>
-      <Text style={s.filterTitle}>{title}</Text>
-      {visible.map(({ key, label }) => (
-        <Pressable key={key} onPress={() => onToggle(key)} style={s.checkRow}>
-          <View style={[s.checkbox, selected.includes(key) && s.checkboxChecked]}>
-            {selected.includes(key) && <Text style={s.checkmark}>{"\u2713"}</Text>}
-          </View>
-          <Text style={s.checkLabel} numberOfLines={2}>{label}</Text>
-        </Pressable>
-      ))}
-      {hasMore && !expanded && (
-        <Pressable onPress={() => setExpanded(true)}>
-          <Text style={s.showMoreText}>Show all {items.length}</Text>
-        </Pressable>
-      )}
+      <Pressable
+        onPress={() => setOpen((v) => !v)}
+        style={s.filterHead}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`${title}${selected.length > 0 ? `, ${selected.length} selected` : ""}, ${open ? "expanded" : "collapsed"}`}
+      >
+        <Text style={s.filterTitle}>{title}</Text>
+        {selected.length > 0 ? (
+          <Text style={s.filterHeadBadge}>{selected.length}</Text>
+        ) : null}
+        <View style={{ flex: 1 }} />
+        {open ? (
+          <ChevronDown size={16} color={t.color["text.muted"]} strokeWidth={1.75} />
+        ) : (
+          <ChevronRight size={16} color={t.color["text.muted"]} strokeWidth={1.75} />
+        )}
+      </Pressable>
+      {open ? (
+        <>
+          {visible.map(({ key, label, count }) => (
+            <Pressable key={key} onPress={() => onToggle(key)} style={s.checkRow}>
+              <View style={[s.checkbox, selected.includes(key) && s.checkboxChecked]}>
+                {selected.includes(key) && <Text style={s.checkmark}>{"\u2713"}</Text>}
+              </View>
+              <Text style={s.checkLabel} numberOfLines={2}>{label}</Text>
+              {typeof count === "number" ? (
+                <Text style={s.checkCount}>{count}</Text>
+              ) : null}
+            </Pressable>
+          ))}
+          {hasMore ? (
+            <Pressable onPress={() => setExpanded((v) => !v)}>
+              <Text style={s.showMoreText}>
+                {expanded ? "Show less" : `Show all ${items.length}`}
+              </Text>
+            </Pressable>
+          ) : null}
+        </>
+      ) : null}
     </View>
   );
 }
@@ -715,13 +951,24 @@ function BrowseCard({
 }
 
 function RoastersList({
-  cities,
+  cityOptions,
   selectedCities,
   setSelectedCities,
+  estateOptions,
+  selectedEstates,
+  setSelectedEstates,
+  roasterEstateMap,
 }: {
-  cities: string[];
+  cityOptions: { key: string; label: string; count: number }[];
   selectedCities: string[];
   setSelectedCities: (next: string[]) => void;
+  estateOptions: { key: string; label: string; count: number }[];
+  selectedEstates: string[];
+  setSelectedEstates: (next: string[]) => void;
+  // roaster_slug → set of estate names that roaster exposes via its
+  // products. Driven from `origin_estate_canonical`. Used to filter
+  // the roaster list down when the consumer picks Estate chips.
+  roasterEstateMap: Record<string, Set<string>>;
 }) {
   const router = useRouter();
   const { products } = useCoffeeData();
@@ -776,6 +1023,15 @@ function RoastersList({
     if (selectedCities.length > 0) {
       result = result.filter((r) => !!r.city && selectedCities.includes(r.city));
     }
+    if (selectedEstates.length > 0) {
+      // Roaster passes if its catalog exposes ANY of the selected
+      // estates. Empty/missing entries get dropped.
+      result = result.filter((r) => {
+        const exposes = roasterEstateMap[r.roaster_slug];
+        if (!exposes) return false;
+        return selectedEstates.some((e) => exposes.has(e));
+      });
+    }
     // Sort: most-stocked roasters surface first; alphabetical secondary.
     return [...result].sort((a, b) => {
       const ap = a.products_count || 0;
@@ -783,7 +1039,7 @@ function RoastersList({
       if (ap !== bp) return bp - ap;
       return (a.name || a.roaster_slug).localeCompare(b.name || b.roaster_slug);
     });
-  }, [publishedProfiles, roasterQuery, selectedCities]);
+  }, [publishedProfiles, roasterQuery, selectedCities, selectedEstates, roasterEstateMap]);
 
   const toggleCity = (city: string) => {
     // setSelectedCities arrives from BrowsePage as a plain `(next) =>`
@@ -793,6 +1049,14 @@ function RoastersList({
       selectedCities.includes(city)
         ? selectedCities.filter(c => c !== city)
         : [...selectedCities, city]
+    );
+  };
+
+  const toggleEstate = (estate: string) => {
+    setSelectedEstates(
+      selectedEstates.includes(estate)
+        ? selectedEstates.filter(e => e !== estate)
+        : [...selectedEstates, estate]
     );
   };
 
@@ -811,11 +1075,23 @@ function RoastersList({
           <View style={s.filterDivider} />
           <FilterSection
             title="Location"
-            items={cities.map(c => ({ key: c, label: c }))}
+            items={cityOptions}
             selected={selectedCities}
             onToggle={toggleCity}
             maxVisible={20}
           />
+          {estateOptions.length > 0 ? (
+            <>
+              <View style={s.filterDivider} />
+              <FilterSection
+                title="Estate exposure"
+                items={estateOptions}
+                selected={selectedEstates}
+                onToggle={toggleEstate}
+                maxVisible={20}
+              />
+            </>
+          ) : null}
         </ScrollView>
       )}
 
@@ -908,19 +1184,35 @@ const s = StyleSheet.create({
   tabLabel: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"] },
   tabLabelActive: { fontFamily: t.font["body.semibold"], color: t.color["text.primary"] },
   tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: t.color["text.primary"] } as any,
-  // Filter icon pinned to the right of the tab row. `marginLeft:
-  // auto` pushes it to flex end regardless of how many sibling tabs
-  // render. Dot badge appears when any filter is active.
+  // Filter icon pinned to the right of the tab row. Same circular
+  // cream-disc geometry the Catalog Ops Roasters & Beans tab uses
+  // for its filter trigger — the disc gives the icon a tappable
+  // surface that reads as a peer of the marketplace's compact-action
+  // affordances. `marginLeft: auto` pushes it to flex end regardless
+  // of how many sibling tabs render; `alignSelf: center` overrides
+  // `tabBarRight`'s `alignItems: stretch` (which collapses to
+  // flex-start for fixed-size children, sticking the disc to the
+  // top of the strip) so the disc's vertical center matches the
+  // tab labels'. Dot badge appears top-right when any filter is
+  // active.
   tabBarFilterBtn: {
     marginLeft: "auto" as any,
+    alignSelf: "center" as any,
+    width: 36,
+    height: 36,
+    borderRadius: t.radius.full,
+    backgroundColor: t.color["card.info"],
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
   } as any,
+  tabBarFilterBtnPressed: {
+    opacity: 0.7,
+  } as any,
   tabBarFilterDot: {
     position: "absolute",
-    top: 2,
-    right: 2,
+    top: 6,
+    right: 6,
     width: 8,
     height: 8,
     borderRadius: 4,
@@ -957,7 +1249,32 @@ const s = StyleSheet.create({
   clearText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color.accent, marginBottom: 12 },
   filterDivider: { height: 1, backgroundColor: "rgba(215,209,196,0.5)", marginVertical: 12 },
   filterSection: { marginBottom: 8 },
-  filterTitle: { fontFamily: t.font["body.semibold"], fontSize: 15, letterSpacing: -0.375, color: t.color["text.primary"], marginBottom: 12 },
+  // Header row is a tappable strip — collapsed by default so the
+  // consumer can scan every filter category at a glance, then expand
+  // only the ones they want. Chevron + optional selection-count badge
+  // sit on the right edge.
+  filterHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    gap: 8,
+  } as any,
+  filterTitle: { fontFamily: t.font["body.semibold"], fontSize: 15, letterSpacing: -0.375, color: t.color["text.primary"], marginBottom: 0 },
+  // Pink dot-with-number badge in the heading row when one or more
+  // chips are selected — visible even when the section is collapsed.
+  filterHeadBadge: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: 11,
+    color: t.color["text.on-dark"],
+    backgroundColor: t.color.accent,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 6,
+    textAlign: "center",
+    lineHeight: 18,
+    overflow: "hidden",
+  } as any,
   checkRow: { flexDirection: "row", alignItems: "flex-start", gap: 14, minHeight: 24, marginBottom: 4 },
   checkbox: {
     width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: t.color.border,
@@ -966,6 +1283,16 @@ const s = StyleSheet.create({
   checkboxChecked: { backgroundColor: t.color["text.primary"], borderColor: t.color["text.primary"] },
   checkmark: { color: "white", fontSize: 11, fontWeight: "700" as any },
   checkLabel: { fontFamily: t.font["body.regular"], fontSize: 14, letterSpacing: -0.336, color: t.color["text.primary"], flex: 1, lineHeight: 21 },
+  // Count badge sitting at the right edge of each filter row. The
+  // number reads as "if I toggle this on now, N coffees remain".
+  // Tabular numerals so digits align across rows.
+  checkCount: {
+    fontFamily: t.font["body.medium"],
+    fontSize: 13,
+    color: t.color["text.muted"],
+    marginLeft: 8,
+    fontVariant: ["tabular-nums"],
+  } as any,
   showMoreText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color.accent, marginTop: 6 },
 
   radioRow: { flexDirection: "row", alignItems: "center", gap: 14, height: 32 },

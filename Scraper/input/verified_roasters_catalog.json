@@ -1,12 +1,12 @@
 [
   {
-    "name": "Dope Coffee Roasters",
-    "city": "Mumbai",
+    "name": "7 Elements Coffee Roasters",
+    "city": "Pune",
     "state": "Maharashtra",
     "lat": 0,
     "lng": 0,
-    "website": "https://dopecoffee.in",
-    "shop_url": "https://dopecoffee.in/",
-    "platform": "Shopify"
+    "website": "https://7elementscoffee.com",
+    "shop_url": "https://7elementscoffee.com/single-origin/",
+    "platform": "woocommerce"
   }
 ]

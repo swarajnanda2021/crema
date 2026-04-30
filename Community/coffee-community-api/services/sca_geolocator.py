@@ -582,3 +582,1454 @@ def _find_paths_to_leaf(tree: dict, leaf: str) -> list[list[str]]:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 SEED_RESOLUTIONS_PATH = PROJECT_ROOT / "tmp" / "tag_resolutions.json"
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# CATALOG STANDARDIZATION (renamed MAPPING tab) — three tasks, one Haiku call
+# ────────────────────────────────────────────────────────────────────────────
+#
+# Extends the SCA-only classifier to also map:
+#   • origins → estate name / Multi-estate / International / Unknown
+#   • varietals → canonical variety + species + morphology
+# both against a code-shipped JSON tree (`seed_data/coffee_varieties.json`)
+# sourced from World Coffee Research + India Coffee Board / CCRI.
+#
+# All three tasks ship in one batched Haiku call so the prompt cache is
+# amortized across a single system-prompt blob. Exemplars are cached in
+# `standardize_exemplars` and only resampled when the admin ticks
+# "Regenerate exemplars on next run" — keeps the cache key stable.
+
+VARIETY_TREE_PATH = (
+    Path(__file__).resolve().parent.parent / "seed_data" / "coffee_varieties.json"
+)
+
+
+def load_variety_tree() -> dict:
+    """Read the coffee variety reference tree from disk. Cached at module
+    scope after the first read since the file ships with the codebase."""
+    global _variety_tree_cache
+    try:
+        return _variety_tree_cache  # type: ignore[name-defined]
+    except NameError:
+        pass
+    with open(VARIETY_TREE_PATH, "r", encoding="utf-8") as f:
+        tree = json.load(f)
+    globals()["_variety_tree_cache"] = tree
+    return tree
+
+
+# ── Harvesters ──────────────────────────────────────────────────────────────
+
+def harvest_origins(db) -> Counter:
+    """Counter of distinct `origin` strings across in-stock products. Empty
+    / NULL skipped — those rows just map to "Unknown" without a Haiku call."""
+    counts: Counter = Counter()
+    rows = db.execute(
+        "SELECT origin FROM products WHERE available = 1 AND origin IS NOT NULL "
+        "AND origin != ''"
+    ).fetchall()
+    for r in rows:
+        s = (r["origin"] or "").strip()
+        if s:
+            counts[s] += 1
+    return counts
+
+
+def harvest_roasts(db) -> Counter:
+    """Counter of distinct roast-input strings across in-stock products.
+    The "input" is the verbatim `roast_level_name` if present, falling
+    back to the bucketed `roast_level` — Haiku gets the richest text
+    available so it can collapse drift like "Vienna Roast" / "Light
+    City Roast" / "Filter (Light Roast)" into a canonical bucket."""
+    counts: Counter = Counter()
+    rows = db.execute(
+        "SELECT roast_level_name, roast_level FROM products WHERE available = 1"
+    ).fetchall()
+    for r in rows:
+        s = ((r["roast_level_name"] or r["roast_level"]) or "").strip()
+        if s and s != "<UNKNOWN>":
+            counts[s] += 1
+    return counts
+
+
+def harvest_processes(db) -> Counter:
+    """Counter of distinct process-input strings. Prefers `process_raw`
+    (verbatim, preserves "Anaerobic Yeast Naturals" specificity) and
+    falls back to the bucketed `process` column when raw is missing."""
+    counts: Counter = Counter()
+    rows = db.execute(
+        "SELECT process_raw, process FROM products WHERE available = 1"
+    ).fetchall()
+    for r in rows:
+        s = ((r["process_raw"] or r["process"]) or "").strip()
+        if s and s != "<UNKNOWN>":
+            counts[s] += 1
+    return counts
+
+
+def harvest_varietals(db) -> Counter:
+    """Counter of distinct `varietal` strings across in-stock products."""
+    counts: Counter = Counter()
+    rows = db.execute(
+        "SELECT varietal FROM products WHERE available = 1 AND varietal IS NOT NULL "
+        "AND varietal != ''"
+    ).fetchall()
+    for r in rows:
+        s = (r["varietal"] or "").strip()
+        if s:
+            counts[s] += 1
+    return counts
+
+
+# ── Stats ────────────────────────────────────────────────────────────────────
+
+def compute_standardize_stats(db) -> dict:
+    """3-way stats for the STANDARDIZATION sub-tab — mirrors
+    `compute_geolocate_stats` but covers all three address tables.
+
+    Each task returns:
+      • total — distinct input strings appearing in in-stock products
+      • classified — rows in the address table for those inputs
+      • unclassified — total - classified (what the next run will Haiku)
+    Plus per-task useful breakdowns (multi-estate count, morphology hits, …).
+    """
+    # Tasting tags
+    tag_counts = harvest_product_tags(db)
+    sca_rows = {r["tag"]: r for r in db.execute(
+        "SELECT tag, is_null FROM sca_addresses"
+    ).fetchall()}
+    tag_classified = sum(1 for t in tag_counts if t in sca_rows)
+    tag_geolocated = sum(1 for t in tag_counts if t in sca_rows and not sca_rows[t]["is_null"])
+
+    # Origins
+    origin_counts = harvest_origins(db)
+    origin_rows = {r["raw_string"]: r for r in db.execute(
+        "SELECT raw_string, estate_canonical FROM origin_addresses"
+    ).fetchall()}
+    origin_classified = sum(1 for s in origin_counts if s in origin_rows)
+    origin_buckets = Counter()
+    for s in origin_counts:
+        if s in origin_rows:
+            est = origin_rows[s]["estate_canonical"] or "Unknown"
+            if est in ("Multi-estate", "International", "Unknown"):
+                origin_buckets[est] += 1
+            else:
+                origin_buckets["specific_estate"] += 1
+
+    # Varietals
+    varietal_counts = harvest_varietals(db)
+    varietal_rows = {r["raw_string"]: r for r in db.execute(
+        "SELECT raw_string, canonical_varietal, bean_type, morphology FROM varietal_addresses"
+    ).fetchall()}
+    varietal_classified = sum(1 for s in varietal_counts if s in varietal_rows)
+    varietal_buckets = Counter()
+    for s in varietal_counts:
+        if s in varietal_rows:
+            r = varietal_rows[s]
+            if r["canonical_varietal"] == "Multi-cultivar":
+                varietal_buckets["multi_cultivar"] += 1
+            elif r["canonical_varietal"]:
+                varietal_buckets["specific_varietal"] += 1
+            else:
+                varietal_buckets["null"] += 1
+            if r["morphology"]:
+                varietal_buckets["with_morphology"] += 1
+
+    # Roasts
+    roast_counts = harvest_roasts(db)
+    roast_rows = {r["raw_string"]: r for r in db.execute(
+        "SELECT raw_string, roast_canonical FROM roast_addresses"
+    ).fetchall()}
+    roast_classified = sum(1 for s in roast_counts if s in roast_rows)
+    roast_buckets = Counter()
+    for s in roast_counts:
+        if s in roast_rows:
+            c = roast_rows[s]["roast_canonical"] or "null"
+            roast_buckets[c] += 1
+
+    # Processes
+    process_counts = harvest_processes(db)
+    process_rows = {r["raw_string"]: r for r in db.execute(
+        "SELECT raw_string, canonical FROM process_addresses"
+    ).fetchall()}
+    process_classified = sum(1 for s in process_counts if s in process_rows)
+    process_buckets = Counter()
+    for s in process_counts:
+        if s in process_rows:
+            c = process_rows[s]["canonical"] or "null"
+            process_buckets[c] += 1
+
+    return {
+        "tasting": {
+            "total": len(tag_counts),
+            "classified": tag_classified,
+            "geolocated": tag_geolocated,
+            "unclassified": len(tag_counts) - tag_classified,
+        },
+        "origin": {
+            "total": len(origin_counts),
+            "classified": origin_classified,
+            "unclassified": len(origin_counts) - origin_classified,
+            "specific_estate": origin_buckets.get("specific_estate", 0),
+            "multi_estate": origin_buckets.get("Multi-estate", 0),
+            "international": origin_buckets.get("International", 0),
+            "unknown": origin_buckets.get("Unknown", 0),
+        },
+        "varietal": {
+            "total": len(varietal_counts),
+            "classified": varietal_classified,
+            "unclassified": len(varietal_counts) - varietal_classified,
+            "specific_varietal": varietal_buckets.get("specific_varietal", 0),
+            "multi_cultivar": varietal_buckets.get("multi_cultivar", 0),
+            "with_morphology": varietal_buckets.get("with_morphology", 0),
+        },
+        "roast": {
+            "total": len(roast_counts),
+            "classified": roast_classified,
+            "unclassified": len(roast_counts) - roast_classified,
+            "buckets": dict(roast_buckets),
+        },
+        "process": {
+            "total": len(process_counts),
+            "classified": process_classified,
+            "unclassified": len(process_counts) - process_classified,
+            "buckets": dict(process_buckets),
+        },
+    }
+
+
+# ── Exemplar selection (per-task) ───────────────────────────────────────────
+
+def select_roast_exemplars(db, *, limit: int = 20) -> list[dict]:
+    """Top-frequency classified roasts. Each entry: {input, roast}."""
+    counts = harvest_roasts(db)
+    rows = {r["raw_string"]: r for r in db.execute(
+        "SELECT raw_string, roast_canonical, source FROM roast_addresses"
+    ).fetchall()}
+    chosen: dict[str, dict] = {}
+    for raw, _ in counts.most_common():
+        if len(chosen) >= 14:
+            break
+        if raw in rows:
+            chosen[raw] = {"input": raw, "roast": rows[raw]["roast_canonical"]}
+    overrides = [r for r in rows.values() if r["source"] == "admin_override"]
+    for r in overrides[:6]:
+        chosen.setdefault(r["raw_string"], {
+            "input": r["raw_string"], "roast": r["roast_canonical"],
+        })
+    return list(chosen.values())[:limit]
+
+
+def select_process_exemplars(db, *, limit: int = 20) -> list[dict]:
+    """Top-frequency classified processes. Each entry: {input, process}."""
+    counts = harvest_processes(db)
+    rows = {r["raw_string"]: r for r in db.execute(
+        "SELECT raw_string, canonical, source FROM process_addresses"
+    ).fetchall()}
+    chosen: dict[str, dict] = {}
+    for raw, _ in counts.most_common():
+        if len(chosen) >= 14:
+            break
+        if raw in rows:
+            chosen[raw] = {"input": raw, "process": rows[raw]["canonical"]}
+    overrides = [r for r in rows.values() if r["source"] == "admin_override"]
+    for r in overrides[:6]:
+        chosen.setdefault(r["raw_string"], {
+            "input": r["raw_string"], "process": r["canonical"],
+        })
+    return list(chosen.values())[:limit]
+
+
+def select_origin_exemplars(db, *, limit: int = 20) -> list[dict]:
+    """Top-frequency classified origins — anchors the prompt with concrete
+    examples. Each entry: { "input": str, "estate": str|None }."""
+    counts = harvest_origins(db)
+    rows = {r["raw_string"]: r for r in db.execute(
+        "SELECT raw_string, estate_canonical, source FROM origin_addresses"
+    ).fetchall()}
+    chosen: dict[str, dict] = {}
+    # 14 highest-frequency that have a row
+    for raw, _ in counts.most_common():
+        if len(chosen) >= 14:
+            break
+        if raw in rows:
+            chosen[raw] = {"input": raw, "estate": rows[raw]["estate_canonical"]}
+    # 6 admin overrides
+    overrides = [r for r in rows.values() if r["source"] == "admin_override"]
+    for r in overrides[:6]:
+        chosen.setdefault(r["raw_string"], {
+            "input": r["raw_string"], "estate": r["estate_canonical"]
+        })
+    return list(chosen.values())[:limit]
+
+
+def select_varietal_exemplars(db, *, limit: int = 20) -> list[dict]:
+    """Same shape as `select_origin_exemplars` but for the varietal table —
+    each exemplar carries the three output fields the model has to fill."""
+    counts = harvest_varietals(db)
+    rows = {r["raw_string"]: r for r in db.execute(
+        "SELECT raw_string, canonical_varietal, bean_type, morphology, source "
+        "FROM varietal_addresses"
+    ).fetchall()}
+    chosen: dict[str, dict] = {}
+    for raw, _ in counts.most_common():
+        if len(chosen) >= 14:
+            break
+        if raw in rows:
+            r = rows[raw]
+            chosen[raw] = {
+                "input": raw,
+                "canonical_varietal": r["canonical_varietal"],
+                "bean_type": r["bean_type"],
+                "morphology": r["morphology"],
+            }
+    overrides = [r for r in rows.values() if r["source"] == "admin_override"]
+    for r in overrides[:6]:
+        chosen.setdefault(r["raw_string"], {
+            "input": r["raw_string"],
+            "canonical_varietal": r["canonical_varietal"],
+            "bean_type": r["bean_type"],
+            "morphology": r["morphology"],
+        })
+    return list(chosen.values())[:limit]
+
+
+# ── Cached exemplar plumbing ────────────────────────────────────────────────
+#
+# Exemplars live in the system prompt, which is cache-controlled. To keep
+# Anthropic's cache hit warm across runs, we freeze the chosen exemplars
+# in `standardize_exemplars` and only resample when the admin explicitly
+# opts in via the regen toggle (mirrors the site-prompt-hint pattern).
+
+def _now_iso():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _select_exemplars_for_task(db, task: str) -> list[dict]:
+    if task == "tasting":
+        return select_exemplars(db)
+    if task == "origin":
+        return select_origin_exemplars(db)
+    if task == "varietal":
+        return select_varietal_exemplars(db)
+    if task == "roast":
+        return select_roast_exemplars(db)
+    if task == "process":
+        return select_process_exemplars(db)
+    raise ValueError(f"unknown exemplar task: {task!r}")
+
+
+def get_or_refresh_exemplars(db, task: str, *, regenerate: bool, log=None) -> list[dict]:
+    """Returns the cached exemplar list for `task`. If `regenerate` is
+    true OR the row's `regenerate_next` flag is set OR the row is
+    missing, resamples from current data and returns the new list.
+
+    IMPORTANT: an empty selection (cold-start, address-table empty) is
+    NOT cached — leaving the row absent so the next run retries. Without
+    this guard the first run for a task locks in an empty cache, and
+    subsequent runs reuse `[]` even after the address table is full.
+
+    The `regenerate_next` flag is also NOT reset here — that happens
+    only after the standardization run completes successfully (see
+    `clear_regenerate_next` and the post-success hook in
+    `catalog_ops.run_standardize_job`). Resetting mid-run would lose
+    the regen intent if the run later fails."""
+    row = db.execute(
+        "SELECT exemplars_json, regenerate_next FROM standardize_exemplars "
+        "WHERE task = ?", (task,)
+    ).fetchone()
+    needs_refresh = regenerate or row is None or (row and row["regenerate_next"])
+    if not needs_refresh:
+        try:
+            return json.loads(row["exemplars_json"])
+        except (json.JSONDecodeError, TypeError):
+            needs_refresh = True
+
+    exemplars = _select_exemplars_for_task(db, task)
+    if log:
+        log(f"resampled {task} exemplars: {len(exemplars)} entries")
+
+    if not exemplars:
+        # Cold start — the address table is empty so there's nothing
+        # to seed from. Leave the cache row absent (or untouched) so
+        # the post-success hook can retry the resample once the
+        # writeback populates the table.
+        if log:
+            log(f"  no {task} exemplars to seed yet — leaving cache row untouched")
+        return []
+
+    db.execute(
+        "INSERT INTO standardize_exemplars (task, exemplars_json, regenerate_next, generated_at) "
+        "VALUES (?, ?, COALESCE((SELECT regenerate_next FROM standardize_exemplars WHERE task = ?), 0), ?) "
+        "ON CONFLICT(task) DO UPDATE SET "
+        "  exemplars_json = excluded.exemplars_json, "
+        "  generated_at = excluded.generated_at",
+        (task, json.dumps(exemplars, ensure_ascii=False), task, _now_iso()),
+    )
+    db.commit()
+    return exemplars
+
+
+def refresh_exemplars_post_run(db, task: str, *, log=None) -> int:
+    """Force-resample exemplars for `task` after a successful run.
+    Always writes the cache row (even if the new list is empty — the
+    result_summary would have flagged this as a problem, but we still
+    record the post-run state). Returns the new exemplar count.
+
+    Distinct from `get_or_refresh_exemplars` because that runs at the
+    TOP of a job and respects the no-empty-cache rule. This runs at
+    the BOTTOM and is the authoritative post-success snapshot."""
+    exemplars = _select_exemplars_for_task(db, task)
+    db.execute(
+        "INSERT INTO standardize_exemplars (task, exemplars_json, regenerate_next, generated_at) "
+        "VALUES (?, ?, 0, ?) "
+        "ON CONFLICT(task) DO UPDATE SET "
+        "  exemplars_json = excluded.exemplars_json, "
+        "  regenerate_next = 0, "
+        "  generated_at = excluded.generated_at",
+        (task, json.dumps(exemplars, ensure_ascii=False), _now_iso()),
+    )
+    db.commit()
+    if log:
+        log(f"post-run {task} exemplars refreshed: {len(exemplars)} entries")
+    return len(exemplars)
+
+
+def set_regenerate_next(db, task: str, value: bool = True):
+    """Flag an exemplar list for refresh on the next standardization run.
+    Idempotent — admin tab calls this when the regen toggle is ticked."""
+    if task not in ("tasting", "origin", "varietal", "roast", "process"):
+        raise ValueError(f"unknown task: {task!r}")
+    db.execute(
+        "INSERT INTO standardize_exemplars (task, exemplars_json, regenerate_next, generated_at) "
+        "VALUES (?, '[]', ?, ?) "
+        "ON CONFLICT(task) DO UPDATE SET regenerate_next = excluded.regenerate_next",
+        (task, 1 if value else 0, _now_iso()),
+    )
+    db.commit()
+
+
+# ── System prompts (per-task, three smaller calls) ──────────────────────────
+#
+# Replaces the single mega-prompt approach with one focused prompt per
+# task. Trade-off: marginally more prompt-cache cost (three caches
+# instead of one), but each call's output budget is dedicated to a
+# single schema, so we don't blow MAX_TOKENS when one task happens to
+# have a heavy input list. The runner issues these sequentially on a
+# single button press.
+
+def _tasting_exemplar_block(items: list[dict]) -> str:
+    if not items:
+        return "(none)"
+    lines = []
+    for e in items:
+        addr = e.get("address")
+        rhs = json.dumps(addr) if addr else "null"
+        lines.append(f'  {{"input": {json.dumps(e["tag"])}, "address": {rhs}}}')
+    return "[\n" + ",\n".join(lines) + "\n]"
+
+
+def _origin_exemplar_block(items: list[dict]) -> str:
+    if not items:
+        return "(none)"
+    lines = []
+    for e in items:
+        est = e.get("estate")
+        rhs = json.dumps(est) if est is not None else "null"
+        lines.append(f'  {{"input": {json.dumps(e["input"])}, "estate": {rhs}}}')
+    return "[\n" + ",\n".join(lines) + "\n]"
+
+
+def _varietal_exemplar_block(items: list[dict]) -> str:
+    if not items:
+        return "(none)"
+    lines = []
+    for e in items:
+        cv = json.dumps(e.get("canonical_varietal")) if e.get("canonical_varietal") is not None else "null"
+        bt = json.dumps(e.get("bean_type")) if e.get("bean_type") is not None else "null"
+        mo = json.dumps(e.get("morphology")) if e.get("morphology") is not None else "null"
+        lines.append(
+            f'  {{"input": {json.dumps(e["input"])}, '
+            f'"canonical_varietal": {cv}, "bean_type": {bt}, "morphology": {mo}}}'
+        )
+    return "[\n" + ",\n".join(lines) + "\n]"
+
+
+def build_tasting_prompt(sca_tree: dict, exemplars: list[dict]) -> str:
+    """Map free-text flavor tags onto the SCA flavor tree."""
+    sca_tree_json = json.dumps(sca_tree, indent=2, ensure_ascii=False)
+    return f"""You map coffee tasting note tags onto the SCA flavor tree. For each input tag, return the single deepest address that captures it, or null.
+
+The flavor tree is a 3-tier hierarchy. An address is a path: [tier1], [tier1, tier2], or [tier1, tier2, tier3].
+
+Rules:
+
+1. Match deepest where it fits. "Honey" → ["Sweet","Brown Sugar","Honey"]. "Cacao" → ["Nutty/Cocoa","Cocoa"] (Cacao is a Cocoa synonym).
+2. Strip modifiers that don't change the underlying flavor. "Wild Honey", "Raw Honey" → ["Sweet","Brown Sugar","Honey"]. "Roasted Nuts" → ["Nutty/Cocoa","Nutty"].
+3. Climb up when input names a region, not a leaf. "Stone Fruit" → ["Fruity","Other Fruit"]. "Citrus" → ["Fruity","Citrus Fruit"].
+4. Climb to tier 1 only when no tier-2 captures it. "Fruity" stays at ["Fruity"].
+5. Compound tags pointing at unrelated tier-1s with no common ancestor → null. "Plum Cake" (Fruity + Spices) → null.
+6. Mouthfeel/body descriptors are not flavors → null. ("Smooth", "Creamy", "Silky", "Heavy", "Light Body", "Round")
+7. Vague marketing language → null. ("Aromatic", "Complex", "Balanced", "Clean", "Bold", "Exceptional")
+
+The full SCA tree is below. Use these EXACT strings — case, punctuation, slashes must match.
+
+{sca_tree_json}
+
+═══════════════════════════════════════════════════════════════════════
+RESPONSE FORMAT
+═══════════════════════════════════════════════════════════════════════
+
+The user message is a JSON object: {{"tags": [...]}}
+
+You return JSON only, no prose, no markdown:
+
+{{
+  "results": [
+    {{"input": "Wild Honey", "address": ["Sweet","Brown Sugar","Honey"]}},
+    {{"input": "Stone Fruit", "address": ["Fruity","Other Fruit"]}},
+    {{"input": "Smooth", "address": null}}
+  ]
+}}
+
+Each output entry MUST have its `input` exactly equal to the input string. Never invent an output entry that wasn't in the input.
+
+═══════════════════════════════════════════════════════════════════════
+REFERENCE EXAMPLES (already classified — match this style)
+═══════════════════════════════════════════════════════════════════════
+
+{_tasting_exemplar_block(exemplars)}
+"""
+
+
+def build_origin_prompt(exemplars: list[dict]) -> str:
+    """Normalize raw `origin` strings to estate name / Multi-estate /
+    International / Unknown. No tree reference here — the rules ARE the
+    canonical shape."""
+    return f"""You normalise raw `origin` strings the roaster wrote on each coffee bag. For each input, return ONE of four things:
+
+  • An estate name, normalised — Title Case, ALWAYS suffixed with the word "Estate" regardless of what the roaster wrote ("Farm" / "Farms" / "Plantation" / bare names all become "X Estate").
+  • "Multi-estate" — when the input names ≥2 distinct estates, OR is a region/area without a specific estate, OR is generic descriptive language masquerading as an estate name.
+  • "International" — when the origin is anywhere outside India.
+  • "Unknown" — when no estate or region is named at all (empty / "<UNKNOWN>" / pure blend product names with no farm reference).
+
+Rules:
+
+1. Estate suffix is always "Estate" in the output. Recognise estate-class entities written with: "Estate", "Estates", "Farm", "Farms", "Plantation", "Plantations". Bare named estates with no suffix get "Estate" appended.
+     "Ratnagiri Estate"        → "Ratnagiri Estate"
+     "Tat Tvam Asi Farms"      → "Tat Tvam Asi Estate"
+     "Hoysala Estate"          → "Hoysala Estate"
+     "Riverdale"               → "Riverdale Estate"
+     "Salawara"                → "Salawara Estate"
+
+2. Strip everything after the first comma/semicolon that names a region, district, state, or country.
+     "Kalledevarapura Estate, Bababudangiri, Chikmagalur" → "Kalledevarapura Estate"
+     "Mooleh Manay Estate, Coorg"    → "Mooleh Manay Estate"
+     "Harley Estate, Sakleshpur"     → "Harley Estate"
+
+3. Multi-estate inputs (≥2 distinct estate proper-nouns joined by `&`, `+`, `and`, `;`, or `,`) → "Multi-estate". DO NOT pick the first.
+     "Kalledevarapura Estate & Balur Estate, Chikmagalur" → "Multi-estate"
+     "BR Hills, Karnataka; Wayanad, Kerala"               → "Multi-estate"
+
+4. Region-only / state-only / district-only / hill-only / valley-only inputs (no specific estate proper noun) → "Multi-estate". A region IS de facto multi-estate from the consumer's view — it's a sourcing area, not a farm.
+     "Coorg" / "Chikmagalur" / "Karnataka" / "Wayanad, Kerala" / "Western Ghats" / "Southern India" / "BR Hills, Karnataka" / "Mysore" / "Bababudan Hills" / "Araku Valley" → "Multi-estate"
+
+5. Generic descriptive language masquerading as an estate name → "Multi-estate". Strings like "Finest Coffee Estate", "Premium Coffee Estate", "Best Coffee Plantation" have no proper-noun specificity.
+
+6. International origins (any country other than India) → "International". Never name the country in the output.
+     "Ethiopia" / "Colombia, Huila" / "Yirgacheffe" / "Panama" / "Brazil" → "International"
+
+7. Misspelled Indian regions still resolve to "Multi-estate".
+     "Chikmaglur" → "Multi-estate"
+     "Chikkamagaluru" → "Multi-estate"
+
+8. Empty / placeholder / pure blend product names (no farm or region reference at all) → "Unknown". This is the bucket the consumer filter hides.
+     "<UNKNOWN>" / "House Blend" / "Espresso Blend" / "French Roast" / "Cold Brew Blend" → "Unknown"
+
+9. Title Case the estate name. Mid-word lowercase joiners ("of", "the", "and", "de", "del") stay lowercase unless the roaster capitalised them. Match the roaster's spelling for proper nouns.
+
+═══════════════════════════════════════════════════════════════════════
+RESPONSE FORMAT
+═══════════════════════════════════════════════════════════════════════
+
+The user message is a JSON object: {{"origins": [...]}}
+
+You return JSON only, no prose, no markdown:
+
+{{
+  "results": [
+    {{"input": "Ratnagiri Estate", "estate": "Ratnagiri Estate"}},
+    {{"input": "Coorg",            "estate": "Multi-estate"}},
+    {{"input": "Ethiopia",         "estate": "International"}},
+    {{"input": "House Blend",      "estate": "Unknown"}}
+  ]
+}}
+
+Each output entry MUST have its `input` exactly equal to the input string. Never invent an output entry that wasn't in the input.
+
+═══════════════════════════════════════════════════════════════════════
+REFERENCE EXAMPLES (already classified — match this style)
+═══════════════════════════════════════════════════════════════════════
+
+{_origin_exemplar_block(exemplars)}
+"""
+
+
+def build_varietal_prompt(variety_tree: dict, exemplars: list[dict]) -> str:
+    """Normalize raw `varietal` strings to canonical cultivar + species
+    + morphology. Embeds the WCR/CCRI variety tree as the canonical
+    name reference."""
+    variety_tree_json = json.dumps(variety_tree, indent=2, ensure_ascii=False)
+    return f"""You normalise raw `varietal` strings the roaster wrote on each coffee bag. For each input, return THREE fields:
+
+  • canonical_varietal — a variety name from the variety tree below, OR "Multi-cultivar" when ≥2 distinct cultivars are named, OR null when the input is just species labels / marketing prose / a morphology / empty.
+  • bean_type — derived from canonical_varietal via the tree's `species` field. Override by direct mention only when the input explicitly names a species combination ("Arabica & Robusta" → "Blend"). One of "Arabica" / "Robusta" / "Blend" / "Liberica" / "Excelsa" / null.
+  • morphology — "Peaberry" if the input mentions Peaberry / Caracol / Caracoli / Caracolillo (case-insensitive). Otherwise null. Independent of canonical_varietal.
+
+Rules for canonical_varietal:
+
+1. Match against the variety tree below. The `synonyms` array on each variety lists every drift form Crema's catalog has seen — collapse them to the canonical `name`.
+     "S9", "SL9", "SLN9", "SLN-9", "Sln. 9", "Selection 9" → "SLN 9"
+     "S795", "Selection 795", "SL795" → "S 795"
+     "Catimore" → "Catimor"
+     "Selection 12" → "Cauvery"
+2. Multi-cultivar entries (≥2 distinct cultivars joined by `+`, `&`, `and`, `,` or `/`) → literal "Multi-cultivar". DO NOT pick a first.
+     "Selection 9 + Selection 795 + Cauvery + Kent" → "Multi-cultivar"
+     "SLN9 + SLN6 + Chandragiri" → "Multi-cultivar"
+     "Bourbon, Caturra, Catimor" → "Multi-cultivar"
+   Mixed cultivar + species: when the input names ≥1 specific cultivar AND ≥1 bare species token ("Robusta", "Arabica"), treat it as Multi-cultivar — the cultivar makes it specific enough to surface, the species token tells us bean_type is Blend (when the species pair spans Arabica + Robusta).
+     "SLN 9 + Robusta" → "Multi-cultivar" (bean_type "Blend")
+     "SLN 795 + Robusta" → "Multi-cultivar" (bean_type "Blend")
+     "Chandragiri + Cauvery + Robusta" → "Multi-cultivar" (bean_type "Blend")
+     "Arabica, Robusta, Chandragiri" → "Multi-cultivar" (bean_type "Blend")
+   Exception: if all listed cultivars are the SAME canonical variety (e.g. "SL9, SLN-9, Sln. 9" → SLN 9), return that single canonical name.
+3. Species-only inputs return null:
+     "Arabica" / "Robusta" / "Arabica, Robusta" / "Washed Arabica" → null
+4. Marketing prose / placeholders → null:
+     "Washed Arabica + Various Cherry Varieties" → null
+     "Traditional varieties" / "Mixed" / "Various" / "<UNKNOWN>" → null
+5. Morphology-only inputs return null for canonical_varietal but surface in `morphology`:
+     "Peaberry" → canonical_varietal: null, morphology: "Peaberry"
+     "Caracol"  → canonical_varietal: null, morphology: "Peaberry"
+6. Bracketed/parenthesised qualifiers strip:
+     "SLN 795 HG" → "S 795"
+     "Brown Tip - Panama Geisha" → "Geisha"
+7. "Kents" in an Indian-context catalog defaults to "S 795" (the Indian Bourbon-Typica selection); standalone "Kent" with no Indian context resolves to "Kent" (the heirloom).
+
+Rules for bean_type:
+
+1. canonical_varietal lookup → use that variety's `species` from the tree.
+2. canonical_varietal == "Multi-cultivar": derive from the listed cultivars. If they all share one species → that species. If they span Arabica + Robusta → "Blend".
+3. canonical_varietal == null but the input names a species directly:
+     "Robusta" / "Washed Robusta" → "Robusta"
+     "Arabica, Robusta" / "Washed Arabica & Robusta" / "70% Arabica 30% Robusta" → "Blend"
+     "Washed Arabica" / "Arabica" → "Arabica"
+4. "Liberica" → bean_type "Liberica".
+5. Empty / pure marketing / "<UNKNOWN>" → null.
+6. CXR / C×R → "Robusta" (the cultivar's species, even though it has Congensis lineage).
+7. **Excelsa OVERRIDE.** If the input mentions "Excelsa" anywhere — as a varietal, cultivar, or otherwise — bean_type MUST be "Liberica". Excelsa is botanically Coffea liberica var. dewevrei, NOT a varietal of Arabica. Some roasters mis-label Arabica beans with "Excelsa" as the varietal field; ignore that framing — Excelsa always implies the Liberica species. canonical_varietal stays as "Excelsa" in this case (the variety tree's Excelsa entry).
+
+Rules for morphology:
+
+1. "Peaberry" / "Caracol" / "Caracoli" / "Caracolillo" anywhere in the input → "Peaberry".
+2. Otherwise → null.
+3. Maragogype / "Elephant Bean" → NOT a morphology. It's the variety "Maragogype" (Bourbon-Typica group).
+
+The full variety tree is below.
+
+{variety_tree_json}
+
+═══════════════════════════════════════════════════════════════════════
+RESPONSE FORMAT
+═══════════════════════════════════════════════════════════════════════
+
+The user message is a JSON object: {{"varietals": [...]}}
+
+You return JSON only, no prose, no markdown:
+
+{{
+  "results": [
+    {{"input": "SLN 9",                "canonical_varietal": "SLN 9", "bean_type": "Arabica", "morphology": null}},
+    {{"input": "Selection 9 + Cauvery","canonical_varietal": "Multi-cultivar", "bean_type": "Arabica", "morphology": null}},
+    {{"input": "Peaberry",             "canonical_varietal": null, "bean_type": null, "morphology": "Peaberry"}}
+  ]
+}}
+
+Each output entry MUST have its `input` exactly equal to the input string. Never invent an output entry that wasn't in the input.
+
+═══════════════════════════════════════════════════════════════════════
+REFERENCE EXAMPLES (already classified — match this style)
+═══════════════════════════════════════════════════════════════════════
+
+{_varietal_exemplar_block(exemplars)}
+"""
+
+
+# ── Per-task Haiku callers ──────────────────────────────────────────────────
+
+def _haiku_call_json(system_prompt: str, user_payload: dict, *, log=None) -> dict:
+    """Shared Haiku-call shell — handles env / SDK guards, streams the
+    response, parses JSON. Returns the parsed dict. Raises
+    `GeolocatorError` on caller-actionable failures."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise GeolocatorError(
+            "ANTHROPIC_API_KEY is not set. Export it in the shell that runs "
+            "the FastAPI server (export ANTHROPIC_API_KEY=sk-...)."
+        )
+    try:
+        import anthropic
+    except ImportError as e:
+        raise GeolocatorError(
+            "anthropic SDK isn't installed. `pip install anthropic` in the "
+            "Python env that runs the FastAPI server."
+        ) from e
+    client = anthropic.Anthropic(max_retries=SDK_MAX_RETRIES)
+    user_msg = json.dumps(user_payload, ensure_ascii=False)
+    t0 = time.time()
+    with client.messages.stream(
+        model=MODEL_VERSION,
+        max_tokens=MAX_TOKENS,
+        temperature=0,
+        system=[{
+            "type": "text",
+            "text": system_prompt,
+            "cache_control": {"type": "ephemeral"},
+        }],
+        messages=[{"role": "user", "content": user_msg}],
+    ) as stream:
+        for _ in stream.text_stream:
+            pass
+        msg = stream.get_final_message()
+    text = next((b.text for b in msg.content if b.type == "text"), "")
+    if log:
+        cache_read = getattr(msg.usage, "cache_read_input_tokens", 0)
+        log(
+            f"Haiku returned in {time.time() - t0:.1f}s | "
+            f"input={msg.usage.input_tokens} cache_read={cache_read} "
+            f"output={msg.usage.output_tokens}"
+        )
+    try:
+        return json.loads(extract_json(text))
+    except json.JSONDecodeError as e:
+        raise GeolocatorError(
+            f"Haiku response wasn't valid JSON: {e.msg}. First 200 chars: {text[:200]!r}"
+        ) from e
+
+
+def classify_tasting(tags: list[str], sca_tree: dict, exemplars: list[dict],
+                       *, log=None) -> dict:
+    """Single batched Haiku call for tasting → SCA addresses. Returns
+    {tag: address|None}. Tags Haiku didn't return at all stay missing
+    from the dict — caller decides whether to persist a null row."""
+    if not tags:
+        return {}
+    if log:
+        log(f"calling Haiku — {len(tags)} tasting tags")
+    parsed = _haiku_call_json(
+        build_tasting_prompt(sca_tree, exemplars),
+        {"tags": tags},
+        log=log,
+    )
+    out: dict[str, list[str] | None] = {}
+    for entry in parsed.get("results", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        inp = entry.get("input")
+        addr = entry.get("address")
+        if not isinstance(inp, str):
+            continue
+        if addr is None:
+            out[inp] = None
+        elif is_valid_address(addr, sca_tree):
+            out[inp] = addr
+        else:
+            out[inp] = None
+    return out
+
+
+def classify_origins(origins: list[str], exemplars: list[dict],
+                       *, log=None) -> dict:
+    """Single batched Haiku call for origin → estate string. Returns
+    {raw: estate_str|None}."""
+    if not origins:
+        return {}
+    if log:
+        log(f"calling Haiku — {len(origins)} origins")
+    parsed = _haiku_call_json(
+        build_origin_prompt(exemplars),
+        {"origins": origins},
+        log=log,
+    )
+    out: dict[str, str | None] = {}
+    for entry in parsed.get("results", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        inp = entry.get("input")
+        if not isinstance(inp, str):
+            continue
+        out[inp] = _validate_estate(entry.get("estate"))
+    return out
+
+
+def classify_varietals(varietals: list[str], variety_tree: dict,
+                         exemplars: list[dict], *, log=None) -> dict:
+    """Single batched Haiku call for varietal → canonical+species+morph.
+    Returns {raw: {canonical_varietal, bean_type, morphology}}."""
+    if not varietals:
+        return {}
+    if log:
+        log(f"calling Haiku — {len(varietals)} varietals")
+    parsed = _haiku_call_json(
+        build_varietal_prompt(variety_tree, exemplars),
+        {"varietals": varietals},
+        log=log,
+    )
+    variety_lookup = _build_variety_lookup(variety_tree)
+    out: dict[str, dict] = {}
+    for entry in parsed.get("results", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        inp = entry.get("input")
+        if not isinstance(inp, str):
+            continue
+        validated = _validate_varietal_entry(entry, variety_lookup)
+        if validated is not None:
+            # Defensive Excelsa override — even if Haiku ignored the
+            # prompt rule, any input that mentions "Excelsa" lands as
+            # bean_type "Liberica" since Excelsa IS a Liberica variety.
+            # Stops the Subko-style "Arabica with Excelsa varietal"
+            # mis-tag from sneaking through the model layer.
+            if "excelsa" in inp.lower():
+                validated["bean_type"] = "Liberica"
+            out[inp] = validated
+    return out
+
+
+# ── Roast + Process: prompts and classifiers ───────────────────────────────
+#
+# Both tasks map a verbatim roaster string onto a small flat enum.
+# No external tree to embed — the canonical buckets are listed inline
+# in the prompt rules. Exemplars from `roast_addresses` /
+# `process_addresses` propagate house style as the catalog grows.
+
+ROAST_BUCKETS = ["Light", "Medium-Light", "Medium", "Medium-Dark", "Dark"]
+
+PROCESS_BUCKETS = [
+    "Washed",
+    "Natural",
+    "Honey",
+    "Anaerobic",
+    "Wet-Hulled",
+    "Monsooned",
+    "Experimental",
+    "Decaf",
+]
+
+
+def _roast_exemplar_block(items: list[dict]) -> str:
+    if not items:
+        return "(none)"
+    lines = []
+    for e in items:
+        rhs = json.dumps(e.get("roast")) if e.get("roast") is not None else "null"
+        lines.append(f'  {{"input": {json.dumps(e["input"])}, "roast": {rhs}}}')
+    return "[\n" + ",\n".join(lines) + "\n]"
+
+
+def _process_exemplar_block(items: list[dict]) -> str:
+    if not items:
+        return "(none)"
+    lines = []
+    for e in items:
+        rhs = json.dumps(e.get("process")) if e.get("process") is not None else "null"
+        lines.append(f'  {{"input": {json.dumps(e["input"])}, "process": {rhs}}}')
+    return "[\n" + ",\n".join(lines) + "\n]"
+
+
+def build_roast_prompt(exemplars: list[dict]) -> str:
+    return f"""You normalise raw roast-level strings the roaster wrote on each coffee bag. Return one of five canonical buckets, or null when the input doesn't describe a roast level.
+
+Canonical buckets (use these EXACT strings):
+  • "Light"          — first crack just done, cinnamon to City roast.
+  • "Medium-Light"   — City+, slightly past first crack.
+  • "Medium"         — Full City, classic American roast.
+  • "Medium-Dark"    — Full City+, Vienna territory, oils starting to show.
+  • "Dark"           — French / Italian, oily surface, smoky-bitter.
+
+Mapping rules:
+
+1. Direct synonyms collapse to the canonical bucket.
+     "Medium" / "Medium Roast" / "medium" / "medium roast" → "Medium"
+     "Light" / "Light Roast" / "Light City Roast" → "Light"
+     "Dark" / "Dark Roast" / "French Roast" / "Italian Roast" → "Dark"
+     "Vienna" / "Vienna Roast" / "Vienna/ Dark" → "Medium-Dark"
+
+2. Hyphen / dash / spelling drift is the same bucket.
+     "Medium-Dark" / "Medium Dark" / "Medium–Dark" / "Medium dark" / "Medium - Dark Roast" → "Medium-Dark"
+     "Medium-Light" / "Medium Light" / "Light-Medium" / "Light to Medium" / "Light Medium" → "Medium-Light"
+
+3. Modifiers like "Roast", "Custom Roast", "Traditional", trailing capitalization differences are stripped before the bucket decision.
+
+4. Roast PURPOSE strings (not roast LEVELS) → null. The consumer's roast filter is about lightness/darkness; brewing intent lives elsewhere.
+     "Espresso" / "Espresso Roast" → null
+     "Filter Roast" / "Filter (Light Roast)" → "Light" (the parenthetical names the actual level — use it)
+     "Omni Roast" / "Custom Roast" / "Traditional" → null
+
+5. Multi-bucket strings (a roaster who labels a bean for two intents) — pick the dominant interpretation. "Light to Medium-Dark" → "Medium". "Medium to Dark Roast" → "Medium-Dark". When truly ambiguous → null.
+
+6. "<UNKNOWN>" / empty / "Unknown" → null.
+
+═══════════════════════════════════════════════════════════════════════
+RESPONSE FORMAT
+═══════════════════════════════════════════════════════════════════════
+
+User message: {{"roasts": [...]}}
+
+Return JSON only, no prose:
+
+{{
+  "results": [
+    {{"input": "Vienna Roast", "roast": "Medium-Dark"}},
+    {{"input": "Filter (Light Roast)", "roast": "Light"}},
+    {{"input": "Espresso", "roast": null}}
+  ]
+}}
+
+═══════════════════════════════════════════════════════════════════════
+REFERENCE EXAMPLES
+═══════════════════════════════════════════════════════════════════════
+
+{_roast_exemplar_block(exemplars)}
+"""
+
+
+def build_process_prompt(exemplars: list[dict]) -> str:
+    return f"""You normalise raw coffee processing-method strings the roaster wrote on each coffee bag. Return one of these canonical buckets, or null when the input doesn't describe a processing method.
+
+Canonical buckets (use these EXACT strings):
+  • "Washed"        — wet-processed, fully washed, double washed, fully washed patio dried.
+  • "Natural"       — sun-dried in cherry, naturals, sundried, dry process.
+  • "Honey"         — pulped natural with mucilage retained (red / yellow / black / white honey).
+  • "Anaerobic"     — sealed-tank fermentation, carbonic maceration, thermal-shock anaerobic.
+  • "Wet-Hulled"    — Sumatran "Giling Basah", semi-washed, wet-hulled.
+  • "Monsooned"     — Indian Malabar / monsooned coffees only.
+  • "Experimental"  — barrel-aged (whiskey / rum / wine), yeast / lactic / fruit-fermented, infused, multi-step exotic methods that don't fit the above buckets cleanly.
+  • "Decaf"         — decaffeinated coffees (DCM, CO₂, Swiss Water, Mountain Water).
+
+Mapping rules:
+
+1. Plurals / capitalisation collapse: "Naturals", "naturals", "Natural Process", "Natural Sundried", "Sundried", "Sun-dried", "Pulped natural & Sun-dried" → "Natural".
+2. "Washed" family includes "Fully Washed", "Double Washed", "Washed (Fully Washed)", "Washed, Patio Dried", "Pulped Natural" (when paired with full washing).
+3. "Honey" family — anything explicitly labeled honey (Red Honey / Yellow Honey / Black Honey / Yeast Honey) and pulped-natural-with-mucilage-retained.
+4. "Anaerobic" family — anaerobic fermentation, carbonic maceration, thermal shock, anoxic naturals, sealed-tank ferm. "Anaerobic Natural" → "Anaerobic" (anaerobic dominates the consumer-relevant signal).
+5. "Wet-Hulled" — labeled Wet-Hulled, "Giling Basah", or "Semi-Washed" (the Indonesian style).
+6. "Monsooned" — only when explicitly labeled monsooned / Malabar style.
+7. "Experimental" — barrel ageing (Whiskey / Rum / Wine Barrel Aged), yeast inoculation that isn't anaerobic, multi-step ferments, decaf preparation methods that AREN'T listed in Decaf, "Pineapple Fermentation", "Wine Process", etc.
+8. "Decaf" — DCM Decaf, CO₂, Swiss Water, Mountain Water, Sugarcane EA. The bean's underlying process before decaffeination is lost; decaf wins.
+9. Multi-process strings ("Washed & Naturals", "Washed and Naturals") — when the roaster blends two processes in one bag, pick the dominant method by listed order. If ambiguous → "Experimental".
+10. Generic / non-process strings: "Mixed", "Blended", "Blend" → null. These describe blending, not processing.
+11. "<UNKNOWN>" / empty → null.
+
+═══════════════════════════════════════════════════════════════════════
+RESPONSE FORMAT
+═══════════════════════════════════════════════════════════════════════
+
+User message: {{"processes": [...]}}
+
+Return JSON only, no prose:
+
+{{
+  "results": [
+    {{"input": "Anaerobic Natural", "process": "Anaerobic"}},
+    {{"input": "Whiskey Barrel Aged", "process": "Experimental"}},
+    {{"input": "Mixed", "process": null}}
+  ]
+}}
+
+═══════════════════════════════════════════════════════════════════════
+REFERENCE EXAMPLES
+═══════════════════════════════════════════════════════════════════════
+
+{_process_exemplar_block(exemplars)}
+"""
+
+
+def _validate_roast(value) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return value if value in ROAST_BUCKETS else None
+
+
+def _validate_process(value) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return value if value in PROCESS_BUCKETS else None
+
+
+def classify_roasts(inputs: list[str], exemplars: list[dict],
+                      *, log=None) -> dict:
+    if not inputs:
+        return {}
+    if log:
+        log(f"calling Haiku — {len(inputs)} roasts")
+    parsed = _haiku_call_json(
+        build_roast_prompt(exemplars),
+        {"roasts": inputs},
+        log=log,
+    )
+    out: dict[str, str | None] = {}
+    for entry in parsed.get("results", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        inp = entry.get("input")
+        if not isinstance(inp, str):
+            continue
+        out[inp] = _validate_roast(entry.get("roast"))
+    return out
+
+
+def classify_processes(inputs: list[str], exemplars: list[dict],
+                         *, log=None) -> dict:
+    if not inputs:
+        return {}
+    if log:
+        log(f"calling Haiku — {len(inputs)} processes")
+    parsed = _haiku_call_json(
+        build_process_prompt(exemplars),
+        {"processes": inputs},
+        log=log,
+    )
+    out: dict[str, str | None] = {}
+    for entry in parsed.get("results", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        inp = entry.get("input")
+        if not isinstance(inp, str):
+            continue
+        out[inp] = _validate_process(entry.get("process"))
+    return out
+
+
+# ── Legacy combined prompt + classifier (kept for backward compat) ──────────
+
+def build_standardize_system_prompt(
+    sca_tree: dict,
+    variety_tree: dict,
+    tag_exemplars: list[dict],
+    origin_exemplars: list[dict],
+    varietal_exemplars: list[dict],
+) -> str:
+    """Compose the cached system prompt for one Haiku call covering all
+    three standardization tasks. Embeds both reference trees + per-task
+    exemplar blocks so the model has concrete signals for every field it
+    has to fill."""
+    sca_tree_json = json.dumps(sca_tree, indent=2, ensure_ascii=False)
+    variety_tree_json = json.dumps(variety_tree, indent=2, ensure_ascii=False)
+
+    def _tasting_block(items):
+        if not items:
+            return "(none)"
+        lines = []
+        for e in items:
+            addr = e.get("address")
+            rhs = json.dumps(addr) if addr else "null"
+            lines.append(f'  {{"input": {json.dumps(e["tag"])}, "address": {rhs}}}')
+        return "[\n" + ",\n".join(lines) + "\n]"
+
+    def _origin_block(items):
+        if not items:
+            return "(none)"
+        lines = []
+        for e in items:
+            est = e.get("estate")
+            rhs = json.dumps(est) if est is not None else "null"
+            lines.append(f'  {{"input": {json.dumps(e["input"])}, "estate": {rhs}}}')
+        return "[\n" + ",\n".join(lines) + "\n]"
+
+    def _varietal_block(items):
+        if not items:
+            return "(none)"
+        lines = []
+        for e in items:
+            cv = json.dumps(e.get("canonical_varietal")) if e.get("canonical_varietal") is not None else "null"
+            bt = json.dumps(e.get("bean_type")) if e.get("bean_type") is not None else "null"
+            mo = json.dumps(e.get("morphology")) if e.get("morphology") is not None else "null"
+            lines.append(
+                f'  {{"input": {json.dumps(e["input"])}, '
+                f'"canonical_varietal": {cv}, "bean_type": {bt}, "morphology": {mo}}}'
+            )
+        return "[\n" + ",\n".join(lines) + "\n]"
+
+    return f"""You standardize three independent fields on the Crema coffee catalog in one pass. The user message carries three input lists; you return three output lists, one entry per input, preserving the input string verbatim as the key.
+
+═══════════════════════════════════════════════════════════════════════
+TASK 1 — TASTING NOTES → SCA address
+═══════════════════════════════════════════════════════════════════════
+
+Map each free-text flavor tag onto the SCA flavor tree. The tree is a 3-tier hierarchy. An address is a path: [tier1], [tier1, tier2], or [tier1, tier2, tier3].
+
+Rules:
+
+1. Match deepest where it fits. "Honey" → ["Sweet","Brown Sugar","Honey"]. "Cacao" → ["Nutty/Cocoa","Cocoa"] (Cacao is a Cocoa synonym).
+2. Strip modifiers that don't change the underlying flavor. "Wild Honey", "Raw Honey" → ["Sweet","Brown Sugar","Honey"]. "Roasted Nuts" → ["Nutty/Cocoa","Nutty"].
+3. Climb up when input names a region, not a leaf. "Stone Fruit" → ["Fruity","Other Fruit"]. "Citrus" → ["Fruity","Citrus Fruit"].
+4. Climb to tier 1 only when no tier-2 captures it. "Fruity" stays at ["Fruity"].
+5. Compound tags pointing at unrelated tier-1s with no common ancestor → null. "Plum Cake" (Fruity + Spices) → null.
+6. Mouthfeel/body descriptors are not flavors → null. ("Smooth", "Creamy", "Silky", "Heavy", "Light Body", "Round")
+7. Vague marketing language → null. ("Aromatic", "Complex", "Balanced", "Clean", "Bold", "Exceptional")
+
+The full SCA tree is below. Use these EXACT strings — case, punctuation, slashes must match.
+
+{sca_tree_json}
+
+═══════════════════════════════════════════════════════════════════════
+TASK 2 — ORIGIN → estate name
+═══════════════════════════════════════════════════════════════════════
+
+Each input is the raw `origin` field as the roaster wrote it. Return ONE of four things:
+
+  • An estate name, normalised — Title Case, ALWAYS suffixed with the word "Estate" regardless of what the roaster wrote ("Farm" / "Farms" / "Plantation" / bare names all become "X Estate").
+  • "Multi-estate" — when the input names ≥2 distinct estates, OR is a region/area without a specific estate, OR is generic descriptive language masquerading as an estate name.
+  • "International" — when the origin is anywhere outside India.
+  • "Unknown" — when no estate or region is named at all (empty / "<UNKNOWN>" / pure blend product names with no farm reference).
+
+Rules:
+
+1. Estate suffix is always "Estate" in the output. Recognise estate-class entities written with: "Estate", "Estates", "Farm", "Farms", "Plantation", "Plantations". Bare named estates with no suffix get "Estate" appended.
+     "Ratnagiri Estate"        → "Ratnagiri Estate"
+     "Tat Tvam Asi Farms"      → "Tat Tvam Asi Estate"
+     "Hoysala Estate"          → "Hoysala Estate"
+     "Riverdale"               → "Riverdale Estate"
+     "Salawara"                → "Salawara Estate"
+
+2. Strip everything after the first comma/semicolon that names a region, district, state, or country.
+     "Kalledevarapura Estate, Bababudangiri, Chikmagalur" → "Kalledevarapura Estate"
+     "Mooleh Manay Estate, Coorg"    → "Mooleh Manay Estate"
+     "Harley Estate, Sakleshpur"     → "Harley Estate"
+
+3. Multi-estate inputs (≥2 distinct estate proper-nouns joined by `&`, `+`, `and`, `;`, or `,`) → "Multi-estate". DO NOT pick the first.
+     "Kalledevarapura Estate & Balur Estate, Chikmagalur" → "Multi-estate"
+     "BR Hills, Karnataka; Wayanad, Kerala"               → "Multi-estate"
+
+4. Region-only / state-only / district-only / hill-only / valley-only inputs (no specific estate proper noun) → "Multi-estate". A region IS de facto multi-estate from the consumer's view — it's a sourcing area, not a farm.
+     "Coorg"            → "Multi-estate"
+     "Chikmagalur"      → "Multi-estate"
+     "Coorg & Chikmagalur" → "Multi-estate"
+     "Karnataka"        → "Multi-estate"
+     "Wayanad, Kerala"  → "Multi-estate"
+     "Western Ghats"    → "Multi-estate"
+     "Southern India"   → "Multi-estate"
+     "BR Hills, Karnataka" → "Multi-estate"
+     "Mysore"           → "Multi-estate"
+     "Bababudan Hills"  → "Multi-estate"
+     "Araku Valley"     → "Multi-estate"
+
+5. Generic descriptive language masquerading as an estate name → "Multi-estate". These strings have no proper-noun specificity ("Finest", "Premium", "Best" + Coffee/Estate/Plantation are advertising copy, not actual places).
+     "Finest Coffee Estate"    → "Multi-estate"
+     "Premium Coffee Estate"   → "Multi-estate"
+     "Best Coffee Plantation"  → "Multi-estate"
+
+6. International origins (any country other than India) → "International". Never name the country in the output.
+     "Ethiopia"           → "International"
+     "Colombia, Huila"    → "International"
+     "Yirgacheffe"        → "International"  (Yirgacheffe is in Ethiopia)
+     "Panama"             → "International"
+
+7. Misspelled Indian regions still resolve to "Multi-estate":
+     "Chikmaglur" → "Multi-estate"
+     "Chikkamagaluru" → "Multi-estate"
+
+8. Empty / placeholder / pure blend product names (no farm/region reference at all) → "Unknown". This is the bucket the consumer filter hides.
+     "<UNKNOWN>" → "Unknown"
+     "House Blend" → "Unknown"
+     "Espresso Blend" → "Unknown"
+     "French Roast" → "Unknown"
+     "Cold Brew Blend" → "Unknown"
+
+9. Title Case the estate name. Mid-word lowercase joiners ("of", "the", "and", "de", "del") stay lowercase unless the roaster capitalised them. Match the roaster's spelling for proper nouns.
+
+═══════════════════════════════════════════════════════════════════════
+TASK 3 — VARIETAL → canonical variety + species + morphology
+═══════════════════════════════════════════════════════════════════════
+
+Each input is the raw `varietal` field. Return THREE fields:
+
+  • canonical_varietal — a variety name from the variety tree below, OR "Multi-cultivar" when ≥2 distinct cultivars are named, OR null when the input is just species labels / marketing prose / a morphology / empty.
+  • bean_type — derived from canonical_varietal via the tree's `species` field. Override by direct mention only when the input explicitly names a species combination ("Arabica & Robusta" → "Blend"). One of "Arabica" / "Robusta" / "Blend" / "Liberica" / "Excelsa" / null.
+  • morphology — "Peaberry" if the input mentions Peaberry / Caracol / Caracoli / Caracolillo (case-insensitive). Otherwise null. Independent of canonical_varietal.
+
+Rules for canonical_varietal:
+
+1. Match against the variety tree below. The `synonyms` array on each variety lists every drift form Crema's catalog has seen — collapse them to the canonical `name`.
+     "S9", "SL9", "SLN9", "SLN-9", "Sln. 9", "Selection 9" → "SLN 9"
+     "S795", "Selection 795", "SL795" → "S 795"
+     "Catimore" → "Catimor"
+     "Selection 12" → "Cauvery"
+2. Multi-cultivar entries (≥2 distinct cultivars joined by `+`, `&`, `and`, `,` or `/`) → literal "Multi-cultivar". DO NOT pick a first.
+     "Selection 9 + Selection 795 + Cauvery + Kent" → "Multi-cultivar"
+     "SLN9 + SLN6 + Chandragiri" → "Multi-cultivar"
+     "Bourbon, Caturra, Catimor" → "Multi-cultivar"
+     "SLN 795 + SLN 9" → "Multi-cultivar"
+   Exception: if all listed cultivars are the SAME canonical variety (e.g. "SL9, SLN-9, Sln. 9" → SLN 9), return that single canonical name.
+3. Species-only inputs return null:
+     "Arabica" / "Robusta" / "Arabica, Robusta" / "Washed Arabica" → null
+4. Marketing prose / placeholders → null:
+     "Washed Arabica + Various Cherry Varieties" → null
+     "Traditional varieties" / "Mixed" / "Various" / "<UNKNOWN>" → null
+5. Morphology-only inputs return null for canonical_varietal but surface in `morphology`:
+     "Peaberry" → canonical_varietal: null, morphology: "Peaberry"
+     "Caracol"  → canonical_varietal: null, morphology: "Peaberry"
+6. Bracketed/parenthesised qualifiers strip:
+     "SLN 795 HG" → "S 795"
+     "Brown Tip - Panama Geisha" → "Geisha"
+7. "Kents" in an Indian-context catalog defaults to "S 795" (the Indian Bourbon-Typica selection); standalone "Kent" with no Indian context resolves to "Kent" (the heirloom).
+
+Rules for bean_type:
+
+1. canonical_varietal lookup → use that variety's `species` from the tree.
+2. canonical_varietal == "Multi-cultivar": derive from the listed cultivars. If they all share one species → that species. If they span Arabica + Robusta → "Blend".
+3. canonical_varietal == null but the input names a species directly:
+     "Robusta" / "Washed Robusta" → "Robusta"
+     "Arabica, Robusta" / "Washed Arabica & Robusta" / "70% Arabica 30% Robusta" → "Blend"
+     "Washed Arabica" / "Arabica" → "Arabica"
+4. "Liberica" → bean_type "Liberica".
+5. Empty / pure marketing / "<UNKNOWN>" → null.
+6. CXR / C×R → "Robusta" (the cultivar's species, even though it has Congensis lineage).
+7. **Excelsa OVERRIDE.** If the input mentions "Excelsa" anywhere — as a varietal, cultivar, or otherwise — bean_type MUST be "Liberica". Excelsa is botanically Coffea liberica var. dewevrei, NOT a varietal of Arabica. Some roasters mis-label Arabica beans with "Excelsa" as the varietal field; ignore that framing — Excelsa always implies the Liberica species. canonical_varietal stays as "Excelsa" in this case (the variety tree's Excelsa entry).
+
+Rules for morphology:
+
+1. "Peaberry" / "Caracol" / "Caracoli" / "Caracolillo" anywhere in the input → "Peaberry".
+2. Otherwise → null.
+3. Maragogype / "Elephant Bean" → NOT a morphology. It's the variety "Maragogype" (Bourbon-Typica group).
+
+The full variety tree is below.
+
+{variety_tree_json}
+
+═══════════════════════════════════════════════════════════════════════
+RESPONSE FORMAT
+═══════════════════════════════════════════════════════════════════════
+
+The user message is a JSON object:
+
+{{
+  "tasting_tags": [...],
+  "origins": [...],
+  "varietals": [...]
+}}
+
+You return JSON only, no prose, no markdown, with all three output lists keyed verbatim:
+
+{{
+  "tasting_addresses": [
+    {{"input": "Wild Honey",  "address": ["Sweet","Brown Sugar","Honey"]}},
+    {{"input": "Smooth",      "address": null}}
+  ],
+  "origin_estates": [
+    {{"input": "Ratnagiri Estate", "estate": "Ratnagiri Estate"}},
+    {{"input": "Coorg",            "estate": "Multi-estate"}},
+    {{"input": "Ethiopia",         "estate": "International"}},
+    {{"input": "House Blend",      "estate": "Unknown"}}
+  ],
+  "varietals": [
+    {{"input": "SLN 9",                "canonical_varietal": "SLN 9", "bean_type": "Arabica", "morphology": null}},
+    {{"input": "Selection 9 + Cauvery","canonical_varietal": "Multi-cultivar", "bean_type": "Arabica", "morphology": null}},
+    {{"input": "Peaberry",             "canonical_varietal": null, "bean_type": null, "morphology": "Peaberry"}}
+  ]
+}}
+
+Each output entry MUST have its `input` exactly equal to the input string. If a list in the request is empty or omitted, return an empty list for it. Never invent an output entry that wasn't in the input.
+
+═══════════════════════════════════════════════════════════════════════
+REFERENCE EXAMPLES (already classified — match this style)
+═══════════════════════════════════════════════════════════════════════
+
+Tasting tags:
+{_tasting_block(tag_exemplars)}
+
+Origins:
+{_origin_block(origin_exemplars)}
+
+Varietals:
+{_varietal_block(varietal_exemplars)}
+"""
+
+
+# ── Three-task batched Haiku call ───────────────────────────────────────────
+
+def _validate_estate(value) -> str | None:
+    """Coerce the model's estate output. Returns the canonical string or
+    None (so the caller can drop bad rows rather than persist garbage)."""
+    if not isinstance(value, str):
+        return None
+    s = value.strip()
+    if not s:
+        return None
+    if s in ("Multi-estate", "International", "Unknown"):
+        return s
+    if len(s) > 80:
+        return None
+    return s
+
+
+def _validate_varietal_entry(entry, variety_lookup: set[str]) -> dict | None:
+    """Coerce a varietal output into the {canonical_varietal, bean_type,
+    morphology} shape; reject rows where canonical_varietal isn't in the
+    tree (and isn't "Multi-cultivar" / null)."""
+    if not isinstance(entry, dict):
+        return None
+    cv = entry.get("canonical_varietal")
+    if cv is not None and not isinstance(cv, str):
+        cv = None
+    if cv and cv != "Multi-cultivar" and cv not in variety_lookup:
+        cv = None
+    bt = entry.get("bean_type")
+    if bt not in (None, "Arabica", "Robusta", "Blend", "Liberica", "Excelsa"):
+        bt = None
+    mo = entry.get("morphology")
+    if mo not in (None, "Peaberry", "Triangular"):
+        mo = None
+    return {"canonical_varietal": cv, "bean_type": bt, "morphology": mo}
+
+
+def _build_variety_lookup(tree: dict) -> set[str]:
+    """Flatten variety names from the tree for O(1) validation."""
+    out: set[str] = set()
+    for group in (tree.get("groups") or {}).values():
+        for v in group.get("varieties") or []:
+            n = v.get("name")
+            if isinstance(n, str):
+                out.add(n)
+    return out
+
+
+def classify_standardize_batch(
+    tags: list[str],
+    origins: list[str],
+    varietals: list[str],
+    sca_tree: dict,
+    variety_tree: dict,
+    tag_exemplars: list[dict],
+    origin_exemplars: list[dict],
+    varietal_exemplars: list[dict],
+    *,
+    log=None,
+) -> dict:
+    """Single batched Haiku call covering all three tasks. Returns:
+
+        {
+          "tasting": {tag: address|None, ...},
+          "origin":  {raw: estate_str|None, ...},     # None means parse miss
+          "varietal": {raw: {canonical_varietal, bean_type, morphology}, ...}
+        }
+
+    Inputs Haiku didn't return at all stay missing from the output dicts —
+    the caller decides whether to persist a null row or skip them.
+    """
+    if not tags and not origins and not varietals:
+        return {"tasting": {}, "origin": {}, "varietal": {}}
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise GeolocatorError(
+            "ANTHROPIC_API_KEY is not set. Export it in the shell that runs "
+            "the FastAPI server (export ANTHROPIC_API_KEY=sk-...)."
+        )
+
+    try:
+        import anthropic
+    except ImportError as e:
+        raise GeolocatorError(
+            "anthropic SDK isn't installed. `pip install anthropic` in the "
+            "Python env that runs the FastAPI server."
+        ) from e
+
+    client = anthropic.Anthropic(max_retries=SDK_MAX_RETRIES)
+    user_payload = {
+        "tasting_tags": tags,
+        "origins": origins,
+        "varietals": varietals,
+    }
+    user_msg = json.dumps(user_payload, ensure_ascii=False)
+    system_prompt = build_standardize_system_prompt(
+        sca_tree, variety_tree, tag_exemplars, origin_exemplars, varietal_exemplars,
+    )
+
+    if log:
+        log(
+            f"calling Haiku — {len(tags)} tags · {len(origins)} origins · "
+            f"{len(varietals)} varietals"
+        )
+    t0 = time.time()
+    with client.messages.stream(
+        model=MODEL_VERSION,
+        max_tokens=MAX_TOKENS,
+        temperature=0,
+        system=[{
+            "type": "text",
+            "text": system_prompt,
+            "cache_control": {"type": "ephemeral"},
+        }],
+        messages=[{"role": "user", "content": user_msg}],
+    ) as stream:
+        for _ in stream.text_stream:
+            pass
+        msg = stream.get_final_message()
+
+    text = next((b.text for b in msg.content if b.type == "text"), "")
+    if log:
+        cache_read = getattr(msg.usage, "cache_read_input_tokens", 0)
+        log(
+            f"Haiku returned in {time.time() - t0:.1f}s | "
+            f"input={msg.usage.input_tokens} cache_read={cache_read} "
+            f"output={msg.usage.output_tokens}"
+        )
+
+    try:
+        parsed = json.loads(extract_json(text))
+    except json.JSONDecodeError as e:
+        raise GeolocatorError(
+            f"Haiku response wasn't valid JSON: {e.msg}. First 200 chars: {text[:200]!r}"
+        ) from e
+
+    # Tasting — same validator as legacy classify_tags
+    tasting_out: dict[str, list[str] | None] = {}
+    for entry in parsed.get("tasting_addresses", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        inp = entry.get("input")
+        addr = entry.get("address")
+        if not isinstance(inp, str):
+            continue
+        if addr is None:
+            tasting_out[inp] = None
+        elif is_valid_address(addr, sca_tree):
+            tasting_out[inp] = addr
+        else:
+            tasting_out[inp] = None
+
+    # Origin
+    origin_out: dict[str, str | None] = {}
+    for entry in parsed.get("origin_estates", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        inp = entry.get("input")
+        if not isinstance(inp, str):
+            continue
+        origin_out[inp] = _validate_estate(entry.get("estate"))
+
+    # Varietal
+    variety_lookup = _build_variety_lookup(variety_tree)
+    varietal_out: dict[str, dict] = {}
+    for entry in parsed.get("varietals", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        inp = entry.get("input")
+        if not isinstance(inp, str):
+            continue
+        validated = _validate_varietal_entry(entry, variety_lookup)
+        if validated is not None:
+            varietal_out[inp] = validated
+
+    return {"tasting": tasting_out, "origin": origin_out, "varietal": varietal_out}
