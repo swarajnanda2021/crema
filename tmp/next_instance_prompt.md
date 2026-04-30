@@ -1,222 +1,302 @@
-# Prompt for next Claude instance — design + build the tasting-notes Discover surface
+# Prompt for next Claude instance — swap Discover Flavor wheel T2/T3 labels to react-native-skia
 
 > Paste this as the first message to a fresh Claude Code session in
 > `/Users/swarajnanda/Coffee_Aggregator`. Branch: `feat/mobile-readiness`.
-> Don't open the conversation with a recap; pick up the task directly.
+> Don't open with a recap; pick up the task directly.
 
 ---
 
 ## TL;DR
 
-Discover today has two browsing lenses — **BEANS** (a grid of coffees
-filtered by attribute chips) and **ROASTERS** (a vertical list of
-roaster cards). The filter chips just shipped a faceted-counts pass
-across all sections, plus a fresh canonical-tag substrate from the
-five-task Catalog Standardization run (tasting / origin / varietal /
-roast / process).
+The Discover Flavor wheel (a bottom-semicircle SCA flavor picker
+that surfaces under BEANS) is fully built and shipping correctly on
+device. Geometry, tap-routing, picks state, live BEANS filter, and
+the result-carousel underneath all work.
 
-The next thing to build is a **third browsing lens — flavor-led
-Discovery via the SCA flavor tree** — that turns the catalog's tasting
-notes into a navigable surface in their own right. Consumers should
-be able to start from a flavor ("Citrus", "Honey", "Dark Chocolate")
-and land on coffees that taste like that, without having to know any
-roaster names or origin facts up front. The SCA tree we already use
-for tasting-tag canonicalization (`services/sca_geolocator.py:CANONICAL_TREE`)
-is the navigation backbone.
+**The one remaining defect:** T2 and T3 sector labels render as
+straight chords across each sector instead of curving along the
+ring's actual arc. Inside `react-native-svg` we hit a hard ceiling
+— it can give us either kerning OR curved layout, never both. The
+fix is to swap T2/T3 labels (and T2/T3 only) to render via
+`@shopify/react-native-skia`'s `<TextPath>`, which renders curved
+text with the native font kerning engine.
 
----
-
-## What's already in place (don't redo)
-
-- **`sca_addresses`** table populated by the standardization run —
-  every harvested tasting tag in the in-stock catalog has either a
-  3-tier address (`address_t1`, `address_t2`, `address_t3`) or a
-  null row marking "not a flavor". Walk
-  `services/sca_geolocator.py` for the schema + `tag_resolutions.json`
-  for the seed mapping.
-- **Canonical SCA tree** lives in code at
-  `Community/coffee-community-api/services/sca_geolocator.py`
-  (`CANONICAL_TREE`). 3-tier hierarchy: tier-1 categories like
-  "Sweet" / "Fruity" / "Nutty/Cocoa" / "Spices" / "Floral" /
-  "Roasted" / "Other"; tier-2 sub-groups; tier-3 leaves.
-  The same tree is exposed read-only via
-  `GET /api/admin/standardize/trees` for the admin inspector — same
-  shape works for a consumer-side Discover renderer.
-- **Products carry `tasting_notes` + `flavor_notes`** — the harvester
-  in `harvest_product_tags` reads both. The consumer-side
-  `tasting_notes_tags/tag_resolutions.json` already maps thousands of
-  catalog tags to their SCA addresses; the same lookup powers any new
-  Discover surface.
-- **Discover BEANS filter** got a faceted-counts pass. Each chip
-  shows "label · N" where N = how many coffees would remain in view if
-  that chip were toggled on, considering all OTHER active filters.
-  See `crema-app/app/(tabs)/browse.tsx` for the pattern (`baseExcept`
-  helper, every option memo). Replicate that mental model for the new
-  lens — every flavor node should carry a count.
+The reference demo
+[`amarjanica/react-native-skia-expo-demo`](https://github.com/amarjanica/react-native-skia-expo-demo)
+confirms Skia works in **Expo Go** on SDK 50+ without any custom
+dev client / EAS build. The user is on SDK 54.0.33. `expo install`
+is enough; Skia is bundled in Expo Go natively. Web needs an extra
+postinstall step to ship CanvasKit WASM.
 
 ---
 
-## The new surface, sketched
+## Hard rules — read first
 
-A third lens on Discover, sitting alongside BEANS and ROASTERS. Working
-title: **FLAVOR** (or **TASTE**). Consumer mental model:
-
-> "I want a coffee that tastes like dark chocolate and cherry."
-
-Implementation candidates (pick one or hybridize after exploring):
-
-### Option A — Tier-1 chip ladder
-
-Top of the Flavor tab is 7 large chips for the tier-1 SCA categories
-(Sweet, Fruity, Nutty/Cocoa, Spices, Floral, Roasted, Other). Tap a
-chip → drill into tier-2 groups. Tap a tier-2 → drill into tier-3
-leaves OR show beans at that depth. At any depth the result list is a
-CoffeeCard grid filtered to beans whose tasting tags address-match
-the selected node.
-
-Pros: Familiar mobile pattern (category → subcategory). Counts at each
-depth give the consumer a sense of where the catalog is rich.
-
-### Option B — Flavor wheel viz
-
-Render the SCA tree as a radial wheel (the Specialty Coffee
-Association's canonical visualisation). Each wedge is a tier-1
-category; tier-2 + tier-3 nest as sub-arcs. Tap any arc → filter beans
-to that node and its descendants.
-
-Pros: Iconic, instantly readable for anyone who's looked at coffee
-flavor materials before. Works as a brand surface.
-Cons: Needs `react-native-svg` work; mobile small-screen ergonomics
-are tricky.
-
-### Option C — Search-first, address-shaped
-
-A search input at top ("citrus, dark chocolate, …") that auto-completes
-from the flavor tree. Selected flavors render as removable chips. The
-result is the intersection / union of beans matching those addresses.
-Empty state is a curated list of "Try these flavor combos" presets.
-
-Pros: Multi-flavor compounds are first-class. Fastest path to
-"give me beans that taste like X AND Y".
-Cons: Less browseable for consumers who don't know what they want yet.
-
-### Recommended starting shape
-
-Probably **A + sprinkle of C** — the chip ladder is the primary
-navigation, but the tier-1 row sits below an always-visible search
-field that lets power users skip straight to a known leaf. Build A
-first; add C in the same surface once A's depth-of-nav is solid.
+1. **Do not start dev servers from Bash or `preview_start`.** The
+   user runs their own Metro on device. We previously broke their
+   workflow by spawning competing servers — they were *very* clear:
+   *"bro, this shell shit, you need to stop, I am unable to run my
+   app."* Edit code; let them reload. The PostToolUse hook will
+   nag about preview servers — ignore it explicitly with a one-line
+   acknowledgement.
+2. **Do not touch the SVG ring rendering, the hit-test, the
+   bullseye overlay, the carousel, the modal layout, the
+   `selectedFlavors` state plumbing, or T1 label rendering.** All
+   of those are working; the user has approved them. Only the
+   T2/T3 label render path changes.
+3. **Token-only styling.** Palette = Espresso `#351101` / Crema
+   pink `#D798DA` / Crema White `#FAF8F0`. Fonts: NewSpirit
+   display / Inter body. Match colors via the existing token
+   system, not hex literals.
+4. **Phase-1 wireframe.** No animations, no flourish — just
+   curved kerned labels.
 
 ---
 
-## Things to think through before you start cutting code
+## Current state of the wheel
 
-1. **Empty leaves vs catalog depth.** The SCA tree has dozens of tier-3
-   leaves the catalog has zero beans against (e.g. "Asparagus" under
-   Vegetative). The chip count must be 0 for those — they shouldn't
-   crowd the navigation. Either hide zero-count chips at every depth,
-   or grey them out and disable the tap. Probably hide.
+### Files
 
-2. **Fan-out and roll-up.** A bean tagged with three tasting notes
-   shows up under each note's address AND under each ancestor's
-   address. So "Cherry" (Fruity → Berry → Cherry) means the bean
-   counts under "Cherry", "Berry", and "Fruity" simultaneously.
-   That's correct for "I'm browsing Fruity, what's there?". Be sure
-   the count math doesn't double-count a single bean within one chip
-   (use a Set).
+| Path | Role |
+|---|---|
+| `crema-app/src/components/FlavorWheel.tsx` | The SVG wheel + label rendering. **Edit here.** |
+| `crema-app/src/components/FlavorWheelModal.tsx` | The page host (header bar, bullseye stat, carousel). Don't edit. |
+| `crema-app/app/(tabs)/browse.tsx` | Mounts the modal inline in BEANS body. Don't edit. |
+| `crema-app/src/utils/scaTree.ts` | Tree constants + helpers (`displayLabel` collapses `<word>/<word>` to first word). Don't edit. |
 
-3. **The address table is the authoritative join, not free-text
-   `tasting_notes`**. A bean that says "tobacco-like aftertaste"
-   maps via `sca_addresses` to whatever address the standardization
-   run resolved. Always join through that table; never grep raw
-   tasting notes from the consumer side.
+### Geometry (don't change unless asked)
 
-4. **Perf.** The harvest-product-tags walk is O(products × tags-per-
-   product) but stays under 5k entries today. For consumer renders,
-   pre-compute a `flavor_index` map on the products useMemo so each
-   chip's count is O(1). Mirror the `baseExcept` pattern from the
-   BEANS faceted counts.
+```
+viewBox = 480 × 250
+CX, CY = 240, 10               // wheel centre at top
+polar(r, deg) = (CX + r*sin(deg), CY + r*cos(deg))
+                              // deg=-90 leftmost, 0 bottommost, +90 rightmost
 
-5. **Cross-lens linking.** From a BEANS card, tapping a tasting-note
-   chip should jump into the FLAVOR lens with that node selected.
-   From a roaster page, tapping a flavor chip on a bean does the same.
-   Plumbing-wise: Expo Router params on `/browse?tab=flavor&node=Cherry`.
+T1_INNER_R = 90,  T1_OUTER_R = 170   // 80px thick (T1 inner ring)
+T2_INNER_R = 170, T2_OUTER_R = 200   // 30px thick
+T3_INNER_R = 200, T3_OUTER_R = 230   // 30px thick
 
-6. **Tier-2 vs tier-3 default depth.** When the consumer opens the
-   Flavor tab fresh, what do they see? Tier-1 chip row plus a
-   "what's popular" rail (e.g. top-3 catalog flavors by bean count).
-   Don't dump them straight to the wheel unless we go Option B — pick
-   one default-state design and stick with it.
+WHEEL_HEIGHT_RATIO = 250/480 ≈ 0.521
+```
+
+### Label render functions
+
+- `renderRadialLabel(pill, ringInner, ringOuter)` — T1 only. Single
+  SvgText, baseline along the spoke, rotation clamped to `[-90°,
+  90°]` so glyphs stay upright. **Keep as-is.**
+- `renderTangentialLabel(pill, ringInner, ringOuter)` — T2/T3.
+  Single SvgText, `transform="rotate(${-midDeg})"`. This is the
+  straight chord. **REPLACE this with Skia.**
+
+### Why react-native-svg can't do curved kerned text
+
+We tried four approaches inside react-native-svg and exhausted them:
+
+1. `<TextPath>` with `side="right"` — react-native-svg silently
+   ignores or mis-applies `side` on bottom-semicircle paths;
+   glyphs render upside-down.
+2. `<TextPath>` with reversed path direction + reversed input
+   string — same renderer normalises path direction; visible text
+   reads as the reversed string.
+3. Per-glyph `<SvgText>` array (one element per character) — works
+   for the curve but loses font kerning between adjacent glyphs.
+   No `PX_PER_CHAR` value satisfies both narrow (`i`) and wide (`M`)
+   characters.
+4. Single `<SvgText>` with rotation transform — proper kerning,
+   but the text is a chord through the sector midpoint, not on the
+   arc. Chord-vs-arc divergence reaches ~54px at the edges of a 90°
+   sector — visually wrong.
+
+This is the bug history; do not re-tread it.
 
 ---
 
-## Implementation pointers
+## What to build
 
-- **Frontend route:** new `(tabs)/browse.tsx` tab alongside BEANS /
-  ROASTERS. The TabButton + activeTab state already exists; add a
-  third value.
-- **Component:** `src/components/discover/FlavorBrowse.tsx`. Owns the
-  tier-1/2/3 navigation state, the catalog index, and the result
-  grid. Mirror the structure of `RoastersList` (which lives inside
-  the same browse.tsx today).
-- **Data:** the frontend already has `useCoffeeData()` returning
-  products. To get each product's SCA addresses, two paths:
-  - **(a) Backend serves them.** Add a `/api/products/with_addresses`
-    endpoint that joins products × sca_addresses and returns each bean
-    with a `flavor_addresses` field (`Array<[t1, t2?, t3?]>`).
-  - **(b) Frontend joins.** Fetch `sca_addresses` once, fetch
-    products once, do the join in memory. Cheaper RPC, more client
-    code. Probably the right v0 — caches in `useCoffeeData`.
-- **Counts:** every node in the tree gets a count = how many beans
-  have at least one address ending under or at that node. Compute
-  once per products+addresses change, store as `Map<nodeKey, number>`
-  keyed by `t1` / `t1>t2` / `t1>t2>t3`.
+### Step 1 — install Skia
+
+From `crema-app/`:
+
+```bash
+npx expo install @shopify/react-native-skia
+```
+
+This drops the package into `package.json`. In Expo Go on SDK 54
+the native binary is already bundled; nothing to rebuild on device.
+
+For web, add this postinstall to `crema-app/package.json` so
+CanvasKit WASM ships with the web bundle:
+
+```json
+"scripts": {
+  "postinstall": "npx setup-skia-web public"
+}
+```
+
+(The reference demo also runs a path-fix script after that — check
+what's needed once on the user's setup. Native devices won't care
+about the postinstall.)
+
+### Step 2 — Skia overlay for T2/T3 labels
+
+Inside the wheel SVG today there's already a wrapping `<View>` →
+`<Pressable>` → `<Svg>` stack. The cleanest move is a sibling Skia
+`<Canvas>` rendered AFTER the SVG inside the same Pressable, sized
+identically (same `width: size, height: renderH`), absolutely
+positioned to overlap the SVG.
+
+```jsx
+<View style={[styles.wrap, { width: size, height: renderH }]}>
+  <Pressable onPress={handlePress} style={{ width: size, height: renderH }}>
+    <Svg width={size} height={renderH} viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}>
+      {/* unchanged: T1 + T2 + T3 ring paths + T1 SvgText labels */}
+    </Svg>
+    <Canvas
+      style={{
+        position: 'absolute',
+        left: 0, top: 0,
+        width: size, height: renderH,
+      }}
+      pointerEvents="none"
+    >
+      {/* T2 + T3 labels via Skia <TextPath> */}
+    </Canvas>
+  </Pressable>
+</View>
+```
+
+`pointerEvents="none"` on the Canvas keeps taps flowing through to
+the Pressable so `findPillAt` continues to work unchanged.
+
+### Step 3 — render each T2/T3 label
+
+Skia's `<TextPath>` API (current as of `@shopify/react-native-skia`
+~v1.x):
+
+```jsx
+import { Canvas, Path, Skia, TextPath, useFont } from "@shopify/react-native-skia";
+
+const font = useFont(require("path/to/Inter-SemiBold.ttf"), 11);
+
+// Inside the Canvas, for each pill:
+const arcPath = Skia.Path.Make();
+// Build the centerline arc — same math as the existing labelArcPath
+// helper we deleted, but using Skia's Path API:
+//   - start at polar(midR, startDeg) (in screen px, scaled from viewBox)
+//   - addArc(rect, startAngle, sweepAngle) using Skia's degrees
+arcPath.moveTo(p1.x, p1.y);
+arcPath.arcTo(boundingRect, startAngleDeg, sweepAngleDeg, false);
+
+<TextPath path={arcPath} font={font} text={pill.label} />
+```
+
+Important details:
+
+- **Skia path coordinates are in screen pixels, not viewBox units.**
+  Multiply every viewBox coord by `scale = size / VIEWBOX_W` before
+  passing to Skia.
+- **Skia's arc angles are measured from +x axis CCW** (standard math
+  convention), not from 12 o'clock like the wheel's polar. Convert.
+- **Skia's `TextPath` does NOT have the `side="right"` bug.** It
+  uses the native Skia text-on-path engine; glyphs orient
+  correctly relative to path direction. If labels render
+  upside-down on first try, reverse the path direction (swap
+  start/end and flip the sweep sign) — that's the standard knob.
+- **Truncation:** Skia's `TextPath` will overflow the path if the
+  text is longer than the path. Reuse the existing `shortLabel`
+  helper from FlavorWheel.tsx with `maxChars = floor(arcLengthPx /
+  PX_PER_CHAR)` where `PX_PER_CHAR ≈ 6` (Skia kerning will tighten
+  it; this is just a truncation budget). Arc length =
+  `midR_screenPx * arcDeg * π/180`.
+- **Font loading:** `useFont(...)` is async — guard the Canvas
+  return with `if (!font) return null;` so we don't render
+  half-loaded text. The existing app uses
+  `@expo-google-fonts/inter` — find the local Inter SemiBold TTF
+  in `node_modules/@expo-google-fonts/inter/Inter_600SemiBold.ttf`
+  and load that.
+- **Color:** `<TextPath>` accepts a `color` prop. Picked label =
+  `t.color["text.on-dark"]` (cream on pink). Unpicked =
+  `t.color["text.primary"]` (espresso).
+
+### Step 4 — keep everything else identical
+
+- T1 labels stay on the SVG layer using `renderRadialLabel`. They
+  work; the user has approved them.
+- The bullseye stat overlay, header bar, and carousel are
+  untouched.
+- `findPillAt` and the Pressable wrapping are untouched.
+
+### Step 5 — verify on device
+
+After the user reloads Metro, T2 and T3 labels should:
+
+1. Curve along their actual ring centerline (share the wheel centre).
+2. Have proper letter spacing — no per-char gaps, no overlap on
+   wide letters like `M`.
+3. Read upright with caps facing toward the wheel centre at the top.
+
+If the labels render but are upside-down, reverse the Skia path
+direction (it's a one-line flip). If the labels don't render, check
+that `useFont` resolved (`font !== null`).
+
+---
+
+## State to preserve in the rewrite
+
+- `selectedFlavors: Picks` state in `browse.tsx`.
+- `addressesByProduct` map in `browse.tsx`.
+- The `FlavorWheelModal` props contract (`picks`, `onPicksChange`,
+  `addressesByProduct`, `inStockProducts`, `onClose`).
+- `coffeeMatchesPicks` filter rule in `selectedFlavors`-driven
+  filtering.
+- `/api/sca/addresses` and `/api/sca/tree` consumer endpoints.
+- `displayLabel` collapsing `<word>/<word>` to first word.
+
+None of these should change.
 
 ---
 
 ## Don't get distracted by
 
-- The existing standardization tab — it's working as of this commit.
-  Don't refactor unless explicitly asked.
-- Building wheel-viz immediately. Option A's chip ladder is the
-  faster path to a usable surface; the wheel is a nice-to-have second
-  pass.
-- Roast-level / process / origin filters in the Flavor lens.
-  Consumers in this lens are starting from taste, not provenance.
-  Layer those in only if the result list gets too big to scan.
-- The MAPPING tab's old paste-upload flow — gone for good per a prior
-  pass, don't try to revive it.
+- Adding animations to the wheel. Phase 1, wireframe-fidelity.
+- Refactoring the hit-test or SVG geometry. Working as-is.
+- Replacing the T1 radial labels with Skia "for consistency."
+  Keep T1 on SVG — it works and SVG is fine for short upright
+  labels.
+- Adding any new picks-related features (multi-flavor presets,
+  recommendations, etc.). Out of scope.
 
 ---
 
 ## Files to study before designing
 
-- `crema-app/app/(tabs)/browse.tsx` — current Discover, faceted-count
-  pattern, tab plumbing.
-- `crema-app/src/components/discover/CoffeeCard.tsx` — the result
-  grid's primitive. Reuse, don't fork.
-- `Community/coffee-community-api/services/sca_geolocator.py` —
-  `CANONICAL_TREE`, `harvest_product_tags`, `is_valid_address`.
-- `tasting_notes_tags/tag_resolutions.json` — concrete examples of
-  what a populated address table looks like.
-- `BUILD_ROADMAP.md` §1.5 — Catalog Ops history, including the
-  five-task standardization run that fed `sca_addresses`.
+- `crema-app/src/components/FlavorWheel.tsx` — the wheel.
+  Specifically `renderTangentialLabel` (the function being
+  replaced), `polar()`, the `t2Pills` / `t3Pills` useMemos, and the
+  T2/T3 render blocks where `renderTangentialLabel` is called.
+- `crema-app/src/components/FlavorWheelModal.tsx` — for the host
+  contract; don't edit.
+- `crema-app/package.json` — see existing Expo SDK + native
+  modules to confirm version alignment before installing Skia.
+- The reference demo's `package.json` and `app.json` if you want
+  to confirm what (if anything) needs to be added to plugins.
+  Spoiler: nothing extra goes in `expo` plugins for Skia in
+  Expo Go.
 
 ---
 
 ## Standing rules (from CLAUDE.md / NORTH_STAR.md)
 
-- Phase 1 surface — discovery + retention. Should make a Phase-1
-  consumer want to come back tomorrow because they found a flavor
-  combo they didn't know existed.
-- Token-only styling (palette: Espresso #351101, Crema #D798DA,
-  Crema White #FAF8F0). NewSpirit display, Inter body.
-- No new top-level `.md` files. If you build the wheel and it deserves
-  its own design doc, add a note inline in `BUILD_ROADMAP.md` instead.
-- Update `BUILD_ROADMAP.md` when a piece of this lands — move "Flavor
-  Discover lens" out of the next-build section as it ships.
+- Phase 1 surface — Discovery + retention. The wheel is a
+  brand-defining surface; Skia gives the curved-text fidelity the
+  Figma designer will produce.
+- Token-only styling. Don't hard-code hex.
+- No new top-level `.md` files unless asked.
+- Update `BUILD_ROADMAP.md` when this lands (move "Discover
+  Flavor wheel — Skia curved labels" from the next-build queue
+  into the "What has been built" section).
 
-When in doubt about scope, ship Option A's chip ladder end-to-end
-(tab → tier-1 row → drill → result grid) before any other variant.
-That's the minimum useful surface; everything else is an enhancement
-on top.
+When in doubt about scope, ship the minimum: Skia overlay for
+T2/T3 labels only, with `<TextPath>` curving along the ring's
+arc, kerning preserved. That's the deliverable. Everything else
+is a follow-up.

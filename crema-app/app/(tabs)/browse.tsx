@@ -22,6 +22,17 @@ import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import type { RoasterProfile } from "../../src/resources/types";
 import SlidePanel from "../../src/components/mobile/SlidePanel";
 import { SlidersHorizontal } from "lucide-react-native";
+import { useScaAddresses } from "../../src/hooks/useScaAddresses";
+import {
+  CANONICAL_TREE,
+  emptyPicks,
+  totalPicks,
+  productAddresses,
+  coffeeMatchesPicks,
+  type Picks,
+  type Address,
+} from "../../src/utils/scaTree";
+import FlavorWheelModal from "../../src/components/FlavorWheelModal";
 
 // Specialty-catalog filter axes. Bean Type chip set mirrors the
 // canonical species names; long-tail values (the rare "Arabica-Robusta"
@@ -105,6 +116,13 @@ export default function BrowsePage() {
   // hidden; a Filters button next to the search bar slides this in
   // from the right using the shared SlidePanel primitive.
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  // Discover Flavor lens — the wheel modal lives over the BEANS list
+  // so background results update as picks change. selectedFlavors is
+  // a Picks (3 Sets, one per tier) capped at 3 picks per tier inside
+  // the wheel. emptyPicks() seed = no filter (every coffee passes).
+  const [selectedFlavors, setSelectedFlavors] = useState<Picks>(() => emptyPicks());
+  const [flavorModalOpen, setFlavorModalOpen] = useState(false);
+  const { resolutions: scaResolutions } = useScaAddresses();
 
   useEffect(() => {
     apiFetchRaw("/products/popularity").then((r) => {
@@ -112,6 +130,21 @@ export default function BrowsePage() {
       setPopularity(typeof d === "object" && !Array.isArray(d) ? d : {});
     }).catch(() => {});
   }, []);
+
+  // Per-product SCA address index — derived once per (products, resolutions)
+  // change. Map<product_id, Address[]> of every valid address resolved from
+  // each coffee's flavor_notes / tasting_notes via the public sca/addresses
+  // map. The wheel filter and the chip-counter both look up here in O(1).
+  const addressesByProduct = useMemo(() => {
+    const map = new Map<string, Address[]>();
+    if (!products || !scaResolutions) return map;
+    (products as any[]).forEach((p: any) => {
+      if (!p?.product_id) return;
+      const addrs = productAddresses(p, scaResolutions, CANONICAL_TREE);
+      if (addrs.length > 0) map.set(p.product_id, addrs);
+    });
+    return map;
+  }, [products, scaResolutions]);
 
   // Inline filtering (replaces filterCoffees utility)
   const filtered = useMemo(() => {
@@ -175,6 +208,17 @@ export default function BrowsePage() {
         });
       });
     }
+    // Flavor wheel — coffees survive only if every picked branch (across
+    // all 3 tiers) is matched by ≥ 1 of the coffee's resolved SCA
+    // addresses. Coffees with no resolved addresses drop out the moment
+    // any flavor pick is active. See `coffeeMatchesPicks` for the rule.
+    if (totalPicks(selectedFlavors) > 0) {
+      list = list.filter((p: any) => {
+        const addrs = addressesByProduct.get(p.product_id);
+        if (!addrs) return false;
+        return coffeeMatchesPicks(addrs, selectedFlavors);
+      });
+    }
 
     // Sort
     if (sortBy === "featured" && Object.keys(popularity).length > 0) {
@@ -191,7 +235,7 @@ export default function BrowsePage() {
       });
     }
     return list;
-  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, selectedBeanTypes, selectedEstates, selectedVarietals, selectedAltitudes, selectedPriceBands, sortBy, popularity]);
+  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, selectedBeanTypes, selectedEstates, selectedVarietals, selectedAltitudes, selectedPriceBands, selectedFlavors, addressesByProduct, sortBy, popularity]);
 
   const filteredRoasterCount = useMemo(() => new Set(filtered.map((p: any) => p.roaster_slug)).size, [filtered]);
 
@@ -321,6 +365,12 @@ export default function BrowsePage() {
       || (p.tasting_notes || "").toLowerCase().includes(q)
       || (p.origin || "").toLowerCase().includes(q);
   };
+  const passFlavors = (p: any) => {
+    if (totalPicks(selectedFlavors) === 0) return true;
+    const addrs = addressesByProduct.get(p.product_id);
+    if (!addrs) return false;
+    return coffeeMatchesPicks(addrs, selectedFlavors);
+  };
 
   // `inStock` shrinks the universe to in-stock products once; every
   // section's base list starts here.
@@ -339,6 +389,7 @@ export default function BrowsePage() {
       (skip === "varietal" || passVarietals(p)) &&
       (skip === "altitude" || passAltitudes(p)) &&
       (skip === "price" || passPriceBands(p)) &&
+      (skip === "flavor" || passFlavors(p)) &&
       passQuery(p),
     );
 
@@ -492,7 +543,8 @@ export default function BrowsePage() {
     selectedEstates.length +
     selectedVarietals.length +
     selectedAltitudes.length +
-    selectedPriceBands.length;
+    selectedPriceBands.length +
+    totalPicks(selectedFlavors);
   const roastersFilterCount = selectedCities.length + selectedRoasterEstates.length;
   const activeFilterCount = activeTab === "roasters" ? roastersFilterCount : beansFilterCount;
   const hasActiveFilters = activeTab === "roasters"
@@ -511,6 +563,7 @@ export default function BrowsePage() {
       setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]);
       setSelectedBeanTypes([]); setSelectedEstates([]); setSelectedVarietals([]);
       setSelectedAltitudes([]); setSelectedPriceBands([]);
+      setSelectedFlavors(emptyPicks());
       setQuery("");
     }
   };
@@ -611,6 +664,23 @@ export default function BrowsePage() {
           {isDesktop && <View style={s.verticalDivider} />}
 
           <View style={{ flex: 1, minWidth: 0 }}>
+            {flavorModalOpen ? (
+              // Flavor wheel page — replaces the search bar + BEANS
+              // list while open. Renders inline (no Modal/absolute
+              // positioning) so the global header + footer stay
+              // painted and the wheel sits flush below the
+              // BEANS/ROASTERS tab line. The host's filter chain
+              // already reads selectedFlavors, so dismissing returns
+              // to a BEANS list filtered by the picks the user made.
+              <FlavorWheelModal
+                onClose={() => setFlavorModalOpen(false)}
+                picks={selectedFlavors}
+                onPicksChange={setSelectedFlavors}
+                addressesByProduct={addressesByProduct}
+                inStockProducts={inStock}
+              />
+            ) : (
+            <>
             {/* Scroll-aware search bar. On mobile the filter icon
                 lives INSIDE the tab bar (§Figma 63:5934) — the
                 search row is input-only. */}
@@ -671,6 +741,8 @@ export default function BrowsePage() {
                 ) : null
               }
             />
+            </>
+            )}
           </View>
         </View>
       ) : (
@@ -780,6 +852,31 @@ export default function BrowsePage() {
                       ))}
                     </View>
                     <View style={s.filterDivider} />
+                    {/* Flavor \u2014 opens the SCA wheel modal over the BEANS
+                        list. The drawer dismisses so the background
+                        results are visible while the user picks. */}
+                    <Pressable
+                      onPress={() => {
+                        setFilterDrawerOpen(false);
+                        setFlavorModalOpen(true);
+                      }}
+                      style={s.filterSection}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Flavor wheel${totalPicks(selectedFlavors) > 0 ? `, ${totalPicks(selectedFlavors)} selected` : ""}`}
+                    >
+                      <View style={s.filterHead}>
+                        <Text style={s.filterTitle}>Flavor</Text>
+                        {totalPicks(selectedFlavors) > 0 ? (
+                          <Text style={s.filterHeadBadge}>{totalPicks(selectedFlavors)}</Text>
+                        ) : null}
+                        <View style={{ flex: 1 }} />
+                        <Text style={s.flavorOpenHint}>
+                          {totalPicks(selectedFlavors) > 0 ? "Edit" : "Open wheel"}
+                        </Text>
+                        <ChevronRight size={16} color={t.color["text.muted"]} strokeWidth={1.75} />
+                      </View>
+                    </Pressable>
+                    <View style={s.filterDivider} />
                     <FilterSection title="Roast" items={roastOptions} selected={selectedRoasts} onToggle={v => toggleArray(selectedRoasts, setSelectedRoasts, v)} />
                     <View style={s.filterDivider} />
                     <FilterSection title="Bean Type" items={beanTypeOptions} selected={selectedBeanTypes} onToggle={v => toggleArray(selectedBeanTypes, setSelectedBeanTypes, v)} />
@@ -818,6 +915,7 @@ export default function BrowsePage() {
           </SlidePanel>
         </View>
       )}
+
     </View>
   );
 }
@@ -1274,6 +1372,15 @@ const s = StyleSheet.create({
     textAlign: "center",
     lineHeight: 18,
     overflow: "hidden",
+  } as any,
+  // Right-aligned hint on the Flavor row in the filter drawer ("Open
+  // wheel" / "Edit"). Reads quieter than the section title — the
+  // chevron carries the affordance.
+  flavorOpenHint: {
+    fontFamily: t.font["body.regular"],
+    fontSize: 13,
+    color: t.color["text.muted"],
+    marginRight: 6,
   } as any,
   checkRow: { flexDirection: "row", alignItems: "flex-start", gap: 14, minHeight: 24, marginBottom: 4 },
   checkbox: {

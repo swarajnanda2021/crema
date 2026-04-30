@@ -1350,6 +1350,53 @@ def admin_standardize_run(body: Optional[dict] = None,
         db.close()
 
 
+# ── Consumer SCA surfaces (no auth) ─────────────────────────────────────────
+# The Discover BEANS Flavor lens needs two things from the standardization
+# pipeline: the active SCA tree (so the chip-ladder / wheel knows what
+# tier-1/2/3 nodes exist) and the tag→address map (so it can join product
+# tasting tags onto tree nodes). Both are static enough to be served with
+# no auth and cached on the client; the wheel re-fetches on focus only if
+# its cache is empty.
+
+@router.get("/sca/tree")
+def public_sca_tree():
+    """Return the active SCA flavor tree (3-tier dict). Falls back to the
+    in-code CANONICAL_TREE if no active version is set in the DB. Used by
+    the consumer Discover Flavor wheel."""
+    db = get_db()
+    try:
+        return ok(sca_geolocator.get_active_tree(db), resource="sca_tree")
+    finally:
+        db.close()
+
+
+@router.get("/sca/addresses")
+def public_sca_addresses():
+    """Return the tag→address map for every classified tag in
+    `sca_addresses`. Shape mirrors the `tag_resolutions.json` fixture:
+    `{ "<tag>": [t1, t2?, t3?] | null }`. `null` means the tag was
+    classified as not-a-flavor (mouthfeel / vague marketing /
+    cross-category compound). The frontend joins this against each
+    product's `flavor_notes` + `tasting_notes` to derive per-product
+    SCA addresses for the wheel filter."""
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT tag, address_t1, address_t2, address_t3, is_null "
+            "FROM sca_addresses"
+        ).fetchall()
+        out: dict = {}
+        for r in rows:
+            if r["is_null"]:
+                out[r["tag"]] = None
+                continue
+            addr = [x for x in (r["address_t1"], r["address_t2"], r["address_t3"]) if x]
+            out[r["tag"]] = addr if addr else None
+        return ok(out, resource="sca_addresses")
+    finally:
+        db.close()
+
+
 @router.get("/admin/standardize/stats")
 def admin_standardize_stats(user=Depends(get_current_user)):
     """3-way stats for the STANDARDIZATION sub-tab — drives the hero
