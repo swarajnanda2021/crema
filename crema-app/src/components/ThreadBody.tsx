@@ -302,7 +302,7 @@ const useStyles = makeStyles((t) => ({
     fontFamily: t.font["body.regular"], fontSize: 12,
     color: t.color["text.primary"],
     backgroundColor: "rgba(53,17,1,0.04)",
-    borderWidth: 1, borderColor: "rgba(53,17,1,0.1)",
+    borderWidth: 1, borderColor: t.color.border,
     borderRadius: 8,
     paddingHorizontal: 9, paddingVertical: 8,
     maxHeight: 240, minHeight: 90,

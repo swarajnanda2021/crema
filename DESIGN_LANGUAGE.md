@@ -27,7 +27,7 @@ on cream (formal, low-contrast version) or Crema on Espresso (the
 inverse for high-attention overlays). Don't reach for red, green,
 gold, orange, blue.
 
-### Functional neutrals — LIGHT MODE only
+### Functional neutrals — LIGHT MODE
 
 Light mode has an established set of functional neutrals tonally
 consistent with the brand (warm browns + creams). These are the
@@ -36,14 +36,12 @@ consistent with the brand (warm browns + creams). These are the
 | Token | Hex | Role |
 |---|---|---|
 | `text.secondary` | `#684F44` | Body sub-text, location lines, meta |
-| `text.muted` | `#A09580` | Time stamps, hint text, empty-state copy |
+| `text.muted` | `#A09580` | Time stamps, hint text, empty-state copy, **inactive tab labels** |
 | `card.front` | `#FFFFFF` | Card surface (post card, modal card) |
 | `card.info` | `#EFE9DB` | Card info panel (CoffeeCard bottom half), tag bg |
 | `card.subtle` | `#FEFDFB` | Subtle elevated card (article overlay, repost inner) |
 | `card.back` | `#2C1810` | Dark card variant (rare, e.g. CoffeeCard back face) |
-| `border` | `#D7D1C4` | Divider lines on cream surfaces |
-| `border.light` | `#EDE8E1` | Hairline dividers, list-row separators |
-| `divider` | `#C7BAA5` | Tab-bar underlines, section breaks |
+| `border` / `border.light` / `divider` | `#D7D1C4` | **Every line element** — post separators, card outlines, tab-bar borders, section breaks, hairlines. Single-value tier (collapsed 2026-05-01). |
 | `unavailable` | `#B0A89F` | Disabled control bg |
 | `tag.bg` | `#EFE9DB` | Chip background |
 | `tag.text` | `#5D4E42` | Chip text |
@@ -59,23 +57,30 @@ outside this set + the three brand colors is a violation. If a
 regression introduces a new hex, fix it at the token VALUE — don't
 add a new token to legitimise it.
 
-### Tonal hierarchy — DARK MODE (alpha variants only)
+### Functional neutrals — DARK MODE
 
-Dark mode does NOT inherit the light-mode functional-neutrals table.
-Tonal variation in dark mode comes exclusively from `rgba(...)`
-**alpha variants of the three brand colors**. No fourth hex, no warm
-brown sub-palette, no "slightly lighter" shade. The user explicitly
-rejected that experiment during the night-mode work — every "light
-brown" tone in dark mode collapses to Espresso `#351101` or an
-opacity pass over Crema White.
+Dark mode previously enforced a strict "rgba opacity variants of
+brand colors only" rule. That rule was relaxed 2026-05-01 in favor
+of explicit warm-brown tokens for line and inactive-secondary
+surfaces — the strict-rgba approach produced lines that were
+either invisible (cream-on-cream over the persistently-light
+CoffeeCard) or muddy (dark-warm-on-dark-Espresso) in too many
+contexts. The current dual-track rule:
+
+- **Brand identity in dark mode is still strictly the three brand
+  hexes** (Espresso, Crema, Crema White). New brand-color tonal
+  experiments (warm grey, light brown, etc.) are still forbidden.
+- **Line and inactive-secondary surfaces in dark mode use the
+  approved warm-brown set** below — these are the only opaque
+  hexes allowed in dark mode beyond the three brand colors.
 
 | Token | Dark-mode value | Role |
 |---|---|---|
+| `text.primary` | `#FAF8F0` | Body text, **active tab labels**, **active tab underline** |
 | `text.secondary` | `rgba(250,248,240,0.7)` | Body sub-text, meta |
-| `text.muted` | `rgba(250,248,240,0.5)` | Time stamps, hint text |
-| `card.front` / `card.info` / `card.subtle` / `card.back` | `#351101` | All page-level surfaces collapse to bg in dark mode (use `card.product.*` for the persistently-light CoffeeCard surfaces) |
-| `border` / `divider` | `rgba(250,248,240,0.15)` / `rgba(250,248,240,0.2)` | Subtle cream hairlines |
-| `border.light` | `rgba(250,248,240,0.08)` | Even subtler |
+| `text.muted` | `#C7BAA5` | Time stamps, hint text, **inactive tab labels** |
+| `card.front` / `card.info` / `card.subtle` / `card.back` | `#351101` | All page-level surfaces collapse to bg (use `card.product.*` for the persistently-light CoffeeCard surfaces) |
+| `border` / `border.light` / `divider` | `#684F44` | **Every line element** — post separators, card outlines, tab-bar borders, section breaks, hairlines. Single-value tier (collapsed 2026-05-01). |
 | `tag.bg` | `rgba(250,248,240,0.08)` | Chip bg |
 | `unavailable` | `rgba(250,248,240,0.4)` | Disabled |
 | `nav.mobile.bar.bg` | `#351101` | Bottom bar collapses into bg (no separation, on-palette) |
@@ -88,18 +93,51 @@ The non-flipping `bg.identity` (`#FAF8F0` always) and `card.product.*`
 tokens (always-light cream/white set, used by CoffeeCard and avatars)
 keep their brand-identity surfaces consistent across both modes.
 
+### Tab labels — explicit pairing
+
+Every tab implementation (top-level BEANS/ROASTERS, profile sub-tabs,
+admin sub-tabs, mobile footer) shares one rule, enforced via tokens
+so no per-component override drifts:
+
+| State | Light | Dark | Token |
+|---|---|---|---|
+| **Active label** | `#351101` | `#FAF8F0` | `text.primary` |
+| **Active underline** | `#351101` | `#FAF8F0` | `text.primary` |
+| **Inactive label** | `#A09580` | `#C7BAA5` | `text.muted` |
+
+**No tab underline uses `accent.cta`** — that token flips to Crema
+pink in dark mode, which doesn't read as "this tab is active." The
+active underline is always `text.primary`.
+
+### Reserved — Crema pink for post action icons
+
+`accent` (`#D798DA`) is the post-action icon color: like, comment,
+share, save, the active tasting-note score chip, the post FAB. Don't
+repurpose it for line elements, tab underlines, or general accents
+elsewhere — the pink is the *post engagement* signal.
+
 ### Forbidden
 
 - **Inline hex** outside `design-tokens.json`. Run
   `grep -rEn "#[0-9A-Fa-f]{6}" crema-app/src crema-app/app | grep -v node_modules`
-  and verify every result is one of the brand hexes or an approved
-  light-mode neutral from the table above.
+  and verify every result is a brand hex or an approved neutral from
+  the tables above.
+- **Inline rgba** for line / border / divider colors. Use
+  `t.color.border` (or `t.color.divider` / `t.color["border.light"]` —
+  same single-tier value) instead. The 2026-05-01 line standardization
+  collapsed all three line tokens to one value per mode; any
+  `rgba(215,209,196,0.x)` or `rgba(250,248,240,0.0x)` line color in
+  code is a leftover regression.
 - Off-brand reds (`#C8553D`, `#B5393C`), greens (`#2F7A48`,
   `#5A8F5A`), golds (`#E8C07A`). Retired in `9c20f43`.
-- **Inventing a new dark-mode brown.** The only legal way to add a
-  tonal tier in dark mode is an opacity variant of Espresso or Crema
-  White. If you find yourself reaching for `#3A1F12`, `#4A2A1A`,
-  `#684F44`, etc. inside the `dark` token tree — stop and use rgba.
+- **`accent.cta` as a tab underline.** It flips to Crema pink in
+  dark mode, which mis-reads. Use `text.primary` for active-tab
+  underlines.
+- **Inventing a new dark-mode hex.** Beyond the three brand colors
+  and the explicitly-named warm-brown tokens (`#684F44` for lines,
+  `#C7BAA5` for `text.muted`), no new opaque hex enters the dark
+  tree. Tonal variants of brand colors continue to be `rgba(...)`
+  opacity passes only.
 
 ---
 

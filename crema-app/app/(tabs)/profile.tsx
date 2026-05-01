@@ -1341,9 +1341,9 @@ const useStyles = makeStyles((t) => ({
     height: 80,
     gap: 48,
     borderTopWidth: 1,
-    borderTopColor: "rgba(215,209,196,0.5)",
+    borderTopColor: t.color.border,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(215,209,196,0.5)",
+    borderBottomColor: t.color.border,
   },
   // Mobile: match the Discover tab bar (Figma 63:5927) exactly —
   // 60-px tall, 24-px (t.spacing["2xl"]) gap between labels,
@@ -1361,9 +1361,9 @@ const useStyles = makeStyles((t) => ({
     maxWidth: 860,
     backgroundColor: t.color.bg,
     borderTopWidth: 1,
-    borderTopColor: "rgba(215,209,196,0.5)",
+    borderTopColor: t.color.border,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(215,209,196,0.5)",
+    borderBottomColor: t.color.border,
   } as any,
   tabBarMobileInner: {
     flexDirection: "row",
@@ -1375,7 +1375,7 @@ const useStyles = makeStyles((t) => ({
   tab: { justifyContent: "center", position: "relative" } as any,
   tabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"], letterSpacing: 0.5, textTransform: "uppercase" },
   tabTextActive: { color: t.color["text.primary"] },
-  tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: t.color["accent.cta"] } as any,
+  tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: t.color["text.primary"] } as any,
   adminTabContent: {
     alignSelf: "center",
     width: "100%",
@@ -1384,7 +1384,7 @@ const useStyles = makeStyles((t) => ({
   } as any,
 
   tabContent: { paddingTop: 20, alignSelf: "center", width: "100%", maxWidth: 860, minHeight: 2400, paddingBottom: 100 } as any,
-  postDivider: { height: 1, backgroundColor: "rgba(215,209,196,0.5)", marginVertical: 4 },
+  postDivider: { height: 1, backgroundColor: t.color.border, marginVertical: 4 },
   composeWrap: { paddingHorizontal: 20, marginBottom: 12 },
 
   // Shelf sub-tabs
@@ -1395,7 +1395,7 @@ const useStyles = makeStyles((t) => ({
   shelfSectionDivider: { height: 1, backgroundColor: t.color.divider, marginHorizontal: 20, marginBottom: 16 },
 
   // Following list
-  followRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.3)" },
+  followRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.color.border },
   followAvatar: { width: 36, height: 36, borderRadius: 18, overflow: "hidden" } as any,
   followAvatarFb: { backgroundColor: t.color["accent.cta"], alignItems: "center", justifyContent: "center" } as any,
   followAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.on-cta"] },
@@ -1429,7 +1429,7 @@ const useStyles = makeStyles((t) => ({
   cafePickerSearchInput: {
     fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.primary"],
     backgroundColor: t.color["card.front"],
-    borderWidth: 1, borderColor: "rgba(53,17,1,0.12)",
+    borderWidth: 1, borderColor: t.color.border,
     borderRadius: 8,
     paddingHorizontal: 12, paddingVertical: 9,
     ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),

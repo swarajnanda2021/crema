@@ -177,7 +177,7 @@ const useStyles = makeStyles((t) => ({
     alignItems: "center",
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(250,248,240,0.18)",
+    borderBottomColor: t.color.border,
     marginBottom: 14,
     marginTop: 32,
   } as any,
@@ -222,7 +222,7 @@ const useStyles = makeStyles((t) => ({
     marginTop: "auto" as any,
     paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: "rgba(250,248,240,0.15)",
+    borderTopColor: t.color.border,
   },
   notesText: {
     fontFamily: t.font["body.regular"],

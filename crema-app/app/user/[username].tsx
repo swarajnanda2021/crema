@@ -662,8 +662,8 @@ const useStyles = makeStyles((t) => ({
   tabBar: {
     flexDirection: "row", alignItems: "stretch", alignSelf: "center",
     width: "100%", maxWidth: 860, backgroundColor: t.color.bg, height: 80, gap: 48,
-    borderTopWidth: 1, borderTopColor: "rgba(215,209,196,0.5)",
-    borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)",
+    borderTopWidth: 1, borderTopColor: t.color.border,
+    borderBottomWidth: 1, borderBottomColor: t.color.border,
   } as any,
   // Mobile: match the Discover tab bar (Figma 63:5927) — 60 tall,
   // 24 gap, 32 left/right padding. Outer = visual + sizing on the
@@ -677,9 +677,9 @@ const useStyles = makeStyles((t) => ({
     maxWidth: 860,
     backgroundColor: t.color.bg,
     borderTopWidth: 1,
-    borderTopColor: "rgba(215,209,196,0.5)",
+    borderTopColor: t.color.border,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(215,209,196,0.5)",
+    borderBottomColor: t.color.border,
   } as any,
   tabBarMobileInner: {
     flexDirection: "row",
@@ -695,7 +695,7 @@ const useStyles = makeStyles((t) => ({
 
   // Tab content
   tabContent: { paddingTop: 20, alignSelf: "center", width: "100%", maxWidth: 860, minHeight: 2400, paddingBottom: 100 } as any,
-  postDivider: { height: 1, backgroundColor: "rgba(215,209,196,0.5)", marginVertical: 4 },
+  postDivider: { height: 1, backgroundColor: t.color.border, marginVertical: 4 },
 
   // Shelf sub-tabs
   shelfSection: { marginBottom: 40 },
@@ -707,7 +707,7 @@ const useStyles = makeStyles((t) => ({
   // Following list
   followRow: {
     flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.3)",
+    borderBottomWidth: 1, borderBottomColor: t.color.border,
   },
   followAvatar: { width: 36, height: 36, borderRadius: 18, overflow: "hidden" } as any,
   followAvatarFb: { backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,

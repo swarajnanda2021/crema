@@ -1194,10 +1194,10 @@ const useStyles = makeStyles((t) => ({
     backgroundColor: "rgba(250,248,240,0.1)", minWidth: 80,
   } as any,
   uploadTrigger: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12, paddingVertical: 8 } as any,
-  uploadThumb: { width: 72, height: 72, borderRadius: 10, borderWidth: 1, borderColor: "rgba(199,186,165,0.3)" },
+  uploadThumb: { width: 72, height: 72, borderRadius: 10, borderWidth: 1, borderColor: t.color.border },
   uploadThumbEmpty: {
     width: 72, height: 72, borderRadius: 10, borderWidth: 1,
-    borderColor: "rgba(199,186,165,0.3)", borderStyle: "dashed" as any,
+    borderColor: t.color.border, borderStyle: "dashed" as any,
     alignItems: "center", justifyContent: "center",
   } as any,
   uploadTriggerText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color.divider, textDecorationLine: "underline" as any },
@@ -1210,7 +1210,7 @@ const useStyles = makeStyles((t) => ({
   editBannerLeft: { flexDirection: "row", alignItems: "center", gap: 8 } as any,
   editBannerLabel: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color.accent },
   editBannerRight: { flexDirection: "row", alignItems: "center", gap: 10 } as any,
-  editBannerDiscard: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 4, borderWidth: 1, borderColor: "rgba(199,186,165,0.3)" },
+  editBannerDiscard: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 4, borderWidth: 1, borderColor: t.color.border },
   editBannerDiscardText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color.divider },
   editBannerSave: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: 4, backgroundColor: t.color.bg },
   editBannerSaveText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.primary"] },
@@ -1281,7 +1281,7 @@ const useStyles = makeStyles((t) => ({
   // in the app.
   rightTabBar: {
     flexDirection: "row", alignItems: "stretch", backgroundColor: t.color.bg,
-    height: 80, gap: 48, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.5)",
+    height: 80, gap: 48, borderBottomWidth: 1, borderBottomColor: t.color.border,
   } as any,
   // Mobile: match Discover tab bar (Figma 63:5927) — 60 tall,
   // 24 gap, 32 left/right padding. Outer = sizing + bg + border on
@@ -1292,7 +1292,7 @@ const useStyles = makeStyles((t) => ({
     flexShrink: 0,
     backgroundColor: t.color.bg,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(215,209,196,0.5)",
+    borderBottomColor: t.color.border,
   } as any,
   // Inner padding set to match the café tabs' effective left inset
   // exactly. Café nests its TabRow inside a `rightInner` container
@@ -1370,7 +1370,7 @@ const useStyles = makeStyles((t) => ({
   followerFollowBtnActive: { width: 88, backgroundColor: t.color.accent, borderColor: t.color.accent },
   followerFollowBtnText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.secondary"] },
   followerFollowBtnTextActive: { color: t.color["text.primary"] },
-  followerDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(215,209,196,0.5)" },
+  followerDivider: { height: StyleSheet.hairlineWidth, backgroundColor: t.color.border },
   followerAvatar: { width: t.size["avatar.xl"], height: t.size["avatar.xl"], borderRadius: t.size["avatar.xl"] / 2 },
   followerAvatarFallback: {
     width: t.size["avatar.xl"], height: t.size["avatar.xl"], borderRadius: t.size["avatar.xl"] / 2,

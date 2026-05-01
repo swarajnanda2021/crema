@@ -1262,7 +1262,7 @@ const useStyles = makeStyles((t) => ({
 
   // Tab bar
   tabBar: {
-    borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(215,209,196,0.5)",
+    borderTopWidth: 1, borderBottomWidth: 1, borderColor: t.color.border,
     backgroundColor: t.color.bg, height: 80, justifyContent: "center",
   },
   // Mobile: exact Figma 63:5927 geometry — 60 px tall, cream bg,

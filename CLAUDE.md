@@ -4,11 +4,15 @@ This file is auto-loaded into every Claude Code session in this repo.
 It pins the vision doc to every turn and tells Claude which other docs
 to pull in depending on the kind of work being done.
 
-## Always-loaded: the north star
+## Always-loaded: the north star + design language
 
-The vision anchor. Everything else is downstream of this.
+The vision anchor and the visual-language source of truth.
+Both load on every turn so palette / typography / identity rules
+are never stale.
 
 @NORTH_STAR.md
+
+@DESIGN_LANGUAGE.md
 
 ## Hard rule — palette discipline
 
@@ -23,22 +27,34 @@ The Crema brand identity is exactly three colors. Pulled from Figma node
 - **Crema** `#D798DA`
 - **Crema White** `#FAF8F0`
 
-Two-track rule for tonal hierarchy:
+Two-track rule for tonal hierarchy (refined 2026-05-01):
 
 - **Light mode** has an established set of approved functional
   neutrals (warm browns + creams) tonally consistent with the brand —
-  see `DESIGN_LANGUAGE.md` §1's "Functional neutrals" table. Use those
-  exact tokens. Don't add new ones.
-- **Dark mode** is strict-three-colors-only. Tonal hierarchy in dark
-  mode comes exclusively from `rgba(...)` opacity variants of Espresso
-  / Crema White — never a new hex. The dark-mode block invents no new
-  browns, off-whites, or warm greys; that experiment was rejected by
-  the user during the night-mode work.
+  see `DESIGN_LANGUAGE.md` §1's "Functional neutrals — LIGHT MODE"
+  table. Use those exact tokens. Don't add new ones.
+- **Dark mode** allows two specific opaque warm-brown tokens beyond
+  the three brand colors: `#684F44` for **all line elements**
+  (border / border.light / divider — collapsed to a single tier) and
+  `#C7BAA5` for `text.muted` (inactive tab labels, timestamps, hint
+  text). Beyond those two named values, dark-mode tonal hierarchy is
+  still `rgba(...)` opacity variants of brand colors only.
+  *(Earlier rule was strict-rgba-only; relaxed because that produced
+  invisible cream-on-cream lines on the persistently-light CoffeeCard
+  and muddy dark-on-dark lines elsewhere.)*
+- **Line tokens are a single tier per mode.** `border`, `border.light`,
+  and `divider` all resolve to the same value (`#D7D1C4` light /
+  `#684F44` dark). There's no hairline / divider / separator
+  alternative anymore — collapsed 2026-05-01.
+- **Active-tab underlines use `text.primary`**, never `accent.cta`
+  (which flips to Crema pink in dark mode and mis-reads). `accent` /
+  Crema pink is reserved for post-action icons (like, comment, share).
 
 In both modes, any token, any inline style, any new component must
-resolve to one of: a brand color, an approved light-mode neutral, an
-`rgba(...)` opacity variant of a brand color, or pure `#000000` /
-`#FFFFFF` for unavoidable shadow/highlight defaults.
+resolve to one of: a brand color, an approved light-mode neutral, the
+dark-mode warm-brown pair (`#684F44` / `#C7BAA5`), an `rgba(...)`
+opacity variant of a brand color, or pure `#000000` / `#FFFFFF` for
+unavoidable shadow/highlight defaults.
 
 **Don't invent new colors.** No "slightly lighter" or "slightly
 darker" shade for elevation. No reaching for golds, alert reds,

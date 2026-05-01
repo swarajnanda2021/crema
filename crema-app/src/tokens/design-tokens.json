@@ -20,8 +20,8 @@
       "accent.gold": "#D798DA",
       "accent.positive": "#D798DA",
       "border": "#D7D1C4",
-      "border.light": "#EDE8E1",
-      "divider": "#C7BAA5",
+      "border.light": "#D7D1C4",
+      "divider": "#D7D1C4",
       "navbar.bg": "#351101",
       "navbar.text": "#E7D5B8",
       "nav.mobile.bar.bg": "#FFFAED",
@@ -50,7 +50,7 @@
       "card.subtle": "#351101",
       "text.primary": "#FAF8F0",
       "text.secondary": "rgba(250,248,240,0.7)",
-      "text.muted": "rgba(250,248,240,0.5)",
+      "text.muted": "#C7BAA5",
       "text.on-dark": "#FAF8F0",
       "text.on-light": "#351101",
       "text.on-cta": "#351101",
@@ -60,9 +60,9 @@
       "accent.soft": "rgba(215,152,218,0.12)",
       "accent.gold": "#D798DA",
       "accent.positive": "#D798DA",
-      "border": "rgba(250,248,240,0.15)",
-      "border.light": "rgba(250,248,240,0.08)",
-      "divider": "rgba(250,248,240,0.2)",
+      "border": "#684F44",
+      "border.light": "#684F44",
+      "divider": "#684F44",
       "navbar.bg": "#351101",
       "navbar.text": "#FAF8F0",
       "nav.mobile.bar.bg": "#351101",
@@ -81,7 +81,7 @@
       "card.product.subtle": "#FAF8F0",
       "card.product.text": "#351101",
       "card.product.text.muted": "rgba(53,17,1,0.7)",
-      "card.product.border": "rgba(53,17,1,0.15)"
+      "card.product.border": "#D7D1C4"
     }
   },
   "font": {

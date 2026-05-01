@@ -792,7 +792,7 @@ const useStyles = makeStyles((t) => ({
   addCardImageBtnText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.secondary"] },
   // Tasting note selector
   tnSearch: { fontFamily: t.font["body.regular"], fontSize: 14, color: t.color["text.primary"], borderRadius: 6, borderWidth: 1, borderColor: t.color.border, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: t.color["card.subtle"] },
-  tnResultRow: { paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(215,209,196,0.4)" },
+  tnResultRow: { paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.color.border },
   tnResultName: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"] },
   tnResultRoaster: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.secondary"], marginTop: 2 },
   tnSelectedName: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"] },
@@ -822,7 +822,7 @@ const useStyles = makeStyles((t) => ({
   submitRow: {
     flexDirection: "row", justifyContent: "flex-end", alignItems: "center",
     gap: 12, paddingHorizontal: 20, paddingVertical: 12,
-    borderTopWidth: 1, borderTopColor: "rgba(53,17,1,0.08)",
+    borderTopWidth: 1, borderTopColor: t.color.border,
     backgroundColor: t.color.bg,
   } as any,
   cancelBtn: { paddingHorizontal: 14, paddingVertical: 8 },
