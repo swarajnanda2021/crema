@@ -121,6 +121,12 @@ export interface Product {
   process: string | null;
   /** Verbatim process text — preserves experimental specificity. */
   process_raw: string | null;
+  /** Standardization output — one of the 8 canonical buckets
+   * (Washed/Natural/Honey/Anaerobic/Wet-Hulled/Monsooned/Experimental/Decaf).
+   * Drives the BEANS Process filter chip set so 60+ raw process strings
+   * collapse to 8 chips. The display column (`process`) holds Haiku's
+   * cleaned method name for the CoffeeCard. */
+  process_canonical: string | null;
   varietal: string | null;
   /** Standardization output — canonical cultivar name (or
    * "Multi-cultivar"). Replaces the regex backfill once a

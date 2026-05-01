@@ -1,20 +1,27 @@
 [
   {
-    "roaster": "7 Elements Coffee Roasters",
-    "website": "https://7elementscoffee.com",
+    "roaster": "El Bueno Coffee Roasters",
+    "website": "https://elbuenocoffee.com/",
     "platform_catalog": "woocommerce",
     "platform_detected": "woocommerce",
     "status": "success",
-    "products_found": 0,
-    "coffee_products": 0,
-    "non_coffee_excluded": 0,
+    "products_found": 43,
+    "coffee_products": 27,
+    "non_coffee_excluded": 16,
     "confidence_breakdown": {
       "high": 0,
-      "medium": 0,
+      "medium": 27,
       "low": 0
     },
-    "flags_summary": [],
-    "scrape_duration_seconds": 36.43,
-    "scraped_at": "2026-04-30T06:29:22Z"
+    "flags_summary": [
+      "missing_roast_level: 20",
+      "altitude_not_found: 20",
+      "missing_process: 14",
+      "needs_llm_review: 9",
+      "missing_tasting_notes: 8",
+      "weight_unknown: 8"
+    ],
+    "scrape_duration_seconds": 15.28,
+    "scraped_at": "2026-05-01T03:50:54Z"
   }
 ]

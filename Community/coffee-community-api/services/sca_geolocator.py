@@ -40,59 +40,27 @@ from typing import Iterable
 # constant the first time `database.init_db()` runs; subsequent runs read
 # the active row from `sca_tree_versions`.
 
-CANONICAL_TREE: dict = {
-    "Floral": {
-        "Black Tea": [],
-        "Floral": ["Chamomile", "Rose", "Jasmine"],
-    },
-    "Fruity": {
-        "Berry": ["Blackberry", "Raspberry", "Blueberry", "Strawberry"],
-        "Dried Fruit": ["Raisin", "Prune"],
-        "Other Fruit": ["Coconut", "Cherry", "Pomegranate", "Pineapple",
-                         "Grape", "Apple", "Peach", "Pear"],
-        "Citrus Fruit": ["Grapefruit", "Orange", "Lemon", "Lime"],
-    },
-    "Sour/Fermented": {
-        "Sour": ["Sour Aromatics", "Acetic Acid", "Butyric Acid",
-                  "Isovaleric Acid", "Citric Acid", "Malic Acid"],
-        "Alcohol/Fermented": ["Winey", "Whiskey", "Fermented", "Overripe"],
-    },
-    "Green/Vegetative": {
-        "Olive Oil": [],
-        "Raw": [],
-        "Green/Vegetative": ["Under-ripe", "Peapod", "Fresh", "Dark Green",
-                              "Vegetative", "Hay-like", "Herb-like"],
-        "Beany": [],
-    },
-    "Other": {
-        "Papery/Musty": ["Stale", "Cardboard", "Papery", "Woody",
-                          "Moldy/Damp", "Musty/Dusty", "Musty/Earthy",
-                          "Animalic", "Meaty Brothy", "Phenolic"],
-        "Chemical": ["Bitter", "Salty", "Medicinal", "Petroleum",
-                      "Skunky", "Rubber"],
-    },
-    "Roasted": {
-        "Pipe Tobacco": [],
-        "Tobacco": [],
-        "Burnt": ["Acrid", "Ashy", "Smoky", "Brown, Roast"],
-        "Cereal": ["Grain", "Malt"],
-    },
-    "Spices": {
-        "Pungent": [],
-        "Pepper": [],
-        "Brown Spice": ["Anise", "Nutmeg", "Cinnamon", "Clove"],
-    },
-    "Nutty/Cocoa": {
-        "Nutty": ["Peanuts", "Hazelnut", "Almond"],
-        "Cocoa": ["Chocolate", "Dark Chocolate"],
-    },
-    "Sweet": {
-        "Brown Sugar": ["Molasses", "Maple Syrup", "Caramelized", "Honey"],
-        "Vanilla": [],
-        "Vanillin": [],
-        "Overall Sweet": [],
-        "Sweet Aromatics": [],
-    },
+# Schema-shape moved out of code into JSON files at
+# `services/flavor_schemas/`. Source-of-truth is whichever
+# `sca_tree_versions` row has `is_active=1`; `get_active_schema()` reads
+# that row, with a built-in fallback for the boot path before the
+# first-seed has run.
+FALLBACK_SCHEMA: dict = {
+    "kind": "single_tier",
+    "version": "fallback",
+    "label": "Fallback (boot-time)",
+    "sectors": [
+        {"name": "Chocolate", "absorbs": []},
+        {"name": "Caramel",   "absorbs": []},
+        {"name": "Floral",    "absorbs": []},
+        {"name": "Citrus",    "absorbs": []},
+        {"name": "Berry",     "absorbs": []},
+        {"name": "Fresh fruit","absorbs": []},
+        {"name": "Dried",     "absorbs": []},
+        {"name": "Spice",     "absorbs": []},
+        {"name": "Nutty",     "absorbs": []},
+        {"name": "Earthy",    "absorbs": []},
+    ],
 }
 
 MODEL_VERSION = "claude-haiku-4-5-20251001"
@@ -104,51 +72,63 @@ _JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 
 # ── Validators ──────────────────────────────────────────────────────────────
 
-def is_valid_address(addr, tree: dict) -> bool:
-    """An address is a list of 1–3 strings forming a valid path through the tree."""
-    if not isinstance(addr, list) or not (1 <= len(addr) <= 3):
+def schema_sector_names(schema: dict) -> list[str]:
+    """Sector names in declaration order — the order is also the wheel
+    layout, clockwise from 12 o'clock."""
+    return [s.get("name", "") for s in (schema or {}).get("sectors", [])
+            if isinstance(s, dict) and s.get("name")]
+
+
+def is_valid_address(addr, schema: dict) -> bool:
+    """An address is a single-element list `[sector_name]` whose name
+    matches one of the schema's sectors. Single-tier schemas only —
+    multi-tier addresses (`[t1, t2, t3]`) are rejected."""
+    if not isinstance(addr, list) or len(addr) != 1:
         return False
-    if not all(isinstance(x, str) for x in addr):
+    name = addr[0]
+    if not isinstance(name, str) or not name:
         return False
-    t1 = addr[0]
-    if t1 not in tree:
-        return False
-    if len(addr) == 1:
-        return True
-    t2 = addr[1]
-    if t2 not in tree[t1]:
-        return False
-    if len(addr) == 2:
-        return True
-    t3 = addr[2]
-    return t3 in tree[t1][t2]
+    return name in schema_sector_names(schema)
 
 
 def parse_tree_json(text: str) -> dict:
-    """Parse a JSON string and validate it structurally as a 3-tier tree.
-    Raises ValueError on bad structure with a human-readable message."""
+    """Parse + validate a single-tier flavor schema JSON. Returns the
+    schema dict on success, raises ValueError with a human-readable
+    message on bad shape."""
     try:
-        tree = json.loads(text)
+        schema = json.loads(text)
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON: {e.msg} (line {e.lineno}, col {e.colno})")
-    if not isinstance(tree, dict) or not tree:
-        raise ValueError("Top level must be a non-empty object (tier-1 categories).")
-    for t1, t1_subtree in tree.items():
-        if not isinstance(t1, str) or not t1:
-            raise ValueError("Tier-1 keys must be non-empty strings.")
-        if not isinstance(t1_subtree, dict):
-            raise ValueError(f"Tier-1 '{t1}': value must be an object of tier-2 buckets.")
-        for t2, t2_leaves in t1_subtree.items():
-            if not isinstance(t2, str) or not t2:
-                raise ValueError(f"Tier-2 keys under '{t1}' must be non-empty strings.")
-            if not isinstance(t2_leaves, list):
-                raise ValueError(f"Tier-2 '{t1} > {t2}': value must be an array of tier-3 leaves.")
-            for leaf in t2_leaves:
-                if not isinstance(leaf, str) or not leaf:
-                    raise ValueError(
-                        f"Tier-3 leaves under '{t1} > {t2}' must be non-empty strings."
-                    )
-    return tree
+    if not isinstance(schema, dict):
+        raise ValueError("Top level must be an object.")
+    kind = schema.get("kind")
+    if kind != "single_tier":
+        raise ValueError(
+            f"Schema kind must be 'single_tier' (got {kind!r}). "
+            "Multi-tier schemas are no longer supported."
+        )
+    sectors = schema.get("sectors")
+    if not isinstance(sectors, list) or not sectors:
+        raise ValueError("'sectors' must be a non-empty array.")
+    seen_names: set[str] = set()
+    for i, s in enumerate(sectors):
+        if not isinstance(s, dict):
+            raise ValueError(f"sectors[{i}] must be an object.")
+        name = s.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"sectors[{i}].name must be a non-empty string.")
+        if name in seen_names:
+            raise ValueError(f"Duplicate sector name {name!r}.")
+        seen_names.add(name)
+        absorbs = s.get("absorbs", [])
+        if not isinstance(absorbs, list):
+            raise ValueError(f"sectors[{i}].absorbs must be an array.")
+        for j, a in enumerate(absorbs):
+            if not isinstance(a, str) or not a.strip():
+                raise ValueError(
+                    f"sectors[{i}].absorbs[{j}] must be a non-empty string."
+                )
+    return schema
 
 
 def extract_json(text: str) -> str:
@@ -218,13 +198,14 @@ def _split_tasting_notes(s: str) -> list[str]:
 # ── Storage helpers ─────────────────────────────────────────────────────────
 
 def address_to_columns(addr: list[str] | None) -> tuple:
-    """Pack an address list into (t1, t2, t3, is_null) for storage."""
+    """Pack an address list into (t1, t2, t3, is_null) for storage.
+    Single-tier schema: only t1 ever carries a value; t2 and t3 are
+    permanently NULL. The columns are kept for table-shape stability
+    so older rows + admin queries continue to work."""
     if addr is None:
         return (None, None, None, 1)
     t1 = addr[0] if len(addr) >= 1 else None
-    t2 = addr[1] if len(addr) >= 2 else None
-    t3 = addr[2] if len(addr) >= 3 else None
-    return (t1, t2, t3, 0)
+    return (t1, None, None, 0)
 
 
 def columns_to_address(t1, t2, t3, is_null) -> list[str] | None:
@@ -241,19 +222,27 @@ def columns_to_address(t1, t2, t3, is_null) -> list[str] | None:
     return out
 
 
-def get_active_tree(db) -> dict:
-    """Return the active SCA tree from `sca_tree_versions`. Falls back to
-    `CANONICAL_TREE` if no row is marked active (shouldn't happen after
-    seed)."""
+def get_active_schema(db) -> dict:
+    """Return the active flavor schema from `sca_tree_versions`. Falls
+    back to `FALLBACK_SCHEMA` if no row is marked active (shouldn't
+    happen after seed)."""
     row = db.execute(
         "SELECT tree_json FROM sca_tree_versions WHERE is_active = 1 LIMIT 1"
     ).fetchone()
     if not row:
-        return CANONICAL_TREE
+        return FALLBACK_SCHEMA
     try:
-        return json.loads(row["tree_json"])
+        parsed = json.loads(row["tree_json"])
+        if isinstance(parsed, dict) and parsed.get("kind") == "single_tier":
+            return parsed
+        return FALLBACK_SCHEMA
     except (json.JSONDecodeError, TypeError):
-        return CANONICAL_TREE
+        return FALLBACK_SCHEMA
+
+
+# Back-compat alias — older imports still call `get_active_tree`. New
+# code should use `get_active_schema` for clarity.
+get_active_tree = get_active_schema
 
 
 # ── Stats endpoint ──────────────────────────────────────────────────────────
@@ -353,57 +342,10 @@ def select_exemplars(db, *, limit: int = 40) -> list[dict]:
 # ── System prompt builder ───────────────────────────────────────────────────
 
 def build_system_prompt(tree: dict, exemplars: list[dict]) -> str:
-    """Build the cache-controlled system prompt. Mirrors the structure of
-    `tag_resolver_test.SYSTEM_PROMPT` but with embedded exemplars so house
-    style propagates as the catalog grows."""
-    tree_json = json.dumps(tree, indent=2, ensure_ascii=False)
-    exemplar_block = ""
-    if exemplars:
-        # Render as input/address pairs the model can pattern-match on.
-        lines = []
-        for e in exemplars:
-            addr = e.get("address")
-            rhs = json.dumps(addr) if addr else "null"
-            lines.append(f'  {{"input": {json.dumps(e["tag"])}, "address": {rhs}}},')
-        exemplar_block = (
-            "\n\nReference resolutions (already classified — match this style):\n\n"
-            "{\n  \"results\": [\n" + "\n".join(lines) + "\n  ]\n}\n"
-        )
-
-    return f"""You map coffee tasting note tags onto the SCA flavor tree. For each input tag, return the single deepest address that captures it, or null.
-
-The flavor tree is a 3-tier hierarchy. An address is a path: [tier1], [tier1, tier2], or [tier1, tier2, tier3].
-
-Rules:
-
-1. Match at the deepest tier where the input clearly fits. "Honey" → ["Sweet", "Brown Sugar", "Honey"]. "Cacao" → ["Nutty/Cocoa", "Cocoa"] (synonym for Cocoa, no tier-3 match).
-
-2. Strip modifiers that don't change the underlying flavor. "Wild Honey", "Raw Honey" → ["Sweet", "Brown Sugar", "Honey"]. "Milk Chocolate", "Dark Chocolate" → keep at tier 3 if exact match exists, else climb. "Roasted Nuts" → ["Nutty/Cocoa", "Nutty"].
-
-3. Climb up when the input points to a region rather than a single leaf. "Stone Fruit" → ["Fruity", "Other Fruit"] (groups Cherry + Peach under the directive). "Citrus" → ["Fruity", "Citrus Fruit"]. "Lemon Verbena" → ["Fruity", "Citrus Fruit"] (the lemon directive dominates; do not split).
-
-4. Climb to tier 1 only when no tier-2 captures the input. "Fruity" itself stays at ["Fruity"].
-
-5. For compound tags where two parts point to genuinely different tier-1 categories with no common ancestor, return null. "Plum Cake" (Fruity + Spices) → null.
-
-6. Mouthfeel and body descriptors are not flavors. Return null. Examples: "Smooth", "Creamy", "Silky", "Heavy", "Light Body", "Round".
-
-7. Vague marketing language returns null. Examples: "Aromatic", "Complex", "Balanced", "Clean", "Bold", "Exceptional".
-
-You will receive a JSON object {{"tags": [...]}} containing every unique tag in one batch. Return JSON only, no prose, with one result entry per input tag preserving the input string verbatim:
-
-{{
-  "results": [
-    {{"input": "Wild Honey", "address": ["Sweet", "Brown Sugar", "Honey"]}},
-    {{"input": "Stone Fruit", "address": ["Fruity", "Other Fruit"]}},
-    {{"input": "Smooth", "address": null}}
-  ]
-}}
-
-The full tree is below. Use these exact strings — case, punctuation, slashes must match.
-
-{tree_json}{exemplar_block}
-"""
+    """Back-compat shim — delegates to the schema-aware
+    `build_tasting_prompt`. Kept so existing callers (legacy geolocate
+    job in catalog_ops) don't need rewiring."""
+    return build_tasting_prompt(tree, exemplars)
 
 
 # ── Haiku call ──────────────────────────────────────────────────────────────
@@ -1057,25 +999,54 @@ def _varietal_exemplar_block(items: list[dict]) -> str:
 
 
 def build_tasting_prompt(sca_tree: dict, exemplars: list[dict]) -> str:
-    """Map free-text flavor tags onto the SCA flavor tree."""
-    sca_tree_json = json.dumps(sca_tree, indent=2, ensure_ascii=False)
-    return f"""You map coffee tasting note tags onto the SCA flavor tree. For each input tag, return the single deepest address that captures it, or null.
+    """Map free-text flavor tags onto the active single-tier flavor
+    schema. For each tag, Haiku returns either a single-element address
+    `[sector_name]` or `null`. Sector names come from `sca_tree.sectors[].name`;
+    each sector also has an `absorbs` list of exemplar tags Haiku should
+    treat as canonical members of that sector."""
+    sectors = (sca_tree or {}).get("sectors", []) if isinstance(sca_tree, dict) else []
+    schema_label = (sca_tree or {}).get("label", "(unlabeled)")
+    schema_version = (sca_tree or {}).get("version", "?")
 
-The flavor tree is a 3-tier hierarchy. An address is a path: [tier1], [tier1, tier2], or [tier1, tier2, tier3].
+    # Render the sector menu as a compact list — one line per sector
+    # with its absorb-exemplars inline so Haiku has the synonym map
+    # right next to the sector name.
+    sector_lines = []
+    for s in sectors:
+        if not isinstance(s, dict):
+            continue
+        name = s.get("name", "")
+        absorbs = s.get("absorbs", []) or []
+        absorbs_str = ", ".join(absorbs[:30]) if absorbs else "(no exemplars yet)"
+        sector_lines.append(f"  • {name} — absorbs: {absorbs_str}")
+    sectors_block = "\n".join(sector_lines)
+
+    sector_names = [s.get("name", "") for s in sectors if isinstance(s, dict)]
+    valid_names_str = ", ".join(json.dumps(n) for n in sector_names)
+
+    return f"""You map coffee tasting note tags onto the active Crema flavor schema. For each input tag, return a single-element address `[sector_name]` or `null`.
+
+Schema: {schema_label} (version {schema_version}). The schema has {len(sector_names)} sectors. Use these EXACT sector names — case + spacing must match:
+
+{valid_names_str}.
+
+For each tag, decide: which sector best captures the flavor, or is it not a flavor at all (null)?
 
 Rules:
 
-1. Match deepest where it fits. "Honey" → ["Sweet","Brown Sugar","Honey"]. "Cacao" → ["Nutty/Cocoa","Cocoa"] (Cacao is a Cocoa synonym).
-2. Strip modifiers that don't change the underlying flavor. "Wild Honey", "Raw Honey" → ["Sweet","Brown Sugar","Honey"]. "Roasted Nuts" → ["Nutty/Cocoa","Nutty"].
-3. Climb up when input names a region, not a leaf. "Stone Fruit" → ["Fruity","Other Fruit"]. "Citrus" → ["Fruity","Citrus Fruit"].
-4. Climb to tier 1 only when no tier-2 captures it. "Fruity" stays at ["Fruity"].
-5. Compound tags pointing at unrelated tier-1s with no common ancestor → null. "Plum Cake" (Fruity + Spices) → null.
-6. Mouthfeel/body descriptors are not flavors → null. ("Smooth", "Creamy", "Silky", "Heavy", "Light Body", "Round")
-7. Vague marketing language → null. ("Aromatic", "Complex", "Balanced", "Clean", "Bold", "Exceptional")
+1. Use the absorbs list as the primary signal. If a tag literally appears in a sector's absorbs list, classify it to that sector.
+2. Match flavor character. "Wild Honey" → ["Caramel"] (honey-like sweetness). "Roasted Almond" → ["Nutty"]. "Pink Guava" → ["Fresh fruit"] (or ["Tropical"] depending on the schema).
+3. Strip modifiers. "Dark Caramel" → ["Caramel"] (or ["Chocolate"] if absorbed there). "Burnt Caramel" → ["Caramel"].
+4. Compound tags spanning unrelated sectors → null. "Plum Cake" (Fresh fruit + Spice) → null.
+5. Mouthfeel / body descriptors are not flavors → null. ("Smooth", "Creamy", "Silky", "Heavy", "Light Body", "Round", "Bold", "Velvety", "Buttery", "Mellow", "Crisp", "Bright")
+6. Vague marketing language → null. ("Aromatic", "Complex", "Balanced", "Clean", "Exceptional", "Rich", "Full-bodied")
+7. Acidity descriptors are not flavors → null. ("Bright Acidity", "Mild Acidity", "Citric Acidity")
 
-The full SCA tree is below. Use these EXACT strings — case, punctuation, slashes must match.
+═══════════════════════════════════════════════════════════════════════
+ACTIVE SCHEMA — SECTORS
+═══════════════════════════════════════════════════════════════════════
 
-{sca_tree_json}
+{sectors_block}
 
 ═══════════════════════════════════════════════════════════════════════
 RESPONSE FORMAT
@@ -1087,8 +1058,8 @@ You return JSON only, no prose, no markdown:
 
 {{
   "results": [
-    {{"input": "Wild Honey", "address": ["Sweet","Brown Sugar","Honey"]}},
-    {{"input": "Stone Fruit", "address": ["Fruity","Other Fruit"]}},
+    {{"input": "Wild Honey", "address": ["Caramel"]}},
+    {{"input": "Pink Guava", "address": ["Fresh fruit"]}},
     {{"input": "Smooth", "address": null}}
   ]
 }}
@@ -1505,16 +1476,19 @@ REFERENCE EXAMPLES
 
 
 def build_process_prompt(exemplars: list[dict]) -> str:
-    return f"""You normalise raw coffee processing-method strings the roaster wrote on each coffee bag. Return one of these canonical buckets, or null when the input doesn't describe a processing method.
+    return f"""You normalise raw coffee processing-method strings the roaster wrote on each coffee bag. For each input, return TWO fields:
+
+  • "process"  — one of the canonical buckets below (or null when the input doesn't describe a processing method). Used for filtering. Consumers never see the bucket name; "Experimental" is fine as a bucket label even though it's vague.
+  • "display"  — a cleaned, display-ready version of the input string that the CoffeeCard renders to the consumer. Single phrase, ≤ 30 chars, Title Case, strips noise but preserves what makes the method distinctive. Returned as null only when "process" is also null.
 
 Canonical buckets (use these EXACT strings):
   • "Washed"        — wet-processed, fully washed, double washed, fully washed patio dried.
   • "Natural"       — sun-dried in cherry, naturals, sundried, dry process.
   • "Honey"         — pulped natural with mucilage retained (red / yellow / black / white honey).
-  • "Anaerobic"     — sealed-tank fermentation, carbonic maceration, thermal-shock anaerobic.
+  • "Anaerobic"     — sealed-tank fermentation, carbonic maceration, thermal-shock anaerobic, ANY anaerobic-led step (even when combined with barrel ageing or yeast inoculation).
   • "Wet-Hulled"    — Sumatran "Giling Basah", semi-washed, wet-hulled.
   • "Monsooned"     — Indian Malabar / monsooned coffees only.
-  • "Experimental"  — barrel-aged (whiskey / rum / wine), yeast / lactic / fruit-fermented, infused, multi-step exotic methods that don't fit the above buckets cleanly.
+  • "Experimental"  — last-resort catch-all for inputs that don't fit any other bucket (barrel-aged with no anaerobic step, infused / co-ferment, multi-step exotic methods).
   • "Decaf"         — decaffeinated coffees (DCM, CO₂, Swiss Water, Mountain Water).
 
 Mapping rules:
@@ -1522,14 +1496,39 @@ Mapping rules:
 1. Plurals / capitalisation collapse: "Naturals", "naturals", "Natural Process", "Natural Sundried", "Sundried", "Sun-dried", "Pulped natural & Sun-dried" → "Natural".
 2. "Washed" family includes "Fully Washed", "Double Washed", "Washed (Fully Washed)", "Washed, Patio Dried", "Pulped Natural" (when paired with full washing).
 3. "Honey" family — anything explicitly labeled honey (Red Honey / Yellow Honey / Black Honey / Yeast Honey) and pulped-natural-with-mucilage-retained.
-4. "Anaerobic" family — anaerobic fermentation, carbonic maceration, thermal shock, anoxic naturals, sealed-tank ferm. "Anaerobic Natural" → "Anaerobic" (anaerobic dominates the consumer-relevant signal).
+4. "Anaerobic" family wins over "Experimental" when ANY anaerobic step is named. "Anaerobic Natural" → "Anaerobic". "Anaerobic Carbonic Maceration" → "Anaerobic". "Anaerobic Yeast Fermentation" → "Anaerobic". "Whiskey Barrel Anaerobic" → "Anaerobic". The anaerobic step is the consumer-relevant signal; the modifier (barrel / yeast / fruit) is descriptive flavor info preserved separately.
 5. "Wet-Hulled" — labeled Wet-Hulled, "Giling Basah", or "Semi-Washed" (the Indonesian style).
 6. "Monsooned" — only when explicitly labeled monsooned / Malabar style.
-7. "Experimental" — barrel ageing (Whiskey / Rum / Wine Barrel Aged), yeast inoculation that isn't anaerobic, multi-step ferments, decaf preparation methods that AREN'T listed in Decaf, "Pineapple Fermentation", "Wine Process", etc.
+7. "Experimental" — strict last resort. Only use when NONE of the above buckets fit. Examples: "Whiskey Barrel Aged" (no anaerobic step) → "Experimental"; "Rum Barrel Aged Natural" → "Natural" (Natural is the underlying process; barrel is flavor-add); "Pineapple Co-Fermented Honey" → "Honey" (Honey is the underlying); pure infusion / unusual single-method strings with no clean parent → "Experimental". Prefer the underlying / dominant canonical step over Experimental whenever an underlying step is named.
 8. "Decaf" — DCM Decaf, CO₂, Swiss Water, Mountain Water, Sugarcane EA. The bean's underlying process before decaffeination is lost; decaf wins.
-9. Multi-process strings ("Washed & Naturals", "Washed and Naturals") — when the roaster blends two processes in one bag, pick the dominant method by listed order. If ambiguous → "Experimental".
+9. Multi-process strings ("Washed & Naturals", "Washed and Naturals") — when the roaster blends two processes in one bag, pick the dominant method by listed order. If neither is a clear winner and no anaerobic step is named → "Experimental".
 10. Generic / non-process strings: "Mixed", "Blended", "Blend" → null. These describe blending, not processing.
 11. "<UNKNOWN>" / empty → null.
+
+DISPLAY-LABEL RULES (the consumer-facing string on the CoffeeCard):
+
+D1. For canonical-mappable inputs (Washed / Natural / Honey / Wet-Hulled / Monsooned / Decaf), the display string mirrors the canonical bucket UNLESS the input adds a meaningful colour modifier:
+      "Fully Washed" → display: "Washed"
+      "Naturals" / "Sundried" → display: "Natural"
+      "Red Honey" → display: "Red Honey" (modifier preserved)
+      "Yeast Honey" → display: "Yeast Honey"
+      "Sumatran Wet-Hulled" → display: "Wet-Hulled"
+      "Monsooned Malabar" → display: "Monsooned"
+      "DCM Decaf" → display: "DCM Decaf"
+      "Swiss Water Decaf" → display: "Swiss Water"
+D2. For Anaerobic and Experimental inputs, retain the meaningful method modifiers — that's the consumer-visible character. Strip generic suffixes ("Process", "Method", "Treatment"), parenthetical noise ("(patio dried)", "(fully washed)", "(8 days)"), redundant punctuation, ALL-CAPS:
+      "Anaerobic Carbonic Maceration" → display: "Carbonic Maceration", process: "Anaerobic"
+      "Anaerobic Yeast Fermentation 96h" → display: "Yeast Fermented", process: "Anaerobic"
+      "Whiskey Barrel Aged Natural" → display: "Whiskey Barrel Natural", process: "Natural"
+      "Whiskey Barrel Aged" → display: "Whiskey Barrel Aged", process: "Experimental"
+      "Pineapple Co-Fermented Honey" → display: "Pineapple Co-Ferment", process: "Honey"
+      "Wine Process" → display: "Wine Fermented", process: "Experimental"
+      "Lactic Fermented Natural" → display: "Lactic Fermented", process: "Natural"
+D3. For multi-process strings, the display preserves both methods joined cleanly:
+      "Washed & Natural" → display: "Washed + Natural", process: pick the dominant via rule 9
+      "Washed Fermented" → display: "Washed Fermented", process: "Washed"
+D4. Length cap: ≤ 30 chars. If you must trim, drop the last meaningful modifier first ("Pineapple Yeast Co-Ferment Honey" → "Pineapple Co-Ferment").
+D5. When process is null, display is null too.
 
 ═══════════════════════════════════════════════════════════════════════
 RESPONSE FORMAT
@@ -1541,9 +1540,12 @@ Return JSON only, no prose:
 
 {{
   "results": [
-    {{"input": "Anaerobic Natural", "process": "Anaerobic"}},
-    {{"input": "Whiskey Barrel Aged", "process": "Experimental"}},
-    {{"input": "Mixed", "process": null}}
+    {{"input": "Anaerobic Natural",       "process": "Anaerobic",    "display": "Anaerobic Natural"}},
+    {{"input": "Whiskey Barrel Aged",     "process": "Experimental", "display": "Whiskey Barrel Aged"}},
+    {{"input": "Anaerobic Carbonic Maceration", "process": "Anaerobic", "display": "Carbonic Maceration"}},
+    {{"input": "Washed Fermented",        "process": "Washed",       "display": "Washed Fermented"}},
+    {{"input": "Red Honey",               "process": "Honey",        "display": "Red Honey"}},
+    {{"input": "Mixed",                   "process": null,           "display": null}}
   ]
 }}
 
@@ -1591,6 +1593,12 @@ def classify_roasts(inputs: list[str], exemplars: list[dict],
 
 def classify_processes(inputs: list[str], exemplars: list[dict],
                          *, log=None) -> dict:
+    """Classify raw process strings. Returns
+    `{raw_string: {"canonical": str|None, "display": str|None}}`. The
+    canonical is one of the 8 buckets (used for filtering); the display
+    label is a cleaned consumer-facing string the CoffeeCard renders.
+    Display falls back to the raw input if Haiku omitted it but did
+    return a canonical — never lose the descriptive text."""
     if not inputs:
         return {}
     if log:
@@ -1600,14 +1608,26 @@ def classify_processes(inputs: list[str], exemplars: list[dict],
         {"processes": inputs},
         log=log,
     )
-    out: dict[str, str | None] = {}
+    out: dict[str, dict] = {}
     for entry in parsed.get("results", []) or []:
         if not isinstance(entry, dict):
             continue
         inp = entry.get("input")
         if not isinstance(inp, str):
             continue
-        out[inp] = _validate_process(entry.get("process"))
+        canonical = _validate_process(entry.get("process"))
+        display_raw = entry.get("display")
+        display = display_raw.strip() if isinstance(display_raw, str) and display_raw.strip() else None
+        # If Haiku returned a canonical but skipped display, fall back
+        # to the original input (truncated) so the card still shows
+        # something descriptive — never the canonical bucket name.
+        if canonical and not display:
+            display = inp.strip()[:30] if isinstance(inp, str) else None
+        # If canonical is null, display must be null too — the row
+        # represents "this isn't a process" and won't surface anywhere.
+        if canonical is None:
+            display = None
+        out[inp] = {"canonical": canonical, "display": display}
     return out
 
 
@@ -1624,7 +1644,23 @@ def build_standardize_system_prompt(
     three standardization tasks. Embeds both reference trees + per-task
     exemplar blocks so the model has concrete signals for every field it
     has to fill."""
-    sca_tree_json = json.dumps(sca_tree, indent=2, ensure_ascii=False)
+    # Single-tier flavor schema rendered as a list of sectors with
+    # absorbs-exemplars inline. Variety tree stays its own dict (different
+    # taxonomy, untouched by the v3 wheel rewrite).
+    sectors = (sca_tree or {}).get("sectors", []) if isinstance(sca_tree, dict) else []
+    schema_label = (sca_tree or {}).get("label", "(unlabeled)")
+    schema_version = (sca_tree or {}).get("version", "?")
+    sector_names = [s.get("name", "") for s in sectors if isinstance(s, dict)]
+    valid_names_str = ", ".join(json.dumps(n) for n in sector_names)
+    sector_lines: list[str] = []
+    for s in sectors:
+        if not isinstance(s, dict):
+            continue
+        nm = s.get("name", "")
+        ab = s.get("absorbs", []) or []
+        ab_str = ", ".join(ab[:30]) if ab else "(no exemplars yet)"
+        sector_lines.append(f"  • {nm} — absorbs: {ab_str}")
+    sectors_block = "\n".join(sector_lines)
     variety_tree_json = json.dumps(variety_tree, indent=2, ensure_ascii=False)
 
     def _tasting_block(items):
@@ -1664,24 +1700,28 @@ def build_standardize_system_prompt(
     return f"""You standardize three independent fields on the Crema coffee catalog in one pass. The user message carries three input lists; you return three output lists, one entry per input, preserving the input string verbatim as the key.
 
 ═══════════════════════════════════════════════════════════════════════
-TASK 1 — TASTING NOTES → SCA address
+TASK 1 — TASTING NOTES → flavor sector
 ═══════════════════════════════════════════════════════════════════════
 
-Map each free-text flavor tag onto the SCA flavor tree. The tree is a 3-tier hierarchy. An address is a path: [tier1], [tier1, tier2], or [tier1, tier2, tier3].
+Map each free-text flavor tag onto the active Crema flavor schema. For each tag, return a single-element address `[sector_name]` or `null`.
+
+Schema: {schema_label} (version {schema_version}). The schema has {len(sector_names)} sectors. Use these EXACT sector names — case + spacing must match:
+
+{valid_names_str}.
 
 Rules:
 
-1. Match deepest where it fits. "Honey" → ["Sweet","Brown Sugar","Honey"]. "Cacao" → ["Nutty/Cocoa","Cocoa"] (Cacao is a Cocoa synonym).
-2. Strip modifiers that don't change the underlying flavor. "Wild Honey", "Raw Honey" → ["Sweet","Brown Sugar","Honey"]. "Roasted Nuts" → ["Nutty/Cocoa","Nutty"].
-3. Climb up when input names a region, not a leaf. "Stone Fruit" → ["Fruity","Other Fruit"]. "Citrus" → ["Fruity","Citrus Fruit"].
-4. Climb to tier 1 only when no tier-2 captures it. "Fruity" stays at ["Fruity"].
-5. Compound tags pointing at unrelated tier-1s with no common ancestor → null. "Plum Cake" (Fruity + Spices) → null.
-6. Mouthfeel/body descriptors are not flavors → null. ("Smooth", "Creamy", "Silky", "Heavy", "Light Body", "Round")
-7. Vague marketing language → null. ("Aromatic", "Complex", "Balanced", "Clean", "Bold", "Exceptional")
+1. Use the absorbs list as the primary signal. If a tag literally appears in a sector's absorbs list, classify it to that sector.
+2. Match flavor character. "Wild Honey" → ["Caramel"] (honey-like sweetness). "Roasted Almond" → ["Nutty"]. "Pink Guava" → ["Fresh fruit"] (or ["Tropical"] depending on the schema).
+3. Strip modifiers that don't change the underlying flavor. "Dark Caramel" → ["Caramel"] (or ["Chocolate"] if absorbed there). "Burnt Caramel" → ["Caramel"].
+4. Compound tags spanning unrelated sectors → null. "Plum Cake" (Fresh fruit + Spice) → null.
+5. Mouthfeel / body descriptors are not flavors → null. ("Smooth", "Creamy", "Silky", "Heavy", "Light Body", "Round", "Bold", "Velvety", "Buttery", "Mellow", "Crisp", "Bright")
+6. Vague marketing language → null. ("Aromatic", "Complex", "Balanced", "Clean", "Exceptional", "Rich", "Full-bodied")
+7. Acidity descriptors are not flavors → null. ("Bright Acidity", "Mild Acidity", "Citric Acidity")
 
-The full SCA tree is below. Use these EXACT strings — case, punctuation, slashes must match.
+ACTIVE SCHEMA SECTORS (with absorbs):
 
-{sca_tree_json}
+{sectors_block}
 
 ═══════════════════════════════════════════════════════════════════════
 TASK 2 — ORIGIN → estate name
@@ -1824,7 +1864,8 @@ You return JSON only, no prose, no markdown, with all three output lists keyed v
 
 {{
   "tasting_addresses": [
-    {{"input": "Wild Honey",  "address": ["Sweet","Brown Sugar","Honey"]}},
+    {{"input": "Wild Honey",  "address": ["Caramel"]}},
+    {{"input": "Pink Guava",  "address": ["Fresh fruit"]}},
     {{"input": "Smooth",      "address": null}}
   ],
   "origin_estates": [

@@ -33,3 +33,10 @@ Thumbs.db
 
 # Log files
 *.log
+
+# Local research artifacts (one-shot analysis venvs, scratch outputs)
+tmp/cluster_venv/
+tmp/cluster_results.txt
+tmp/cluster_run.log
+tmp/distinct_tags.tsv
+tmp/cluster_tags.py

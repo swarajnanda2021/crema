@@ -963,6 +963,12 @@ _MIGRATIONS = [
     "ALTER TABLE products ADD COLUMN varietal_canonical TEXT",
     "CREATE INDEX IF NOT EXISTS idx_products_origin_region ON products(origin_region)",
     "CREATE INDEX IF NOT EXISTS idx_products_varietal_canonical ON products(varietal_canonical)",
+    # Process display label — Haiku now returns BOTH a canonical bucket
+    # (the 8 filterable categories: Washed/Natural/…/Experimental) AND
+    # a cleaned display label (e.g. "Whiskey Barrel Aged" or "Carbonic
+    # Maceration") that the CoffeeCard renders. Filter chips group by
+    # canonical; cards show display.
+    "ALTER TABLE process_addresses ADD COLUMN display_label TEXT",
 ]
 
 

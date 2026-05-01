@@ -389,6 +389,14 @@ RESOURCES = {
             # sub-tab — same column, admin overrides win.
             "origin_region": {"type": "str"},
             "varietal_canonical": {"type": "str"},
+            # Standardization writes the canonical process bucket here
+            # (Washed/Natural/Honey/Anaerobic/Wet-Hulled/Monsooned/
+            # Experimental/Decaf). The Discover BEANS process filter
+            # chip set groups by this so 60+ raw process strings
+            # collapse to the 8 buckets. The display column
+            # (`products.process`) holds Haiku's cleaned method name
+            # for the CoffeeCard.
+            "process_canonical": {"type": "str"},
             "created_at": {"type": "str", "ro": True, "auto": "now"},
         },
         "auth": {"list": None, "read": None, "create": "required", "delete": "required"},

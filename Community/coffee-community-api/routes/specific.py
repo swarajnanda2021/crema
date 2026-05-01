@@ -7,7 +7,7 @@ These have fixed paths that would otherwise be shadowed by /{resource}/{id}.
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from database import get_db
 from resources.crud import list_resource, build_select, row_to_dict, resolve_embeds
 from resources.registry import get_resource
@@ -1325,25 +1325,30 @@ def admin_standardize_run(body: Optional[dict] = None,
         exemplars before the call.
       • tasks: list[str] — subset of ("tasting", "origin", "varietal",
         "roast", "process"). Empty / omitted = run all five.
+      • force_reclassify: bool — when true, every input string is fed
+        to Haiku regardless of whether it already has an address row.
+        Use when the prompt has been improved or the schema has changed
+        and the existing classifications need to be refreshed. Default
+        false (the run skips already-classified inputs to save tokens).
     """
     _require_admin(user)
     body = body or {}
     regenerate = bool(body.get("regenerate_exemplars"))
+    force_reclassify = bool(body.get("force_reclassify"))
     tasks = body.get("tasks")
     if tasks is not None and not isinstance(tasks, list):
-        from fastapi import HTTPException
         raise HTTPException(400, "tasks must be an array of task names")
     db = get_db()
     try:
         try:
             job_id = catalog_ops.enqueue_job(db, "standardize", started_by=user["id"])
         except catalog_ops.JobConflict as e:
-            from fastapi import HTTPException
             raise HTTPException(409, str(e), headers={"X-Live-Job-Id": str(e.live_job_id)})
         background_tasks.add_task(
             catalog_ops.run_standardize_job, job_id,
             regenerate_exemplars=regenerate,
             tasks=tasks,
+            force_reclassify=force_reclassify,
         )
         return ok(_job_to_response(db, job_id), resource="jobs")
     finally:
@@ -1478,6 +1483,173 @@ def admin_standardize_trees(user=Depends(get_current_user)):
         }, resource="standardize_trees")
     finally:
         db.close()
+
+
+# ── Flavor schema management ────────────────────────────────────────────────
+# Single-tier flavor schemas live in `sca_tree_versions`. Multiple schemas
+# can coexist; one is `is_active=1`. Admin uploads new schemas + flips
+# active via the Catalog Ops Schema Manager UI; the Discover wheel reads
+# whichever is active via `GET /api/sca/tree`. Activating a schema makes
+# the wheel render the new sectors immediately, but pre-existing
+# `sca_addresses` rows are stale until the admin re-runs Standardization
+# Tasting — UI surfaces a banner with the count of stale rows.
+
+@router.get("/admin/flavor-schemas")
+def admin_flavor_schemas_list(user=Depends(get_current_user)):
+    """List every flavor schema in `sca_tree_versions`, newest-first.
+    Drives the Schema Manager card list."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT id, uploaded_at, uploaded_by, tree_json, is_active, notes "
+            "FROM sca_tree_versions ORDER BY id DESC"
+        ).fetchall()
+        out: list[dict] = []
+        for r in rows:
+            try:
+                schema = json.loads(r["tree_json"])
+            except (json.JSONDecodeError, TypeError):
+                schema = None
+            sectors = []
+            label = None
+            version = None
+            kind = None
+            if isinstance(schema, dict):
+                kind = schema.get("kind")
+                label = schema.get("label")
+                version = schema.get("version")
+                sectors = schema.get("sectors", []) if kind == "single_tier" else []
+            out.append({
+                "id": r["id"],
+                "uploaded_at": r["uploaded_at"],
+                "uploaded_by": r["uploaded_by"],
+                "is_active": bool(r["is_active"]),
+                "notes": r["notes"],
+                "kind": kind,
+                "version": version,
+                "label": label,
+                "sector_count": len(sectors),
+                "sector_names": [s.get("name") for s in sectors if isinstance(s, dict)],
+            })
+        # Stale-address signal — count addresses keyed against branches
+        # that no longer exist in the active schema. Drives the banner.
+        active_row = next((r for r in out if r["is_active"]), None)
+        stale_count = 0
+        total_classified = 0
+        if active_row:
+            active_names = set(active_row["sector_names"] or [])
+            counts = db.execute(
+                "SELECT address_t1, COUNT(*) AS n FROM sca_addresses "
+                "WHERE is_null = 0 GROUP BY address_t1"
+            ).fetchall()
+            for c in counts:
+                total_classified += c["n"]
+                if c["address_t1"] not in active_names:
+                    stale_count += c["n"]
+        return ok({
+            "schemas": out,
+            "active_id": active_row["id"] if active_row else None,
+            "stale_address_count": stale_count,
+            "classified_address_count": total_classified,
+        }, resource="flavor_schemas")
+    finally:
+        db.close()
+
+
+@router.post("/admin/flavor-schemas")
+def admin_flavor_schemas_upload(payload: dict, user=Depends(get_current_user)):
+    """Upload a new flavor schema. Body shape:
+        { "tree_json": "<JSON string>", "notes": "...", "activate": false }
+    The JSON string is parsed + validated; on success a new row lands in
+    `sca_tree_versions`. If `activate` is true, the new row also gets
+    `is_active=1` (and any prior active row is flipped off)."""
+    _require_admin(user)
+    raw = (payload or {}).get("tree_json")
+    if not isinstance(raw, str) or not raw.strip():
+        raise HTTPException(400, "Missing tree_json (string).")
+    try:
+        schema = sca_geolocator.parse_tree_json(raw)
+    except ValueError as e:
+        raise HTTPException(400, f"Schema rejected: {e}")
+    notes = (payload or {}).get("notes") or schema.get("notes") or ""
+    activate = bool((payload or {}).get("activate"))
+    db = get_db()
+    try:
+        if activate:
+            db.execute("UPDATE sca_tree_versions SET is_active = 0 WHERE is_active = 1")
+        cur = db.execute(
+            "INSERT INTO sca_tree_versions "
+            "(uploaded_at, uploaded_by, tree_json, is_active, notes) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                _now_iso(),
+                user.get("user_id") if isinstance(user, dict) else None,
+                json.dumps(schema),
+                1 if activate else 0,
+                notes,
+            ),
+        )
+        db.commit()
+        return ok({
+            "id": cur.lastrowid,
+            "version": schema.get("version"),
+            "label": schema.get("label"),
+            "is_active": activate,
+            "sector_count": len(schema.get("sectors", [])),
+        }, resource="flavor_schema")
+    finally:
+        db.close()
+
+
+@router.post("/admin/flavor-schemas/{schema_id}/activate")
+def admin_flavor_schemas_activate(schema_id: int, user=Depends(get_current_user)):
+    """Make `schema_id` the active schema. Atomic: the prior active row
+    flips to 0 and the named row flips to 1 inside one transaction. After
+    activation, `sca_addresses` may be stale against the new schema —
+    the response reports the stale count so the UI can prompt the admin
+    to re-run Standardization Tasting."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id, tree_json FROM sca_tree_versions WHERE id = ?",
+            (schema_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, f"No flavor schema with id {schema_id}.")
+        try:
+            schema = json.loads(row["tree_json"])
+        except (json.JSONDecodeError, TypeError):
+            raise HTTPException(500, "Stored schema row is not valid JSON.")
+        db.execute("UPDATE sca_tree_versions SET is_active = 0 WHERE is_active = 1")
+        db.execute("UPDATE sca_tree_versions SET is_active = 1 WHERE id = ?", (schema_id,))
+        db.commit()
+        # Stale-address count post-activation.
+        active_names = {
+            s.get("name") for s in (schema.get("sectors", []) or [])
+            if isinstance(s, dict)
+        }
+        stale = db.execute(
+            "SELECT COUNT(*) AS n FROM sca_addresses "
+            "WHERE is_null = 0 AND address_t1 NOT IN "
+            f"({','.join('?' * max(1, len(active_names)))})",
+            tuple(active_names) if active_names else (None,),
+        ).fetchone()
+        return ok({
+            "id": schema_id,
+            "version": schema.get("version"),
+            "stale_address_count": stale["n"] if stale else 0,
+        }, resource="flavor_schema_activate")
+    finally:
+        db.close()
+
+
+def _now_iso() -> str:
+    """Local wrapper so the schema endpoints don't import catalog_ops just
+    for `_now`. Same UTC isoformat shape."""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
 
 
 @router.get("/admin/standardize/exemplars")

@@ -70,6 +70,18 @@ def seed_initial_state(conn) -> None:
     _seed_roaster_sources_combined(conn)
     _seed_sca_addresses(conn)
     _seed_sca_tree(conn)
+    # Swap canonical SCA → crema_tree_v1 once. Wipes both sca_addresses
+    # and sca_tree_versions, then re-seeds the active row inline so the
+    # post-condition is "v1 is active, addresses empty, ready for the
+    # admin to run Standardization > Tasting." Gated on PRAGMA
+    # user_version so it runs exactly once per database.
+    reset_for_flavor_schema_v3(conn)
+    # Restore verbatim experimental-process text on rows already
+    # overwritten by the prior writeback, then wipe process_addresses
+    # so the next Standardization Process re-classifies with the new
+    # display_label column populated.
+    restore_experimental_process_verbatim(conn)
+    reset_process_addresses_for_display_label(conn)
     # Wipe legacy proposals + prior scrape jobs once. The first iteration
     # of the workflow auto-applied scrape diffs and then a subsequent
     # backfill marked them as `applied` proposals — which made Undo on
@@ -179,7 +191,15 @@ def _seed_sca_addresses(conn) -> None:
     table. Once the admin starts running classification jobs, the
     runner writes here and we don't want a stale cache file
     resurrecting deleted rows on the next restart.
+
+    Skipped entirely once `PRAGMA user_version >= 5` (crema_tree_v1
+    swap). The cached JSON is keyed on canonical SCA branch names
+    (`Sour/Fermented`, `Brown Sugar`, etc.) that are invalid under
+    the new tree; re-importing it would just reinsert garbage.
     """
+    cur = conn.execute("PRAGMA user_version")
+    if cur.fetchone()[0] >= 5:
+        return
     existing_count = conn.execute(
         "SELECT COUNT(*) FROM sca_addresses"
     ).fetchone()[0]
@@ -217,23 +237,10 @@ def _seed_sca_addresses(conn) -> None:
 
 
 def _seed_sca_tree(conn) -> None:
-    """Insert the canonical SCA tree as the first version + active row.
-    No-op if any version already exists (so admin uploads aren't
-    overwritten on restart).
-    """
-    row = conn.execute(
-        "SELECT id FROM sca_tree_versions LIMIT 1"
-    ).fetchone()
-    if row:
-        return
-    conn.execute(
-        "INSERT INTO sca_tree_versions "
-        "(uploaded_at, uploaded_by, tree_json, is_active, notes) "
-        "VALUES (?, NULL, ?, 1, 'Canonical SCA flavor tree (seeded)')",
-        (_now(), json.dumps(sca_geolocator.CANONICAL_TREE)),
-    )
-    conn.commit()
-    print("Catalog-ops seed: inserted canonical SCA tree as version 1")
+    """No-op shim. v3 schemas are seeded by `reset_for_flavor_schema_v3`
+    which both wipes and inserts inline. Kept callable so older
+    `_seed_initial_state` orderings don't break."""
+    return
 
 
 # ── Job lifecycle ───────────────────────────────────────────────────────────
@@ -978,6 +985,137 @@ def backfill_canonical_columns(conn) -> None:
     )
 
 
+FLAVOR_SCHEMAS_DIR = Path(__file__).parent / "flavor_schemas"
+
+
+def _load_seed_schema(filename: str) -> dict:
+    """Read a seed schema JSON file from `services/flavor_schemas/`.
+    Returns the parsed dict (no validation here — the loader trusts the
+    on-disk seed; the upload endpoint runs the schema validator)."""
+    with open(FLAVOR_SCHEMAS_DIR / filename) as f:
+        return json.load(f)
+
+
+def reset_for_flavor_schema_v3(conn) -> None:
+    """Swap the platform's flavor taxonomy to single-tier v3 schemas.
+
+    v1 was multi-tier (10 T1 · 39 T2 · 28 T3) with a bottom-semicircle
+    wheel that drilled T1→T2→T3 — design feedback killed that surface
+    because it produced too many "0 coffees" results. v3 is a flat
+    single-tier schema rendered as a full-circle, single-select wheel.
+    Two schemas seed by default: `crema_v3_n10` (active) and
+    `crema_v3_n14` (inactive A/B variant) so the admin can switch
+    between sector counts via the Catalog Ops Schema Manager.
+
+    What this resets:
+      * Every `sca_tree_versions` row → drops both the canonical SCA seed
+        and any v1/v2 schemas that may have been activated.
+      * Every `sca_addresses` row → all prior classifications were keyed
+        against multi-tier branch names that don't exist in v3. Admin
+        completes the swap by running Standardization > Tasting.
+
+    Catalog `products` rows are NOT touched — only the address index.
+
+    Gated on `PRAGMA user_version >= 6` so it runs exactly once per DB.
+    """
+    cur = conn.execute("PRAGMA user_version")
+    version = cur.fetchone()[0]
+    if version >= 6:
+        return
+
+    deleted_addresses = conn.execute("DELETE FROM sca_addresses").rowcount
+    deleted_versions = conn.execute("DELETE FROM sca_tree_versions").rowcount
+
+    now = _now()
+    n10 = _load_seed_schema("crema_v3_n10.json")
+    n14 = _load_seed_schema("crema_v3_n14.json")
+
+    # n10 is active by default; n14 sits inactive so admin can A/B by
+    # flipping its `is_active` flag in the Schema Manager UI.
+    conn.execute(
+        "INSERT INTO sca_tree_versions "
+        "(uploaded_at, uploaded_by, tree_json, is_active, notes) "
+        "VALUES (?, NULL, ?, 1, ?)",
+        (now, json.dumps(n10), n10.get("notes", "")),
+    )
+    conn.execute(
+        "INSERT INTO sca_tree_versions "
+        "(uploaded_at, uploaded_by, tree_json, is_active, notes) "
+        "VALUES (?, NULL, ?, 0, ?)",
+        (now, json.dumps(n14), n14.get("notes", "")),
+    )
+
+    conn.execute("PRAGMA user_version = 6")
+    conn.commit()
+
+    print(
+        f"crema_v3 swap: dropped {deleted_addresses} sca_addresses + "
+        f"{deleted_versions} sca_tree_versions rows; seeded "
+        f"{n10.get('version')} (active) + {n14.get('version')} (inactive). "
+        f"Admin must re-run Standardization > Tasting to repopulate "
+        f"addresses against the new schema."
+    )
+
+
+def reset_process_addresses_for_display_label(conn) -> None:
+    """One-shot wipe of `process_addresses` so the next Standardization
+    Process run re-classifies every input with the new `display_label`
+    column populated. Without this, the COALESCE-based product
+    writeback would set `products.process` to the canonical bucket
+    name for legacy rows (e.g. "Anaerobic"), losing the descriptive
+    raw text. Wiping here forces a fresh Haiku pass that produces
+    cleaned display labels.
+
+    Gated on `PRAGMA user_version >= 8` so it runs exactly once.
+    """
+    cur = conn.execute("PRAGMA user_version")
+    version = cur.fetchone()[0]
+    if version >= 8:
+        return
+
+    deleted = conn.execute("DELETE FROM process_addresses").rowcount
+    conn.execute("PRAGMA user_version = 8")
+    conn.commit()
+
+    if deleted:
+        print(
+            f"process_addresses reset: dropped {deleted} rows so the "
+            f"next Standardization Process run repopulates with the new "
+            f"display_label column. Admin must re-run."
+        )
+
+
+def restore_experimental_process_verbatim(conn) -> None:
+    """One-shot repair: any product whose `process` column is the
+    literal string "Experimental" gets its descriptive process_raw
+    written back over it. The Standardize writeback used to clobber
+    descriptive text like "Whiskey Barrel Aged" with the catch-all
+    bucket name — this restores the fidelity for display.
+
+    Gated on `PRAGMA user_version >= 7` so it runs exactly once.
+    """
+    cur = conn.execute("PRAGMA user_version")
+    version = cur.fetchone()[0]
+    if version >= 7:
+        return
+
+    restored = conn.execute(
+        "UPDATE products SET process = process_raw "
+        "WHERE process = 'Experimental' "
+        "  AND process_raw IS NOT NULL "
+        "  AND process_raw != ''"
+    ).rowcount
+
+    conn.execute("PRAGMA user_version = 7")
+    conn.commit()
+
+    if restored:
+        print(
+            f"Process repair: restored verbatim text on {restored} rows "
+            f"that had been overwritten with 'Experimental'."
+        )
+
+
 def backfill_prior_scrape_jobs(conn) -> int:
     """One-shot retroactive seed: every prior `succeeded` scrape job
     that has `result_summary.new_products[]` becomes a series of
@@ -1035,7 +1173,8 @@ def backfill_prior_scrape_jobs(conn) -> int:
 
 
 def run_standardize_job(job_id: int, *, regenerate_exemplars: bool = False,
-                          tasks: Optional[list] = None) -> None:
+                          tasks: Optional[list] = None,
+                          force_reclassify: bool = False) -> None:
     """Catalog Standardization runner — formerly the SCA-only geolocate job,
     extended to also map origins → estate names and varietals → canonical
     cultivar + species + morphology. One Haiku call covers all three tasks
@@ -1088,8 +1227,14 @@ def run_standardize_job(job_id: int, *, regenerate_exemplars: bool = False,
         process_counts = sca_geolocator.harvest_processes(db) if "process" in selected_tasks else Counter()
 
         # Diff against existing address tables. Re-classifying entries
-        # we've already mapped wastes tokens and risks drift.
+        # we've already mapped wastes tokens and risks drift — skip them
+        # by default. When `force_reclassify=True` (admin re-run after
+        # prompt or schema change), the diff is bypassed: every input
+        # is fed to Haiku and the existing rows are overwritten via
+        # INSERT OR REPLACE downstream.
         def _existing(table: str, col: str) -> set:
+            if force_reclassify:
+                return set()
             return {r[col] for r in db.execute(f"SELECT {col} FROM {table}").fetchall()}
 
         sca_existing = _existing("sca_addresses", "tag") if "tasting" in selected_tasks else set()
@@ -1103,6 +1248,8 @@ def run_standardize_job(job_id: int, *, regenerate_exemplars: bool = False,
         unclassified_varietals = sorted(s for s in varietal_counts if s not in varietal_existing)
         unclassified_roasts = sorted(s for s in roast_counts if s not in roast_existing)
         unclassified_processes = sorted(s for s in process_counts if s not in process_existing)
+        if force_reclassify:
+            log("force_reclassify=true — every input will be re-fed to Haiku")
 
         log(
             "unclassified — "
@@ -1335,15 +1482,28 @@ def run_standardize_job(job_id: int, *, regenerate_exemplars: bool = False,
                         (raw, now, sca_geolocator.MODEL_VERSION),
                     )
 
-        # Process writeback.
+        # Process writeback. classify_processes returns
+        # {raw: {"canonical": str|None, "display": str|None}} — both
+        # land in process_addresses so the consumer card can render
+        # the cleaned display text while the filter chips group by
+        # canonical bucket.
         process_classified = 0
         if "process" in selected_tasks:
-            for raw, canonical in resolved["process"].items():
+            for raw, payload in resolved["process"].items():
+                # Back-compat: older callers may still pass plain
+                # str|None. Normalise to the dict shape.
+                if isinstance(payload, dict):
+                    canonical = payload.get("canonical")
+                    display = payload.get("display")
+                else:
+                    canonical = payload
+                    display = raw if canonical is not None else None
                 db.execute(
                     "INSERT OR REPLACE INTO process_addresses "
-                    "(raw_string, canonical, is_null, source, classified_at, model_version) "
-                    "VALUES (?, ?, ?, 'haiku', ?, ?)",
-                    (raw, canonical, 1 if canonical is None else 0,
+                    "(raw_string, canonical, display_label, is_null, source, classified_at, model_version) "
+                    "VALUES (?, ?, ?, ?, 'haiku', ?, ?)",
+                    (raw, canonical, display,
+                     1 if canonical is None else 0,
                      now, sca_geolocator.MODEL_VERSION),
                 )
                 if canonical is not None:
@@ -1352,8 +1512,8 @@ def run_standardize_job(job_id: int, *, regenerate_exemplars: bool = False,
                 if raw not in resolved["process"]:
                     db.execute(
                         "INSERT OR REPLACE INTO process_addresses "
-                        "(raw_string, canonical, is_null, source, classified_at, model_version) "
-                        "VALUES (?, NULL, 1, 'haiku', ?, ?)",
+                        "(raw_string, canonical, display_label, is_null, source, classified_at, model_version) "
+                        "VALUES (?, NULL, NULL, 1, 'haiku', ?, ?)",
                         (raw, now, sca_geolocator.MODEL_VERSION),
                     )
 
@@ -1437,9 +1597,25 @@ def run_standardize_job(job_id: int, *, regenerate_exemplars: bool = False,
                 "WHERE roast_level_canonical IS NOT NULL"
             )
         if "process" in selected_tasks:
+            # The display_label written by classify_processes is the
+            # source of truth for `products.process` — a cleaned,
+            # consumer-facing string Haiku produced ("Carbonic
+            # Maceration", "Whiskey Barrel Aged", "Red Honey").
+            # Falls back to canonical bucket name for any older row
+            # that doesn't yet have display_label, then to process_raw
+            # so we never blank a descriptive value. process_canonical
+            # column still holds the 8-bucket label for filtering.
             db.execute(
-                "UPDATE products SET process = process_canonical "
-                "WHERE process_canonical IS NOT NULL"
+                "UPDATE products SET process = ("
+                "  SELECT COALESCE(NULLIF(pa.display_label, ''), pa.canonical) "
+                "  FROM process_addresses pa "
+                "  WHERE pa.raw_string = COALESCE(NULLIF(products.process_raw, ''), products.process)"
+                ") "
+                "WHERE EXISTS ("
+                "  SELECT 1 FROM process_addresses pa "
+                "  WHERE pa.raw_string = COALESCE(NULLIF(products.process_raw, ''), products.process) "
+                "    AND pa.is_null = 0"
+                ")"
             )
         db.commit()
         log("wrote canonical values back into legacy product columns")

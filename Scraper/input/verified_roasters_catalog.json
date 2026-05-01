@@ -1,12 +1,12 @@
 [
   {
-    "name": "7 Elements Coffee Roasters",
-    "city": "Pune",
-    "state": "Maharashtra",
+    "name": "El Bueno Coffee Roasters",
+    "city": "New Delhi",
+    "state": "Delhi",
     "lat": 0,
     "lng": 0,
-    "website": "https://7elementscoffee.com",
-    "shop_url": "https://7elementscoffee.com/single-origin/",
+    "website": "https://elbuenocoffee.com/",
+    "shop_url": "https://elbuenocoffee.com/product-category/single-estate/",
     "platform": "woocommerce"
   }
 ]

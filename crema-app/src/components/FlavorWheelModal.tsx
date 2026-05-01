@@ -1,89 +1,137 @@
 /**
- * FlavorWheelModal — page-shape host for the SCA flavor wheel.
- *
- * Renders inline inside browse.tsx in place of the search bar +
- * BEANS list when the user opens the Flavor filter. No RN Modal,
- * no absolute positioning — the host's flex layout naturally puts
- * this between the BEANS/ROASTERS tab bar and the MobileFooter.
+ * FlavorWheelModal — page-shape host for the v3 single-tier flavor
+ * wheel. Renders inline inside browse.tsx in place of the search bar +
+ * BEANS list when the user opens the Flavor filter.
  *
  * Layout (top to bottom):
  *   - Header bar: ArrowLeft (left, dismisses) + RefreshCw (right,
- *     clears all picks; disabled when nothing's picked).
- *   - Title: "Flavor" + sub-line "N picks · up to 3 per ring".
- *   - Semicircle wheel (FlavorWheel) — taps on the rings update
- *     `picks`, which the host (browse.tsx) reads for the BEANS
- *     filter chain.
- *   - Stat line: "692 coffees · 5 farms · 9 processes" — sits in
- *     the freed bottom half of the wheel area.
- *   - Result carousel: horizontal scroll of CoffeeCards matching
- *     the current picks (or all in-stock when no picks yet).
+ *     clears flavor + body picks; disabled when nothing's picked).
+ *   - Title block — schema label + sub-line.
+ *   - Full-circle wheel (FlavorWheel) — single-select; tap a sector
+ *     to filter; the bullseye in the middle shows the live coffee
+ *     count for the current selection.
+ *   - Body strip — 5 mouthfeel chips (Smooth / Bold / Crisp / Creamy
+ *     / Mellow). Each chip carries a count for its bucket so users
+ *     know what to expect before they tap. Single-select, AND-filters
+ *     with the wheel pick.
+ *   - Result carousel — horizontal scroll of CoffeeCards matching the
+ *     active filter intersection.
  *
- * Cap is 3 picks per tier, enforced inside FlavorWheel via a warn
- * haptic on a 4th-tap attempt.
+ * Schema source: /api/sca/tree returns the active flavor schema. The
+ * wheel renders whichever sectors come back; admin can flip the active
+ * schema in Catalog Ops > Schema Manager and the next focus on this
+ * surface picks it up.
  */
-import { useMemo } from "react";
-import { View, Text, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Platform, Pressable, View, Text, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
+import * as Haptics from "expo-haptics";
 import { ArrowLeft, RefreshCw } from "lucide-react-native";
 import FlavorWheel, { WHEEL_HEIGHT_RATIO, bullseyeBoxPx } from "./FlavorWheel";
+import FlavorBodyStrip, { BODY_CHIPS, type BodySelection } from "./FlavorBodyStrip";
 import CoffeeCard from "./CoffeeCard";
+import CoffeeDetailSheet from "./CoffeeDetailSheet";
 import HapticPressable from "./primitives/HapticPressable";
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import * as haptics from "../utils/haptics";
+import { apiFetchRaw } from "../api/client";
 import {
-  emptyPicks,
-  totalPicks,
-  coffeeMatchesPicks,
-  type Picks,
+  coffeeMatchesSelection,
+  FALLBACK_SCHEMA,
   type Address,
+  type FlavorSchema,
+  type SelectedFlavor,
 } from "../utils/scaTree";
 
 interface Props {
   onClose: () => void;
-  picks: Picks;
-  /** Accepts a Picks value or a `(prev) => next` updater. The wheel
-   *  uses the updater form for race-free toggles; the page also
-   *  passes a value for Reset. The host's `setSelectedFlavors` from
-   *  useState accepts both natively. */
-  onPicksChange: (update: Picks | ((prev: Picks) => Picks)) => void;
+  selected: SelectedFlavor;
+  onSelectedChange: (next: SelectedFlavor) => void;
   /** Map<product_id, addresses[]> built once on the host. */
   addressesByProduct: Map<string, Address[]>;
   /** In-stock products from the host — used to compute the live
-   *  matching set for both the count line and the carousel. */
+   *  matching set for both the bullseye count and the carousel. */
   inStockProducts: any[];
 }
 
 export default function FlavorWheelModal({
-  onClose, picks, onPicksChange,
+  onClose, selected, onSelectedChange,
   addressesByProduct, inStockProducts,
 }: Props) {
   const { width: screenW } = useWindowDimensions();
-  // Semicircle wheel: width fits the screen, height is roughly half
-  // (480×270 viewBox ratio). Cap width so it doesn't bleed on tablet.
-  const wheelSize = Math.min(440, screenW - 16);
+  // Full-circle wheel: square aspect, capped so it doesn't bleed on tablet.
+  const wheelSize = Math.min(380, screenW - 16);
   const wheelHeight = Math.round(wheelSize * WHEEL_HEIGHT_RATIO);
-  // Bullseye is the empty half-disc at the TOP of the wheel — count
-  // and farms/processes line render here so the bottom half stays
-  // free for the carousel.
   const bullseye = bullseyeBoxPx(wheelSize);
+  const s = useStyles();
 
-  // Live matching set — same algorithm the BEANS filter uses, scoped
-  // to flavour picks only. Drives both the count + farms/processes
-  // line AND the carousel underneath.
-  const matching = useMemo(() => {
-    if (totalPicks(picks) === 0) return inStockProducts;
+  // Active schema. Falls back to FALLBACK_SCHEMA on cold-start so the
+  // wheel renders something while the fetch resolves.
+  const [schema, setSchema] = useState<FlavorSchema>(FALLBACK_SCHEMA);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res: any = await apiFetchRaw("/sca/tree");
+        const data = res?.data ?? res;
+        if (!cancelled && data && data.kind === "single_tier") {
+          setSchema(data as FlavorSchema);
+        }
+      } catch {
+        // keep fallback; wheel still works for picking
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Body chip selection — local to the modal (not the host) for now;
+  // the host still reads `selected` for cross-tab BEANS filtering, but
+  // body filtering is wheel-modal-scoped until users prove they want
+  // it elsewhere.
+  const [bodyPick, setBodyPick] = useState<BodySelection>(null);
+
+  // Long-press → CoffeeDetailSheet. Owns the modal state here so the
+  // sheet is mounted once for the whole carousel, not per card.
+  const [detailCoffee, setDetailCoffee] = useState<any>(null);
+  const openDetail = useCallback((c: any) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    }
+    setDetailCoffee(c);
+  }, []);
+
+  // First filter: wheel pick (or pass-all if nothing picked). Used
+  // as the base set for BOTH the body chip counts AND the carousel.
+  // Without this, body counts would stay frozen against the entire
+  // in-stock universe and never reflect the wheel selection.
+  const flavorFilteredProducts = useMemo(() => {
+    if (!selected) return inStockProducts;
     return inStockProducts.filter((p: any) => {
       const addrs = addressesByProduct.get(p.product_id);
-      if (!addrs) return false;
-      return coffeeMatchesPicks(addrs, picks);
+      return addrs ? coffeeMatchesSelection(addrs, selected) : false;
     });
-  }, [picks, inStockProducts, addressesByProduct]);
+  }, [selected, inStockProducts, addressesByProduct]);
+
+  // Body buckets from BODY_CHIPS — counts computed against the
+  // flavor-filtered set so chips show "how many of THESE coffees
+  // also feel this way." Updates live as the wheel pick changes.
+  const bodyCounts = useMemo(
+    () => computeBodyCounts(flavorFilteredProducts),
+    [flavorFilteredProducts],
+  );
+
+  // Final matching set — flavor-filtered set further narrowed by the
+  // body chip if any. AND-filter semantics.
+  const matching = useMemo(() => {
+    if (!bodyPick) return flavorFilteredProducts;
+    const absorbs = BODY_CHIPS.find((c) => c.name === bodyPick)?.absorbs ?? [];
+    return flavorFilteredProducts.filter((p: any) => {
+      const tags = harvestTagsLowercase(p);
+      return absorbs.some((w) => tags.has(w));
+    });
+  }, [flavorFilteredProducts, bodyPick]);
 
   const stats = useMemo(() => deriveStats(matching), [matching]);
-  const totalP = totalPicks(picks);
-  // Card width matches the canonical horizontal-carousel pattern from
-  // JobProposalsCarousel (cardSlot width=370, forceLandscape,
-  // isOwner=false). Mirroring exactly so the card reads identical to
-  // the admin carousel rather than a one-off variant.
+  const anyActive = selected !== null || bodyPick !== null;
 
   return (
     <View style={s.page}>
@@ -103,14 +151,15 @@ export default function FlavorWheelModal({
         <HapticPressable
           haptic="tap"
           onPress={() => {
-            if (totalP === 0) return;
+            if (!anyActive) return;
             haptics.tap();
-            onPicksChange(emptyPicks());
+            onSelectedChange(null);
+            setBodyPick(null);
           }}
-          disabled={totalP === 0}
+          disabled={!anyActive}
           hitSlop={10}
-          style={[s.headerBtn, totalP === 0 && s.headerBtnDisabled]}
-          accessibilityLabel={`Reset flavor picks${totalP > 0 ? ` (${totalP})` : ""}`}
+          style={[s.headerBtn, !anyActive && s.headerBtnDisabled]}
+          accessibilityLabel="Reset flavor + body picks"
           accessibilityRole="button"
         >
           <RefreshCw size={20} color={t.color["text.primary"]} strokeWidth={2} />
@@ -121,24 +170,22 @@ export default function FlavorWheelModal({
         contentContainerStyle={s.scrollPad}
         showsVerticalScrollIndicator={false}
       >
-        {/* Semicircle wheel + bullseye count overlay. Just the number
-            and "coffees" inside the half-disc — farms/processes moved
-            to a fixed row above the carousel below so the count text
-            doesn't get crammed. pointerEvents=none so taps pass
-            through to the rings. */}
+        {/* Wheel + bullseye count overlay. The count sits in the
+            inscribed-square box at the wheel's centre. */}
         <View style={[s.wheelWrap, { width: wheelSize, height: wheelHeight }]}>
           <FlavorWheel
-            picks={picks}
-            onPicksChange={onPicksChange}
+            schema={schema}
+            selected={selected}
+            onSelectedChange={onSelectedChange}
             size={wheelSize}
           />
           <View
             style={[
               s.centerStat,
               {
-                top: bullseye.flatEdgeY,
-                height: bullseye.h,
                 width: bullseye.w,
+                height: bullseye.h,
+                top: bullseye.cy - bullseye.h / 2,
                 left: (wheelSize - bullseye.w) / 2,
               },
             ]}
@@ -150,22 +197,23 @@ export default function FlavorWheelModal({
             <Text style={s.statCountLabel} numberOfLines={1}>
               {stats.count === 1 ? "coffee" : "coffees"}
             </Text>
+            {selected ? (
+              <Text style={s.statSelected} numberOfLines={1}>
+                {selected}
+              </Text>
+            ) : null}
           </View>
         </View>
 
-        {/* Stat row — sits above the carousel with farms/processes
-            right-aligned so it reads as a fixed label over the cards
-            below. Hidden when the matching set has no resolved farm
-            or process metadata. */}
-        {matching.length > 0 && stats.line ? (
-          <View style={s.statRow}>
-            <Text style={s.statRowText}>{stats.line.replace(/\n/g, "  ·  ")}</Text>
-          </View>
-        ) : null}
+        {/* Body chip strip — counts shown per chip so users see bucket
+            size before tapping. AND-filters with the wheel pick. */}
+        <FlavorBodyStrip
+          selected={bodyPick}
+          onSelectedChange={setBodyPick}
+          counts={bodyCounts}
+        />
 
-        {/* Result carousel — horizontal scroll of matching coffees.
-            Verbatim recipe from JobProposalsCarousel: cardSlot width
-            370, gap=16, forceLandscape isOwner=false on CoffeeCard. */}
+        {/* Result carousel */}
         {matching.length > 0 ? (
           <View style={s.carouselBlock}>
             <ScrollView
@@ -175,59 +223,91 @@ export default function FlavorWheelModal({
               decelerationRate="fast"
             >
               {matching.slice(0, 60).map((coffee: any) => (
-                <View key={coffee.product_id} style={s.cardSlot}>
+                <Pressable
+                  key={coffee.product_id}
+                  onLongPress={() => openDetail(coffee)}
+                  delayLongPress={350}
+                  style={s.cardSlot}
+                  accessibilityHint="Long-press to inspect every detail the roaster shared about this coffee"
+                >
                   <CoffeeCard
                     coffee={coffee}
                     width={370}
                     forceLandscape
                     isOwner={false}
                   />
-                </View>
+                </Pressable>
               ))}
             </ScrollView>
           </View>
         ) : (
           <View style={s.emptyBlock}>
             <Text style={s.emptyText}>
-              No coffees match these picks. Try unpicking a leaf.
+              No coffees match this combination. Try clearing the body chip
+              or picking a different sector.
             </Text>
           </View>
         )}
       </ScrollView>
+      <CoffeeDetailSheet
+        coffee={detailCoffee}
+        visible={detailCoffee !== null}
+        onClose={() => setDetailCoffee(null)}
+      />
     </View>
   );
 }
 
-// ── Stat derivation ─────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 interface DerivedStats {
   count: number;
-  /** "X farms" / "Y processes" — newline-joined. The render code
-   *  rewrites the newlines to dot-separators when laying out as a
-   *  single horizontal line. */
-  line: string;
 }
 
 function deriveStats(matching: any[]): DerivedStats {
-  const count = matching.length;
-  if (count === 0) return { count: 0, line: "" };
-  const farms = new Set<string>();
-  const processes = new Set<string>();
-  for (const p of matching) {
-    const e = p?.origin_estate_canonical;
-    if (e && e !== "Unknown" && e !== "Multi-estate" && e !== "International") farms.add(e);
-    const pr = p?.process;
-    if (pr && pr !== "<UNKNOWN>") processes.add(pr);
+  return { count: matching.length };
+}
+
+function harvestTagsLowercase(product: any): Set<string> {
+  const out = new Set<string>();
+  const fn = product?.flavor_notes;
+  if (Array.isArray(fn)) {
+    for (const x of fn) {
+      if (typeof x === "string") out.add(x.trim().toLowerCase());
+    }
+  } else if (typeof fn === "string") {
+    for (const x of fn.split(/[,;|]/)) {
+      const t = x.trim().toLowerCase();
+      if (t) out.add(t);
+    }
   }
-  const bits: string[] = [];
-  if (farms.size > 0) bits.push(`${farms.size} ${farms.size === 1 ? "farm" : "farms"}`);
-  if (processes.size > 0) bits.push(`${processes.size} ${processes.size === 1 ? "process" : "processes"}`);
-  return { count, line: bits.join("\n") };
+  const tn = product?.tasting_notes;
+  if (typeof tn === "string") {
+    for (const x of tn.split(/[,;|]/)) {
+      const t = x.trim().toLowerCase();
+      if (t) out.add(t);
+    }
+  }
+  return out;
+}
+
+function computeBodyCounts(products: any[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const chip of BODY_CHIPS) counts[chip.name] = 0;
+  for (const p of products) {
+    const tags = harvestTagsLowercase(p);
+    for (const chip of BODY_CHIPS) {
+      if (chip.absorbs.some((w) => tags.has(w))) {
+        counts[chip.name] += 1;
+      }
+    }
+  }
+  return counts;
 }
 
 // ── Styles ──────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   page: {
     flex: 1,
     backgroundColor: t.color.bg,
@@ -257,22 +337,17 @@ const s = StyleSheet.create({
     marginTop: 8,
     position: "relative",
   } as any,
-  // Bullseye overlay — sized + positioned inline by the caller using
-  // bullseyeBoxPx(). Just count + "coffees" stacked vertically; the
-  // farms/processes line moved to a separate row above the carousel
-  // so the count text doesn't get crammed.
   centerStat: {
     position: "absolute",
     alignItems: "center",
-    justifyContent: "flex-start",
-    paddingTop: 6,
+    justifyContent: "center",
   } as any,
   statCount: {
     fontFamily: t.font.display,
-    fontSize: 32,
+    fontSize: 36,
     color: t.color["text.primary"],
     letterSpacing: -0.5,
-    lineHeight: 34,
+    lineHeight: 38,
     textAlign: "center",
   },
   statCountLabel: {
@@ -281,35 +356,24 @@ const s = StyleSheet.create({
     color: t.color["text.muted"],
     letterSpacing: 0.6,
     textTransform: "uppercase" as any,
-    marginTop: 0,
+    marginTop: 2,
   },
-  // Farms/processes line — sits above the carousel as a fixed label
-  // band, right-aligned so it reads like a header label for the rail.
-  statRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    paddingHorizontal: 16,
-    marginTop: 12,
-  },
-  statRowText: {
+  statSelected: {
     fontFamily: t.font["body.semibold"],
-    fontSize: 12,
-    color: t.color["text.muted"],
+    fontSize: 11,
+    color: t.color.accent,
     letterSpacing: 0.4,
+    marginTop: 4,
+    textAlign: "center",
   },
   carouselBlock: {
     marginTop: 12,
   },
-  // Mirrors JobProposalsCarousel.railScrollInner — gap between cards
-  // is 16, with 16 horizontal padding to indent the rail.
   carouselInner: {
     gap: 16,
     paddingHorizontal: 16,
     paddingVertical: 4,
   },
-  // Mirrors JobProposalsCarousel.cardSlot — fixed 370 width, items
-  // start-aligned. The actual CoffeeCard inside also uses width=370
-  // forceLandscape, so the slot is exactly card-sized.
   cardSlot: {
     width: 370,
     alignItems: "flex-start",
@@ -325,4 +389,4 @@ const s = StyleSheet.create({
     color: t.color["text.muted"],
     textAlign: "center",
   },
-});
+}));

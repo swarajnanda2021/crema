@@ -1,302 +1,340 @@
-# Prompt for next Claude instance — swap Discover Flavor wheel T2/T3 labels to react-native-skia
+# Prompt for next Claude instance — content moderation + legal de-risking
 
 > Paste this as the first message to a fresh Claude Code session in
-> `/Users/swarajnanda/Coffee_Aggregator`. Branch: `feat/mobile-readiness`.
+> `/Users/swarajnanda/Coffee_Aggregator`. Branch: `feat/mobile-readiness`
+> (still — we may cut a sub-branch off it if the moderation/legal work
+> ends up spanning more than a single PR).
 > Don't open with a recap; pick up the task directly.
 
 ---
 
 ## TL;DR
 
-The Discover Flavor wheel (a bottom-semicircle SCA flavor picker
-that surfaces under BEANS) is fully built and shipping correctly on
-device. Geometry, tap-routing, picks state, live BEANS filter, and
-the result-carousel underneath all work.
+Two adjacent workstreams for this session:
 
-**The one remaining defect:** T2 and T3 sector labels render as
-straight chords across each sector instead of curving along the
-ring's actual arc. Inside `react-native-svg` we hit a hard ceiling
-— it can give us either kerning OR curved layout, never both. The
-fix is to swap T2/T3 labels (and T2/T3 only) to render via
-`@shopify/react-native-skia`'s `<TextPath>`, which renders curved
-text with the native font kerning engine.
+1. **Content moderation** — the social feed has zero moderation
+   surface today. Posts go up unfiltered, comments aren't reviewed,
+   reports go nowhere. Before we open Crema to a wider audience we
+   need: (a) a reporting / blocking flow that already feels real to
+   the user, (b) admin queue for reviewing reports, (c) automated
+   filtering for the obvious failure modes (slurs, spam links, NSFW
+   image upload).
+2. **Legal de-risking** — Phase 1 doesn't move money, but it does
+   host UGC, store user data, and link out to roaster e-commerce.
+   The minimum we need to ship to a public audience:
+   Privacy Policy, Terms of Service, Community Guidelines, an
+   Acceptable Use Policy, plus the surfaces that reference them
+   (sign-up consent, footer links, account-deletion flow).
 
-The reference demo
-[`amarjanica/react-native-skia-expo-demo`](https://github.com/amarjanica/react-native-skia-expo-demo)
-confirms Skia works in **Expo Go** on SDK 50+ without any custom
-dev client / EAS build. The user is on SDK 54.0.33. `expo install`
-is enough; Skia is bundled in Expo Go natively. Web needs an extra
-postinstall step to ship CanvasKit WASM.
+These two are bundled because they share the same legal exposure:
+"the platform hosts content from users we don't know personally."
+The moderation tooling is what makes the policies enforceable, and
+the policies are what give the moderation tooling teeth.
+
+This is a substantial session — plan for 6-10 hours. Both
+workstreams have a "ship the minimum so we can launch" interpretation
+and a "build it properly" interpretation. Default to ship-minimum
+unless the user asks otherwise.
 
 ---
 
 ## Hard rules — read first
 
-1. **Do not start dev servers from Bash or `preview_start`.** The
-   user runs their own Metro on device. We previously broke their
-   workflow by spawning competing servers — they were *very* clear:
-   *"bro, this shell shit, you need to stop, I am unable to run my
-   app."* Edit code; let them reload. The PostToolUse hook will
-   nag about preview servers — ignore it explicitly with a one-line
-   acknowledgement.
-2. **Do not touch the SVG ring rendering, the hit-test, the
-   bullseye overlay, the carousel, the modal layout, the
-   `selectedFlavors` state plumbing, or T1 label rendering.** All
-   of those are working; the user has approved them. Only the
-   T2/T3 label render path changes.
-3. **Token-only styling.** Palette = Espresso `#351101` / Crema
-   pink `#D798DA` / Crema White `#FAF8F0`. Fonts: NewSpirit
-   display / Inter body. Match colors via the existing token
-   system, not hex literals.
-4. **Phase-1 wireframe.** No animations, no flourish — just
-   curved kerned labels.
+1. **Do not start dev servers from Bash or `preview_start`.** The user
+   runs their own Metro on device. The PostToolUse hook will nag about
+   preview servers — ignore it explicitly with a one-line acknowledgement
+   and continue.
+2. **Palette discipline is dual-track** (recently re-asserted by the
+   user, see `CLAUDE.md` "Hard rule" section). Brand identity is 3
+   colors (Espresso `#351101` / Crema `#D798DA` / Crema White `#FAF8F0`).
+   Light mode keeps the established functional neutrals; dark mode is
+   strict — only rgba opacity variants of brand colors. Don't invent
+   browns. **Re-read `DESIGN_LANGUAGE.md` §1 before touching any color
+   token.**
+3. **Phase-1 wireframe fidelity** (per `NORTH_STAR.md`). No animations
+   beyond what's already shipped. No gold accents, alert reds, success
+   greens. Moderation surfaces still need to feel native to the app.
+4. **No legal advice.** Anything that materially affects how Crema
+   handles user data, IP claims, or India-specific regulation
+   (especially the 2021 IT Rules for "social media intermediaries"
+   and the DPDP Act) needs the user to either a) have already
+   consulted a lawyer, or b) explicitly accept that the draft is a
+   placeholder pending review. Don't invent jurisdictional claims.
+   **Surface every assumption back to the user before drafting.**
 
 ---
 
-## Current state of the wheel
+## Workstream 1 — Content moderation
 
-### Files
+### Where the social feed lives
 
-| Path | Role |
-|---|---|
-| `crema-app/src/components/FlavorWheel.tsx` | The SVG wheel + label rendering. **Edit here.** |
-| `crema-app/src/components/FlavorWheelModal.tsx` | The page host (header bar, bullseye stat, carousel). Don't edit. |
-| `crema-app/app/(tabs)/browse.tsx` | Mounts the modal inline in BEANS body. Don't edit. |
-| `crema-app/src/utils/scaTree.ts` | Tree constants + helpers (`displayLabel` collapses `<word>/<word>` to first word). Don't edit. |
+- Posts: `Community/coffee-community-api/routes/posts.py` (or wherever
+  the post CRUD landed — verify before assuming).
+- PostCard render: `crema-app/src/components/domain/PostCard.tsx`.
+- Composer: `crema-app/src/components/ComposePost.tsx`.
+- Comment thread: `crema-app/src/components/primitives/CommentThread.tsx`.
+- Existing post-menu actions (hide/report/dislike) live in
+  `crema-app/src/utils/postMenuActions.ts` — already wired to
+  three-dots menus on PostCard.
 
-### Geometry (don't change unless asked)
+### What's already shipped (don't redo)
 
+- The three-dots menu on every PostCard surfaces Hide / Report /
+  Dislike (`postMenuActions.ts` + `PostMenu.tsx`).
+- Recycle bin (`RecycleBinModal.tsx`) — soft-delete + restore for the
+  user's own content.
+- A `posts_hidden` table (or equivalent — verify) records the user's
+  per-user hide list so hidden posts don't reappear in their feed.
+
+### What's missing (the actual work)
+
+Moderation has three actors that need surfaces:
+
+#### A. The reporting user (consumer-facing)
+
+- The current "Report" menu item probably no-ops or shows a toast.
+  Wire it to a real backend endpoint that records `(post_id,
+  reporter_user_id, reason, free_text, created_at)`.
+- A small modal between tap-Report and submit: 4–6 reason chips
+  (Spam, Off-topic, Hateful, Sexual content, Impersonation, Other)
+  + an optional 280-char free text. Mirror Instagram / Twitter's
+  reporting flow at the wireframe level.
+- Confirmation toast: "Thanks — we'll review this within 48h." Don't
+  promise faster than the team can deliver.
+- "Block @user" surface: lives on the user profile + on the
+  three-dots menu. Backend records a `user_blocks` row; reader-side
+  hide logic respects it across feed, comments, search, DMs.
+
+#### B. The admin reviewer
+
+- A new admin tab `Reports` parallel to the existing `Catalog Ops` /
+  `Standardize` / `Traction` tabs in the admin profile.
+- Queue UI: each row is `report_count`, `post_preview`, `reasons`,
+  `most_recent_report_time`, with row tap → full post + comment
+  thread + every report.
+- Action buttons per post: Dismiss (clears all reports), Hide-from-
+  feed (soft-hide globally — visible only to author), Delete
+  (hard-delete via existing soft-delete path so it's recoverable from
+  recycle bin), Suspend-author (24h post-write block), Ban-author
+  (full hard-block; flips `users.is_banned`).
+- Audit log: every admin action records who did it, when, and why.
+  The user's previous `audit_log` table (if it exists — verify) is
+  the right home.
+
+#### C. The automated filter
+
+The cheapest first cut:
+
+- **Slur list** — a static blocklist (Indian + English; user has
+  opinions about which lists to use, ask). Pre-publish check on
+  every post body / comment; if matched, block submission with
+  "This post contains language that's not allowed on Crema. See
+  Community Guidelines."
+- **Link rate-limit** — non-roaster accounts capped at e.g. 1 link
+  per post and 3 link-bearing posts per 24h. Combats the most
+  obvious spammer pattern.
+- **NSFW image check** — Phase 1 ship: flag for admin review (don't
+  auto-block) using a free hosted classifier (Sightengine free tier,
+  or run a small on-device CoreML / TF-Lite model — ask user about
+  the cost / latency tradeoff).
+
+#### Backend additions
+
+New tables — verify column names against
+`Community/coffee-community-api/database.py` conventions before
+writing migrations:
+
+```sql
+post_reports       (id, post_id, reporter_user_id, reason, free_text, created_at, resolved_at, resolved_by, resolution)
+user_blocks        (id, blocker_user_id, blocked_user_id, created_at)
+moderation_actions (id, target_type, target_id, action, actor_user_id, reason, created_at)
+users.is_banned    (existing or new column)
+users.suspended_until (existing or new column)
 ```
-viewBox = 480 × 250
-CX, CY = 240, 10               // wheel centre at top
-polar(r, deg) = (CX + r*sin(deg), CY + r*cos(deg))
-                              // deg=-90 leftmost, 0 bottommost, +90 rightmost
 
-T1_INNER_R = 90,  T1_OUTER_R = 170   // 80px thick (T1 inner ring)
-T2_INNER_R = 170, T2_OUTER_R = 200   // 30px thick
-T3_INNER_R = 200, T3_OUTER_R = 230   // 30px thick
+Migrations should be gated on `PRAGMA user_version` per the existing
+pattern (see `Community/coffee-community-api/database.py` for the
+convention — migrations 1..N, idempotent).
 
-WHEEL_HEIGHT_RATIO = 250/480 ≈ 0.521
-```
+### Suggested order of attack
 
-### Label render functions
-
-- `renderRadialLabel(pill, ringInner, ringOuter)` — T1 only. Single
-  SvgText, baseline along the spoke, rotation clamped to `[-90°,
-  90°]` so glyphs stay upright. **Keep as-is.**
-- `renderTangentialLabel(pill, ringInner, ringOuter)` — T2/T3.
-  Single SvgText, `transform="rotate(${-midDeg})"`. This is the
-  straight chord. **REPLACE this with Skia.**
-
-### Why react-native-svg can't do curved kerned text
-
-We tried four approaches inside react-native-svg and exhausted them:
-
-1. `<TextPath>` with `side="right"` — react-native-svg silently
-   ignores or mis-applies `side` on bottom-semicircle paths;
-   glyphs render upside-down.
-2. `<TextPath>` with reversed path direction + reversed input
-   string — same renderer normalises path direction; visible text
-   reads as the reversed string.
-3. Per-glyph `<SvgText>` array (one element per character) — works
-   for the curve but loses font kerning between adjacent glyphs.
-   No `PX_PER_CHAR` value satisfies both narrow (`i`) and wide (`M`)
-   characters.
-4. Single `<SvgText>` with rotation transform — proper kerning,
-   but the text is a chord through the sector midpoint, not on the
-   arc. Chord-vs-arc divergence reaches ~54px at the edges of a 90°
-   sector — visually wrong.
-
-This is the bug history; do not re-tread it.
+1. Backend tables + endpoints first (`post_reports`, `user_blocks`,
+   the moderation_actions audit log, the admin queue endpoint).
+2. Wire the consumer-side Report flow (modal + endpoint).
+3. Wire Block (profile menu + reader-side filtering across feed /
+   comments / DMs / search).
+4. Build the admin Reports queue UI as a sibling tab in admin
+   profile.
+5. Slur list filter (cheapest, biggest legal-cover-up).
+6. Link rate-limit.
+7. NSFW image flagging — last, since it has external-API decisions
+   the user needs to weigh in on.
 
 ---
 
-## What to build
+## Workstream 2 — Legal de-risking
 
-### Step 1 — install Skia
+### Where the legal docs go
 
-From `crema-app/`:
+There's no `legal/` directory yet — propose adding one at repo root
+with markdown sources (`legal/PRIVACY.md`, `legal/TERMS.md`,
+`legal/COMMUNITY_GUIDELINES.md`, `legal/ACCEPTABLE_USE.md`). The
+in-app screens render these via `react-native-markdown-display` (add
+the dep) so a single source of truth ships to both the legal site
+and the app.
 
-```bash
-npx expo install @shopify/react-native-skia
-```
+### Required documents
 
-This drops the package into `package.json`. In Expo Go on SDK 54
-the native binary is already bundled; nothing to rebuild on device.
+Each draft is a placeholder pending the user's lawyer review. Mark
+every assumption explicitly with a `> [ASSUMPTION: ...]` blockquote
+so the user can grep the doc for things to confirm with counsel.
 
-For web, add this postinstall to `crema-app/package.json` so
-CanvasKit WASM ships with the web bundle:
+#### A. Privacy Policy
 
-```json
-"scripts": {
-  "postinstall": "npx setup-skia-web public"
-}
-```
+Must cover, at minimum:
+- What we collect: account info (name, email, optional phone),
+  profile info (avatar, bio, location), behavioural (posts, likes,
+  follows, Buy clicks), device info (push tokens, app version).
+- Why: serve the feed, surface relevant roasters, send notifications,
+  prevent abuse.
+- Legal basis (under DPDP Act): consent at sign-up (note the
+  granular consent UX — Phase-1-acceptable to bundle as a single
+  toggle, but flag the granular-consent ask for Phase 2).
+- Data sharing: roasters see aggregate analytics on followers + Buy
+  clicks; the platform shares no PII with third parties beyond what
+  the user posts publicly.
+- Retention: account deletion within 30 days; soft-delete for posts
+  via existing recycle bin pattern.
+- User rights: access, correction, deletion. Concrete in-app surfaces
+  for each.
+- Contact: a real `privacy@crema.<domain>` mailbox (USER NEEDS to
+  confirm the address).
+- Children: 13+ minimum (or 16+ if the user wants stricter under
+  DPDP — needs decision).
 
-(The reference demo also runs a path-fix script after that — check
-what's needed once on the user's setup. Native devices won't care
-about the postinstall.)
+#### B. Terms of Service
 
-### Step 2 — Skia overlay for T2/T3 labels
+Standard structure:
+- Eligibility, account responsibility, prohibited uses (links into
+  Acceptable Use Policy below).
+- Content ownership: user owns their content; platform gets a
+  worldwide, non-exclusive, royalty-free license to display +
+  distribute it within Crema (standard UGC license language).
+- Roaster-specific terms: roasters own their product info, brand
+  marks; platform gets the right to display them.
+- DMCA-equivalent / IP takedown: real takedown email + a 14-day
+  counter-notice window (India uses IT Rules 2021, not DMCA — drafts
+  should reflect that).
+- Termination: platform reserves the right to suspend / ban for
+  violations; user can delete account at any time.
+- Liability disclaimers (very standard "as is" language).
+- Governing law: Indian jurisdiction (USER CONFIRM city for venue).
 
-Inside the wheel SVG today there's already a wrapping `<View>` →
-`<Pressable>` → `<Svg>` stack. The cleanest move is a sibling Skia
-`<Canvas>` rendered AFTER the SVG inside the same Pressable, sized
-identically (same `width: size, height: renderH`), absolutely
-positioned to overlap the SVG.
+#### C. Community Guidelines
 
-```jsx
-<View style={[styles.wrap, { width: size, height: renderH }]}>
-  <Pressable onPress={handlePress} style={{ width: size, height: renderH }}>
-    <Svg width={size} height={renderH} viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}>
-      {/* unchanged: T1 + T2 + T3 ring paths + T1 SvgText labels */}
-    </Svg>
-    <Canvas
-      style={{
-        position: 'absolute',
-        left: 0, top: 0,
-        width: size, height: renderH,
-      }}
-      pointerEvents="none"
-    >
-      {/* T2 + T3 labels via Skia <TextPath> */}
-    </Canvas>
-  </Pressable>
-</View>
-```
+The plain-English version of the moderation policy. Key categories:
+- No hate speech (covers caste, religion, region, gender, sexuality —
+  India-specific carveouts the user should weigh in on).
+- No harassment of other users or roasters.
+- No spam (link rate-limit logic from Workstream 1 is the
+  enforcement).
+- No off-topic content (this app is about coffee — non-coffee
+  content can be removed).
+- No deceptive impersonation (claiming to be a roaster you're not,
+  etc.).
+- No sexual content (Phase 1 strict; Phase N might soften).
 
-`pointerEvents="none"` on the Canvas keeps taps flowing through to
-the Pressable so `findPillAt` continues to work unchanged.
+Each category links to the consequence ladder (warning → 24h
+suspension → permanent ban). Flag clearly that admin discretion
+applies.
 
-### Step 3 — render each T2/T3 label
+#### D. Acceptable Use Policy
 
-Skia's `<TextPath>` API (current as of `@shopify/react-native-skia`
-~v1.x):
+Tighter, more enumerated than Community Guidelines — the
+machine-readable version that the moderation tooling enforces. Lists
+the specific behaviours that trigger automated action vs admin
+review.
 
-```jsx
-import { Canvas, Path, Skia, TextPath, useFont } from "@shopify/react-native-skia";
+### In-app surfaces
 
-const font = useFont(require("path/to/Inter-SemiBold.ttf"), 11);
+- Sign-up flow: add an "I agree to Terms + Privacy Policy" checkbox
+  with inline links to the in-app readers. Block submit until checked.
+- Account screen: links to all four documents.
+- Footer of every page (web wide only): four links + © Crema + year.
+- Account deletion: a real "Delete my account" button in account
+  settings. Soft-delete first (30-day recovery), hard-delete after
+  the window. Surface this to the user — they may want to defer
+  the actual deletion plumbing to a follow-up session.
 
-// Inside the Canvas, for each pill:
-const arcPath = Skia.Path.Make();
-// Build the centerline arc — same math as the existing labelArcPath
-// helper we deleted, but using Skia's Path API:
-//   - start at polar(midR, startDeg) (in screen px, scaled from viewBox)
-//   - addArc(rect, startAngle, sweepAngle) using Skia's degrees
-arcPath.moveTo(p1.x, p1.y);
-arcPath.arcTo(boundingRect, startAngleDeg, sweepAngleDeg, false);
+### Standing legal questions to surface
 
-<TextPath path={arcPath} font={font} text={pill.label} />
-```
-
-Important details:
-
-- **Skia path coordinates are in screen pixels, not viewBox units.**
-  Multiply every viewBox coord by `scale = size / VIEWBOX_W` before
-  passing to Skia.
-- **Skia's arc angles are measured from +x axis CCW** (standard math
-  convention), not from 12 o'clock like the wheel's polar. Convert.
-- **Skia's `TextPath` does NOT have the `side="right"` bug.** It
-  uses the native Skia text-on-path engine; glyphs orient
-  correctly relative to path direction. If labels render
-  upside-down on first try, reverse the path direction (swap
-  start/end and flip the sweep sign) — that's the standard knob.
-- **Truncation:** Skia's `TextPath` will overflow the path if the
-  text is longer than the path. Reuse the existing `shortLabel`
-  helper from FlavorWheel.tsx with `maxChars = floor(arcLengthPx /
-  PX_PER_CHAR)` where `PX_PER_CHAR ≈ 6` (Skia kerning will tighten
-  it; this is just a truncation budget). Arc length =
-  `midR_screenPx * arcDeg * π/180`.
-- **Font loading:** `useFont(...)` is async — guard the Canvas
-  return with `if (!font) return null;` so we don't render
-  half-loaded text. The existing app uses
-  `@expo-google-fonts/inter` — find the local Inter SemiBold TTF
-  in `node_modules/@expo-google-fonts/inter/Inter_600SemiBold.ttf`
-  and load that.
-- **Color:** `<TextPath>` accepts a `color` prop. Picked label =
-  `t.color["text.on-dark"]` (cream on pink). Unpicked =
-  `t.color["text.primary"]` (espresso).
-
-### Step 4 — keep everything else identical
-
-- T1 labels stay on the SVG layer using `renderRadialLabel`. They
-  work; the user has approved them.
-- The bullseye stat overlay, header bar, and carousel are
-  untouched.
-- `findPillAt` and the Pressable wrapping are untouched.
-
-### Step 5 — verify on device
-
-After the user reloads Metro, T2 and T3 labels should:
-
-1. Curve along their actual ring centerline (share the wheel centre).
-2. Have proper letter spacing — no per-char gaps, no overlap on
-   wide letters like `M`.
-3. Read upright with caps facing toward the wheel centre at the top.
-
-If the labels render but are upside-down, reverse the Skia path
-direction (it's a one-line flip). If the labels don't render, check
-that `useFont` resolved (`font !== null`).
+1. **Entity**: Is Crema operating as an individual proprietorship,
+   LLP, or Pvt Ltd? The legal docs need an entity name + address.
+2. **Jurisdiction**: India is assumed; user confirm city for venue.
+3. **Lawyer review**: Has one been retained? If not, every draft
+   ships with a "REVIEWED BY: <pending>" marker.
+4. **Data residency**: Are we storing user data in India only, or
+   can SQLite / backend run anywhere? DPDP Act preference is for
+   Indian residency for sensitive data.
+5. **IT Rules 2021 takedown contact**: India's equivalent of the
+   DMCA notice. Confirm with the user that the takedown email +
+   workflow is acceptable.
 
 ---
 
-## State to preserve in the rewrite
+## Files to study before starting
 
-- `selectedFlavors: Picks` state in `browse.tsx`.
-- `addressesByProduct` map in `browse.tsx`.
-- The `FlavorWheelModal` props contract (`picks`, `onPicksChange`,
-  `addressesByProduct`, `inStockProducts`, `onClose`).
-- `coffeeMatchesPicks` filter rule in `selectedFlavors`-driven
-  filtering.
-- `/api/sca/addresses` and `/api/sca/tree` consumer endpoints.
-- `displayLabel` collapsing `<word>/<word>` to first word.
-
-None of these should change.
+- `NORTH_STAR.md` §5 ("What we don't do") — confirms the moderation
+  philosophy: no algorithmic ranking, no engagement tricks. Moderation
+  surfaces should match this restrained tone.
+- `BUILD_ROADMAP.md` §1.6 (Design system) — has the night-mode + the
+  3-color palette story end-to-end. Don't reintroduce off-palette colors.
+- `Community/coffee-community-api/database.py` — migration pattern,
+  table naming conventions.
+- `Community/coffee-community-api/routes/` — endpoint patterns
+  (`@router.post`, response shapes, auth dep).
+- `crema-app/src/components/PostMenu.tsx` + `utils/postMenuActions.ts`
+  — the shape of the existing report/hide/dislike menu wiring.
+- `LAUNCH_TODO.md` — verify whether legal docs / moderation already
+  appear on the launch backlog so we don't duplicate intent.
 
 ---
 
 ## Don't get distracted by
 
-- Adding animations to the wheel. Phase 1, wireframe-fidelity.
-- Refactoring the hit-test or SVG geometry. Working as-is.
-- Replacing the T1 radial labels with Skia "for consistency."
-  Keep T1 on SVG — it works and SVG is fine for short upright
-  labels.
-- Adding any new picks-related features (multi-flavor presets,
-  recommendations, etc.). Out of scope.
+- The night-mode work just shipped — don't touch the palette tokens
+  or `useTokens.ts` unless you find a real bug. The dual-track
+  palette directive in CLAUDE.md is binding.
+- The flavor wheel + Catalog Ops Schema Manager — these were the
+  prior session's primary deliverable; if you find loose ends there,
+  flag them but don't refactor.
+- Open-source moderation libs that promise "AI moderation in 5 min"
+  — most are western-content trained and miss the Indian-language
+  failure modes. Slur lists are still the highest-leverage first cut.
+- DMCA-only takedown language — India uses IT Rules 2021, not DMCA.
+  Check with the user before drafting takedown sections.
+- Building a full chat-message moderation pipeline (DMs are
+  one-to-one; the legal exposure profile differs). Phase 1 moderation
+  is for PUBLIC posts + comments. Defer DM moderation unless the
+  user explicitly raises it.
 
 ---
 
-## Files to study before designing
+## Standing rules (from `CLAUDE.md` / `NORTH_STAR.md`)
 
-- `crema-app/src/components/FlavorWheel.tsx` — the wheel.
-  Specifically `renderTangentialLabel` (the function being
-  replaced), `polar()`, the `t2Pills` / `t3Pills` useMemos, and the
-  T2/T3 render blocks where `renderTangentialLabel` is called.
-- `crema-app/src/components/FlavorWheelModal.tsx` — for the host
-  contract; don't edit.
-- `crema-app/package.json` — see existing Expo SDK + native
-  modules to confirm version alignment before installing Skia.
-- The reference demo's `package.json` and `app.json` if you want
-  to confirm what (if anything) needs to be added to plugins.
-  Spoiler: nothing extra goes in `expo` plugins for Skia in
-  Expo Go.
+- Phase-1 surface — Discover + feed + profile are the priority.
+- Token-only styling. Don't introduce hex literals. The dual-track
+  palette rule applies (light: approved neutrals; dark: rgba opacity
+  variants of brand colors only).
+- Update `BUILD_ROADMAP.md` when work lands — moderation gets a new
+  §1.6 / §1.5 entry depending on whether you classify it as design or
+  admin; the legal docs probably warrant a new top-level section.
+- The `DESIGN_LANGUAGE.md` pre-flight checklist applies to every new
+  surface (reporting modal, admin Reports tab, legal-doc reader).
+- When the moderation work touches the social feed, update
+  `specs/COMMUNITY_SPEC.md` in the same change.
 
----
-
-## Standing rules (from CLAUDE.md / NORTH_STAR.md)
-
-- Phase 1 surface — Discovery + retention. The wheel is a
-  brand-defining surface; Skia gives the curved-text fidelity the
-  Figma designer will produce.
-- Token-only styling. Don't hard-code hex.
-- No new top-level `.md` files unless asked.
-- Update `BUILD_ROADMAP.md` when this lands (move "Discover
-  Flavor wheel — Skia curved labels" from the next-build queue
-  into the "What has been built" section).
-
-When in doubt about scope, ship the minimum: Skia overlay for
-T2/T3 labels only, with `<TextPath>` curving along the ring's
-arc, kerning preserved. That's the deliverable. Everything else
-is a follow-up.
+When in doubt about scope: ship the moderation tooling first
+(Workstream 1) — the legal docs are unblocked once moderation
+exists, but moderation without policy is harder to justify
+soft-deleting content.

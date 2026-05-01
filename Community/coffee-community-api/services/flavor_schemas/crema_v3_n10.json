@@ -1,0 +1,105 @@
+{
+  "kind": "single_tier",
+  "version": "crema_v3_n10",
+  "label": "10-sector consumer wheel",
+  "notes": "Default Crema flavor wheel. Three fruit families (Berry / Fresh / Dried) plus the major non-fruit clusters. Compact + low ambiguity.",
+  "sectors": [
+    {
+      "name": "Chocolate",
+      "absorbs": [
+        "dark chocolate", "milk chocolate", "chocolate", "cocoa", "cacao",
+        "bittersweet", "white chocolate", "cocoa nibs", "cacao nibs",
+        "chocolatey", "mocha", "baker's chocolate", "sweet", "sweetness",
+        "candy", "dark caramel"
+      ]
+    },
+    {
+      "name": "Caramel",
+      "absorbs": [
+        "caramel", "brown sugar", "honey", "maple", "maple syrup", "molasses",
+        "toffee", "jaggery", "nougat", "treacle", "butterscotch", "cane sugar",
+        "sugarcane", "sugar cane", "wild honey", "raw honey", "burnt caramel",
+        "vanilla", "vanilla bean", "caramelized", "jaggery sweetness",
+        "balanced sweetness", "cane juice", "nectar"
+      ]
+    },
+    {
+      "name": "Floral",
+      "absorbs": [
+        "floral", "jasmine", "rose", "chamomile", "lavender", "hibiscus",
+        "black tea", "earl grey", "tea", "orange blossom", "coffee blossom",
+        "honeysuckle", "marigold", "white floral", "blossom"
+      ]
+    },
+    {
+      "name": "Citrus",
+      "absorbs": [
+        "citrus", "orange", "lemon", "lime", "grapefruit", "bergamot",
+        "mandarin", "blood orange", "mosambi", "sweet lime", "lemon zest",
+        "orange zest", "orange peel", "tangerine", "amla", "pomelo",
+        "orange marmalade", "citrus blossom", "lemon peel", "mandarine",
+        "sweet citrus"
+      ]
+    },
+    {
+      "name": "Berry",
+      "absorbs": [
+        "berry", "berries", "blackberry", "raspberry", "blueberry",
+        "strawberry", "cranberry", "gooseberry", "mulberry", "red berries",
+        "mixed berries", "wild berries", "black currant", "blackberries",
+        "blackberry jam", "dried berries", "dried berry", "strawberries",
+        "gooseberries", "black currants"
+      ]
+    },
+    {
+      "name": "Fresh fruit",
+      "absorbs": [
+        "fruity", "mango", "pineapple", "coconut", "banana", "passion fruit",
+        "passionfruit", "jackfruit", "lychee", "litchi", "papaya", "guava",
+        "dragon fruit", "mangosteen", "kiwi", "watermelon", "melon",
+        "tamarind", "cherry", "apple", "green apple", "red apple", "peach",
+        "plum", "apricot", "pear", "grape", "grapes", "red grapes",
+        "green grapes", "black cherry", "stone fruit", "stone fruits",
+        "tropical", "tropical fruit", "tropical fruits", "stoned fruits",
+        "muskmelon", "pomegranate", "plums", "red grape", "black grapes",
+        "cherry fruit", "ripe fruit", "red fruit", "red fruits", "pink guava"
+      ]
+    },
+    {
+      "name": "Dried",
+      "absorbs": [
+        "dried fruit", "dry fruits", "raisin", "raisins", "prune", "prunes",
+        "date", "dates", "fig", "figs", "black raisin", "golden raisins",
+        "dried fig", "dried figs", "dried apricot", "dried plum",
+        "dried mango", "dried pineapple"
+      ]
+    },
+    {
+      "name": "Spice",
+      "absorbs": [
+        "spice", "spices", "spicy", "spiced", "cinnamon", "nutmeg", "clove",
+        "cloves", "anise", "pepper", "cardamom", "brown spice", "sweet spices",
+        "tropical spices"
+      ]
+    },
+    {
+      "name": "Nutty",
+      "absorbs": [
+        "nutty", "nut", "nuts", "almond", "almonds", "hazelnut", "peanut",
+        "cashew", "walnut", "walnuts", "pecan", "roasted nuts", "toasted nuts",
+        "roasted almond", "roasted almonds", "roasted hazelnut",
+        "roasted hazelnuts", "toasted almond", "praline", "butter cookies",
+        "butter biscuits", "brown butter", "sweet cream"
+      ]
+    },
+    {
+      "name": "Earthy",
+      "absorbs": [
+        "earthy", "earth", "woody", "wood", "oak", "oaky", "cedar", "moss",
+        "mushroom", "tobacco", "smoky", "smoke", "smoked", "charred", "ashy",
+        "burnt", "wine", "winey", "red wine", "whiskey", "rum", "irish cream",
+        "fermented", "olives", "tangy", "malty", "malt"
+      ]
+    }
+  ]
+}
