@@ -17,6 +17,10 @@ dist/
 # Local design references (mockups, screenshots) — not source
 Feed_mock_ups/
 
+# Local working dir — ad-hoc exports, scratch JSON, dev-only artifacts.
+# Anything in here is for the developer's local use; not source-of-truth.
+local/
+
 # Uploads (user-generated profile photos)
 Community/coffee-community-api/uploads/
 
