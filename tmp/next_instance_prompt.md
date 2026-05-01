@@ -1,436 +1,424 @@
-# Prompt for next Claude instance — content moderation + legal de-risking
+# Prompt for next Claude instance — Discover "Journal" tab (roaster blog ingestion)
 
 > Paste this as the first message to a fresh Claude Code session in
 > `/Users/swarajnanda/Coffee_Aggregator`. Branch: `feat/mobile-readiness`
-> (still — we may cut a sub-branch off it if the moderation/legal work
-> ends up spanning more than a single PR).
+> (still active — cut a sub-branch off it if Journal ends up spanning
+> several PRs).
 > Don't open with a recap; pick up the task directly.
 
 ---
 
-## Pre-flight: catch up on uncommitted work from the prior session
+## Pre-flight — catch up on uncommitted work
 
-Before doing anything else, run `git status` and look at the working
-tree. A meaningful pile of changes from the last session is uncommitted:
+Run `git status` first. The working tree carries the user's local
+Scraper run output:
 
-- Onboard-roaster async-job pipeline (`POST /admin/roasters/enrich`
-  now returns 202 + job_id; `services/catalog_ops.run_roaster_enrich_job`
-  chains a scrape job after bio enrich; `routes/specific.py` extracted
-  `_apply_roaster_enrichment` helper used by re-enrich + refresh-all)
-- `CatalogOps.tsx` `key={section}` removed (panels stay mounted across
-  sub-tab flips so polling state survives in BOTH directions)
-- `RoastersPanel.tsx` rewired to the jobs-poll pattern (mirror
-  StandardizationPanel) + new "Onboard Roaster" hero with circular `+`
-  CTA matching the sitewide feed FAB style
-- All four FABs (feed / profile / roaster / Onboard) unified to
-  `text.primary` bg + `text.on-cta` icon + `t.color.shadow` shadow
-- `profile.tsx` FAB now hides at scroll-top (200px threshold) so the
-  pink "+" doesn't sit on top of the tab strip's natural y-position
-  on a tall hero; sticky tab strip via `stickyHeaderIndices={[2]}`
-- SQLite WAL mode + 10s busy_timeout (`database.py`) — fixes the
-  `database is locked` race between the chained scrape thread and
-  inline request handlers
-- Profile ScrollView gained `automaticallyAdjustKeyboardInsets`,
-  `keyboardShouldPersistTaps`, `keyboardDismissMode` for the URL field
-  on the Catalog Ops Onboard hero
-- `CroppedAvatar` paints a `bg.identity` (Crema White) tile under
-  every avatar so transparent roaster-logo PNGs render consistently
-  in feed / DMs / notifications
-- One stray hardcoded `#351101` in `profile.tsx`'s RefreshControl
-  tokenized to `t.color["text.primary"]`
+- `Scraper/input/verified_roasters_catalog.json`
+- `Scraper/output/{images_manifest.json, products.json, products.xlsx, scrape_log.json}`
 
-Commit + push these as a single `feat(catalog): async onboard
-pipeline + sitewide FAB consistency + SQLite WAL` commit before
-starting moderation work. Suggested message body:
+These are routine scraper-cycle artifacts, not session work. **Don't
+auto-commit them.** Confirm with the user whether the latest run is
+the canonical state worth checkpointing, or whether to leave them
+uncommitted. If the user says "commit them", stage just those files
+and ship a `chore(scraper): refresh catalog + product data` commit
+before starting Journal work.
 
-> - Async-job enrichment via `POST /admin/roasters/enrich` (202 + job_id)
->   with chained scrape; `_apply_roaster_enrichment` helper extracted
->   so re-enrich + refresh-all stay sync via the same code path.
-> - All four "create" FABs (feed, profile, roaster, Onboard) now
->   share identical `text.primary` bg + `text.on-cta` icon + token
->   shadow.
-> - Profile FAB hides at scroll-top to avoid colliding with the tab
->   strip on tall heroes; tab strip is sticky once scrolled past.
-> - SQLite WAL + busy_timeout=10s eliminates the `database is locked`
->   error during concurrent BackgroundTask + sync request writes.
-> - Catalog Ops sub-tabs no longer unmount on flip (`key={section}`
->   removed), so in-flight polling state survives in both directions.
-> - URL field on the Onboard hero auto-scrolls into view on focus
->   (iOS `automaticallyAdjustKeyboardInsets`).
+Verify the branch is `feat/mobile-readiness`. Recent commits
+(most recent first) describe the immediate prior context:
 
-Verify the branch is `feat/mobile-readiness` and push to `origin`.
-
----
+- `bfb8e8e` filter drawer — `dimBackdrop={false}` keeps partial
+  width but clears the dim/blur on the underlying app
+- `e8c2d89` RoasterRow — full-width row + edge-to-edge divider
+- `e00d49c` profile — `stickyHeaderIndices` corrected from `[2]`
+  → `[1]` after Fabric was eliding the inactive hero slot from
+  the native tree (this was THE Catalog Ops scroll bug)
+- `89c8810` `router.back()` calls now guard with `canGoBack()` and
+  fall back to `/profile?tab=catalog` (admin/roaster) or
+  `/(tabs)/browse` (consumer roaster)
+- `1d1759a` roaster chrome — back/delete buttons + hero + leftPanel
+  text now use the FAB pattern + `text.on-dark` for legibility
+- `ec7476a` palette standardization — line tokens collapsed to one
+  tier per mode; tab labels use `text.muted`/`text.primary`;
+  `accent.cta` retired as tab-underline color (was Crema pink in
+  dark mode); DESIGN_LANGUAGE.md auto-loaded via CLAUDE.md
+- `de07a20` `LAUNCH_TODO §3.4` expanded into the moderation +
+  legal-docs workplan (parked behind the iOS-launch trigger)
 
 ---
 
 ## TL;DR
 
-Two adjacent workstreams for this session:
+Add a third tab to Discover — **JOURNAL** — alongside BEANS and
+ROASTERS. The tab surfaces blog / journal articles published by
+roasters on their own sites. The existing roaster-enrichment
+pipeline focuses on bio + product catalog; we now extend it to
+discover, scrape, and store roaster blog articles, then render
+them in a chronological feed inside Crema.
 
-1. **Content moderation** — the social feed has zero moderation
-   surface today. Posts go up unfiltered, comments aren't reviewed,
-   reports go nowhere. Before we open Crema to a wider audience we
-   need: (a) a reporting / blocking flow that already feels real to
-   the user, (b) admin queue for reviewing reports, (c) automated
-   filtering for the obvious failure modes (slurs, spam links, NSFW
-   image upload).
-2. **Legal de-risking** — Phase 1 doesn't move money, but it does
-   host UGC, store user data, and link out to roaster e-commerce.
-   The minimum we need to ship to a public audience:
-   Privacy Policy, Terms of Service, Community Guidelines, an
-   Acceptable Use Policy, plus the surfaces that reference them
-   (sign-up consent, footer links, account-deletion flow).
+Why now (per `NORTH_STAR.md` field findings): "micro-roasters don't
+want to lead with tasting notes; they want to tell the sourcing
+story — the farm, the relationship, the processing". Journal is
+the surface where those stories live. The feed becomes the second
+discovery channel after BEANS, and a strong reason for consumers
+to open Crema even when they're not shopping.
 
-These two are bundled because they share the same legal exposure:
-"the platform hosts content from users we don't know personally."
-The moderation tooling is what makes the policies enforceable, and
-the policies are what give the moderation tooling teeth.
-
-This is a substantial session — plan for 6-10 hours. Both
-workstreams have a "ship the minimum so we can launch" interpretation
-and a "build it properly" interpretation. Default to ship-minimum
-unless the user asks otherwise.
+This is substantial — plan for 6-10 hours of focused work. There
+are several reasonable scopes; default to **Phase 1: scraper +
+storage + Discover tab + simple in-app reader**. Defer Haiku
+summarization / categorization unless the user asks otherwise.
 
 ---
 
 ## Hard rules — read first
 
-1. **Do not start dev servers from Bash or `preview_start`.** The user
-   runs their own Metro on device. The PostToolUse hook will nag about
-   preview servers — ignore it explicitly with a one-line acknowledgement
-   and continue.
-2. **Palette discipline is dual-track** (recently re-asserted by the
-   user, see `CLAUDE.md` "Hard rule" section). Brand identity is 3
-   colors (Espresso `#351101` / Crema `#D798DA` / Crema White `#FAF8F0`).
-   Light mode keeps the established functional neutrals; dark mode is
-   strict — only rgba opacity variants of brand colors. Don't invent
-   browns. **Re-read `DESIGN_LANGUAGE.md` §1 before touching any color
-   token.**
+1. **Do not start dev servers from Bash or `preview_start`.** The
+   user runs their own Metro on device. The PostToolUse hook will
+   nag about preview servers — ignore it explicitly with a one-line
+   acknowledgement and continue.
+2. **Palette discipline is the dual-track refined rule** (see
+   `DESIGN_LANGUAGE.md` §1, auto-loaded via CLAUDE.md). Three brand
+   colors plus the light-mode functional neutrals plus exactly two
+   named opaque hexes in dark mode (`#684F44` for lines, `#C7BAA5`
+   for `text.muted`). No new dark-mode hexes. Re-read §1 before any
+   color edit; don't trust memory.
 3. **Phase-1 wireframe fidelity** (per `NORTH_STAR.md`). No animations
-   beyond what's already shipped. No gold accents, alert reds, success
-   greens. Moderation surfaces still need to feel native to the app.
-4. **No legal advice.** Anything that materially affects how Crema
-   handles user data, IP claims, or India-specific regulation
-   (especially the 2021 IT Rules for "social media intermediaries"
-   and the DPDP Act) needs the user to either a) have already
-   consulted a lawyer, or b) explicitly accept that the draft is a
-   placeholder pending review. Don't invent jurisdictional claims.
-   **Surface every assumption back to the user before drafting.**
+   beyond what's already shipped. No gold accents, alert reds,
+   success greens. Article surfaces still feel native to the app.
+4. **Don't reach for new colors for "tags" / "categories".**
+   Crema-pink (`accent` `#D798DA`) is reserved for post-action
+   icons (like, comment, share). Tags on articles, if shown, use
+   the existing `tag.bg` / `tag.text` pair.
+5. **`accent.cta` is NOT a tab-underline color.** The active tab
+   underline on the new JOURNAL tab uses `text.primary` (matches
+   BEANS / ROASTERS); the underline flips to Crema White in dark.
 
 ---
 
-## Workstream 1 — Content moderation
+## Workstream — Journal end-to-end
 
-### Where the social feed lives
+The work has four mostly-independent layers. Order them so each
+tier produces a working surface even if the next tier is deferred.
 
-- Posts: `Community/coffee-community-api/routes/posts.py` (or wherever
-  the post CRUD landed — verify before assuming).
-- PostCard render: `crema-app/src/components/domain/PostCard.tsx`.
-- Composer: `crema-app/src/components/ComposePost.tsx`.
-- Comment thread: `crema-app/src/components/primitives/CommentThread.tsx`.
-- Existing post-menu actions (hide/report/dislike) live in
-  `crema-app/src/utils/postMenuActions.ts` — already wired to
-  three-dots menus on PostCard.
+### Layer A — Backend data + endpoints (~2 h)
 
-### What's already shipped (don't redo)
+#### A.1 Schema migration
 
-- The three-dots menu on every PostCard surfaces Hide / Report /
-  Dislike (`postMenuActions.ts` + `PostMenu.tsx`).
-- Recycle bin (`RecycleBinModal.tsx`) — soft-delete + restore for the
-  user's own content.
-- A `posts_hidden` table (or equivalent — verify) records the user's
-  per-user hide list so hidden posts don't reappear in their feed.
-
-### What's missing (the actual work)
-
-Moderation has three actors that need surfaces:
-
-#### A. The reporting user (consumer-facing)
-
-- The current "Report" menu item probably no-ops or shows a toast.
-  Wire it to a real backend endpoint that records `(post_id,
-  reporter_user_id, reason, free_text, created_at)`.
-- A small modal between tap-Report and submit: 4–6 reason chips
-  (Spam, Off-topic, Hateful, Sexual content, Impersonation, Other)
-  + an optional 280-char free text. Mirror Instagram / Twitter's
-  reporting flow at the wireframe level.
-- Confirmation toast: "Thanks — we'll review this within 48h." Don't
-  promise faster than the team can deliver.
-- "Block @user" surface: lives on the user profile + on the
-  three-dots menu. Backend records a `user_blocks` row; reader-side
-  hide logic respects it across feed, comments, search, DMs.
-
-#### B. The admin reviewer
-
-- A new admin tab `Reports` parallel to the existing `Catalog Ops` /
-  `Standardize` / `Traction` tabs in the admin profile.
-- Queue UI: each row is `report_count`, `post_preview`, `reasons`,
-  `most_recent_report_time`, with row tap → full post + comment
-  thread + every report.
-- Action buttons per post: Dismiss (clears all reports), Hide-from-
-  feed (soft-hide globally — visible only to author), Delete
-  (hard-delete via existing soft-delete path so it's recoverable from
-  recycle bin), Suspend-author (24h post-write block), Ban-author
-  (full hard-block; flips `users.is_banned`).
-- Audit log: every admin action records who did it, when, and why.
-  The user's previous `audit_log` table (if it exists — verify) is
-  the right home.
-
-#### C. The automated filter
-
-The cheapest first cut:
-
-- **Slur list** — a static blocklist (Indian + English; user has
-  opinions about which lists to use, ask). Pre-publish check on
-  every post body / comment; if matched, block submission with
-  "This post contains language that's not allowed on Crema. See
-  Community Guidelines."
-- **Link rate-limit** — non-roaster accounts capped at e.g. 1 link
-  per post and 3 link-bearing posts per 24h. Combats the most
-  obvious spammer pattern.
-- **NSFW image check** — Phase 1 ship: flag for admin review (don't
-  auto-block) using a free hosted classifier (Sightengine free tier,
-  or run a small on-device CoreML / TF-Lite model — ask user about
-  the cost / latency tradeoff).
-
-#### Backend additions
-
-New tables — verify column names against
-`Community/coffee-community-api/database.py` conventions before
-writing migrations:
+New table in `community.db` via the `_MIGRATIONS` list in
+`Community/coffee-community-api/database.py` (idempotent ALTER
+pattern; gate on `PRAGMA user_version`). Suggested shape — verify
+naming against existing conventions before writing:
 
 ```sql
-post_reports       (id, post_id, reporter_user_id, reason, free_text, created_at, resolved_at, resolved_by, resolution)
-user_blocks        (id, blocker_user_id, blocked_user_id, created_at)
-moderation_actions (id, target_type, target_id, action, actor_user_id, reason, created_at)
-users.is_banned    (existing or new column)
-users.suspended_until (existing or new column)
+CREATE TABLE IF NOT EXISTS roaster_articles (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    roaster_slug    TEXT    NOT NULL,
+    url             TEXT    UNIQUE NOT NULL,           -- canonical article URL
+    title           TEXT    NOT NULL,
+    excerpt         TEXT,                               -- 1-2 sentence summary
+    image_url       TEXT,                               -- hero image
+    body_md         TEXT,                               -- cleaned markdown of full article
+    word_count      INTEGER,
+    published_at    TEXT,                               -- ISO from <time> / og:article:published_time / RSS
+    scraped_at      TEXT    NOT NULL,                   -- when we ingested
+    enrichment_status TEXT  NOT NULL DEFAULT 'pending'  -- pending | enriched | failed
+);
+CREATE INDEX IF NOT EXISTS idx_articles_roaster ON roaster_articles(roaster_slug);
+CREATE INDEX IF NOT EXISTS idx_articles_published ON roaster_articles(published_at DESC);
 ```
 
-Migrations should be gated on `PRAGMA user_version` per the existing
-pattern (see `Community/coffee-community-api/database.py` for the
-convention — migrations 1..N, idempotent).
+`url UNIQUE` is the dedup key. Re-running the scraper for a roaster
+should be idempotent (skip rows with matching URL).
 
-### Suggested order of attack
+#### A.2 Endpoints (`routes/specific.py` or a new `routes/articles.py`)
 
-1. Backend tables + endpoints first (`post_reports`, `user_blocks`,
-   the moderation_actions audit log, the admin queue endpoint).
-2. Wire the consumer-side Report flow (modal + endpoint).
-3. Wire Block (profile menu + reader-side filtering across feed /
-   comments / DMs / search).
-4. Build the admin Reports queue UI as a sibling tab in admin
-   profile.
-5. Slur list filter (cheapest, biggest legal-cover-up).
-6. Link rate-limit.
-7. NSFW image flagging — last, since it has external-API decisions
-   the user needs to weigh in on.
+Match the existing `@router.get(...)` patterns in
+`routes/specific.py`:
 
----
+- `GET /articles?limit=50&before=<id>` — chronological feed
+  (newest first), paginated. Joins on roaster name + logo for
+  display. Public endpoint, no auth.
+- `GET /roasters/{slug}/articles` — per-roaster list (used on the
+  roaster page later if we add an Articles section there).
+- `POST /admin/roasters/{slug}/scrape-articles` — admin trigger,
+  returns 202 + job_id (mirror the
+  `/admin/roasters/enrich` pattern). Background task runs the
+  scraper, writes rows, sets `enrichment_status`.
+- `GET /admin/jobs/{id}` already exists — reuse for polling.
 
-## Workstream 2 — Legal de-risking
+Admin endpoints gate on `_require_admin` (defense-in-depth pattern
+in `routes/specific.py:23-29` — `is_admin=1 AND username="crema"`).
 
-### Where the legal docs go
+### Layer B — Scraper (~3 h)
 
-There's no `legal/` directory yet — propose adding one at repo root
-with markdown sources (`legal/PRIVACY.md`, `legal/TERMS.md`,
-`legal/COMMUNITY_GUIDELINES.md`, `legal/ACCEPTABLE_USE.md`). The
-in-app screens render these via `react-native-markdown-display` (add
-the dep) so a single source of truth ships to both the legal site
-and the app.
+#### B.1 Discovery
 
-### Required documents
+Per-roaster article-index URL is unknown a priori. Strategy in
+order of preference:
 
-Each draft is a placeholder pending the user's lawyer review. Mark
-every assumption explicitly with a `> [ASSUMPTION: ...]` blockquote
-so the user can grep the doc for things to confirm with counsel.
+1. **RSS / Atom feed** — try `/feed`, `/feed/`, `/rss`, `/blog/feed`,
+   `/journal/feed`, `/atom.xml`. Roasters on Shopify often expose
+   `/blogs/news.atom`. RSS gives clean structured data (title, link,
+   pubDate, description, content) — no HTML parsing needed.
+2. **Sitemap** — fetch `/sitemap.xml` (and recursively any nested
+   sitemap_index entries), filter URLs matching `/blog/`, `/journal/`,
+   `/articles/`, `/news/`, `/stories/`.
+3. **Index page scraping** — fetch `/blog`, `/journal`, `/articles`,
+   etc. and extract `<a>` tags with article-shaped href patterns.
 
-#### A. Privacy Policy
+The Onboard pipeline (`services/roaster_enricher.py`, `scrape_runner.py`)
+already does this kind of best-effort site discovery for product
+URLs — mirror its tone. Persist the *successful* discovery method
++ root URL on the roaster row (new column `articles_index_url`,
+`articles_feed_kind` `'rss'|'sitemap'|'html'`) so subsequent runs
+are a single fetch.
 
-Must cover, at minimum:
-- What we collect: account info (name, email, optional phone),
-  profile info (avatar, bio, location), behavioural (posts, likes,
-  follows, Buy clicks), device info (push tokens, app version).
-- Why: serve the feed, surface relevant roasters, send notifications,
-  prevent abuse.
-- Legal basis (under DPDP Act): consent at sign-up (note the
-  granular consent UX — Phase-1-acceptable to bundle as a single
-  toggle, but flag the granular-consent ask for Phase 2).
-- Data sharing: roasters see aggregate analytics on followers + Buy
-  clicks; the platform shares no PII with third parties beyond what
-  the user posts publicly.
-- Retention: account deletion within 30 days; soft-delete for posts
-  via existing recycle bin pattern.
-- User rights: access, correction, deletion. Concrete in-app surfaces
-  for each.
-- Contact: a real `privacy@crema.<domain>` mailbox (USER NEEDS to
-  confirm the address).
-- Children: 13+ minimum (or 16+ if the user wants stricter under
-  DPDP — needs decision).
+#### B.2 Extraction
 
-#### B. Terms of Service
+For each candidate article URL:
 
-Standard structure:
-- Eligibility, account responsibility, prohibited uses (links into
-  Acceptable Use Policy below).
-- Content ownership: user owns their content; platform gets a
-  worldwide, non-exclusive, royalty-free license to display +
-  distribute it within Crema (standard UGC license language).
-- Roaster-specific terms: roasters own their product info, brand
-  marks; platform gets the right to display them.
-- DMCA-equivalent / IP takedown: real takedown email + a 14-day
-  counter-notice window (India uses IT Rules 2021, not DMCA — drafts
-  should reflect that).
-- Termination: platform reserves the right to suspend / ban for
-  violations; user can delete account at any time.
-- Liability disclaimers (very standard "as is" language).
-- Governing law: Indian jurisdiction (USER CONFIRM city for venue).
+1. **Fetch HTML** (already-installed `requests` + `beautifulsoup4`).
+2. **Pull metadata** — `<title>`, `og:image`, `og:description`,
+   `<time datetime>` / `og:article:published_time`. These give the
+   row's title / image / excerpt / published_at.
+3. **Body extraction** — strip nav / header / footer / sidebar, keep
+   the article body. Prefer:
+   - `trafilatura` (Python lib, ~1 dep, very robust article
+     extraction across CMS variants — used by news aggregators).
+     Add to `Community/coffee-community-api/requirements.txt`.
+   - Fallback: `<article>` tag heuristic + `bs4.get_text()`.
+4. **Markdown conversion** — convert the cleaned HTML to markdown
+   for storage in `body_md`. `markdownify` (Python) does this in
+   one pass.
+5. **Deduplication** — skip if URL already in `roaster_articles`.
 
-#### C. Community Guidelines
+#### B.3 Background job
 
-The plain-English version of the moderation policy. Key categories:
-- No hate speech (covers caste, religion, region, gender, sexuality —
-  India-specific carveouts the user should weigh in on).
-- No harassment of other users or roasters.
-- No spam (link rate-limit logic from Workstream 1 is the
-  enforcement).
-- No off-topic content (this app is about coffee — non-coffee
-  content can be removed).
-- No deceptive impersonation (claiming to be a roaster you're not,
-  etc.).
-- No sexual content (Phase 1 strict; Phase N might soften).
+Wire as `services/catalog_ops.run_article_scrape_job` mirroring
+`run_roaster_enrich_job`. Same `jobs` table, same status enum,
+same orphan-recovery-on-server-boot path.
 
-Each category links to the consequence ladder (warning → 24h
-suspension → permanent ban). Flag clearly that admin discretion
-applies.
+The "Refresh Roaster" admin action could optionally chain
+article-scrape after the bio + product scrape — confirm with user
+whether to add automatic chaining or keep article scraping
+on-demand.
 
-#### D. Acceptable Use Policy
+### Layer C — Admin surface (~1 h)
 
-Tighter, more enumerated than Community Guidelines — the
-machine-readable version that the moderation tooling enforces. Lists
-the specific behaviours that trigger automated action vs admin
-review.
+Two viable patterns; default to (1) unless the user asks otherwise:
 
-### In-app surfaces
+1. **Inline button on the per-roaster admin page**
+   (`app/admin/roaster/[slug].tsx`). New "Refresh Articles" CTA
+   under the existing Refresh Roaster combined button. Status strip
+   reuses the existing `refreshPhase` UI. Article count visible in
+   the hero meta line ("Last enriched 2d ago · 14 articles").
+2. **New sub-tab "Articles" in CatalogOps** alongside Roasters & Beans
+   and Standardization. Mass-refresh + per-roaster status. More
+   chrome but easier ops at scale.
 
-- Sign-up flow: add an "I agree to Terms + Privacy Policy" checkbox
-  with inline links to the in-app readers. Block submit until checked.
-- Account screen: links to all four documents.
-- Footer of every page (web wide only): four links + © Crema + year.
-- Account deletion: a real "Delete my account" button in account
-  settings. Soft-delete first (30-day recovery), hard-delete after
-  the window. Surface this to the user — they may want to defer
-  the actual deletion plumbing to a follow-up session.
+Lower-friction debug: `Refresh Articles` on the per-roaster page +
+a single "Refresh ALL article feeds" button on the Catalog Ops
+Roasters & Beans hero (parallel to the existing "Onboard Roaster"
+URL hero).
 
-### Standing legal questions to surface
+### Layer D — Discover JOURNAL tab (~3 h)
 
-1. **Entity**: Is Crema operating as an individual proprietorship,
-   LLP, or Pvt Ltd? The legal docs need an entity name + address.
-2. **Jurisdiction**: India is assumed; user confirm city for venue.
-3. **Lawyer review**: Has one been retained? If not, every draft
-   ships with a "REVIEWED BY: <pending>" marker.
-4. **Data residency**: Are we storing user data in India only, or
-   can SQLite / backend run anywhere? DPDP Act preference is for
-   Indian residency for sensitive data.
-5. **IT Rules 2021 takedown contact**: India's equivalent of the
-   DMCA notice. Confirm with the user that the takedown email +
-   workflow is acceptable.
+#### D.1 Tab plumbing
+
+`app/(tabs)/browse.tsx` currently renders BEANS / ROASTERS. Add
+JOURNAL as a third tab via the existing `TabButton` pattern
+(line ~947). The `activeTab` union becomes
+`"beans" | "roasters" | "journal"`. Existing filter drawer +
+search behavior wraps cleanly around the new tab; if Journal needs
+no filters in v1, render the filter button as a no-op or hide it
+when `activeTab === "journal"`.
+
+#### D.2 ArticleCard primitive
+
+New component `src/components/domain/ArticleCard.tsx`. Look at
+`PostCard` and the Discover bean grid card for visual language.
+
+Suggested layout (mobile-first, full-width row on phone, optional
+2-col on wide):
+
+```
+┌─────────────────────────────────────────────┐
+│  [hero image, 16:9, t.radius.md]            │
+│                                             │
+│  Title in t.font.display, t.size["font.xl"] │
+│  Two lines max.                             │
+│                                             │
+│  [logo] Roaster Name · 12 Apr 2026 · 4 min  │
+│                                             │
+│  Excerpt body text two lines max...         │
+└─────────────────────────────────────────────┘
+```
+
+Fonts / spacing / colors all from tokens. Identity treatment: the
+small roaster logo uses `RoasterLogo` (rounded square per
+`DESIGN_LANGUAGE.md` §4 — that's the canonical roaster identity
+treatment). Tap routes to the article reader (Layer D.3) or
+external open if reader is deferred.
+
+#### D.3 Article reader screen
+
+New route `app/article/[id].tsx`. Renders `body_md` via
+`react-native-markdown-display` (already noted as a Phase-1 dep
+for the legal docs in `LAUNCH_TODO §3.4.7` — install once and
+reuse here).
+
+Layout:
+- Floating back button (use the FAB pattern from `1d1759a` —
+  `text.primary` bg + `text.on-cta` icon + token shadow). Same
+  `canGoBack()` guard pattern as `89c8810` — fall back to
+  `/(tabs)/browse?tab=journal` if back stack is empty.
+- Hero image (full-width, 16:9 or 4:3).
+- Title (display font, `font.2xl` or `font.display`).
+- Author block: `RoasterLogo` (small) + roaster name + published
+  date + estimated reading time. Tap → `/roaster/[slug]`.
+- Body — markdown rendered with the existing palette tokens
+  (paragraph text uses `text.primary`, links use `accent.cta`,
+  code / quote blocks pull from `card.info` etc.).
+- Bottom CTA: "Read on [roaster site]" external link →
+  `Linking.openURL`. Tracked as a click event via the existing
+  `POST /clicks` endpoint (`source_page` = `"article"`).
+
+If scope tight, ship the consumer JOURNAL tab with cards only and
+have `onPress` open the URL externally; add the reader screen in a
+follow-up. Cards still earn their keep without an in-app reader.
 
 ---
 
 ## Files to study before starting
 
-- `NORTH_STAR.md` §5 ("What we don't do") — confirms the moderation
-  philosophy: no algorithmic ranking, no engagement tricks. Moderation
-  surfaces should match this restrained tone.
-- `BUILD_ROADMAP.md` §1.6 (Design system) — has the night-mode + the
-  3-color palette story end-to-end. Don't reintroduce off-palette colors.
-- `Community/coffee-community-api/database.py` — migration pattern,
-  table naming conventions.
-- `Community/coffee-community-api/routes/` — endpoint patterns
-  (`@router.post`, response shapes, auth dep).
-- `crema-app/src/components/PostMenu.tsx` + `utils/postMenuActions.ts`
-  — the shape of the existing report/hide/dislike menu wiring.
-- `LAUNCH_TODO.md` — verify whether legal docs / moderation already
-  appear on the launch backlog so we don't duplicate intent.
+- `Scraper/scraper/` — the existing site scraping utilities. Look
+  at how it discovers product URLs and parses Shopify-flavored
+  catalogs; the article-feed discovery should reuse the same
+  patterns.
+- `Scraper/enrich_roasters.py` — the entrypoint that drives the
+  scraper from the `verified_roasters_catalog.json` input.
+- `Community/coffee-community-api/services/roaster_enricher.py` —
+  Sonnet-driven roaster bio enrichment. Already has a "do NOT
+  link to /blog" exclusion at line 199 (when picking the
+  catalog/order page); when we ADD blog support, that exclusion
+  doesn't change — bio scrape still avoids the blog, the new
+  article scrape *only* hits the blog.
+- `Community/coffee-community-api/services/scrape_runner.py` —
+  product-catalog scrape orchestration; pattern to mirror for the
+  new article scraper.
+- `Community/coffee-community-api/services/catalog_ops.py` —
+  async-job pipeline (`run_roaster_enrich_job`, the chained
+  scrape, `_apply_roaster_enrichment`). Article scrape becomes a
+  new job kind `'article_scrape'` in this same path.
+- `Community/coffee-community-api/database.py` — `_MIGRATIONS`
+  list pattern. Migration is idempotent ALTER.
+- `Community/coffee-community-api/routes/specific.py` —
+  `@router.post`, `@router.get` patterns. `_require_admin`
+  defense-in-depth gate at lines 23-29.
+- `app/(tabs)/browse.tsx` — Discover BEANS / ROASTERS tab plumbing.
+  `TabButton` (~line 947), filter drawer (~line 778),
+  `useBreakpoint` for mobile vs wide layout.
+- `src/components/RoasterRow.tsx` — recently fixed full-width row
+  + edge-to-edge divider. Mirror this width / inset story when
+  designing ArticleCard.
+- `src/components/domain/PostCard.tsx` — existing feed card; the
+  closest visual peer to ArticleCard.
+- `src/components/admin/RoastersPanel.tsx` — admin Roasters
+  surface. Onboard hero + jobs-poll pattern; mirror for
+  any new article-related admin chrome.
+- `DESIGN_LANGUAGE.md` (auto-loaded) — palette + typography +
+  identity treatments. Pre-flight checklist must pass on any new
+  surface.
+
+---
+
+## Open decisions to surface BEFORE drafting
+
+These are the questions that materially shape the implementation;
+ask the user before sinking time:
+
+1. **Scraper library**: ok to add `trafilatura` + `markdownify` to
+   `requirements.txt`? Both are Apache/MIT licensed, no native
+   deps. Alternative is hand-rolled bs4 with site-specific
+   selectors per roaster — more code, more fragile.
+2. **In-app reader vs external open**: ship the article reader
+   (`app/article/[id].tsx`) in v1, or just open the original URL
+   in the browser? Reader is +2 h but keeps the user inside Crema.
+3. **Haiku enrichment**: do we summarize / categorize articles
+   with Haiku at ingest time, or store the raw extracted body
+   only? Phase 1 default = no Haiku; the human roaster's prose is
+   already curated content. Add categorization later if the user
+   wants tag-based filtering.
+4. **Admin surface placement**: per-roaster button on
+   `app/admin/roaster/[slug].tsx`, or new "Articles" sub-tab in
+   CatalogOps? Default is the per-roaster button.
+5. **Auto-chain article scrape with Refresh Roaster**: should the
+   existing "Refresh Roaster" combined button also kick off
+   article scrape, or keep articles on a separate explicit
+   trigger? Default = separate trigger (scrape can be slow and
+   noisy; admin should opt in).
+6. **Filter scope on JOURNAL tab**: filter by roaster only, or also
+   by date range / reading-time? Phase-1 minimum = roaster filter
+   reusing the existing filter drawer pattern.
+7. **Empty state copy**: confirm the line. Default suggestion:
+   "Roasters haven't started telling their story yet."
 
 ---
 
 ## Don't get distracted by
 
-- The night-mode work just shipped — don't touch the palette tokens
-  or `useTokens.ts` unless you find a real bug. The dual-track
-  palette directive in CLAUDE.md is binding.
-- The flavor wheel + Catalog Ops Schema Manager — these were the
-  prior session's primary deliverable; if you find loose ends there,
-  flag them but don't refactor.
-- Open-source moderation libs that promise "AI moderation in 5 min"
-  — most are western-content trained and miss the Indian-language
-  failure modes. Slur lists are still the highest-leverage first cut.
-- DMCA-only takedown language — India uses IT Rules 2021, not DMCA.
-  Check with the user before drafting takedown sections.
-- Building a full chat-message moderation pipeline (DMs are
-  one-to-one; the legal exposure profile differs). Phase 1 moderation
-  is for PUBLIC posts + comments. Defer DM moderation unless the
-  user explicitly raises it.
+- The moderation + legal pack in `LAUNCH_TODO.md §3.4` — that
+  block has a real plan now (`de07a20`) but is gated on iOS
+  launch, not Journal. Don't merge concerns.
+- The P3 color fidelity workstream is dead — the user diagnosed it
+  as their iPhone 17 Pro's display behaviour, not a Crema bug.
+  See the "P3 = WONTFIX" outcome implicit in the recent commits;
+  don't reopen.
+- The recent palette work (line standardization, chrome
+  legibility) — these are landed. Don't refactor them while
+  building Journal.
+- Trying to preserve in-flight admin polling state across sub-tab
+  flips on Catalog Ops — that experiment broke scroll twice
+  (`a4dde97` + `e00d49c`). The async-job backend handles state
+  continuity; the UI re-mounts and re-polls cleanly.
 
 ---
 
 ## Standing rules (from `CLAUDE.md` / `NORTH_STAR.md`)
 
 - Phase-1 surface — Discover + feed + profile are the priority.
-- Token-only styling. Don't introduce hex literals. The dual-track
-  palette rule applies (light: approved neutrals; dark: rgba opacity
-  variants of brand colors only).
-- Update `BUILD_ROADMAP.md` when work lands — moderation gets a new
-  §1.6 / §1.5 entry depending on whether you classify it as design or
-  admin; the legal docs probably warrant a new top-level section.
-- The `DESIGN_LANGUAGE.md` pre-flight checklist applies to every new
-  surface (reporting modal, admin Reports tab, legal-doc reader).
-- When the moderation work touches the social feed, update
-  `specs/COMMUNITY_SPEC.md` in the same change.
-
-When in doubt about scope: ship the moderation tooling first
-(Workstream 1) — the legal docs are unblocked once moderation
-exists, but moderation without policy is harder to justify
-soft-deleting content.
+  Journal is a Phase-1 add (consumer discovery), not Phase 2.
+- Token-only styling. Don't introduce hex literals. Lines use
+  the single-tier `t.color.border` / `border.light` / `divider`
+  (all collapsed to one value per mode).
+- Identity treatment: `CroppedAvatar` for people, `RoasterLogo`
+  rounded-square for roasters. Don't invent a third treatment for
+  article-author display.
+- Update `BUILD_ROADMAP.md` when work lands — Journal warrants its
+  own §1.x entry once it ships.
+- When the new feature touches the scraper architecture, update
+  `specs/SCRAPER_SPEC.md` in the same change. New endpoints
+  belong in `specs/COMMUNITY_SPEC.md`.
+- The `DESIGN_LANGUAGE.md` pre-flight checklist applies to every
+  new surface (ArticleCard, JOURNAL tab, article reader).
 
 ---
 
-## Workstream 3 — DEFERRED unless explicitly asked: P3 color fidelity
+## Suggested order of attack
 
-The user previously raised that the brand Espresso `#351101` looks
-"lighter" on iPhone than in Figma. Web research established this is
-a real, well-documented phenomenon — iOS device screenshots are
-tagged Display P3, and macOS / Figma color-pickers assuming sRGB
-report shifted values. Rendering on the P3 panel itself is *also*
-slightly different from sRGB (Apple converts faithfully but pixel
-math isn't bit-identical). See research summary in the prior
-session's chat transcript or [React Native #41517](https://github.com/facebook/react-native/issues/41517).
+1. Surface the 7 open decisions above; wait for the user to
+   answer before installing deps or migrating schema.
+2. Layer A.1 (migration) + A.2 (endpoints) — backend skeleton.
+3. Layer B.1-B.3 (scraper) — wire one roaster end-to-end as the
+   smoke test (Blue Tokai's blog feed is well-formed).
+4. Layer C (admin trigger) — minimal "Refresh Articles" button
+   to drive the scraper for any roaster.
+5. Layer D.1-D.2 (consumer JOURNAL tab + ArticleCard) —
+   chronological feed, external-open on tap.
+6. Layer D.3 (in-app reader) — defer to a follow-up if the user
+   wants v1 to ship faster.
+7. Update `BUILD_ROADMAP.md`, `specs/SCRAPER_SPEC.md`,
+   `specs/COMMUNITY_SPEC.md`. Commit.
 
-**Do not start this workstream unless the user explicitly asks for
-it.** They flagged it as "nice to have, not now". Estimate is ~1 day
-of work for ~30 lines of code + heavy testing across every library
-that consumes a token as a string (lucide icons, react-native-svg,
-expo-image, ActivityIndicator, RefreshControl, placeholderTextColor,
-etc.). Risk of visual regressions is high; payoff is marginal pixel
-fidelity on Display-P3 iPhones.
-
-If the user does ask:
-- Swap `useTokens.ts` to emit `PlatformColor('displayP3-r-g-b-a')`
-  for the three brand colors on `Platform.OS === 'ios'`; keep hex on
-  Android / web.
-- Wrap rgba opacity variants in `DynamicColorIOS` or a similar
-  helper; PlatformColor doesn't compose with CSS-style `rgba()`
-  syntax.
-- Per-prop fallback: every consumer that passes a token as a *string*
-  (icon `color`, SVG `fill`, etc.) needs a check — if PlatformColor
-  is supported in that prop, pass the object; otherwise fall back to
-  the sRGB hex via a `colorAsString(t.color.X)` helper.
-- Verify with macOS Digital Color Meter ("Display native values")
-  reading the panel buffer directly, not by color-picking a screenshot.
-
-Sane interim recommendation if the user asks "is `#351101` actually
-right on my phone": tell them to disable True Tone + Night Shift in
-Settings → Display → Display & Brightness, then check. If that fixes
-it, no code change needed.
+When in doubt about scope, lean toward the simpler shipping
+deliverable: the consumer experience matters more than admin
+polish in v1.
