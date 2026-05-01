@@ -943,17 +943,24 @@ export default function ProfilePage() {
         automaticallyAdjustKeyboardInsets={true}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        // Pin the tab strip (3rd child — see comment in JSX below) to
-        // the top once it scrolls past the viewport edge. Without
-        // this the tabBar passes through the bottom-right FAB during
-        // a scroll motion (the FAB is `position: absolute` outside
-        // this ScrollView), and the user briefly sees the FAB sitting
-        // on top of "FOLLOWING" / "COFFEE SHELF" labels.
-        // Index reasoning: the two `{cond && heroContent}` slots
-        // count as children even when the condition is false (they
-        // render as `false`/null but still occupy index slots), so
-        // tabBar lands at index 2 in BOTH branches.
-        stickyHeaderIndices={[2]}
+        // Pin the tab strip (2nd child) to the top once it scrolls
+        // past the viewport edge. Without this the tabBar passes
+        // through the bottom-right FAB during a scroll motion (the
+        // FAB is `position: absolute` outside this ScrollView), and
+        // the user briefly sees the FAB sitting on top of
+        // "FOLLOWING" / "COFFEE SHELF" labels.
+        //
+        // Index reasoning (corrected 2026-05-01): RN Fabric / iOS
+        // *does not* count `false`/`null` children toward the native
+        // view tree — `stickyHeaderIndices` operates on native
+        // indices, not React tree indices. A previous attempt used
+        // two `{cond && heroContent}` slots assuming both occupied a
+        // slot; the inactive `false` slot was elided and `[2]`
+        // pointed at `tabContent` instead of `tabBar`, freezing the
+        // entire scrollable body to the top and silently disabling
+        // vertical scroll on the Catalog Ops tab. Single hero slot
+        // with a `key` to preserve the on-toggle remount behaviour.
+        stickyHeaderIndices={[1]}
         onScroll={(e) => {
           onChromeScroll(e);
           const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
@@ -974,8 +981,7 @@ export default function ProfilePage() {
         }}
         scrollEventThrottle={16}
       >
-        {!isEditing && heroContent}
-        {isEditing && heroContent}
+        <View key={isEditing ? "hero-edit" : "hero-view"}>{heroContent}</View>
         {tabBar}
         {tabContent}
       </ScrollView>
