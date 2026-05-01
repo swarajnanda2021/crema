@@ -273,13 +273,211 @@ scale.
 - Migrate script: iterate `/data/uploads`, upload each to storage,
   update DB paths.
 
-## 3.4 Moderation pack (trigger: open signups)
-- `reports` table + `POST /api/posts/{id}/report`.
-- "Report" in PostCard overflow menu.
-- Admin moderation sub-tab on the traction dashboard.
-- Rate limiting on `/auth/register`, `/auth/login`,
-  `/auth/request-reset` (~5/IP/5min).
-- Email verification (needs email provider — Resend free 100/day).
+## 3.4 Moderation + legal-docs pack (trigger: opening to strangers / iOS launch)
+
+Originally a 5-bullet sketch; expanded 2026-05-01 after a code-state
+audit. The two workstreams are bundled because they share legal
+exposure ("the platform hosts content from users we don't know
+personally") — moderation tooling is what makes the policies
+enforceable, the policies are what give the moderation tooling
+teeth. **Don't start without confirming the trigger has fired** —
+this section sits behind the dual gate of (a) iOS submission
+window approaching and (b) opening signups to strangers (vs F&F
+hand-invites).
+
+### Code-state audit (truth as of 2026-05-01)
+
+What's already there:
+- The PostCard three-dots menu already POSTs to `/post_reports`,
+  `/post_hides/{id}/toggle`, `/post_dislikes/{id}/toggle`
+  (`crema-app/src/utils/postMenuActions.ts:22-47`). The frontend
+  swallows network errors silently, which is why these *feel*
+  wired — they're 404ing, not no-oping.
+- The matching tables already exist (`database.py:600-633`):
+  `post_hides`, `post_dislikes`, `post_reports`. Schemas are
+  fine for v1; reports are intentionally non-unique per
+  (user, post) so admin can count pile-ons.
+- `_require_admin` gate (`routes/specific.py:23-29`) checks
+  `is_admin=1 AND username="crema"` — defense-in-depth pattern
+  to reuse for the admin moderation panel.
+- Migration pattern: `_MIGRATIONS` list in `database.py:129+`
+  with `PRAGMA user_version` gate. Idempotent.
+
+What's missing: zero routes wired to those tables, no
+`user_blocks`, no audit log, no admin queue UI, no legal docs at
+all (no `legal/` directory).
+
+### 3.4.1 Wire what exists `[ ]` (~1.5h)
+- Add `POST /post_reports`, `POST /post_hides/{post_id}/toggle`,
+  `POST /post_dislikes/{post_id}/toggle` to `routes/specific.py`
+  (matches prevailing pattern; or factor a `routes/moderation.py`
+  if scope grows).
+- Reports carry an optional `reason` (one of the chip values) and
+  free-text `note` (≤280 chars). Hide / dislike are idempotent
+  toggles; reports record a new row each tap so the admin queue
+  can count pile-ons.
+- Frontend: replace the bare `Alert.alert("Report this post?")`
+  in `confirmAndReport` with a reason-chip modal. Default chips:
+  `Spam · Off-topic · Hateful · Sexual content · Impersonation
+  · Other` + optional 280-char free text. Confirmation toast:
+  "Thanks — we'll review this within 48h." (don't promise faster
+  than the team can deliver).
+
+### 3.4.2 Block-user `[ ]` (~1.5h)
+- New table:
+  ```sql
+  user_blocks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    blocker_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    blocked_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    UNIQUE(blocker_user_id, blocked_user_id)
+  )
+  ```
+- Endpoints: `POST /users/{username}/block`,
+  `DELETE /users/{username}/block`,
+  `GET /my-blocks` (consumer-facing list to unblock from settings).
+- Reader-side filtering: `feed_timeline`, comments, search, DMs
+  all `LEFT JOIN user_blocks` and exclude rows where the requester
+  has blocked the author. Follower / followee tables don't get
+  scrubbed — a blocked user just becomes invisible to the blocker.
+- Surface: profile menu + three-dots menu on PostCard.
+
+### 3.4.3 Admin Reports queue `[ ]` (~2h)
+- New panel under the admin profile, sibling to
+  `StandardizationPanel` and `RoastersPanel` in
+  `crema-app/src/components/admin/`. Mirror the jobs-poll pattern
+  rewired in `RoastersPanel` (commit `e3d3eb8`).
+- Backend: `GET /admin/reports?status=open&limit=50` returns posts
+  ordered by report count, each with the underlying report rows
+  expandable per post.
+- Action buttons per post: `Dismiss` · `Hide-from-feed`
+  (soft-hide globally — visible only to author) · `Delete`
+  (via existing soft-delete path so it's recoverable from recycle
+  bin) · `Suspend-author` (24h post-write block) ·
+  `Ban-author` (full hard-block; flips `users.is_banned`).
+- New columns added via `_MIGRATIONS`:
+  ```sql
+  ALTER TABLE users ADD COLUMN is_banned INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN suspended_until TEXT;  -- ISO datetime or NULL
+  ```
+- Post-create / comment-create endpoints check both fields and
+  return 403 with a `reason` payload.
+
+### 3.4.4 Audit log `[ ]` (~30m)
+- New table:
+  ```sql
+  moderation_actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_type TEXT NOT NULL,    -- 'post' | 'comment' | 'user'
+    target_id INTEGER NOT NULL,
+    action TEXT NOT NULL,         -- 'dismiss'|'hide'|'delete'|'suspend'|'ban'|'unban'
+    actor_user_id INTEGER NOT NULL REFERENCES users(id),
+    reason TEXT,
+    created_at TEXT NOT NULL
+  )
+  ```
+- Every admin button writes one row.
+
+### 3.4.5 Auth rate-limiting `[ ]` (~30m)
+- `slowapi` to `requirements.txt`; cap `/auth/register`,
+  `/auth/login`, `/auth/request-reset` at ~5/IP/5min.
+
+### 3.4.6 Email verification `[ ]` (~1h, needs provider)
+- Pick provider: Resend (free 100/day, 3000/mo) or Mailgun
+  pay-as-you-go.
+- New `users.email_verified INTEGER NOT NULL DEFAULT 0` column +
+  `email_verification_tokens` table (`token, user_id, expires_at`).
+- `POST /auth/send-verification`, `GET /auth/verify?token=...`.
+- Gate post-creation + commenting on `email_verified=1` once we
+  open to strangers; F&F path keeps `email_verified=1` seeded.
+
+### 3.4.7 Legal docs — Privacy / ToS / Community Guidelines / AUP `[ ]` (~3-4h)
+
+Output: `legal/PRIVACY.md`, `legal/TERMS.md`,
+`legal/COMMUNITY_GUIDELINES.md`, `legal/ACCEPTABLE_USE.md` at repo
+root. Same markdown source ships to:
+- The legal site (web only — `cremabrews.com/legal/*` rendered
+  via Expo Router static export).
+- The in-app readers (`react-native-markdown-display` added to
+  `package.json`).
+
+In-app surfaces:
+- Sign-up flow: "I agree to Terms + Privacy Policy" checkbox blocks
+  submit until checked. Inline links to in-app readers.
+- Account screen: 4 entries linking to each doc.
+- Footer of every web page: same 4 links + © Crema + year.
+
+Drafting approach (decision pending):
+- **Option A — handwritten markdown** (~3h). Every assumption marked
+  `> [ASSUMPTION: ...]` so the user can grep before lawyer review.
+  Tighter, more on-tone with the rest of the app.
+- **Option B — Termly stubs** (faster, more boilerplate). What §3.5
+  endorses today. Cheaper to maintain when the laws move; more
+  generic in voice.
+
+Standing legal questions to resolve before drafting:
+1. **Entity name + registered address** — for first paragraph of
+   Privacy / ToS. Default if not provided: mark
+   `[ASSUMPTION: sole proprietorship / Swaraj Nanda]` and let counsel
+   correct on review.
+2. **Jurisdiction city** — venue clause. Defaults to the user's
+   city of operation; needs confirmation.
+3. **Lawyer status** — drafts ship with `REVIEWED BY: pending
+   counsel review` regardless. Confirms the marker is intentional.
+4. **Email mailboxes** — `privacy@cremabrews.com`,
+   `grievance@cremabrews.com`. India uses IT Rules 2021, not DMCA;
+   the docs draft as "Grievance Officer" workflow with 24h ack
+   / 15-day resolution.
+5. **Children's age** — 13+ (US-style) or 18+ (DPDP "child" =
+   under 18). DPDP makes 18+ the safer default.
+6. **Data residency** — India-only is the default (Fly bom region
+   per §1.3). Confirms no third-party processors that move data
+   abroad without explicit consent.
+
+India-specific anchors the drafts must hit:
+- **IT Rules 2021** require a published Grievance Officer (name +
+  email) with 24-hour acknowledgement and 15-day resolution
+  windows. Replaces DMCA-style takedown.
+- **DPDP Act 2023** requires explicit consent at sign-up, granular
+  per data-use category. Phase 1 can bundle as a single toggle
+  but flag the granular ask for Phase 2.
+- Both require a published privacy contact and grievance
+  redressal flow.
+
+### 3.4.8 Hardening (DEFER post-launch unless real abuse signal)
+- **Slur list** — static blocklist (Indian + English; user input
+  needed on which lists to use). Pre-publish check on every post
+  body / comment; matched submissions return 422 with "This post
+  contains language not allowed on Crema." Most "AI moderation in
+  5 min" libs are western-trained and miss Indian-language
+  failure modes — slur lists remain the highest-leverage first cut.
+- **Link rate-limit** — non-roaster accounts capped at 1 link
+  per post and 3 link-bearing posts / 24h. Combats the dominant
+  spammer pattern.
+- **NSFW image check** — flag for admin review (don't auto-block).
+  Candidate classifiers: Sightengine free tier (~1k/mo), or a
+  small CoreML / TF-Lite model on-device. Decision pending user
+  input on cost / latency tradeoff.
+
+### Total estimate
+- Phases 3.4.1 → 3.4.5: ~5-6h focused work.
+- Phase 3.4.6 (email verification): +1h once provider chosen.
+- Phase 3.4.7 (legal docs): +3-4h pending the 6 standing
+  questions above.
+- Phase 3.4.8 (hardening): defer until real abuse signal — likely
+  weeks after public launch.
+
+**Suggested order**: 3.4.1 → 3.4.4 → 3.4.3 → 3.4.2 → 3.4.5 →
+3.4.7 → 3.4.6. Wire-existing first because it's cheap and
+unblocks user testing of the report flow; audit log second
+because every later admin action depends on it; queue UI third
+to give the admin reviewer a real surface; block-user fourth
+since it's the consumer-side companion to reporting; rate
+limiting fifth as a one-shot library install; legal docs sixth
+once moderation has teeth; email verification last because the
+provider decision can take time and signups are gated on F&F
+domain whitelist until §3.4.6 lands.
 
 ## 3.5 App Store pack (trigger: App Store submission) — **UNPARKED**
 
@@ -302,6 +500,8 @@ is ready and the first TestFlight invite goes out.
   Apple requires this as of 2022.
 - Data export (`GET /auth/me/export` — DPDP / GDPR hygiene).
 - Privacy Policy + ToS pages (stubs via Termly, then legal review).
+  → See §3.4.7 for the full legal-docs plan (4 documents, in-app
+  reader, sign-up consent, India-specific anchors).
 - App Store privacy nutrition label.
 - Apple Developer Program ($99/yr), Google Play Console ($25
   one-off), Expo EAS for builds.

@@ -479,7 +479,8 @@ focus. Triage at a glance:
 | §2.18 deferred B2B metrics | Re-open rate, avg order size, wholesale flag churn — all need new schema (status history, structured quantity, change-log). | ½ day after schema |
 | §2.13 OAuth backends | Google / Instagram / Reddit. UI is shipped; backends parked. Email-password is fine for first ship. | 1-2 days per provider |
 | §2.29 In-place product editor | V2 polish to replace the floating modal. Current modal works. | ½ day |
-| LAUNCH_TODO.md §3.5 (unparked) | Password reset · account deletion · privacy policy · data export · App Store nutrition label · contact-us widget · accessibility pass. These are Apple-required, handled on backend + legal, not product. | 2-3 days |
+| LAUNCH_TODO.md §3.4 (expanded 2026-05-01) | Moderation + legal-docs pack — wire existing report/hide/dislike endpoints, block-user, admin queue, audit log, auth rate limit, email verification, four legal docs (Privacy / ToS / Community Guidelines / AUP). Trigger gate: opening to strangers / iOS launch. | 1-1.5 days |
+| LAUNCH_TODO.md §3.5 (unparked) | Password reset · account deletion · privacy policy · data export · App Store nutrition label · contact-us widget · accessibility pass. These are Apple-required, handled on backend + legal, not product. Privacy/ToS detail lives in §3.4.7. | 2-3 days |
 | LAUNCH_TODO.md Part 1 | Secrets sweep · env lockdown · Dockerfile · error boundary · docker-compose. Only matters if web F&F deploy happens before iOS. | 1 day |
 | LAUNCH_TODO.md Part 2 | Fly deploy · domain · DNS · cert · smoke test. Same gate as Part 1. | ~45 min (yours) |
 
