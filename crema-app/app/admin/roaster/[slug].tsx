@@ -1391,10 +1391,12 @@ const useStyles = makeStyles((t) => ({
   } as any,
 
   // Floating circular back button on the hero — mobile only.
-  // Sits over the dark hero overlay so the white arrow stays
-  // legible. Position values mirror the consumer roaster page
-  // (`backFloating` there) so muscle memory transfers between
-  // surfaces.
+  // Solid `text.primary` fill + `text.on-cta` icon (the sitewide
+  // FAB pattern) so the chrome reads against any hero — light or
+  // dark, image or fallback. The earlier `overlay.panel` approach
+  // (translucent darken) collapsed against warm-brown hero images
+  // in dark mode, leaving an invisible button. Position mirrors
+  // the consumer roaster page so muscle memory transfers.
   backFloating: {
     position: "absolute",
     top: t.spacing.md,
@@ -1402,16 +1404,21 @@ const useStyles = makeStyles((t) => ({
     width: 36,
     height: 36,
     borderRadius: t.radius.full,
-    backgroundColor: t.color["overlay.panel"],
+    backgroundColor: t.color["text.primary"],
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: t.color.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
     zIndex: 2,
   } as any,
   // Floating Remove button — top-right mirror of the back button.
-  // Same geometry / overlay backdrop so the white icon stays
-  // legible on the dark hero. Tap → confirm modal (no inline
-  // destructive action). All viewports — there's no browser-level
-  // delete affordance the way there is for back-navigation.
+  // Same FAB-style fill so the icon stays legible on any hero.
+  // Tap → confirm modal (no inline destructive action). All
+  // viewports — there's no browser-level delete affordance the
+  // way there is for back-navigation.
   deleteFloating: {
     position: "absolute",
     top: t.spacing.md,
@@ -1419,9 +1426,14 @@ const useStyles = makeStyles((t) => ({
     width: 36,
     height: 36,
     borderRadius: t.radius.full,
-    backgroundColor: t.color["overlay.panel"],
+    backgroundColor: t.color["text.primary"],
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: t.color.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
     zIndex: 2,
   } as any,
 
@@ -1465,16 +1477,21 @@ const useStyles = makeStyles((t) => ({
   } as any,
   // (logo style removed — admin hero logo now uses the RoasterLogo
   // primitive at size 64; see imports above.)
+  // Hero text sits over the hero image + dark overlay. Always
+  // cream (`text.on-dark` is `#FAF8F0` in BOTH modes) so the
+  // title reads on the dark-image-with-overlay regardless of
+  // theme. Earlier `text.on-cta` flipped to Espresso in dark mode
+  // and produced black-on-warm-brown invisible text.
   heroTitle: {
     fontFamily: t.font.display,
     fontSize: t.size["font.2xl"],
-    color: t.color["text.on-cta"],
+    color: t.color["text.on-dark"],
     lineHeight: t.lineHeight.loose,
   },
   heroMeta: {
     fontFamily: t.font["body.regular"],
     fontSize: t.size["font.sm"],
-    color: t.color["text.on-cta"],
+    color: t.color["text.on-dark"],
     opacity: 0.8,
     marginTop: t.spacing.xs,
   },

@@ -775,7 +775,7 @@ const useStyles = makeStyles((t) => ({
 
   imageGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 } as any,
   imageThumb: { borderRadius: PG_RADIUS, overflow: "hidden", position: "relative" } as any,
-  imageRemove: { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" } as any,
+  imageRemove: { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center", shadowColor: t.color.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 4, elevation: 4 } as any,
   imageAdd: { borderRadius: PG_RADIUS, borderWidth: 1.5, borderColor: t.color.divider, borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: 6 } as any,
   imageAddLabel: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.muted"] },
   // Add Card modal

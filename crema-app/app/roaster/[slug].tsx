@@ -107,10 +107,14 @@ const useFbStyles = makeStyles((t) => ({
   btn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 4, width: 71, height: 27, borderRadius: 2,
-    borderWidth: 1.5, borderColor: t.color["text.on-cta"],
+    borderWidth: 1.5, borderColor: t.color["text.on-dark"],
   },
   btnFollowing: { width: 88, backgroundColor: t.color.accent, borderColor: t.color.accent },
-  text: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-cta"] },
+  // FollowButton sits on the persistently-dark `roaster.panel`
+  // leftPanel — text + border always cream (text.on-dark = #FAF8F0
+  // in both modes). Earlier text.on-cta flipped to Espresso in dark
+  // mode and rendered Espresso-on-Espresso (invisible).
+  text: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"] },
   textFollowing: { color: t.color["text.primary"] },
 }));
 
@@ -1149,13 +1153,23 @@ const useStyles = makeStyles((t) => ({
   } as any,
 
   backBtn: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 85 },
-  backText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color.divider },
+  // Back / share / about text all sit on the persistently-dark
+  // leftPanel — text.on-dark (#FAF8F0 always) keeps them readable.
+  // Earlier `t.color.divider` worked when divider was #C7BAA5
+  // (warm-cream); after the 2026-05-01 line standardization
+  // divider is #684F44 in dark mode and gives low-contrast
+  // warm-brown-on-Espresso text.
+  backText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.on-dark"] },
 
   shareRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-  shareText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color.divider, letterSpacing: 0.5 },
+  shareText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.on-dark"], letterSpacing: 0.5 },
 
+  // Roaster name + all leftPanel text use `text.on-dark` (always
+  // cream) since the leftPanel is on the persistently-dark
+  // `roaster.panel` surface. Earlier `text.on-cta` flipped to
+  // Espresso in dark mode → invisible.
   roasterName: {
-    fontFamily: t.font.display, fontSize: 56.8, color: t.color["text.on-cta"],
+    fontFamily: t.font.display, fontSize: 56.8, color: t.color["text.on-dark"],
     lineHeight: 63, marginTop: 8, marginBottom: 12, ...liningNumerals,
   } as any,
   // Mobile override — 56.8 pt dominates a phone screen; 28 pt reads
@@ -1166,16 +1180,16 @@ const useStyles = makeStyles((t) => ({
   } as any,
 
   aboutBlock: { paddingRight: 20 },
-  aboutText: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color.divider, lineHeight: 18 },
-  aboutMore: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-cta"] },
+  aboutText: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.on-dark"], lineHeight: 18 },
+  aboutMore: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"] },
 
   tagBand: { marginBottom: 14 },
   rule: { height: 1, width: 280, alignSelf: "flex-start" as any, backgroundColor: "rgba(250,248,240,0.25)", marginVertical: 0 },
-  tagText: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.on-cta"], lineHeight: 18, paddingVertical: 8 },
+  tagText: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.on-dark"], lineHeight: 18, paddingVertical: 8 },
 
   metaRow: { flexDirection: "row", flexWrap: "wrap" as any, gap: 20, marginTop: 5, marginBottom: 9 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-  metaText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.on-cta"] },
+  metaText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.on-dark"] },
 
   followRow: { marginTop: 14 },
 
@@ -1189,7 +1203,7 @@ const useStyles = makeStyles((t) => ({
     backgroundColor: "rgba(250,248,240,0.1)", textAlign: "center" as any, flex: 1,
   } as any,
   inlineEditMeta: {
-    fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.on-cta"],
+    fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.on-dark"],
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
     backgroundColor: "rgba(250,248,240,0.1)", minWidth: 80,
   } as any,
@@ -1233,11 +1247,20 @@ const useStyles = makeStyles((t) => ({
     backgroundColor: t.color["roaster.hero.fallback"],
     overflow: "hidden",
   } as any,
+  // FAB-style fill (text.primary bg + text.on-cta icon) so the
+  // chrome stays legible on any hero — light or dark, image or
+  // fallback. Earlier `rgba(0,0,0,0.4)` collapsed against warm-brown
+  // hero images in dark mode, leaving an invisible button.
   backFloating: {
     position: "absolute", top: t.spacing.md, left: t.spacing.md,
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
+    shadowColor: t.color.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
   } as any,
   // A zero-height stripe that lives BETWEEN the hero and the brown
   // panel — its only job is to host the circular logo, absolute-
@@ -1257,15 +1280,31 @@ const useStyles = makeStyles((t) => ({
     top: -48,
     left: t.spacing.lg,
   } as any,
+  // Drag instruction pill + edit-hero button both sit on the
+  // hero image. The earlier `rgba(0,0,0,0.5)` / `rgba(0,0,0,0.6)`
+  // darken-layer approach disappeared against dark hero images
+  // in dark mode. Both now use `text.primary` solid fill (the
+  // sitewide FAB pattern) so the affordance is always visible.
+  // Text/icon colors use `text.on-cta` to track the bg flip.
   heroDragHint: {
     position: "absolute" as any, top: "50%" as any, left: "50%" as any,
     transform: [{ translateX: -70 }, { translateY: -14 }],
-    backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8,
+    backgroundColor: t.color["text.primary"], borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8,
+    shadowColor: t.color.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
   } as any,
   heroDragHintText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.on-cta"] },
   heroEditBtn: {
     position: "absolute" as any, bottom: 14, right: 14, flexDirection: "row", alignItems: "center",
-    gap: 6, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+    gap: 6, backgroundColor: t.color["text.primary"], borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+    shadowColor: t.color.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
   } as any,
   heroEditBtnText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.on-cta"] },
 
