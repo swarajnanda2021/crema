@@ -1,12 +1,12 @@
 [
   {
-    "name": "El Bueno Coffee Roasters",
-    "city": "New Delhi",
-    "state": "Delhi",
+    "name": "Black Poetry",
+    "city": "Bengaluru",
+    "state": "Karnataka",
     "lat": 0,
     "lng": 0,
-    "website": "https://elbuenocoffee.com/",
-    "shop_url": "https://elbuenocoffee.com/product-category/single-estate/",
-    "platform": "woocommerce"
+    "website": "https://blackpoetry.in/",
+    "shop_url": "https://blackpoetry.in/collections/coffee",
+    "platform": "shopify"
   }
 ]

@@ -212,6 +212,13 @@ export default function ProfilePage() {
   const POSTS_PER_PAGE = 5;
   const [posts, setPosts] = useState<any[]>([]);
   const [visiblePostCount, setVisiblePostCount] = useState(POSTS_PER_PAGE);
+  // Track scroll depth so we can hide the bottom-right FAB when the
+  // hero is fully visible — the avatar tile pushes the tab strip
+  // (`POSTS / COFFEE SHELF / FOLLOWING`) down to the FAB's natural
+  // y-position, and we'd otherwise see the pink "+" sitting on top of
+  // the tab labels until the user scrolls. The FAB reappears as soon
+  // as the user begins scrolling into the post content.
+  const [fabVisible, setFabVisible] = useState(false);
   const [followingList, setFollowingList] = useState<any[]>([]);
   const [followerCount, setFollowerCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -920,8 +927,28 @@ export default function ProfilePage() {
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#351101" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.color["text.primary"]} />}
         showsVerticalScrollIndicator={false}
+        // iOS: scroll the focused TextInput into view automatically
+        // when the keyboard appears (RN ≥0.73). Without this the
+        // Catalog Ops "Onboard Roaster" URL field gets covered when
+        // tapped — there's no other surface inside the admin profile
+        // tab that takes input, so this is a no-op for the rest of
+        // the page.
+        automaticallyAdjustKeyboardInsets={true}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        // Pin the tab strip (3rd child — see comment in JSX below) to
+        // the top once it scrolls past the viewport edge. Without
+        // this the tabBar passes through the bottom-right FAB during
+        // a scroll motion (the FAB is `position: absolute` outside
+        // this ScrollView), and the user briefly sees the FAB sitting
+        // on top of "FOLLOWING" / "COFFEE SHELF" labels.
+        // Index reasoning: the two `{cond && heroContent}` slots
+        // count as children even when the condition is false (they
+        // render as `false`/null but still occupy index slots), so
+        // tabBar lands at index 2 in BOTH branches.
+        stickyHeaderIndices={[2]}
         onScroll={(e) => {
           onChromeScroll(e);
           const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
@@ -930,6 +957,15 @@ export default function ProfilePage() {
               setVisiblePostCount((c) => Math.min(c + POSTS_PER_PAGE, posts.length));
             }
           }
+          // FAB visibility: hide while the hero is mostly in view (the
+          // tab strip's natural position lands at the FAB's y-axis on
+          // mobile). Reveal once the user has scrolled enough that
+          // the tab strip is comfortably above the FAB. 200px is a
+          // pragmatic threshold — beyond it the tab strip has either
+          // stuck to the top (via `stickyHeaderIndices`) or scrolled
+          // away, neither of which collides with the FAB.
+          const shouldShow = contentOffset.y > 200;
+          if (shouldShow !== fabVisible) setFabVisible(shouldShow);
         }}
         scrollEventThrottle={16}
       >
@@ -944,7 +980,7 @@ export default function ProfilePage() {
           with the Home feed. Posts on a user's own profile go to
           `/roaster-posts` with a `user_<id>` slug — legacy shared
           table for every owned post type. (§2.40.3 / §2.40.6) */}
-      {activeTab === "posts" && !isEditing && (
+      {activeTab === "posts" && !isEditing && fabVisible && (
         <Pressable
           onPress={() => openComposePost({
             endpoint: "/roaster-posts",
@@ -1369,8 +1405,11 @@ const useStyles = makeStyles((t) => ({
   followingBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, width: 88, height: 27, borderRadius: 2, backgroundColor: t.color.accent, borderWidth: 1.5, borderColor: t.color.accent },
   followingBtnText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.primary"] },
 
-  // FAB
-  fab: { position: "absolute", bottom: 28, right: 28, width: 52, height: 52, borderRadius: 26, backgroundColor: t.color["accent.cta"], alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 } as any,
+  // FAB — matches the sitewide feed FAB (`app/(tabs)/index.tsx`
+  // `s.fab`) so every "create" CTA reads as the same affordance.
+  // Bg flips with theme via `text.primary`; the Plus glyph uses
+  // `text.on-cta` (handled inline at the JSX site).
+  fab: { position: "absolute", bottom: 28, right: 28, width: t.size["fab.size"], height: t.size["fab.size"], borderRadius: t.size["fab.size"] / 2, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center", shadowColor: t.color.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8 } as any,
 
 
   // Drink dot (in drink picker modal)

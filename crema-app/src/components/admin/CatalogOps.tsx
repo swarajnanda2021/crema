@@ -85,15 +85,20 @@ export default function CatalogOps() {
         </View>
       </View>
       {subTabs}
-      {/* Keying the body on section forces the panel's internal state to
-          reset when the admin flips sub-tabs — same pattern TractionDashboard
-          uses for its PlotCarousel. */}
-      <View key={section} style={{ gap: t.spacing.xl }}>
-        {section === "roasters" ? (
+      {/* Both panels stay mounted across sub-tab flips so any in-flight
+          job state (the polling timers + derived `liveJob` flags +
+          submit-error strings) survives. The previous `key={section}`
+          unmount-on-flip behaviour silently dropped enrichment + scrape
+          state when the admin switched sub-tabs mid-run. The async-job
+          pipeline + orphan-recovery handles backend continuity; this
+          ensures the UI side stays attached to it. */}
+      <View style={{ gap: t.spacing.xl }}>
+        <View style={{ display: section === "roasters" ? "flex" : "none" }}>
           <RoastersPanel />
-        ) : (
+        </View>
+        <View style={{ display: section === "standardization" ? "flex" : "none" }}>
           <StandardizationPanel />
-        )}
+        </View>
       </View>
     </View>
   );

@@ -636,5 +636,5 @@ const useStyles = makeStyles(() => {
     justifyContent: "space-between",
     marginTop: "auto" as any,
   } as any,
-});
+  });
 });

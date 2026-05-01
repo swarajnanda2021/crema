@@ -1784,3 +1784,112 @@ def run_geolocate_job(job_id: int) -> None:
             pass
     finally:
         db.close()
+
+
+def run_roaster_enrich_job(job_id: int, *, website: str,
+                             also_scrape: bool = True) -> None:
+    """Run a single-URL roaster onboarding as a background task. Two
+    phases in one user-visible CTA — mirroring the per-roaster
+    `Refresh Roaster` button on the admin detail page, but starting
+    from a URL instead of an existing slug:
+
+      Phase 1 — bio enrich. Calls `_apply_roaster_enrichment` which
+        runs Sonnet, upserts `roaster_profiles` + `roaster_sources`,
+        and returns `{slug, name, website}`. Failure here marks the
+        whole job failed.
+
+      Phase 2 — catalog scrape (optional, default on). After bio
+        succeeds, look up the freshly-mirrored `roaster_sources` row.
+        If it has both `shop_url` and `platform` (Sonnet picked them),
+        enqueue a `scrape` job for this roaster and spawn it on a
+        daemon thread. The scrape job is its OWN row in `jobs` —
+        admin sees both this enrich row AND a sibling scrape row in
+        the feed. If the scrape pre-flight fails (no shop_url, an
+        in-flight scrape conflict, etc.), the bio still succeeds and
+        the reason is recorded in `result_summary.scrape_skipped_reason`;
+        admin can manually re-trigger from the per-roaster admin page.
+
+    Pass `also_scrape=False` to skip phase 2 entirely (kept for the
+    earlier hero CTA semantics where bio-only was the intent).
+
+    `result_summary` carries `{slug, name, website, scrape_job_id?,
+    scrape_skipped_reason?}`. Errors come back as plain
+    `error_message` strings (no log_tail — Sonnet enrichment is one
+    round-trip, not a long subprocess; there's nothing to stream).
+    The chained scrape's own log streams into its own row.
+    """
+    db = get_db()
+    try:
+        mark_running(db, job_id)
+        # Late import — services -> routes would otherwise create a
+        # circular import at module load time.
+        from routes.specific import _apply_roaster_enrichment  # noqa: WPS433
+        applied = _apply_roaster_enrichment(db, website)
+
+        result_summary: dict = {
+            "slug": applied["slug"],
+            "name": applied.get("name"),
+            "website": applied.get("website"),
+        }
+
+        if also_scrape:
+            # Look up the user who started this onboard so the chained
+            # scrape job is attributed to the same admin in the audit log.
+            row = db.execute(
+                "SELECT started_by FROM jobs WHERE id = ?", (job_id,),
+            ).fetchone()
+            started_by = row["started_by"] if row else None
+
+            src_row = db.execute(
+                "SELECT shop_url, platform FROM roaster_sources WHERE website = ?",
+                (applied["website"],),
+            ).fetchone()
+            if not src_row:
+                result_summary["scrape_skipped_reason"] = "no source row created"
+            elif not src_row["shop_url"]:
+                result_summary["scrape_skipped_reason"] = "missing shop_url"
+            elif not src_row["platform"]:
+                result_summary["scrape_skipped_reason"] = "missing platform"
+            elif started_by is None:
+                result_summary["scrape_skipped_reason"] = "missing started_by"
+            else:
+                try:
+                    scrape_id = enqueue_job(db, "scrape", started_by=started_by)
+                    # Daemon thread — BackgroundTasks aren't accessible from
+                    # inside another BackgroundTask. The scrape job's row is
+                    # already in `queued` state; the orphan-recovery boot pass
+                    # cleans up if the worker dies mid-scrape.
+                    threading.Thread(
+                        target=run_scrape_job,
+                        kwargs={"job_id": scrape_id, "roaster_slug": applied["slug"]},
+                        daemon=True,
+                    ).start()
+                    result_summary["scrape_job_id"] = scrape_id
+                except JobConflict as e:
+                    result_summary["scrape_skipped_reason"] = (
+                        f"another scrape is already running (job {e.live_job_id})"
+                    )
+
+        mark_finished(
+            db, job_id, status="succeeded",
+            log_tail=None,
+            result_summary=result_summary,
+        )
+    except Exception as e:
+        # Map the enricher's typed error to a clean message; everything
+        # else falls through with the type name + str(e) for debugging.
+        from services import roaster_enricher
+        msg = (
+            str(e)
+            if isinstance(e, roaster_enricher.RoasterEnricherError)
+            else f"{type(e).__name__}: {e}"
+        )
+        try:
+            mark_finished(
+                db, job_id, status="failed",
+                error_message=msg, log_tail=None,
+            )
+        except Exception:
+            pass
+    finally:
+        db.close()

@@ -1,1214 +1,990 @@
 [
   {
-    "product_id": "el-bueno-coffee-roasters_sampler-pack",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
+    "product_id": "black-poetry_bold-whispers",
+    "roaster_name": "Black Poetry",
+    "roaster_slug": "black-poetry",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Sampler Pack",
-    "coffee_slug": "sampler-pack",
+    "roaster_website": "https://blackpoetry.in/",
+    "coffee_name": "BOLD WHISPERS",
+    "coffee_slug": "bold-whispers",
+    "roast_level": "Unknown",
+    "tasting_notes": null,
+    "origin": null,
+    "altitude_masl": null,
+    "process": "Natural",
+    "varietal": "Arabica",
+    "weight_grams": 250,
+    "price_inr": 825.0,
+    "price_per_gram": 3.3,
+    "currency": "INR",
+    "grind_options": [
+      "AeroPress",
+      "Cold Brew",
+      "Espresso",
+      "French Press",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/BlackPoetryWebsiteProductPaintingImages-whispers_1_50.png?v=1772805314",
+    "product_url": "https://blackpoetry.in/products/bold-whispers",
+    "available": true,
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "French Press"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "AeroPress"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "Pour Over"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "Moka Pot"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "Cold Brew"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "Espresso"
+      }
+    ],
+    "tags": [],
+    "description_raw": "From the misty eastern Himalayan region of Kalimpong comes a Super Natural Arabica that pushes the boundaries of craftsmanship. Imagine the sweetness of ripe banana, the tangy zest of red guava, and a medley of mixed berries dancing on your palate. Our innovative processing technique involves a controlled oxygen treatment and temperature resulting in a complex cup brimming with flavours.",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_roast_level",
+      "missing_tasting_notes",
+      "altitude_not_found"
+    ],
+    "scraped_at": "2026-05-01T07:58:47Z"
+  },
+  {
+    "product_id": "black-poetry_harmonic-hills",
+    "roaster_name": "Black Poetry",
+    "roaster_slug": "black-poetry",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://blackpoetry.in/",
+    "coffee_name": "HARMONIC HILLS",
+    "coffee_slug": "harmonic-hills",
+    "roast_level": "Unknown",
+    "tasting_notes": null,
+    "origin": "E In Chikmagalur - Indian Coffee’S Birthplace, This Hone",
+    "altitude_masl": null,
+    "process": "Natural",
+    "varietal": "Robusta",
+    "weight_grams": 250,
+    "price_inr": 600.0,
+    "price_per_gram": 2.4,
+    "currency": "INR",
+    "grind_options": [
+      "AeroPress",
+      "Cold Brew",
+      "Espresso",
+      "French Press",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/Black_Poetry_Website_Product_Painting_Images-harmonic.png?v=1744359185",
+    "product_url": "https://blackpoetry.in/products/harmonic-hills",
+    "available": true,
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "French Press"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "AeroPress"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Pour Over"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Moka Pot"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Cold Brew"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Espresso"
+      }
+    ],
+    "tags": [],
+    "description_raw": "Sourced from an award-winning estate in Chikmagalur - Indian coffee’s birthplace, this Honey-Dried Robusta, is an escape for your senses. The unique drying process creates a delightful sweetness that balances the Robusta’s natural intensity. Savour a smooth body with a lingering aftertaste of honey and ripe blackberries, making it a truly delightful surprise.",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_roast_level",
+      "missing_tasting_notes",
+      "altitude_not_found"
+    ],
+    "scraped_at": "2026-05-01T07:58:47Z"
+  },
+  {
+    "product_id": "black-poetry_brewers-pack",
+    "roaster_name": "Black Poetry",
+    "roaster_slug": "black-poetry",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://blackpoetry.in/",
+    "coffee_name": "BREWER’S PACK",
+    "coffee_slug": "brewers-pack",
     "roast_level": "Unknown",
     "tasting_notes": null,
     "origin": null,
     "altitude_masl": null,
     "process": null,
     "varietal": null,
-    "weight_grams": null,
-    "price_inr": 790.0,
-    "price_per_gram": null,
+    "weight_grams": 100,
+    "price_inr": 1800.0,
+    "price_per_gram": 18.0,
     "currency": "INR",
     "grind_options": [
-      "AeroPress",
       "Cold Brew",
       "Espresso",
-      "Filter",
       "French Press",
       "Moka Pot",
-      "Pour Over"
+      "Pour Over",
+      "Whole Bean"
     ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/12/WhatsApp-Image-2025-12-29-at-19.36.12_debb59be.jpg",
-    "product_url": "https://elbuenocoffee.com/product/sampler-pack/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/Brewer_Pouch.jpg?v=1756373274",
+    "product_url": "https://blackpoetry.in/products/brewer-s-pack",
     "available": true,
-    "variants": [],
-    "tags": [
-      "EB Bundles"
+    "variants": [
+      {
+        "weight_grams": 100,
+        "price_inr": 1800.0,
+        "price_per_gram": 18.0,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 100,
+        "price_inr": 1800.0,
+        "price_per_gram": 18.0,
+        "available": true,
+        "grind": "French Press"
+      },
+      {
+        "weight_grams": 100,
+        "price_inr": 1800.0,
+        "price_per_gram": 18.0,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 100,
+        "price_inr": 1800.0,
+        "price_per_gram": 18.0,
+        "available": true,
+        "grind": "Pour Over"
+      },
+      {
+        "weight_grams": 100,
+        "price_inr": 1800.0,
+        "price_per_gram": 18.0,
+        "available": true,
+        "grind": "Moka Pot"
+      },
+      {
+        "weight_grams": 100,
+        "price_inr": 1800.0,
+        "price_per_gram": 18.0,
+        "available": true,
+        "grind": "Cold Brew"
+      },
+      {
+        "weight_grams": 100,
+        "price_inr": 1800.0,
+        "price_per_gram": 18.0,
+        "available": true,
+        "grind": "Espresso"
+      }
     ],
-    "description_raw": "This sampler pack includes 3 × 75g coffee packs (total 225g).",
+    "tags": [],
+    "description_raw": "Travel across India’s rarest coffee terrains with this Brewer’s Pack collection. Featuring seven unique 100g samples from our select microlots, this pack boasts beans from the monsoon-kissed Malabar coasts to the high altitudes of Kalimpong. Taste each, fall in love, and find your personal favourite, whether you’re brewing at home or gifting to someone who loves exploring new flavours. Each pack is freshly roasted, portioned for peak flavour, and beautifully presented so every cup tells its own story.",
     "scrape_confidence": "medium",
     "scrape_flags": [
       "missing_roast_level",
       "missing_tasting_notes",
       "altitude_not_found",
       "missing_process",
-      "weight_unknown",
       "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T03:50:54Z"
+    "scraped_at": "2026-05-01T07:58:47Z"
   },
   {
-    "product_id": "el-bueno-coffee-roasters_colombia-decaf",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
+    "product_id": "black-poetry_highland-blues",
+    "roaster_name": "Black Poetry",
+    "roaster_slug": "black-poetry",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Colombia Decaf",
-    "coffee_slug": "colombia-decaf",
-    "roast_level": "Unknown",
-    "tasting_notes": "Bright Citrus, Cookie Sweetness, Dried Berries Best Brewed With – V60, Espresso, Aeropress, French Press",
-    "origin": null,
-    "altitude_masl": 1550,
-    "process": null,
-    "varietal": "Arabica",
-    "weight_grams": 250,
-    "price_inr": 1750.0,
-    "price_per_gram": 7.0,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/12/colombia-decaf-mockup.png",
-    "product_url": "https://elbuenocoffee.com/product/colombia-decaf/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Single Estate"
-    ],
-    "description_raw": "100% Arabica Speciality Coffee Region – Colombia Producer – CR3-Kaffeeveredelung M. Hermsen Altitude – 1400-1700 MASL Type – 100% Arabica Processing – Decaf CO2 Varietal – Various Tasting notes – Bright citrus, Cookie Sweetness, Dried Berries Best Brewed with – V60, Espresso, Aeropress, French Press",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level",
-      "missing_process"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_signature-blend",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Signature Blend",
-    "coffee_slug": "signature-blend",
-    "roast_level": "Dark",
-    "tasting_notes": "Milk Chocolate, Jack Fruit With Nougat After Taste",
-    "origin": "Arabica Blend Estate",
-    "altitude_masl": null,
-    "process": null,
-    "varietal": "Arabica",
-    "weight_grams": 250,
-    "price_inr": 740.0,
-    "price_per_gram": 2.96,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/10/signature-blend.jpeg",
-    "product_url": "https://elbuenocoffee.com/product/signature-blend/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Blends",
-      "Home Page"
-    ],
-    "description_raw": "100% Arabica Blend Estates: Baarbara Estate & Ratnagiri Estate Roast: Medium – Dark Roast Tasting Notes: Milk Chocolate and Jack Fruit with nougat after taste",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "altitude_not_found",
-      "missing_process"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_koraput-bundle",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Koraput Bundle",
-    "coffee_slug": "koraput-bundle",
-    "roast_level": "Unknown",
-    "tasting_notes": null,
-    "origin": "Koraput Pair: Wild & Wired A Vibrant Showcase O",
-    "altitude_masl": null,
-    "process": "Natural",
-    "varietal": "Arabica, Chandragiri",
-    "weight_grams": null,
-    "price_inr": 1400.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/08/2-Combo.png",
-    "product_url": "https://elbuenocoffee.com/product/koraput-bundle/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "EB Bundles",
-      "Bundle"
-    ],
-    "description_raw": "Koraput Pair: Wild & Wired A vibrant showcase of Koraput terroir from the progressive Odisii Coffee estate, featuring two expressive Arabica lots with distinct processing and varietals. Sunset Slurp – A sun-dried Natural with notes of mixed berries, guava, and a brown sugar finish. Lush, tropical, and easygoing — just like a sunset. Lime Wired – A zingy Red Honey process Chandragiri with bursts of orange candy, raisins, and a zesty lime sparkle. Bright, sweet, and energizing. Crafted for those who crave fruit-forward cups and experimental Indian origins with character. 2 Packs of 250g each",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level",
-      "missing_tasting_notes",
-      "altitude_not_found",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_ratnagiri-bundle",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Ratnagiri Bundle",
-    "coffee_slug": "ratnagiri-bundle",
+    "roaster_website": "https://blackpoetry.in/",
+    "coffee_name": "HIGHLAND BLUES",
+    "coffee_slug": "highland-blues",
     "roast_level": "Dark",
     "tasting_notes": null,
-    "origin": "E In Baba Budangiri — Each Showcasing A Distinct Proces",
-    "altitude_masl": null,
-    "process": "Natural",
-    "varietal": "Arabica, Robusta",
-    "weight_grams": null,
-    "price_inr": 2200.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/08/3-Combo.png",
-    "product_url": "https://elbuenocoffee.com/product/ratnagiri-bundle/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "EB Bundles",
-      "Bundle"
-    ],
-    "description_raw": "The Ratnagiri Collection A curated trio of experimental microlots from the celebrated Ratnagiri Estate in Baba Budangiri — each showcasing a distinct process, varietal, and cup profile. 1. Cacao Me Crazy – A bold, full-bodied Robusta with notes of dark cacao, raisin, and molasses sweetness. 2. Jam Session – A lively Hydro Honey Arabica bursting with red apple, honey, and a floral crispness. 3. Berried Treasure – A juicy Natural Arabica with stewed berries, cacao, and winey acidity from dark-room mosto fermentation. Perfect for those who enjoy exploring process-driven flavor, single estate terroir, and roast diversity — all from one pioneering farm. 3 Packs of 250g each",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_tasting_notes",
-      "altitude_not_found",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_sunset-slurp",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Sunset Slurp",
-    "coffee_slug": "sunset-slurp",
-    "roast_level": "Unknown",
-    "tasting_notes": "Mixed Berries, Guava, Brown Sugar",
-    "origin": "On – Koraput Estate Name – Odisii Coffee Varietal –",
-    "altitude_masl": 1000,
-    "process": "Natural",
-    "varietal": "Arabica, SLN 9, Chandragiri",
-    "weight_grams": 250,
-    "price_inr": 840.0,
-    "price_per_gram": 3.36,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/08/Sunset-Slurp.png",
-    "product_url": "https://elbuenocoffee.com/product/sunset-slurp/",
-    "available": false,
-    "variants": [],
-    "tags": [
-      "Single Estate"
-    ],
-    "description_raw": "Single Estate, 100% Arabica Region – Koraput Estate Name – Odisii Coffee Varietal – Chandragiri & SLN 9 Altitude – 900- 1100 MASL Processing – Naturals Tasting notes – Mixed Berries, Guava, Brown Sugar",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_lime-wired",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Lime Wired",
-    "coffee_slug": "lime-wired",
-    "roast_level": "Unknown",
-    "tasting_notes": "Orange Candy, Raisins, Zesty Lime",
-    "origin": "On – Koraput Estate Name – Odisii Coffee Varietal –",
-    "altitude_masl": 1000,
-    "process": "Honey",
-    "varietal": "Arabica, Chandragiri",
-    "weight_grams": 250,
-    "price_inr": 840.0,
-    "price_per_gram": 3.36,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/08/Lime-Wired.png",
-    "product_url": "https://elbuenocoffee.com/product/lime-wired/",
-    "available": false,
-    "variants": [],
-    "tags": [
-      "Single Estate"
-    ],
-    "description_raw": "Single Estate, 100% Arabica Region – Koraput Estate Name – Odisii Coffee Varietal – Chandragiri Altitude – 900- 1100 MASL Processing – Red Honey Tasting notes – Orange Candy, Raisins, Zesty Lime",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_jam-session",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Jam Session",
-    "coffee_slug": "jam-session",
-    "roast_level": "Unknown",
-    "tasting_notes": "Red Apple, Honey",
-    "origin": "On – Baba Budangiri Estate Name – Ratnagiri Estate Bloc",
-    "altitude_masl": null,
-    "process": "Honey",
-    "varietal": "Arabica",
-    "weight_grams": 250,
-    "price_inr": 880.0,
-    "price_per_gram": 3.52,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/08/Jam-Session.png",
-    "product_url": "https://elbuenocoffee.com/product/jam-session/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Single Estate"
-    ],
-    "description_raw": "Single Estate, 100% Arabica Region – Baba Budangiri Estate Name – Ratnagiri Estate Block – Godown Patte Varietal – Catuai Altitude – 4250 ft Processing – Hydro Honey Process Tasting notes – Red apple, Honey, Floral Crispness Fermentation – HONEY PROCEESSED COFFEE WITH CONTROLLED MICROBIAL FERMENTATION AND DRIED ON RAISED BEDS FOR 28 DAYS",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level",
-      "altitude_not_found"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_choc-out-loud",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Choc Out Loud",
-    "coffee_slug": "choc-out-loud",
-    "roast_level": "Dark",
-    "tasting_notes": "Dark Chocolate, Dried Figs, Depending On Weather Conditions",
-    "origin": "Single Estate",
-    "altitude_masl": 650,
-    "process": "Natural",
-    "varietal": "Arabica, Chandragiri",
-    "weight_grams": 250,
-    "price_inr": 840.0,
-    "price_per_gram": 3.36,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/08/Choc-Out-Loud.png",
-    "product_url": "https://elbuenocoffee.com/product/choc-out-loud/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Single Estate"
-    ],
-    "description_raw": "Single Estate, 100% Arabica Producers Name – Susheel & Sharan S Gyanchand Region – Malavalli, Karnataka Estate Name – Bisal Munti Block – Line Patte Varietal – Hemavathi Elevation – 650 MASL Processing – Arabica Natural Types of Coffee – Arabica – Chandragiri Tasting notes – Dark Chocolate, Dried Figs, Toasted Hazelnut Process – The cherries are sun-dried over 14–21 days, depending on weather conditions. During this time, natural fermentation takes place within the fruit, breaking down sugars and creating a unique flavor profile.",
-    "scrape_confidence": "medium",
-    "scrape_flags": [],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_berried-treasure",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Berried Treasure",
-    "coffee_slug": "berried-treasure",
-    "roast_level": "Dark",
-    "tasting_notes": "Stewed Berries, Cacao",
-    "origin": "On – Baba Budangiri Estate Name – Ratnagiri Estate Bloc",
-    "altitude_masl": null,
-    "process": "Natural",
-    "varietal": "Arabica",
-    "weight_grams": 250,
-    "price_inr": 880.0,
-    "price_per_gram": 3.52,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/08/Berried-Treasure.png",
-    "product_url": "https://elbuenocoffee.com/product/berried-treasure/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Single Estate"
-    ],
-    "description_raw": "Single Estate, 100% Arabica Region – Baba Budangiri Estate Name – Ratnagiri Estate Block – Seed Block Varietal – Catuai Altitude – 4375 ft Processing – Mosto Process Dark Room Naturals Tasting notes – Stewed berries, Cacao, Winey acidity Fermentation – Anerobic fermentation in bio fermenters for 48 hours with lab isolated microbes before drying on raised beds for 23 days as a natural processed coffee",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "altitude_not_found"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_apple-of-my-brew",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Apple of my Brew",
-    "coffee_slug": "apple-of-my-brew",
-    "roast_level": "Unknown",
-    "tasting_notes": "Apple Compote, Lemon Verbena, Shade Drying On Raised Tables",
-    "origin": "On – Chikmagalur Estate Name – Amruthavarshini Farm Vari",
-    "altitude_masl": 4050,
-    "process": "Anaerobic",
-    "varietal": "Arabica, SLN 9",
-    "weight_grams": 250,
-    "price_inr": 840.0,
-    "price_per_gram": 3.36,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/08/Apple-of-my-Brew.png",
-    "product_url": "https://elbuenocoffee.com/product/apple-of-my-brew/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Single Estate"
-    ],
-    "description_raw": "Single Estate, 100% Arabica Region – Chikmagalur Estate Name – Amruthavarshini Farm Varietal – SLN 9 Altitude – 3800-4300 MASL Processing – Single Anaerobic Fermentation Tasting notes – Apple Compote, Lemon Verbena, Sweet Spice Fermentation – Single Anaerobic Fermentation , Shade drying on raised tables",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_molten-mornings",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Molten Mornings",
-    "coffee_slug": "molten-mornings",
-    "roast_level": "Unknown",
-    "tasting_notes": "Lemongrass, Jack Fruit With A Spicy After Taste",
-    "origin": "On – Baba Budangiri Estate Name – M",
+    "origin": "From Shevaroy Hills In Tamil Nadu",
     "altitude_masl": null,
     "process": "Washed",
     "varietal": "Arabica",
     "weight_grams": 250,
-    "price_inr": 720.0,
-    "price_per_gram": 2.88,
+    "price_inr": 600.0,
+    "price_per_gram": 2.4,
     "currency": "INR",
     "grind_options": [
       "AeroPress",
       "Cold Brew",
       "Espresso",
-      "Filter",
       "French Press",
       "Moka Pot",
-      "Pour Over"
+      "Pour Over",
+      "Whole Bean"
     ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/07/Molten-Mornings.png",
-    "product_url": "https://elbuenocoffee.com/product/molten-mornings/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/BlackPoetryWebsiteProductPaintingImages-highlandblues_1_ec011273-56e2-46f5-8b8f-e131ed6fb956.png?v=1772805034",
+    "product_url": "https://blackpoetry.in/products/highland-blues",
     "available": true,
-    "variants": [],
-    "tags": [
-      "Single Estate",
-      "Featured"
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "French Press"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "AeroPress"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Pour Over"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 625.0,
+        "price_per_gram": 2.5,
+        "available": true,
+        "grind": "Moka Pot"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Cold Brew"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Espresso"
+      }
     ],
-    "description_raw": "Single Estate, 100% Arabica Region – Baba Budangiri Estate Name – M.G. Plantation, Malleshwara Estate Varietal – Sln.795 Altitude – 3800-5250ft Processing – Washed Arabica coffee Tasting notes – Lemongrass and jack fruit with a spicy after taste",
-    "scrape_confidence": "medium",
+    "tags": [],
+    "description_raw": "This washed Arabica is a bold and beautiful brew from Shevaroy Hills in Tamil Nadu. Imagine dark, rich chocolate melting on your tongue, followed by bursts of juicy jackfruit and hints of warm spices. From notes of cardamom to natural brown sugar sweetness, this is a mid-day pick-me-up that will invigorate your senses and transport you to the hills.",
+    "scrape_confidence": "high",
     "scrape_flags": [
-      "missing_roast_level",
+      "missing_tasting_notes",
       "altitude_not_found"
     ],
-    "scraped_at": "2026-05-01T03:50:54Z"
+    "scraped_at": "2026-05-01T07:58:47Z"
   },
   {
-    "product_id": "el-bueno-coffee-roasters_whisk-it-up",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
+    "product_id": "black-poetry_soul-tribe",
+    "roaster_name": "Black Poetry",
+    "roaster_slug": "black-poetry",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Whisk it up!",
-    "coffee_slug": "whisk-it-up",
-    "roast_level": "Unknown",
-    "tasting_notes": "Green Apple, Irish Cream, And Tropical Fruits",
-    "origin": "On – Sakleshpur Estate Name – Harley Estate Varietal –",
-    "altitude_masl": null,
-    "process": "Washed",
-    "varietal": "Arabica, SLN 9",
-    "weight_grams": 250,
-    "price_inr": 960.0,
-    "price_per_gram": 3.84,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/07/Whisk-it-up.png",
-    "product_url": "https://elbuenocoffee.com/product/whisk-it-up/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Single Estate",
-      "Featured"
-    ],
-    "description_raw": "Whiskey Barrel Aged Single Estate, 100% Arabica Region – Sakleshpur Estate Name – Harley Estate Varietal – SLN 9 Altitude – 3400ft Processing – Washed barrel aged Tasting notes – Green apple, Irish cream, and Tropical Fruits",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level",
-      "altitude_not_found"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_pourin8217-plums",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Pourin&#8217; Plums",
-    "coffee_slug": "pourin8217-plums",
-    "roast_level": "Unknown",
-    "tasting_notes": "Citrus Zest, Ripe Plums, Mild Chocolate Fermentation – Once Pulped",
-    "origin": "On – Baba Budangiri Estate Name – Gungegiri Estate Vari",
-    "altitude_masl": 1340,
-    "process": "Natural",
-    "varietal": "Arabica, SLN 795",
-    "weight_grams": 250,
-    "price_inr": 840.0,
-    "price_per_gram": 3.36,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/06/Pourin-Plums.png",
-    "product_url": "https://elbuenocoffee.com/product/pourin-plums/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Single Estate",
-      "Featured"
-    ],
-    "description_raw": "Purple Honey Single Estate, 100% Arabica Region – Baba Budangiri Estate Name – Gungegiri Estate Varietal – SLN 795 Altitude – 1300-1380 MASL Processing – Sucrose Fermentation/ Honey Sun-Dried Tasting notes – Citrus Zest, Ripe Plums, Mild Chocolate Fermentation – Once pulped, the coffees are fermented anaerobically for 27 hours. Post this, they are heaped initially and then slow-dried on raised beds for 20 days.",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_distribution-needle-wdt-with-stand",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "DISTRIBUTION NEEDLE WDT WITH STAND",
-    "coffee_slug": "distribution-needle-wdt-with-stand",
+    "roaster_website": "https://blackpoetry.in/",
+    "coffee_name": "SOUL TRIBE",
+    "coffee_slug": "soul-tribe",
     "roast_level": "Unknown",
     "tasting_notes": null,
-    "origin": null,
+    "origin": "S Of Koraput",
     "altitude_masl": null,
-    "process": null,
-    "varietal": null,
-    "weight_grams": null,
-    "price_inr": 725.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/04/BENKI-DISTRIBUTION-NEEDLE-WDT-WITH-STAND.jpg",
-    "product_url": "https://elbuenocoffee.com/product/distribution-needle-wdt-with-stand/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Equipments &amp; Merchandise"
-    ],
-    "description_raw": "Premium Material: coffee stirrer is made of stainless steel , ABS handle. Stirring Lightly, Distributing Evenly: Coffee Tamper Distributor caking , reduce spurt , increase coffee extraction rate. Rust: Coffee Stirring made of food grade stainless steel. Use: coffee Stirrer just gently rotate portafilter filter basket to make coffee evenly and loosely distributed and avoid agglomeration, can flavorful espresso brew. Easily Clean: just rinse with water and it. Specification: Material: stainless steel Size Chart: 4.3cmx13cm/1.69inchx5.12inch",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level",
-      "missing_tasting_notes",
-      "altitude_not_found",
-      "missing_process",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_barista-space-milk-pitcher-8211-450ml",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "BARISTA SPACE MILK PITCHER &#8211; 450ml",
-    "coffee_slug": "barista-space-milk-pitcher-8211-450ml",
-    "roast_level": "Unknown",
-    "tasting_notes": null,
-    "origin": null,
-    "altitude_masl": null,
-    "process": null,
-    "varietal": null,
-    "weight_grams": null,
-    "price_inr": 3199.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/04/BARISTA-SPACE-MILK-PITCHER-450ML.jpg",
-    "product_url": "https://elbuenocoffee.com/product/barista-space-milk-pitcher-450ml/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Equipments &amp; Merchandise"
-    ],
-    "description_raw": "Barista Space milk pitchers are made of high- quality Stainless Steel and mark of titanium and teflo. Barista Space milk pitchers with very good designed and cool shaped to enable you to create smooth milk foam for cappuccinos and make a nice latte arts. Sharp Spout for Latte Arts on Espresso.",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level",
-      "missing_tasting_notes",
-      "altitude_not_found",
-      "missing_process",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_cold-brew-system-8211-toddy-8211-commercial-model-with-lift-8211-cmltcm",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Cold brew system &#8211; Toddy &#8211; commercial model with lift &#8211; CMLTCM",
-    "coffee_slug": "cold-brew-system-8211-toddy-8211-commercial-model-with-lift-8211-cmltcm",
-    "roast_level": "Unknown",
-    "tasting_notes": null,
-    "origin": null,
-    "altitude_masl": null,
-    "process": null,
-    "varietal": null,
-    "weight_grams": null,
-    "price_inr": 17499.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/04/Toddy-Cold-Brew-System-–-Commercial-Model-with-Lift.jpg",
-    "product_url": "https://elbuenocoffee.com/product/cold-brew-system-toddy-commercial-model-with-lift-cmltcm/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Equipments &amp; Merchandise"
-    ],
-    "description_raw": "Toddy Cold Brew System – Commercial Model with Lift. The new standard in brewing cold beverages. Ships with a starter set of 2 paper filters and 2 Tree Free filters.",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level",
-      "missing_tasting_notes",
-      "altitude_not_found",
-      "missing_process",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_digital-timer",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Digital Timer",
-    "coffee_slug": "digital-timer",
-    "roast_level": "Unknown",
-    "tasting_notes": null,
-    "origin": null,
-    "altitude_masl": null,
-    "process": null,
-    "varietal": null,
-    "weight_grams": null,
-    "price_inr": 661.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/04/BENKI-DIGITAL-TIMER.jpg",
-    "product_url": "https://elbuenocoffee.com/product/digital-timer/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Equipments &amp; Merchandise"
-    ],
-    "description_raw": "Timer has magnet at the back. Timer also counts up for use as a handy stopwatch. Easy-to-read digital display shows minutes and seconds. This electronic digital timer counts down from any time up to 99 minutes and 59 seconds and has an alarm that signals when time is up. Operates on one easy-to-find AAA battery; Battery included.",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level",
-      "missing_tasting_notes",
-      "altitude_not_found",
-      "missing_process",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_bean-there",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Bean There",
-    "coffee_slug": "bean-there",
-    "roast_level": "Dark",
-    "tasting_notes": "Prunes, Caramel, Dark Chocolate",
-    "origin": null,
-    "altitude_masl": null,
-    "process": null,
-    "varietal": "Arabica, Robusta",
-    "weight_grams": 250,
-    "price_inr": 640.0,
-    "price_per_gram": 2.56,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/07/Bean-There-Updated.jpg",
-    "product_url": "https://elbuenocoffee.com/product/bean-there/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Blends"
-    ],
-    "description_raw": "Arabica and Robusta Blend Tasting Notes – Prunes, Caramel and Dark Chocolate",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "altitude_not_found",
-      "missing_process"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_the-weekend",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "The Weekend",
-    "coffee_slug": "the-weekend",
-    "roast_level": "Unknown",
-    "tasting_notes": "Notes Of Milk Chocolate, Very Soft Acidity",
-    "origin": null,
-    "altitude_masl": null,
-    "process": null,
-    "varietal": "Arabica",
-    "weight_grams": 250,
-    "price_inr": 780.0,
-    "price_per_gram": 3.12,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/02/The-Weekend.png",
-    "product_url": "https://elbuenocoffee.com/product/the-weekend/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Blends",
-      "Featured"
-    ],
-    "description_raw": "100% Arabica blend – with Columbia Tasting Notes – Notes of milk chocolate and very soft acidity",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level",
-      "altitude_not_found",
-      "missing_process"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_spill-the-beans",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Spill The Beans",
-    "coffee_slug": "spill-the-beans",
-    "roast_level": "Dark",
-    "tasting_notes": "Citrusy Orange, Dark Chocolate With Notes Of Caramel",
-    "origin": null,
-    "altitude_masl": null,
-    "process": null,
-    "varietal": null,
-    "weight_grams": 250,
-    "price_inr": 640.0,
-    "price_per_gram": 2.56,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "Filter",
-      "French Press",
-      "Moka Pot",
-      "Pour Over"
-    ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/02/Spill-the-Beans.png",
-    "product_url": "https://elbuenocoffee.com/product/spill-the-beans/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Blends",
-      "Home Page"
-    ],
-    "description_raw": "70-30 Blend Tasting Notes – Citrusy orange and dark chocolate with notes of caramel",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "altitude_not_found",
-      "missing_process"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_sweet-buzz",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Sweet Buzz",
-    "coffee_slug": "sweet-buzz",
-    "roast_level": "Unknown",
-    "tasting_notes": "Notes Of Jasmine With Hints Of Caramel",
-    "origin": "On – Coorg Estate Name – Venkids Valley Estate Pro",
-    "altitude_masl": 1150,
     "process": "Natural",
     "varietal": "Arabica",
     "weight_grams": 250,
-    "price_inr": 840.0,
-    "price_per_gram": 3.36,
+    "price_inr": 825.0,
+    "price_per_gram": 3.3,
     "currency": "INR",
     "grind_options": [
       "AeroPress",
       "Cold Brew",
       "Espresso",
-      "Filter",
       "French Press",
       "Moka Pot",
-      "Pour Over"
+      "Pour Over",
+      "Whole Bean"
     ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/02/Sweetbuz.png",
-    "product_url": "https://elbuenocoffee.com/product/sweetbuzz/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/BlackPoetryWebsiteProductPaintingImages-soultribe_1.png?v=1744807573",
+    "product_url": "https://blackpoetry.in/products/soul-tribe",
     "available": true,
-    "variants": [],
-    "tags": [
-      "Single Estate",
-      "Home Page"
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "French Press"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "AeroPress"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "Pour Over"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "Moka Pot"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "Cold Brew"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 825.0,
+        "price_per_gram": 3.3,
+        "available": true,
+        "grind": "Espresso"
+      }
     ],
-    "description_raw": "Single Estate, 100% Arabica Region – Coorg Estate Name – Venkids Valley Estate Producer – Mr. Pavan Nanjappa Varietal – Catuai Altitude – 1150 MASL Processing – Pulp Sun Dried Yellow Honey Tasting Notes – Notes of jasmine with hints of caramel",
+    "tags": [],
+    "description_raw": "Odisha’s hidden gem, this Arabica Selective Naturals makes it to your cup all the way from the Eastern Ghats of Koraput. Far from the usual coffee havens, this hidden treasure brings a vibrant acidity that dances on your palate, exploding with flavours of sun-ripened mixed berries, guavas and a hint of citrus.",
     "scrape_confidence": "medium",
     "scrape_flags": [
-      "missing_roast_level"
+      "missing_roast_level",
+      "missing_tasting_notes",
+      "altitude_not_found"
     ],
-    "scraped_at": "2026-05-01T03:50:54Z"
+    "scraped_at": "2026-05-01T07:58:47Z"
   },
   {
-    "product_id": "el-bueno-coffee-roasters_hello-monday",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
+    "product_id": "black-poetry_monsoon-raga",
+    "roaster_name": "Black Poetry",
+    "roaster_slug": "black-poetry",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Hello Monday!",
-    "coffee_slug": "hello-monday",
-    "roast_level": "Unknown",
-    "tasting_notes": "Sweet, Citrus Notes With Floral Hints",
+    "roaster_website": "https://blackpoetry.in/",
+    "coffee_name": "MONSOON RAGA",
+    "coffee_slug": "monsoon-raga",
+    "roast_level": "Medium",
+    "tasting_notes": null,
     "origin": null,
     "altitude_masl": null,
     "process": null,
     "varietal": "Arabica",
     "weight_grams": 250,
-    "price_inr": 720.0,
-    "price_per_gram": 2.88,
+    "price_inr": 800.0,
+    "price_per_gram": 3.2,
     "currency": "INR",
     "grind_options": [
       "AeroPress",
       "Cold Brew",
       "Espresso",
-      "Filter",
       "French Press",
       "Moka Pot",
-      "Pour Over"
+      "Pour Over",
+      "Whole Bean"
     ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/02/Hello-Monday.png",
-    "product_url": "https://elbuenocoffee.com/product/hello-monday/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/BlackPoetryWebsiteProductPaintingImages-monsoon_2.png?v=1744807721",
+    "product_url": "https://blackpoetry.in/products/monsoon-raga",
     "available": true,
-    "variants": [],
-    "tags": [
-      "Blends",
-      "Featured"
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 800.0,
+        "price_per_gram": 3.2,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 800.0,
+        "price_per_gram": 3.2,
+        "available": true,
+        "grind": "French Press"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 800.0,
+        "price_per_gram": 3.2,
+        "available": true,
+        "grind": "AeroPress"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 800.0,
+        "price_per_gram": 3.2,
+        "available": true,
+        "grind": "Pour Over"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 800.0,
+        "price_per_gram": 3.2,
+        "available": true,
+        "grind": "Moka Pot"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 800.0,
+        "price_per_gram": 3.2,
+        "available": true,
+        "grind": "Cold Brew"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 800.0,
+        "price_per_gram": 3.2,
+        "available": true,
+        "grind": "Espresso"
+      }
     ],
-    "description_raw": "100% Arabica blend Tasting Notes – Sweet and citrus notes with floral hints.",
-    "scrape_confidence": "medium",
+    "tags": [],
+    "description_raw": "This Monsooned Malabar Arabica is like a morning breeze carrying the earthy scent of rain, and a hint of cedar. A unique medium-roasted coffee, exposed to the monsoon winds of the Malabar coast, boasts a smooth body, low acidity and a touch of sweetness. It’s your perfect breakfast companion!",
+    "scrape_confidence": "high",
     "scrape_flags": [
-      "missing_roast_level",
+      "missing_tasting_notes",
       "altitude_not_found",
       "missing_process"
     ],
-    "scraped_at": "2026-05-01T03:50:54Z"
+    "scraped_at": "2026-05-01T07:58:47Z"
   },
   {
-    "product_id": "el-bueno-coffee-roasters_golden-glow",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
+    "product_id": "black-poetry_everyday-sunshine",
+    "roaster_name": "Black Poetry",
+    "roaster_slug": "black-poetry",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Golden Glow",
-    "coffee_slug": "golden-glow",
+    "roaster_website": "https://blackpoetry.in/",
+    "coffee_name": "EVERYDAY SUNSHINE",
+    "coffee_slug": "everyday-sunshine",
     "roast_level": "Unknown",
-    "tasting_notes": "Plum, Hints Of Caramel, Green Apple Aftertaste",
-    "origin": "Single Estate",
+    "tasting_notes": null,
+    "origin": "T Of Coorg, This Fermented Natural Arabica Finds I",
     "altitude_masl": null,
-    "process": "Washed",
+    "process": "Natural",
     "varietal": "Arabica",
     "weight_grams": 250,
-    "price_inr": 880.0,
-    "price_per_gram": 3.52,
+    "price_inr": 750.0,
+    "price_per_gram": 3.0,
     "currency": "INR",
     "grind_options": [
       "AeroPress",
       "Cold Brew",
       "Espresso",
-      "Filter",
       "French Press",
       "Moka Pot",
-      "Pour Over"
+      "Pour Over",
+      "Whole Bean"
     ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/02/Golden-Glow.png",
-    "product_url": "https://elbuenocoffee.com/product/golden-glow/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/BlackPoetryWebsiteProductPaintingImages-sunshine_1.png?v=1758617726",
+    "product_url": "https://blackpoetry.in/products/everyday-sunshine",
     "available": true,
-    "variants": [],
-    "tags": [
-      "Single Estate",
-      "Home Page"
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 750.0,
+        "price_per_gram": 3.0,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 750.0,
+        "price_per_gram": 3.0,
+        "available": true,
+        "grind": "French Press"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 750.0,
+        "price_per_gram": 3.0,
+        "available": true,
+        "grind": "AeroPress"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 750.0,
+        "price_per_gram": 3.0,
+        "available": true,
+        "grind": "Pour Over"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 750.0,
+        "price_per_gram": 3.0,
+        "available": true,
+        "grind": "Moka Pot"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 750.0,
+        "price_per_gram": 3.0,
+        "available": true,
+        "grind": "Cold Brew"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 750.0,
+        "price_per_gram": 3.0,
+        "available": true,
+        "grind": "Espresso"
+      }
     ],
-    "description_raw": "Single Estate, 100% Arabica Region – Karnataka Estate Name – Ratnagirti Estate Producer – Mr. Ashok Patre Varietal – Altitude – 4350 Feet Processing – Washed Arabica Tasting Notes – Plum, hints of caramel and Green Apple aftertaste",
+    "tags": [],
+    "description_raw": "From the heart of Coorg, this Fermented Natural Arabica finds its symphony of flavours from our unique processing methods and the estate’s rich climate. Picture a summer orchard, biting into a juicy peach and the sweet aromatics of ripe Mandarin orange surrounding you. That’s what the smooth body and lingering sweetness of this coffee can make you feel. Each cup is truly memorable - a taste of Coorg’s sunshine in every sip.",
     "scrape_confidence": "medium",
     "scrape_flags": [
       "missing_roast_level",
+      "missing_tasting_notes",
       "altitude_not_found"
     ],
-    "scraped_at": "2026-05-01T03:50:54Z"
+    "scraped_at": "2026-05-01T07:58:47Z"
   },
   {
-    "product_id": "el-bueno-coffee-roasters_el-perfecto",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
+    "product_id": "black-poetry_mini-brewers-pack",
+    "roaster_name": "Black Poetry",
+    "roaster_slug": "black-poetry",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "El Perfecto",
-    "coffee_slug": "el-perfecto",
+    "roaster_website": "https://blackpoetry.in/",
+    "coffee_name": "MINI BREWER’S PACK",
+    "coffee_slug": "mini-brewers-pack",
     "roast_level": "Light",
-    "tasting_notes": "Hints Of Roasted Almonds, Cocoa, With A Slight Fruity Note",
-    "origin": null,
+    "tasting_notes": null,
+    "origin": "Most Unique Coffee Estate",
     "altitude_masl": null,
     "process": null,
     "varietal": null,
+    "weight_grams": 20,
+    "price_inr": 1675.0,
+    "price_per_gram": 83.75,
+    "currency": "INR",
+    "grind_options": [
+      "Cold Brew",
+      "Espresso",
+      "French Press",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/Pouch-Pack-02.jpg?v=1762945004",
+    "product_url": "https://blackpoetry.in/products/mini-brewer-s-pack",
+    "available": true,
+    "variants": [
+      {
+        "weight_grams": 20,
+        "price_inr": 1675.0,
+        "price_per_gram": 83.75,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 20,
+        "price_inr": 875.0,
+        "price_per_gram": 43.75,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 20,
+        "price_inr": 1675.0,
+        "price_per_gram": 83.75,
+        "available": true,
+        "grind": "French Press"
+      },
+      {
+        "weight_grams": 20,
+        "price_inr": 875.0,
+        "price_per_gram": 43.75,
+        "available": true,
+        "grind": "French Press"
+      },
+      {
+        "weight_grams": 20,
+        "price_inr": 1675.0,
+        "price_per_gram": 83.75,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 20,
+        "price_inr": 875.0,
+        "price_per_gram": 43.75,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 20,
+        "price_inr": 1675.0,
+        "price_per_gram": 83.75,
+        "available": true,
+        "grind": "Pour Over"
+      },
+      {
+        "weight_grams": 20,
+        "price_inr": 875.0,
+        "price_per_gram": 43.75,
+        "available": true,
+        "grind": "Pour Over"
+      },
+      {
+        "weight_grams": 20,
+        "price_inr": 1675.0,
+        "price_per_gram": 83.75,
+        "available": true,
+        "grind": "Moka Pot"
+      },
+      {
+        "weight_grams": 20,
+        "price_inr": 875.0,
+        "price_per_gram": 43.75,
+        "available": true,
+        "grind": "Moka Pot"
+      },
+      {
+        "weight_grams": 20,
+        "price_inr": 1675.0,
+        "price_per_gram": 83.75,
+        "available": true,
+        "grind": "Cold Brew"
+      },
+      {
+        "weight_grams": 20,
+        "price_inr": 875.0,
+        "price_per_gram": 43.75,
+        "available": true,
+        "grind": "Cold Brew"
+      },
+      {
+        "weight_grams": 20,
+        "price_inr": 1675.0,
+        "price_per_gram": 83.75,
+        "available": true,
+        "grind": "Espresso"
+      },
+      {
+        "weight_grams": 20,
+        "price_inr": 875.0,
+        "price_per_gram": 43.75,
+        "available": true,
+        "grind": "Espresso"
+      }
+    ],
+    "tags": [],
+    "description_raw": "Pack light, brew bold. Go on a week-long adventure through India’s most unique coffee estates with seven 20g single-serve coffees. Light to carry and easy to travel with, these brews follow wherever the week takes you. From early mornings at home to flights across time zones, enjoy a new flavour every day, each telling its own story in a cup. Great coffee should feel effortless.",
+    "scrape_confidence": "high",
+    "scrape_flags": [
+      "missing_tasting_notes",
+      "altitude_not_found",
+      "missing_process",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-01T07:58:47Z"
+  },
+  {
+    "product_id": "black-poetry_java-joy-box",
+    "roaster_name": "Black Poetry",
+    "roaster_slug": "black-poetry",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://blackpoetry.in/",
+    "coffee_name": "JAVA JOY BOX",
+    "coffee_slug": "java-joy-box",
+    "roast_level": "Unknown",
+    "tasting_notes": null,
+    "origin": null,
+    "altitude_masl": null,
+    "process": "Washed",
+    "varietal": "Arabica, Robusta",
     "weight_grams": 250,
-    "price_inr": 660.0,
-    "price_per_gram": 2.64,
+    "price_inr": 1650.0,
+    "price_per_gram": 6.6,
     "currency": "INR",
     "grind_options": [
       "AeroPress",
       "Cold Brew",
       "Espresso",
-      "Filter",
       "French Press",
       "Moka Pot",
-      "Pour Over"
+      "Pour Over",
+      "Whole Bean"
     ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/02/El-Perfecto.png",
-    "product_url": "https://elbuenocoffee.com/product/el-perfecto/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/Bundles_Offer_Carousel1.png?v=1758007396",
+    "product_url": "https://blackpoetry.in/products/gift-box-2",
     "available": true,
-    "variants": [],
-    "tags": [
-      "Blends",
-      "Home Page"
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 1650.0,
+        "price_per_gram": 6.6,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 1650.0,
+        "price_per_gram": 6.6,
+        "available": true,
+        "grind": "French Press"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 1650.0,
+        "price_per_gram": 6.6,
+        "available": true,
+        "grind": "AeroPress"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 1650.0,
+        "price_per_gram": 6.6,
+        "available": true,
+        "grind": "Pour Over"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 1650.0,
+        "price_per_gram": 6.6,
+        "available": true,
+        "grind": "Moka Pot"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 1650.0,
+        "price_per_gram": 6.6,
+        "available": true,
+        "grind": "Cold Brew"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 1650.0,
+        "price_per_gram": 6.6,
+        "available": true,
+        "grind": "Espresso"
+      }
     ],
-    "description_raw": "80-20 blend Tasting Notes – Hints of roasted almonds and Cocoa, with a slight fruity note.",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "altitude_not_found",
-      "missing_process"
-    ],
-    "scraped_at": "2026-05-01T03:50:54Z"
-  },
-  {
-    "product_id": "el-bueno-coffee-roasters_bueno-drip-coffee-brb-voyaging",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Bueno Drip Coffee (BRB, Voyaging!)",
-    "coffee_slug": "bueno-drip-coffee-brb-voyaging",
-    "roast_level": "Unknown",
-    "tasting_notes": null,
-    "origin": "All Single Estate",
-    "altitude_masl": null,
-    "process": null,
-    "varietal": null,
-    "weight_grams": null,
-    "price_inr": 400.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/02/Bueno-Drip-Coffee-BRB-Voyaging.png",
-    "product_url": "https://elbuenocoffee.com/product/bueno-drip-coffee-brb-voyaging/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Ready to Brew"
-    ],
-    "description_raw": "Single Serve Drip Coffee Bags Quantity – 8 drip bags Product Net Weight – 10 gm Options for Coffee – All single estate options",
+    "tags": [],
+    "description_raw": "Elevate your coffee experience with this curated bundle of Arabica Washed, Robusta Honey Sundried and Arabica Fermented Naturals . Each blend offers a unique tasting experience - from rich notes of jackfruit and brown sugar to warm honeyed textures and bright citrus sparks. Packed in three beautifully designed cans and paired with collectible coasters, this gift box is a perfect harmony of flavour and style. Whether as a treat for yourself or a thoughtful gift for a fellow coffee enthusiast, it's an invitation to sip, savour, and slow down.",
     "scrape_confidence": "medium",
     "scrape_flags": [
       "missing_roast_level",
       "missing_tasting_notes",
-      "altitude_not_found",
-      "missing_process",
-      "weight_unknown",
-      "needs_llm_review"
+      "altitude_not_found"
     ],
-    "scraped_at": "2026-05-01T03:50:54Z"
+    "scraped_at": "2026-05-01T07:58:47Z"
   },
   {
-    "product_id": "el-bueno-coffee-roasters_beat-the-heat",
-    "roaster_name": "El Bueno Coffee Roasters",
-    "roaster_slug": "el-bueno-coffee-roasters",
-    "roaster_city": "New Delhi",
-    "roaster_state": "Delhi",
+    "product_id": "black-poetry_brew-bliss-box",
+    "roaster_name": "Black Poetry",
+    "roaster_slug": "black-poetry",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://elbuenocoffee.com/",
-    "coffee_name": "Beat The Heat",
-    "coffee_slug": "beat-the-heat",
-    "roast_level": "Unknown",
-    "tasting_notes": "Good Citrusy Fruity Flavors With Less Bitterness",
+    "roaster_website": "https://blackpoetry.in/",
+    "coffee_name": "BREW BLISS BOX",
+    "coffee_slug": "brew-bliss-box",
+    "roast_level": "Light",
+    "tasting_notes": null,
     "origin": null,
     "altitude_masl": null,
-    "process": null,
-    "varietal": null,
+    "process": "Natural",
+    "varietal": "Arabica, Robusta",
     "weight_grams": 250,
-    "price_inr": 720.0,
-    "price_per_gram": 2.88,
+    "price_inr": 1900.0,
+    "price_per_gram": 7.6,
     "currency": "INR",
     "grind_options": [
       "AeroPress",
       "Cold Brew",
       "Espresso",
-      "Filter",
       "French Press",
       "Moka Pot",
-      "Pour Over"
+      "Pour Over",
+      "Whole Bean"
     ],
-    "image_url": "https://elbuenocoffee.com/wp-content/uploads/2025/02/Beat-the-Heat.png",
-    "product_url": "https://elbuenocoffee.com/product/beat-the-heat/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/Bundles_Offer_Carousel.png?v=1758007458",
+    "product_url": "https://blackpoetry.in/products/make-your-bundle-of-3",
     "available": true,
-    "variants": [],
-    "tags": [
-      "Blends",
-      "Home Page"
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 1900.0,
+        "price_per_gram": 7.6,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 1900.0,
+        "price_per_gram": 7.6,
+        "available": true,
+        "grind": "French Press"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 1900.0,
+        "price_per_gram": 7.6,
+        "available": true,
+        "grind": "AeroPress"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 1900.0,
+        "price_per_gram": 7.6,
+        "available": true,
+        "grind": "Pour Over"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 1900.0,
+        "price_per_gram": 7.6,
+        "available": true,
+        "grind": "Moka Pot"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 1900.0,
+        "price_per_gram": 7.6,
+        "available": true,
+        "grind": "Cold Brew"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 1900.0,
+        "price_per_gram": 7.6,
+        "available": true,
+        "grind": "Espresso"
+      }
     ],
-    "description_raw": "Cold Brew Blend Tasting Notes – Good citrusy fruity flavors with less bitterness. A healthy way to brew your coffee without any equipment!",
-    "scrape_confidence": "medium",
+    "tags": [],
+    "description_raw": "Step into a world of mellowed spice and golden light with this thoughtfully curated trio. Featuring Monsoon Raga Robusta, Monsoon Raga Arabica, and the bright, citrus-kissed Arabica Fermented Naturals, this collection brings together depth, nuance, and a touch of warmth in every cup. Packed in three beautifully designed cans and paired with collectible coasters, this gift box is a perfect harmony of flavour and style. Whether as a treat for yourself or a thoughtful gift for a fellow coffee enthusiast, it's an invitation to sip, savour, and slow down.",
+    "scrape_confidence": "high",
     "scrape_flags": [
-      "missing_roast_level",
-      "altitude_not_found",
-      "missing_process",
-      "needs_llm_review"
+      "missing_tasting_notes",
+      "altitude_not_found"
     ],
-    "scraped_at": "2026-05-01T03:50:54Z"
+    "scraped_at": "2026-05-01T07:58:47Z"
   }
 ]

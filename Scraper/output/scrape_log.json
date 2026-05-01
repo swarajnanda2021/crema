@@ -1,27 +1,26 @@
 [
   {
-    "roaster": "El Bueno Coffee Roasters",
-    "website": "https://elbuenocoffee.com/",
-    "platform_catalog": "woocommerce",
-    "platform_detected": "woocommerce",
+    "roaster": "Black Poetry",
+    "website": "https://blackpoetry.in/",
+    "platform_catalog": "shopify",
+    "platform_detected": "shopify",
     "status": "success",
-    "products_found": 43,
-    "coffee_products": 27,
-    "non_coffee_excluded": 16,
+    "products_found": 11,
+    "coffee_products": 11,
+    "non_coffee_excluded": 0,
     "confidence_breakdown": {
-      "high": 0,
-      "medium": 27,
+      "high": 4,
+      "medium": 7,
       "low": 0
     },
     "flags_summary": [
-      "missing_roast_level: 20",
-      "altitude_not_found: 20",
-      "missing_process: 14",
-      "needs_llm_review: 9",
-      "missing_tasting_notes: 8",
-      "weight_unknown: 8"
+      "missing_tasting_notes: 11",
+      "altitude_not_found: 11",
+      "missing_roast_level: 7",
+      "missing_process: 4",
+      "needs_llm_review: 3"
     ],
-    "scrape_duration_seconds": 15.28,
-    "scraped_at": "2026-05-01T03:50:54Z"
+    "scrape_duration_seconds": 0.59,
+    "scraped_at": "2026-05-01T07:58:47Z"
   }
 ]

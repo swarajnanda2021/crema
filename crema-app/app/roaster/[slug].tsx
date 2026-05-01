@@ -1314,12 +1314,15 @@ const useStyles = makeStyles((t) => ({
   rightTabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"], letterSpacing: 0.5, textTransform: "uppercase" } as any,
   rightTabTextActive: { color: t.color["text.primary"] },
 
-  // FAB
+  // FAB — same colour scheme as the feed FAB
+  // (`app/(tabs)/index.tsx` `s.fab`) and the user-profile FAB
+  // (`app/(tabs)/profile.tsx` `s.fab`) so every "create" CTA is
+  // visually identical sitewide.
   fab: {
     position: "absolute" as any, bottom: 28, right: 28,
     width: t.size["fab.size"], height: t.size["fab.size"], borderRadius: t.size["fab.size"] / 2,
     alignItems: "center", justifyContent: "center", backgroundColor: t.color["text.primary"],
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8, zIndex: 50,
+    shadowColor: t.color.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8, zIndex: 50,
   } as any,
 
   // Empty posts

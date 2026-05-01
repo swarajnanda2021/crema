@@ -8,6 +8,62 @@
 
 ---
 
+## Pre-flight: catch up on uncommitted work from the prior session
+
+Before doing anything else, run `git status` and look at the working
+tree. A meaningful pile of changes from the last session is uncommitted:
+
+- Onboard-roaster async-job pipeline (`POST /admin/roasters/enrich`
+  now returns 202 + job_id; `services/catalog_ops.run_roaster_enrich_job`
+  chains a scrape job after bio enrich; `routes/specific.py` extracted
+  `_apply_roaster_enrichment` helper used by re-enrich + refresh-all)
+- `CatalogOps.tsx` `key={section}` removed (panels stay mounted across
+  sub-tab flips so polling state survives in BOTH directions)
+- `RoastersPanel.tsx` rewired to the jobs-poll pattern (mirror
+  StandardizationPanel) + new "Onboard Roaster" hero with circular `+`
+  CTA matching the sitewide feed FAB style
+- All four FABs (feed / profile / roaster / Onboard) unified to
+  `text.primary` bg + `text.on-cta` icon + `t.color.shadow` shadow
+- `profile.tsx` FAB now hides at scroll-top (200px threshold) so the
+  pink "+" doesn't sit on top of the tab strip's natural y-position
+  on a tall hero; sticky tab strip via `stickyHeaderIndices={[2]}`
+- SQLite WAL mode + 10s busy_timeout (`database.py`) — fixes the
+  `database is locked` race between the chained scrape thread and
+  inline request handlers
+- Profile ScrollView gained `automaticallyAdjustKeyboardInsets`,
+  `keyboardShouldPersistTaps`, `keyboardDismissMode` for the URL field
+  on the Catalog Ops Onboard hero
+- `CroppedAvatar` paints a `bg.identity` (Crema White) tile under
+  every avatar so transparent roaster-logo PNGs render consistently
+  in feed / DMs / notifications
+- One stray hardcoded `#351101` in `profile.tsx`'s RefreshControl
+  tokenized to `t.color["text.primary"]`
+
+Commit + push these as a single `feat(catalog): async onboard
+pipeline + sitewide FAB consistency + SQLite WAL` commit before
+starting moderation work. Suggested message body:
+
+> - Async-job enrichment via `POST /admin/roasters/enrich` (202 + job_id)
+>   with chained scrape; `_apply_roaster_enrichment` helper extracted
+>   so re-enrich + refresh-all stay sync via the same code path.
+> - All four "create" FABs (feed, profile, roaster, Onboard) now
+>   share identical `text.primary` bg + `text.on-cta` icon + token
+>   shadow.
+> - Profile FAB hides at scroll-top to avoid colliding with the tab
+>   strip on tall heroes; tab strip is sticky once scrolled past.
+> - SQLite WAL + busy_timeout=10s eliminates the `database is locked`
+>   error during concurrent BackgroundTask + sync request writes.
+> - Catalog Ops sub-tabs no longer unmount on flip (`key={section}`
+>   removed), so in-flight polling state survives in both directions.
+> - URL field on the Onboard hero auto-scrolls into view on focus
+>   (iOS `automaticallyAdjustKeyboardInsets`).
+
+Verify the branch is `feat/mobile-readiness` and push to `origin`.
+
+---
+
+---
+
 ## TL;DR
 
 Two adjacent workstreams for this session:
@@ -338,3 +394,43 @@ When in doubt about scope: ship the moderation tooling first
 (Workstream 1) — the legal docs are unblocked once moderation
 exists, but moderation without policy is harder to justify
 soft-deleting content.
+
+---
+
+## Workstream 3 — DEFERRED unless explicitly asked: P3 color fidelity
+
+The user previously raised that the brand Espresso `#351101` looks
+"lighter" on iPhone than in Figma. Web research established this is
+a real, well-documented phenomenon — iOS device screenshots are
+tagged Display P3, and macOS / Figma color-pickers assuming sRGB
+report shifted values. Rendering on the P3 panel itself is *also*
+slightly different from sRGB (Apple converts faithfully but pixel
+math isn't bit-identical). See research summary in the prior
+session's chat transcript or [React Native #41517](https://github.com/facebook/react-native/issues/41517).
+
+**Do not start this workstream unless the user explicitly asks for
+it.** They flagged it as "nice to have, not now". Estimate is ~1 day
+of work for ~30 lines of code + heavy testing across every library
+that consumes a token as a string (lucide icons, react-native-svg,
+expo-image, ActivityIndicator, RefreshControl, placeholderTextColor,
+etc.). Risk of visual regressions is high; payoff is marginal pixel
+fidelity on Display-P3 iPhones.
+
+If the user does ask:
+- Swap `useTokens.ts` to emit `PlatformColor('displayP3-r-g-b-a')`
+  for the three brand colors on `Platform.OS === 'ios'`; keep hex on
+  Android / web.
+- Wrap rgba opacity variants in `DynamicColorIOS` or a similar
+  helper; PlatformColor doesn't compose with CSS-style `rgba()`
+  syntax.
+- Per-prop fallback: every consumer that passes a token as a *string*
+  (icon `color`, SVG `fill`, etc.) needs a check — if PlatformColor
+  is supported in that prop, pass the object; otherwise fall back to
+  the sRGB hex via a `colorAsString(t.color.X)` helper.
+- Verify with macOS Digital Color Meter ("Display native values")
+  reading the panel buffer directly, not by color-picking a screenshot.
+
+Sane interim recommendation if the user asks "is `#351101` actually
+right on my phone": tell them to disable True Tone + Night Shift in
+Settings → Display → Display & Brightness, then check. If that fixes
+it, no code change needed.

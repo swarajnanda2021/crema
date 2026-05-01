@@ -476,7 +476,7 @@ export interface DeletedRoaster {
 /** Background job tracked in the `jobs` table. */
 export interface CatalogJob {
   id: number;
-  kind: "scrape" | "geolocate" | "tree_validate" | "standardize" | "manual_sold_out";
+  kind: "scrape" | "geolocate" | "tree_validate" | "standardize" | "manual_sold_out" | "roaster_enrich";
   status: "queued" | "running" | "succeeded" | "failed";
   started_by: number;
   started_at: string | null;

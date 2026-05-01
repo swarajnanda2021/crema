@@ -101,10 +101,28 @@ CREATE INDEX IF NOT EXISTS idx_comments_user ON note_comments(user_id);
 
 
 def get_db():
-    """Get a database connection (per-request). Creates tables on first call."""
-    conn = sqlite3.connect(DB_PATH)
+    """Get a database connection (per-request). Creates tables on first call.
+
+    PRAGMAs applied on every connection:
+      • foreign_keys=ON — enforces referential integrity.
+      • journal_mode=WAL — enables write-ahead logging so multiple
+        readers can run concurrently with at most one writer (the
+        default `delete` rollback-journal mode serializes everything
+        and surfaces `database is locked` the moment a BackgroundTask
+        and a sync request handler both want to write). WAL is a
+        DB-file-level setting that persists across connections; setting
+        it on every connection is harmless after the first.
+      • busy_timeout=10s — when a writer can't immediately acquire the
+        lock, wait up to 10 seconds before raising. Bridges the rare
+        contention windows between the catalog-ops BackgroundTasks
+        (roaster_enrich, scrape) and inline request handlers
+        (refresh-all, etc.).
+    """
+    conn = sqlite3.connect(DB_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 10000")
     return conn
 
 

@@ -20,7 +20,7 @@
  * Every visual value reads from `useTokens` per CRUD_UTOPIA Rule 4.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -31,13 +31,13 @@ import {
   ScrollView,
   Platform,
 } from "react-native";
-import { ChevronDown, ChevronRight, Sparkles, SlidersHorizontal, Undo2, X } from "lucide-react-native";
+import { ChevronDown, ChevronRight, Plus, SlidersHorizontal, Undo2, X } from "lucide-react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { t, makeStyles } from "../../tokens/useTokens";
 import { apiFetchRaw } from "../../api/client";
 import { useResource } from "../../resources/useResource";
-import type { DeletedRoaster, RoasterProfile, RoasterSource } from "../../resources/types";
+import type { CatalogJob, DeletedRoaster, RoasterProfile, RoasterSource } from "../../resources/types";
 import RoasterRow from "../RoasterRow";
 import SlidePanel from "../mobile/SlidePanel";
 import { formatRelative, RecentEnrichmentRuns } from "./JobHistory";
@@ -74,6 +74,10 @@ export default function RoastersPanel() {
   // Audit log of admin-deleted roasters — surfaces website + name so a
   // mistaken removal can be re-enriched without retyping the URL.
   const deletedRoasters = useResource<DeletedRoaster>("deleted_roasters", { limit: 50 });
+  // Jobs feed — used to track in-flight `roaster_enrich` runs so the
+  // panel can survive sub-tab flips, app reloads, and reconnects.
+  // Mirrors StandardizationPanel's poll-while-live pattern.
+  const jobs = useResource<CatalogJob>("jobs", { limit: 50 });
 
   // Re-fetch every time the admin returns from the per-roaster detail
   // page (publish flips, re-enrichment, deletes all happen there now,
@@ -83,20 +87,96 @@ export default function RoastersPanel() {
       roasters.refetch();
       sources.refetch();
       deletedRoasters.refetch();
+      jobs.refetch();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []),
   );
 
   const [website, setWebsite] = useState("");
-  const [enriching, setEnriching] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [enrichError, setEnrichError] = useState<string | null>(null);
+  // Track which URL the in-flight enrichment was submitted for so the
+  // deleted-row spinner stays on the right row across the async hop.
+  // (Only ONE roaster_enrich can be live at a time — backend enforces
+  // via JobConflict — so a single string suffices.)
+  const [inflightWebsite, setInflightWebsite] = useState<string | null>(null);
 
   const [filter, setFilter] = useState<RoasterFilter>("all");
   const [scraped, setScraped] = useState<ScrapedBucket>("any");
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [deletedExpanded, setDeletedExpanded] = useState(false);
-  const [reEnrichingUrl, setReEnrichingUrl] = useState<string | null>(null);
+
+  // Live `roaster_enrich` job (queued or running) — derived from the
+  // shared jobs feed. Lets the panel resume polling after a sub-tab
+  // flip / reload / reconnect without holding any local promise.
+  const liveEnrichJob = useMemo(
+    () =>
+      (jobs.data ?? []).find(
+        (j) =>
+          j.kind === "roaster_enrich" &&
+          (j.status === "queued" || j.status === "running"),
+      ),
+    [jobs.data],
+  );
+  const enriching = submitting || !!liveEnrichJob;
+  const reEnrichingUrl = liveEnrichJob ? inflightWebsite : null;
+
+  // Poll while a job is live — same 2s cadence as StandardizationPanel.
+  useEffect(() => {
+    if (!liveEnrichJob) return;
+    const id = setInterval(() => {
+      jobs.refetch();
+    }, 2000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveEnrichJob?.id]);
+
+  // Track which job we're attached to so we only act on transitions
+  // that happened while we were watching. Without this, re-mounting
+  // the panel after a job already finished would re-trigger the
+  // success route — confusing the admin (they'd be bounced into a
+  // roaster page they didn't just enrich).
+  const trackedJobIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (liveEnrichJob) {
+      trackedJobIdRef.current = liveEnrichJob.id;
+    }
+  }, [liveEnrichJob]);
+
+  // When the tracked job leaves the live state, look up its terminal
+  // status and either route (succeeded) or surface the error (failed).
+  useEffect(() => {
+    if (liveEnrichJob) return;
+    const trackedId = trackedJobIdRef.current;
+    if (!trackedId) return;
+    const finished = (jobs.data ?? []).find((j) => j.id === trackedId);
+    if (!finished) return;
+    if (finished.status === "queued" || finished.status === "running") return;
+
+    trackedJobIdRef.current = null;
+    setInflightWebsite(null);
+
+    if (finished.status === "succeeded") {
+      const summary =
+        typeof finished.result_summary === "object" && finished.result_summary
+          ? (finished.result_summary as Record<string, any>)
+          : null;
+      const slug = summary?.slug;
+      // Refresh both panels' data so the route arrives at a clean
+      // detail page and the deleted-roasters list (in case this was
+      // a re-enrich-from-trash) reflects the new live row.
+      roasters.refetch();
+      deletedRoasters.refetch();
+      if (slug) {
+        setWebsite("");
+        router.push(`/admin/roaster/${slug}`);
+      }
+    } else if (finished.status === "failed") {
+      setEnrichError(finished.error_message || "Enrichment failed");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveEnrichJob, jobs.data]);
 
   // Lifecycle radio options live in the slide-in drawer alongside the
   // bean-context filters (Last enriched + Location). Labels say what
@@ -191,27 +271,30 @@ export default function RoastersPanel() {
     );
   };
 
-  const enrichFromUrl = async (url: string, opts?: { fromHero?: boolean; fromDeleted?: boolean }) => {
+  const enrichFromUrl = async (url: string, _opts?: { fromHero?: boolean; fromDeleted?: boolean }) => {
     if (!url) return;
-    if (opts?.fromHero) setEnriching(true);
-    if (opts?.fromDeleted) setReEnrichingUrl(url);
+    setSubmitting(true);
     setEnrichError(null);
+    setInflightWebsite(url);
     try {
-      const res: any = await apiFetchRaw("/admin/roasters/enrich", {
+      // POST returns `{ job_id, status: 'queued' }` (202). The actual
+      // Sonnet work runs as a BackgroundTask; success / failure lands
+      // on the job row and the polling effect above picks it up. The
+      // per-row spinner stays on this URL via `inflightWebsite` until
+      // the job clears.
+      await apiFetchRaw("/admin/roasters/enrich", {
         method: "POST",
         body: JSON.stringify({ website: url }),
       });
-      const profile = (res?.data ?? res) as RoasterProfile;
-      if (opts?.fromHero) setWebsite("");
-      await roasters.refetch();
-      // Hop straight to the per-roaster admin page so the synthesized
-      // bio is the next thing the admin sees (and can publish from).
-      router.push(`/admin/roaster/${profile.roaster_slug}`);
+      // Refetch jobs immediately so the live job appears in the feed
+      // before the next 2s poll tick — keeps the CTA spinner from
+      // flickering off between submit and first poll.
+      await jobs.refetch();
     } catch (e: any) {
-      setEnrichError(e?.message || "Enrichment failed");
+      setInflightWebsite(null);
+      setEnrichError(e?.message || "Failed to start enrichment");
     } finally {
-      if (opts?.fromHero) setEnriching(false);
-      if (opts?.fromDeleted) setReEnrichingUrl(null);
+      setSubmitting(false);
     }
   };
 
@@ -222,8 +305,15 @@ export default function RoastersPanel() {
 
   return (
     <View style={{ gap: t.spacing["2xl"] }}>
-      {/* ── Hero strip — URL input + CTA + summary numerals ────────────── */}
+      {/* ── Onboard hero — single CTA that runs bio enrich + catalog
+         scrape in one shot (mirrors per-roaster Refresh Roaster).
+         The `+` icon submits the URL; the runner queues a
+         `roaster_enrich` job, chains a `scrape` job after bio
+         succeeds, and the panel polls both via the shared jobs
+         feed. Drops to a draft for review on the per-roaster admin
+         page when bio lands. */}
       <View style={s.hero}>
+        <Text style={s.heroTitle}>Onboard Roaster</Text>
         <View style={s.heroInputRow}>
           <TextInput
             value={website}
@@ -240,26 +330,27 @@ export default function RoastersPanel() {
             onPress={enrich}
             disabled={enriching || !website.trim()}
             style={({ pressed }) => [
-              s.cta,
-              (enriching || !website.trim()) && s.ctaDisabled,
+              s.ctaIcon,
               pressed && !enriching && s.ctaPressed,
             ]}
+            accessibilityLabel={enriching ? "Onboarding…" : "Onboard roaster"}
+            accessibilityRole="button"
           >
+            {/* Plus glyph uses `text.on-cta` to track the button bg
+                (cream on dark Espresso in light mode; Espresso on
+                cream in dark mode) — exact mirror of the feed FAB. */}
             {enriching ? (
               <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
             ) : (
-              <Sparkles size={t.size["icon.md"]} color={t.color["text.on-cta"]} strokeWidth={2} />
+              <Plus
+                size={22}
+                color={t.color["text.on-cta"]}
+                strokeWidth={2.5}
+              />
             )}
-            <Text style={s.ctaText}>
-              {enriching ? "Enriching…" : "Enrich profile"}
-            </Text>
           </Pressable>
         </View>
         {enrichError ? <Text style={s.errorText}>{enrichError}</Text> : null}
-        <Text style={s.heroSubtitle}>
-          Pastes a website → fetches homepage + about page → Claude Sonnet
-          synthesizes the profile → lands as a draft for review.
-        </Text>
       </View>
 
       {/* ── "Roasters" header — delineates the enrichment hero (above)
@@ -614,6 +705,12 @@ const useStyles = makeStyles((t) => ({
     padding: t.spacing.lg,
     gap: t.spacing.md,
   } as any,
+  heroTitle: {
+    fontFamily: t.font.display,
+    fontSize: t.size["font.2xl"],
+    lineHeight: 30,
+    color: t.color["text.primary"],
+  } as any,
   heroInputRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -635,36 +732,32 @@ const useStyles = makeStyles((t) => ({
     minHeight: 56,
     ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
   } as any,
-  cta: {
-    flexDirection: "row",
+  // Circular `+` button next to the URL input — colour-matched to
+  // the sitewide feed FAB (`app/(tabs)/index.tsx` `s.fab`) so every
+  // "create / onboard" CTA in the app reads as the same affordance.
+  // Bg flips with theme via `text.primary` (Espresso in light, Crema
+  // White in dark); the `+` glyph uses `text.on-cta` which flips the
+  // opposite way (Crema White on Espresso in light, Espresso on Crema
+  // White in dark). Diameter matches the input's `minHeight` (56) so
+  // they align flush in the row.
+  ctaIcon: {
+    width: t.size["fab.size"],
+    height: t.size["fab.size"],
+    borderRadius: t.size["fab.size"] / 2,
     alignItems: "center",
-    gap: t.spacing.sm,
+    justifyContent: "center",
     backgroundColor: t.color["text.primary"],
-    paddingHorizontal: t.spacing["2xl"],
-    paddingVertical: t.spacing.lg,
-    borderRadius: t.radius.md,
-    minHeight: 56,
     shadowColor: t.color.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
   } as any,
   ctaDisabled: { opacity: 0.5 } as any,
   ctaPressed: {
     backgroundColor: t.color["card.back"],
     transform: [{ scale: 0.97 }],
   } as any,
-  ctaText: {
-    fontFamily: t.font["body.semibold"],
-    fontSize: t.size["font.md"],
-    color: t.color["text.on-cta"],
-  },
-  heroSubtitle: {
-    fontFamily: t.font["body.regular"],
-    fontSize: t.size["font.sm"],
-    color: t.color["text.muted"],
-  },
   errorText: {
     fontFamily: t.font["body.regular"],
     fontSize: t.size["font.sm"],

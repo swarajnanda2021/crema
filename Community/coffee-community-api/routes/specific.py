@@ -1836,17 +1836,180 @@ def admin_mark_product_sold_out(product_id: str, user=Depends(get_current_user))
 from services import roaster_enricher  # noqa: E402
 
 
-@router.post("/admin/roasters/enrich", status_code=201)
-def admin_enrich_roaster(body: dict, user=Depends(get_current_user)):
-    """Synchronous single-URL enrichment. Body: { website }. Returns the
-    full upserted profile so the page route can render it immediately.
+def _apply_roaster_enrichment(db, website: str) -> dict:
+    """Synchronously fetch homepage + about-page, run Sonnet, upsert
+    into roaster_profiles + roaster_sources. Used by both the async
+    `/admin/roasters/enrich` job runner (background) and the legacy
+    sync callers (`/admin/roasters/{slug}/re-enrich`,
+    `/admin/roasters/{slug}/refresh-all`) so the upsert + COALESCE
+    semantics stay in one place.
 
-    v2 enrichment returns `{ profile, source }`:
-      - `profile` upserts into `roaster_profiles`. Re-enrich uses
-        COALESCE — Sonnet null doesn't blow away an admin edit.
-      - `source` carries the bean-catalog URL + platform Sonnet picked,
-        which we mirror onto `roaster_sources` so BEANS-tab scraping
-        is preconfigured (no manual data entry).
+    Returns: `{slug, name, website}` for callers that just need the
+    slug to refetch the registry shape themselves.
+
+    Raises: `roaster_enricher.RoasterEnricherError` on Sonnet / fetch /
+    SDK failure. Caller decides how to map (HTTPException for sync
+    request handlers; mark_finished(failed) for the BackgroundTask
+    runner).
+    """
+    result = roaster_enricher.enrich_roaster_from_url(website)
+    profile = result["profile"]
+    source = result["source"]
+
+    now = _now_iso()
+
+    # Look up by WEBSITE first — Sonnet may produce a slightly
+    # different canonical name on re-enrich ("Bili Hu Coffee" →
+    # "Bili Hu Coffee Roasters") which would slugify to a NEW
+    # slug and orphan the 19 products in `products` that point at
+    # the original slug. By matching on `website` we always reuse
+    # the existing slug, so re-enrich is in-place and idempotent.
+    existing_by_website = db.execute(
+        "SELECT roaster_slug FROM roaster_profiles WHERE website = ?",
+        (profile["website"],),
+    ).fetchone()
+    if existing_by_website:
+        slug = existing_by_website["roaster_slug"]
+    else:
+        slug = profile["roaster_slug"]
+
+    existing = db.execute(
+        "SELECT roaster_slug FROM roaster_profiles WHERE roaster_slug = ?",
+        (slug,),
+    ).fetchone()
+
+    specialties_json = json.dumps(profile.get("specialties") or [])
+    if existing:
+        # COALESCE pattern: any field Sonnet returned `None` keeps
+        # whatever was already on the row. Non-null Sonnet values
+        # win. Re-enrich is therefore safe — admin's manual edits
+        # to city / state / etc. survive an inconclusive re-run.
+        db.execute(
+            "UPDATE roaster_profiles SET "
+            " name = COALESCE(?, name), "
+            " about_blurb = COALESCE(?, about_blurb), "
+            " tagline = COALESCE(?, tagline), "
+            " specialties = COALESCE(?, specialties), "
+            " city = COALESCE(?, city), "
+            " state = COALESCE(?, state), "
+            " instagram_handle = COALESCE(?, instagram_handle), "
+            " contact_email = COALESCE(?, contact_email), "
+            " website = COALESCE(?, website), "
+            " logo_url = COALESCE(?, logo_url), "
+            " hero_image_url = COALESCE(?, hero_image_url), "
+            " updated_at = ? "
+            "WHERE roaster_slug = ?",
+            (
+                profile.get("name"),
+                profile.get("about_blurb") or None,
+                profile.get("tagline"),
+                specialties_json if profile.get("specialties") else None,
+                profile.get("city"),
+                profile.get("state"),
+                profile.get("instagram_handle"),
+                profile.get("contact_email"),
+                profile.get("website"),
+                profile.get("logo_url"),
+                profile.get("hero_image_url"),
+                now,
+                slug,
+            ),
+        )
+    else:
+        db.execute(
+            "INSERT INTO roaster_profiles "
+            "(roaster_slug, name, about_blurb, tagline, specialties, "
+            " website, city, state, instagram_handle, contact_email, "
+            " logo_url, hero_image_url, hero_crop_x, hero_crop_y, "
+            " hero_zoom, published, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 50, 50, 1, 0, ?)",
+            (
+                slug, profile.get("name"), profile.get("about_blurb"),
+                profile.get("tagline"), specialties_json,
+                profile.get("website"), profile.get("city"),
+                profile.get("state"), profile.get("instagram_handle"),
+                profile.get("contact_email"),
+                profile.get("logo_url"),
+                profile.get("hero_image_url"),
+                now,
+            ),
+        )
+
+    # Sync the canonical name onto the linked user account's
+    # display_name so feed posts show "Blue Tokai Coffee Roasters"
+    # instead of the slug "blue-tokai-coffee-roasters". Bypasses
+    # the registry hook because this endpoint writes SQL directly;
+    # both code paths (this enrich + the registry PUT to
+    # /api/roaster_profiles/{slug}) share the same helper.
+    if profile.get("name"):
+        from services.notifications import sync_roaster_name_to_user
+        sync_roaster_name_to_user(db, slug, profile["name"])
+
+    # Mirror onto `roaster_sources` so BEANS-tab scraping is ready
+    # to go without manual data entry. Sonnet picked the
+    # specialty-beans URL; we store it as `shop_url`. `enabled`
+    # stays 0 — admin verifies the URL is right before turning the
+    # scraper on.
+    existing_src = db.execute(
+        "SELECT id, shop_url, platform FROM roaster_sources WHERE website = ?",
+        (profile["website"],),
+    ).fetchone()
+    if not existing_src:
+        db.execute(
+            "INSERT INTO roaster_sources "
+            "(name, website, shop_url, platform, city, state, enabled, added_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
+            (
+                profile.get("name") or slug,
+                profile["website"],
+                source.get("shop_url"),
+                source.get("platform"),
+                profile.get("city"),
+                profile.get("state"),
+                now,
+            ),
+        )
+    else:
+        # COALESCE here too — admin edits to shop_url / platform
+        # win over an inconclusive re-enrich.
+        db.execute(
+            "UPDATE roaster_sources SET "
+            " shop_url = COALESCE(?, shop_url), "
+            " platform = COALESCE(?, platform), "
+            " city = COALESCE(?, city), "
+            " state = COALESCE(?, state) "
+            "WHERE id = ?",
+            (
+                source.get("shop_url"),
+                source.get("platform"),
+                profile.get("city"),
+                profile.get("state"),
+                existing_src["id"],
+            ),
+        )
+    db.commit()
+
+    return {
+        "slug": slug,
+        "name": profile.get("name"),
+        "website": profile.get("website"),
+    }
+
+
+@router.post("/admin/roasters/enrich", status_code=202)
+def admin_enrich_roaster(body: dict,
+                          background_tasks: BackgroundTasks = None,
+                          user=Depends(get_current_user)):
+    """Async single-URL enrichment. Body: { website }. Returns
+    `{ job_id, status: 'queued' }` immediately; the BackgroundTask
+    runs Sonnet + the upsert and writes the result into the `jobs`
+    row. The Roasters & Beans admin panel polls `/api/jobs/{id}` for
+    completion and routes to /admin/roaster/{slug} on success.
+
+    Was synchronous up to commit `bf485c2`; switched to the jobs
+    pipeline so flipping admin sub-tabs (or app reload) doesn't lose
+    the enrichment — the orphan-recovery boot pass + jobs polling
+    pattern already handle reattach.
     """
     _require_admin(user)
     website = (body or {}).get("website", "").strip()
@@ -1854,160 +2017,33 @@ def admin_enrich_roaster(body: dict, user=Depends(get_current_user)):
         from fastapi import HTTPException
         raise HTTPException(422, "website is required")
 
-    try:
-        result = roaster_enricher.enrich_roaster_from_url(website)
-    except roaster_enricher.RoasterEnricherError as e:
-        from fastapi import HTTPException
-        # 503 when the env / SDK is the blocker (admin can fix); 422 for
-        # bad input / unreachable site.
-        if "ANTHROPIC_API_KEY" in str(e) or "isn't installed" in str(e):
-            raise HTTPException(503, str(e))
-        raise HTTPException(422, str(e))
-
-    profile = result["profile"]
-    source = result["source"]
-
     db = get_db()
     try:
-        now = _now_iso()
-
-        # Look up by WEBSITE first — Sonnet may produce a slightly
-        # different canonical name on re-enrich ("Bili Hu Coffee" →
-        # "Bili Hu Coffee Roasters") which would slugify to a NEW
-        # slug and orphan the 19 products in `products` that point at
-        # the original slug. By matching on `website` we always reuse
-        # the existing slug, so re-enrich is in-place and idempotent.
-        existing_by_website = db.execute(
-            "SELECT roaster_slug FROM roaster_profiles WHERE website = ?",
-            (profile["website"],),
-        ).fetchone()
-        if existing_by_website:
-            slug = existing_by_website["roaster_slug"]
-        else:
-            slug = profile["roaster_slug"]
-
-        existing = db.execute(
-            "SELECT roaster_slug FROM roaster_profiles WHERE roaster_slug = ?",
-            (slug,),
-        ).fetchone()
-
-        specialties_json = json.dumps(profile.get("specialties") or [])
-        if existing:
-            # COALESCE pattern: any field Sonnet returned `None` keeps
-            # whatever was already on the row. Non-null Sonnet values
-            # win. Re-enrich is therefore safe — admin's manual edits
-            # to city / state / etc. survive an inconclusive re-run.
-            db.execute(
-                "UPDATE roaster_profiles SET "
-                " name = COALESCE(?, name), "
-                " about_blurb = COALESCE(?, about_blurb), "
-                " tagline = COALESCE(?, tagline), "
-                " specialties = COALESCE(?, specialties), "
-                " city = COALESCE(?, city), "
-                " state = COALESCE(?, state), "
-                " instagram_handle = COALESCE(?, instagram_handle), "
-                " contact_email = COALESCE(?, contact_email), "
-                " website = COALESCE(?, website), "
-                " logo_url = COALESCE(?, logo_url), "
-                " hero_image_url = COALESCE(?, hero_image_url), "
-                " updated_at = ? "
-                "WHERE roaster_slug = ?",
-                (
-                    profile.get("name"),
-                    profile.get("about_blurb") or None,
-                    profile.get("tagline"),
-                    specialties_json if profile.get("specialties") else None,
-                    profile.get("city"),
-                    profile.get("state"),
-                    profile.get("instagram_handle"),
-                    profile.get("contact_email"),
-                    profile.get("website"),
-                    profile.get("logo_url"),
-                    profile.get("hero_image_url"),
-                    now,
-                    slug,
-                ),
+        try:
+            job_id = catalog_ops.enqueue_job(db, "roaster_enrich",
+                                               started_by=user["id"])
+        except catalog_ops.JobConflict as e:
+            from fastapi import HTTPException
+            raise HTTPException(
+                409, str(e), headers={"X-Live-Job-Id": str(e.live_job_id)},
             )
-        else:
-            db.execute(
-                "INSERT INTO roaster_profiles "
-                "(roaster_slug, name, about_blurb, tagline, specialties, "
-                " website, city, state, instagram_handle, contact_email, "
-                " logo_url, hero_image_url, hero_crop_x, hero_crop_y, "
-                " hero_zoom, published, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 50, 50, 1, 0, ?)",
-                (
-                    slug, profile.get("name"), profile.get("about_blurb"),
-                    profile.get("tagline"), specialties_json,
-                    profile.get("website"), profile.get("city"),
-                    profile.get("state"), profile.get("instagram_handle"),
-                    profile.get("contact_email"),
-                    profile.get("logo_url"),
-                    profile.get("hero_image_url"),
-                    now,
-                ),
-            )
-
-        # Sync the canonical name onto the linked user account's
-        # display_name so feed posts show "Blue Tokai Coffee Roasters"
-        # instead of the slug "blue-tokai-coffee-roasters". Bypasses
-        # the registry hook because this endpoint writes SQL directly;
-        # both code paths (this enrich + the registry PUT to
-        # /api/roaster_profiles/{slug}) share the same helper.
-        if profile.get("name"):
-            from services.notifications import sync_roaster_name_to_user
-            sync_roaster_name_to_user(db, slug, profile["name"])
-
-        # Mirror onto `roaster_sources` so BEANS-tab scraping is ready
-        # to go without manual data entry. Sonnet picked the
-        # specialty-beans URL; we store it as `shop_url`. `enabled`
-        # stays 0 — admin verifies the URL is right before turning the
-        # scraper on.
-        existing_src = db.execute(
-            "SELECT id, shop_url, platform FROM roaster_sources WHERE website = ?",
-            (profile["website"],),
-        ).fetchone()
-        if not existing_src:
-            db.execute(
-                "INSERT INTO roaster_sources "
-                "(name, website, shop_url, platform, city, state, enabled, added_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
-                (
-                    profile.get("name") or slug,
-                    profile["website"],
-                    source.get("shop_url"),
-                    source.get("platform"),
-                    profile.get("city"),
-                    profile.get("state"),
-                    now,
-                ),
-            )
-        else:
-            # COALESCE here too — admin edits to shop_url / platform
-            # win over an inconclusive re-enrich.
-            db.execute(
-                "UPDATE roaster_sources SET "
-                " shop_url = COALESCE(?, shop_url), "
-                " platform = COALESCE(?, platform), "
-                " city = COALESCE(?, city), "
-                " state = COALESCE(?, state) "
-                "WHERE id = ?",
-                (
-                    source.get("shop_url"),
-                    source.get("platform"),
-                    profile.get("city"),
-                    profile.get("state"),
-                    existing_src["id"],
-                ),
-            )
+        # Stash the website on the job row so the runner can pick it
+        # up on its own connection (BackgroundTasks fire after the
+        # request-scoped `db` is closed). Re-uses log_tail because we
+        # don't have a dedicated payload column and adding one means a
+        # migration; the runner clears it before writing real progress.
+        db.execute(
+            "UPDATE jobs SET log_tail = ? WHERE id = ?",
+            (json.dumps({"website": website}), job_id),
+        )
         db.commit()
-
-        # Re-fetch via registry shape so the page route sees the same row
-        # the grid will after it refetches.
-        from resources.crud import get_resource_by_id
-        full = get_resource_by_id(db, "roaster_profiles", slug,
-                                    current_user_id=user["id"])
-        return ok(full, resource="roaster_profiles")
+        background_tasks.add_task(
+            catalog_ops.run_roaster_enrich_job, job_id, website=website,
+        )
+        return ok(
+            {"job_id": job_id, "status": "queued"},
+            resource="roaster_enrich_job",
+        )
     finally:
         db.close()
 
@@ -2016,7 +2052,13 @@ def admin_enrich_roaster(body: dict, user=Depends(get_current_user)):
 def admin_re_enrich_roaster(slug: str, user=Depends(get_current_user)):
     """Re-run enrichment against the existing website. Overwrites
     about_blurb / specialties / logo / hero. Admin can edit the profile
-    afterwards if Sonnet got something wrong."""
+    afterwards if Sonnet got something wrong.
+
+    This endpoint stays synchronous because the per-roaster admin page
+    expects a populated profile in the response body (it re-renders
+    fields inline). The list-page hero CTA has its own async-job
+    endpoint above (`/admin/roasters/enrich`).
+    """
     _require_admin(user)
     db = get_db()
     try:
@@ -2028,10 +2070,21 @@ def admin_re_enrich_roaster(slug: str, user=Depends(get_current_user)):
             from fastapi import HTTPException
             raise HTTPException(404, f"No website on file for roaster {slug}")
         website = row["website"]
+
+        try:
+            applied = _apply_roaster_enrichment(db, website)
+        except roaster_enricher.RoasterEnricherError as e:
+            from fastapi import HTTPException
+            if "ANTHROPIC_API_KEY" in str(e) or "isn't installed" in str(e):
+                raise HTTPException(503, str(e))
+            raise HTTPException(422, str(e))
+
+        from resources.crud import get_resource_by_id
+        full = get_resource_by_id(db, "roaster_profiles", applied["slug"],
+                                    current_user_id=user["id"])
+        return ok(full, resource="roaster_profiles")
     finally:
         db.close()
-
-    return admin_enrich_roaster({"website": website}, user=user)
 
 
 @router.post("/admin/roasters/{slug}/refresh-all", status_code=202)
@@ -2079,8 +2132,20 @@ def admin_refresh_roaster_all(
     finally:
         db.close()
 
-    bio_envelope = admin_enrich_roaster({"website": website}, user=user)
-    bio_data = bio_envelope.get("data") if isinstance(bio_envelope, dict) else None
+    db = get_db()
+    try:
+        try:
+            applied = _apply_roaster_enrichment(db, website)
+        except roaster_enricher.RoasterEnricherError as e:
+            from fastapi import HTTPException
+            if "ANTHROPIC_API_KEY" in str(e) or "isn't installed" in str(e):
+                raise HTTPException(503, str(e))
+            raise HTTPException(422, str(e))
+        from resources.crud import get_resource_by_id
+        bio_data = get_resource_by_id(db, "roaster_profiles", applied["slug"],
+                                        current_user_id=user["id"])
+    finally:
+        db.close()
 
     # Step 2 — re-fetch source so we know the freshly-mirrored
     # shop_url + platform (Sonnet just wrote them via the bio enrich).

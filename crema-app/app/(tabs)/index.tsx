@@ -256,11 +256,14 @@ const useStyles = makeStyles((t) => ({
     width: "100%" as any, height: "100%" as any,
     maxWidth: undefined, maxHeight: undefined, borderRadius: 0,
   } as any,
+  // Sitewide reference style for the "create" FAB. Matched on
+  // `app/(tabs)/profile.tsx`, `app/roaster/[slug].tsx`, and the
+  // `Onboard Roaster` button on `RoastersPanel.tsx`.
   fab: {
     position: "absolute", bottom: 28, right: 28,
     width: t.size["fab.size"], height: t.size["fab.size"], borderRadius: t.size["fab.size"] / 2,
     alignItems: "center", justifyContent: "center",
     backgroundColor: t.color["text.primary"],
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8,
+    shadowColor: t.color.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8,
   } as any,
 }));
