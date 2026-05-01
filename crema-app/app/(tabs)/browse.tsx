@@ -781,7 +781,8 @@ export default function BrowsePage() {
             visible={filterDrawerOpen}
             onClose={() => setFilterDrawerOpen(false)}
             side="right"
-            widthPercent={100}
+            widthPercent={88}
+            dimBackdrop={false}
           >
             <View style={s.filterDrawerBody}>
               <View style={s.filterDrawerHeader}>

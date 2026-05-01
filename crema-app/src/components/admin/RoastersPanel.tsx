@@ -505,7 +505,8 @@ export default function RoastersPanel() {
           visible={filterDrawerOpen}
           onClose={() => setFilterDrawerOpen(false)}
           side="right"
-          widthPercent={100}
+          widthPercent={88}
+          dimBackdrop={false}
         >
           <View style={s.locDrawer}>
             <View style={s.locDrawerHeader}>

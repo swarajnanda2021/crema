@@ -37,12 +37,19 @@ interface Props {
   widthPercent?: number;
   /** 0–100. Only used for side="bottom". Default 85. */
   heightPercent?: number;
+  /**
+   * When true (default), the exposed sliver is filled with the
+   * dim/blur `overlay.panel` backdrop. Set false to keep the
+   * underlying app fully visible while the panel is open — the
+   * sliver is still tap-to-dismiss, just transparent.
+   */
+  dimBackdrop?: boolean;
   children: React.ReactNode;
 }
 
 export default function SlidePanel({
   visible, onClose, side,
-  widthPercent, heightPercent, children,
+  widthPercent, heightPercent, dimBackdrop = true, children,
 }: Props) {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const defaultW = side === "right" ? 80 : side === "left" ? 75 : 100;
@@ -124,8 +131,16 @@ export default function SlidePanel({
       style={StyleSheet.absoluteFillObject}
       pointerEvents={visible ? "auto" : "none"}
     >
-      {/* Backdrop fills the exposed sliver. Tap dismisses. */}
-      <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+      {/* Backdrop fills the exposed sliver. Tap dismisses. The dim/
+         blur fill is opt-out — set `dimBackdrop={false}` to keep
+         the underlying app fully visible while the panel is open. */}
+      <Animated.View
+        style={[
+          styles.backdropBase,
+          dimBackdrop && styles.backdropDim,
+          { opacity: backdropOpacity },
+        ]}
+      >
         <Pressable
           style={StyleSheet.absoluteFillObject}
           onPress={onClose}
@@ -143,8 +158,10 @@ export default function SlidePanel({
 }
 
 const useStyles = makeStyles((t) => ({
-  backdrop: {
+  backdropBase: {
     ...StyleSheet.absoluteFillObject,
+  } as any,
+  backdropDim: {
     backgroundColor: t.color["overlay.panel"],
     ...(Platform.OS === "web"
       ? { backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }
