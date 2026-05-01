@@ -80,9 +80,9 @@ export default function PostMenu({
     <>
       <Pressable ref={btnRef} onPress={handleOpen} hitSlop={8} style={s.btn}>
         <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
-          <Circle cx={8} cy={3} r={1.5} fill="#A09580" />
-          <Circle cx={8} cy={8} r={1.5} fill="#A09580" />
-          <Circle cx={8} cy={13} r={1.5} fill="#A09580" />
+          <Circle cx={8} cy={3} r={1.5} fill={t.color["text.muted"] as string} />
+          <Circle cx={8} cy={8} r={1.5} fill={t.color["text.muted"] as string} />
+          <Circle cx={8} cy={13} r={1.5} fill={t.color["text.muted"] as string} />
         </Svg>
       </Pressable>
 
@@ -142,7 +142,7 @@ export default function PostMenu({
                 <>
                   {hasOwnerItems && <View style={s.menuDivider} />}
                   <Pressable onPress={() => { hapticTap(); setOpen(false); onHide(); }} style={({ pressed }) => [s.menuItem, pressed && s.menuItemPressed]}>
-                    <EyeOff size={15} color="#684F44" strokeWidth={1.7} />
+                    <EyeOff size={15} color={t.color["text.secondary"]} strokeWidth={1.7} />
                     <Text style={s.menuText}>Hide</Text>
                   </Pressable>
                 </>
@@ -152,7 +152,7 @@ export default function PostMenu({
                 <>
                   {(hasOwnerItems || onHide) && <View style={s.menuDivider} />}
                   <Pressable onPress={() => { hapticWarn(); setOpen(false); onReport(); }} style={({ pressed }) => [s.menuItem, pressed && s.menuItemPressed]}>
-                    <Flag size={15} color="#684F44" strokeWidth={1.7} />
+                    <Flag size={15} color={t.color["text.secondary"]} strokeWidth={1.7} />
                     <Text style={s.menuText}>Report</Text>
                   </Pressable>
                 </>
@@ -162,7 +162,7 @@ export default function PostMenu({
                 <>
                   {(hasOwnerItems || onHide || onReport) && <View style={s.menuDivider} />}
                   <Pressable onPress={() => { hapticTap(); setOpen(false); onDislike(); }} style={({ pressed }) => [s.menuItem, pressed && s.menuItemPressed]}>
-                    <ThumbsDown size={15} color="#684F44" strokeWidth={1.7} />
+                    <ThumbsDown size={15} color={t.color["text.secondary"]} strokeWidth={1.7} />
                     <Text style={s.menuText}>Dislike</Text>
                   </Pressable>
                 </>
@@ -179,7 +179,7 @@ const s = StyleSheet.create({
   btn: { padding: 4 },
   overlay: { flex: 1 } as any,
   menu: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: t.color["card.front"],
     borderRadius: 6.228,
     paddingVertical: 8,
     width: MENU_WIDTH,
@@ -196,7 +196,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 12,
   },
-  menuItemPressed: { backgroundColor: "#FAF8F0" },
-  menuText: { fontFamily: t.font["body.regular"], fontSize: 13.573, color: "#684F44" },
+  menuItemPressed: { backgroundColor: t.color.bg },
+  menuText: { fontFamily: t.font["body.regular"], fontSize: 13.573, color: t.color["text.secondary"] },
   menuDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(215,209,196,0.4)", marginHorizontal: 10 },
 });

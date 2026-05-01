@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, Platform, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { X } from "lucide-react-native";
-import { t, cardShadow } from "../tokens/useTokens";
+import { t, cardShadow, makeStyles } from "../tokens/useTokens";
 import { CroppedAvatar, openPostModal, HapticPressable } from "./primitives";
 import { timeAgo } from "./primitives";
 import {
@@ -55,6 +55,7 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread, 
   const { notifications, loading, fetchNotifications, markAllRead, markRead, unreadCount } = useNotifications(true);
   const [ready, setReady] = useState(false);
   const cardRef = useRef<any>(null);
+  const s = useStyles();
 
   // Outside-click dismissal on web — mirrors MessagesDropdown so the
   // whole site stays interactive while notifications are open.
@@ -172,7 +173,7 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread, 
         {/* List */}
         <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
           {loading ? (
-            <ActivityIndicator size="small" color="#D798DA" style={{ paddingVertical: 24 }} />
+            <ActivityIndicator size="small" color={t.color.accent} style={{ paddingVertical: 24 }} />
           ) : notifications.length === 0 ? (
             <Text style={s.empty}>No notifications yet</Text>
           ) : (
@@ -229,19 +230,19 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread, 
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   backdrop: { backgroundColor: "transparent" },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: t.color["card.front"],
     borderRadius: 12,
     minWidth: 320,
     maxWidth: 380,
     maxHeight: 480,
     paddingVertical: 8,
-    ...cardShadow,
+    shadowColor: t.shadow.card.color,
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 24,
-    shadowOffset: { width: 0, height: 8 },
     elevation: 12,
   } as any,
   header: {
@@ -251,9 +252,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  headerTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: "#351101" },
+  headerTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: t.color["text.primary"] },
   headerActions: { flexDirection: "row", alignItems: "center", gap: t.spacing.md } as any,
-  markRead: { fontFamily: t.font["body.medium"], fontSize: 12, color: "#D798DA" },
+  markRead: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color.accent },
   closeBtn: {
     width: 32,
     height: 32,
@@ -262,9 +263,9 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   } as any,
-  divider: { height: 1, backgroundColor: "#EDE8E1", marginHorizontal: 12 },
+  divider: { height: 1, backgroundColor: t.color["border.light"], marginHorizontal: 12 },
   list: { maxHeight: 400 },
-  empty: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#A09580", textAlign: "center", paddingVertical: 32 },
+  empty: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.muted"], textAlign: "center", paddingVertical: 32 },
   item: {
     flexDirection: "row",
     alignItems: "center",
@@ -273,18 +274,18 @@ const s = StyleSheet.create({
     paddingVertical: 10,
   },
   itemUnread: { backgroundColor: "rgba(215,152,218,0.06)" },
-  itemHover: { backgroundColor: "rgba(215,152,218,0.12)" },
+  itemHover: { backgroundColor: t.color.flash },
   itemContent: { flex: 1 },
-  itemText: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#351101", lineHeight: 18 },
+  itemText: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.primary"], lineHeight: 18 },
   actorName: { fontFamily: t.font["body.semibold"] },
-  subject: { fontFamily: t.font["body.regular"], color: "#684F44" },
-  subjectName: { fontFamily: t.font["body.medium"], color: "#351101" },
-  itemTime: { fontFamily: t.font["body.regular"], fontSize: 11, color: "#A09580", marginTop: 2 },
-  itemDivider: { height: 1, backgroundColor: "rgba(237,232,225,0.5)", marginHorizontal: 16 },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D798DA" },
+  subject: { fontFamily: t.font["body.regular"], color: t.color["text.secondary"] },
+  subjectName: { fontFamily: t.font["body.medium"], color: t.color["text.primary"] },
+  itemTime: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"], marginTop: 2 },
+  itemDivider: { height: 1, backgroundColor: t.color["border.light"], marginHorizontal: 16, opacity: 0.5 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.color.accent },
   avatarFallback: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "#351101", alignItems: "center", justifyContent: "center",
+    backgroundColor: t.color["accent.cta"], alignItems: "center", justifyContent: "center",
   } as any,
-  avatarInitial: { fontFamily: t.font["body.semibold"], fontSize: 14, color: "#FAF8F0" },
-});
+  avatarInitial: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.on-cta"] },
+}));

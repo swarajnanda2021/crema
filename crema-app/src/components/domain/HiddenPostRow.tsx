@@ -12,7 +12,7 @@
  */
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { EyeOff } from "lucide-react-native";
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { tap as hapticTap } from "../../utils/haptics";
 
 interface Props {
@@ -20,6 +20,7 @@ interface Props {
 }
 
 export default function HiddenPostRow({ onUndo }: Props) {
+  const s = useStyles();
   return (
     <View style={s.row}>
       <View style={s.leftCluster}>
@@ -38,7 +39,7 @@ export default function HiddenPostRow({ onUndo }: Props) {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   row: {
     backgroundColor: t.color.bg,
     paddingHorizontal: 16,
@@ -68,4 +69,4 @@ const s = StyleSheet.create({
     color: t.color.accent,
     letterSpacing: 0.3,
   } as any,
-});
+}));

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { X, MapPin, PenLine } from "lucide-react-native";
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -43,6 +43,7 @@ export default function PopularityModal({
   const [loading, setLoading] = useState(true);
   const [writing, setWriting] = useState(false);
   const [posting, setPosting] = useState(false);
+  const s = useStyles();
 
   useEffect(() => {
     if (!visible) return;
@@ -122,7 +123,7 @@ export default function PopularityModal({
                 style={s.writeBtn}
                 accessibilityLabel="Write a tasting note for this coffee"
               >
-                <PenLine size={13} color={t.color["text.on-dark"]} strokeWidth={2} />
+                <PenLine size={13} color={t.color["text.on-cta"]} strokeWidth={2} />
                 <Text style={s.writeBtnText}>Tasting note</Text>
               </Pressable>
             )}
@@ -280,7 +281,7 @@ export default function PopularityModal({
 // token overlay color, 680px max card width, 85% max height, token
 // radius. Content inside leans on the shared `PostCard` so tasting
 // notes on-shelf render identically to tasting notes in the feed.
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   overlayWrap: {
     flex: 1, justifyContent: "center", alignItems: "center",
     ...(Platform.OS === "web" ? ({ backdropFilter: "blur(35px)", WebkitBackdropFilter: "blur(35px)" } as any) : {}),
@@ -339,7 +340,7 @@ const s = StyleSheet.create({
   } as any,
   writeBtnText: {
     fontFamily: t.font["body.semibold"], fontSize: 11,
-    color: t.color["text.on-dark"], letterSpacing: 0.2,
+    color: t.color["text.on-cta"], letterSpacing: 0.2,
   } as any,
   composeOverlay: { flex: 1, justifyContent: "center", alignItems: "center" } as any,
   composeBg: { ...StyleSheet.absoluteFillObject, backgroundColor: t.color.overlay } as any,
@@ -385,4 +386,4 @@ const s = StyleSheet.create({
     fontSize: 14,
     color: t.color["text.muted"],
   },
-});
+}));

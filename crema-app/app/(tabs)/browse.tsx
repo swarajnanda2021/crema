@@ -15,7 +15,7 @@ import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useResource } from "../../src/resources/useResource";
 import { useSearchBarAutoHide } from "../../src/hooks/useSearchBarAutoHide";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
-import { t, cardShadow } from "../../src/tokens/useTokens";
+import { t, cardShadow, makeStyles } from "../../src/tokens/useTokens";
 import CoffeeList from "../../src/components/CoffeeList";
 import RoasterRow from "../../src/components/RoasterRow";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
@@ -24,13 +24,10 @@ import SlidePanel from "../../src/components/mobile/SlidePanel";
 import { SlidersHorizontal } from "lucide-react-native";
 import { useScaAddresses } from "../../src/hooks/useScaAddresses";
 import {
-  CANONICAL_TREE,
-  emptyPicks,
-  totalPicks,
   productAddresses,
-  coffeeMatchesPicks,
-  type Picks,
+  coffeeMatchesSelection,
   type Address,
+  type SelectedFlavor,
 } from "../../src/utils/scaTree";
 import FlavorWheelModal from "../../src/components/FlavorWheelModal";
 
@@ -70,6 +67,7 @@ export default function BrowsePage() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
   const { isMobile } = useBreakpoint();
+  const s = useStyles();
 
   // Re-fetch products every time the user lands on Discover. Admin
   // approvals on a fresh enrichment land in `products`; without this
@@ -117,10 +115,10 @@ export default function BrowsePage() {
   // from the right using the shared SlidePanel primitive.
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   // Discover Flavor lens — the wheel modal lives over the BEANS list
-  // so background results update as picks change. selectedFlavors is
-  // a Picks (3 Sets, one per tier) capped at 3 picks per tier inside
-  // the wheel. emptyPicks() seed = no filter (every coffee passes).
-  const [selectedFlavors, setSelectedFlavors] = useState<Picks>(() => emptyPicks());
+  // so background results update as the pick changes. v3 wheel is
+  // single-select: at most one sector picked at a time. `null` = no
+  // filter (every coffee passes).
+  const [selectedFlavor, setSelectedFlavor] = useState<SelectedFlavor>(null);
   const [flavorModalOpen, setFlavorModalOpen] = useState(false);
   const { resolutions: scaResolutions } = useScaAddresses();
 
@@ -140,7 +138,11 @@ export default function BrowsePage() {
     if (!products || !scaResolutions) return map;
     (products as any[]).forEach((p: any) => {
       if (!p?.product_id) return;
-      const addrs = productAddresses(p, scaResolutions, CANONICAL_TREE);
+      // Schema arg defaults to FALLBACK_SCHEMA — addresses are validated
+      // server-side by the Standardization Tasting pass against the
+      // active schema, so any row in `sca_addresses` already names a
+      // sector that exists. Client-side validation is a safety net.
+      const addrs = productAddresses(p, scaResolutions);
       if (addrs.length > 0) map.set(p.product_id, addrs);
     });
     return map;
@@ -164,7 +166,16 @@ export default function BrowsePage() {
     }
     if (selectedRoasters.length > 0) list = list.filter((p: any) => selectedRoasters.includes(p.roaster_slug));
     if (selectedRoasts.length > 0) list = list.filter((p: any) => selectedRoasts.includes(p.roast_level));
-    if (selectedProcesses.length > 0) list = list.filter((p: any) => selectedProcesses.includes(p.process));
+    if (selectedProcesses.length > 0) {
+      // Filter against the canonical bucket — chips are bucket-grouped
+      // (8 entries: Washed / Natural / Honey / Anaerobic / Wet-Hulled
+      // / Monsooned / Experimental / Decaf) so 60+ raw process strings
+      // collapse cleanly. Falls back to the legacy `process` column
+      // for rows that haven't been classified yet.
+      list = list.filter((p: any) =>
+        selectedProcesses.includes(p.process_canonical || p.process)
+      );
+    }
     if (selectedBeanTypes.length > 0) {
       // bean_type_canonical wins when standardization has filled it;
       // legacy bean_type is the fallback so newly-scraped rows stay
@@ -208,15 +219,15 @@ export default function BrowsePage() {
         });
       });
     }
-    // Flavor wheel — coffees survive only if every picked branch (across
-    // all 3 tiers) is matched by ≥ 1 of the coffee's resolved SCA
-    // addresses. Coffees with no resolved addresses drop out the moment
-    // any flavor pick is active. See `coffeeMatchesPicks` for the rule.
-    if (totalPicks(selectedFlavors) > 0) {
+    // Flavor wheel — single-select. Coffees survive only if at least
+    // one of their resolved addresses points at the picked sector.
+    // Coffees with no resolved addresses drop out the moment a sector
+    // is picked.
+    if (selectedFlavor) {
       list = list.filter((p: any) => {
         const addrs = addressesByProduct.get(p.product_id);
         if (!addrs) return false;
-        return coffeeMatchesPicks(addrs, selectedFlavors);
+        return coffeeMatchesSelection(addrs, selectedFlavor);
       });
     }
 
@@ -235,7 +246,7 @@ export default function BrowsePage() {
       });
     }
     return list;
-  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, selectedBeanTypes, selectedEstates, selectedVarietals, selectedAltitudes, selectedPriceBands, selectedFlavors, addressesByProduct, sortBy, popularity]);
+  }, [products, query, selectedRoasters, selectedRoasts, selectedProcesses, selectedBeanTypes, selectedEstates, selectedVarietals, selectedAltitudes, selectedPriceBands, selectedFlavor, addressesByProduct, sortBy, popularity]);
 
   const filteredRoasterCount = useMemo(() => new Set(filtered.map((p: any) => p.roaster_slug)).size, [filtered]);
 
@@ -325,7 +336,9 @@ export default function BrowsePage() {
   const passRoasts = (p: any) =>
     selectedRoasts.length === 0 || (!!p.roast_level && selectedRoasts.includes(p.roast_level));
   const passProcesses = (p: any) =>
-    selectedProcesses.length === 0 || (!!p.process && selectedProcesses.includes(p.process));
+    selectedProcesses.length === 0 ||
+      (!!(p.process_canonical || p.process) &&
+        selectedProcesses.includes(p.process_canonical || p.process));
   const passBeanTypes = (p: any) => {
     if (selectedBeanTypes.length === 0) return true;
     const bt = p.bean_type_canonical || p.bean_type;
@@ -366,10 +379,10 @@ export default function BrowsePage() {
       || (p.origin || "").toLowerCase().includes(q);
   };
   const passFlavors = (p: any) => {
-    if (totalPicks(selectedFlavors) === 0) return true;
+    if (!selectedFlavor) return true;
     const addrs = addressesByProduct.get(p.product_id);
     if (!addrs) return false;
-    return coffeeMatchesPicks(addrs, selectedFlavors);
+    return coffeeMatchesSelection(addrs, selectedFlavor);
   };
 
   // `inStock` shrinks the universe to in-stock products once; every
@@ -470,12 +483,15 @@ export default function BrowsePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inStock, query, selectedRoasters, selectedProcesses, selectedBeanTypes, selectedEstates, selectedVarietals, selectedAltitudes, selectedPriceBands]);
 
-  // Process chip set — same shape; `<UNKNOWN>` hidden.
+  // Process chip set — grouped by canonical bucket (the 8 buckets
+  // Standardization produces) so 60+ raw process strings collapse to
+  // 8 chips. `<UNKNOWN>` hidden. Falls back to the legacy `process`
+  // column for rows that haven't been Standardized yet.
   const processOptions = useMemo(() => {
     const base = baseExcept("process");
     const counts = new Map<string, number>();
     base.forEach((p: any) => {
-      const pr = p.process;
+      const pr = p.process_canonical || p.process;
       if (pr && pr !== "<UNKNOWN>") counts.set(pr, (counts.get(pr) || 0) + 1);
     });
     return Array.from(counts.entries())
@@ -544,7 +560,7 @@ export default function BrowsePage() {
     selectedVarietals.length +
     selectedAltitudes.length +
     selectedPriceBands.length +
-    totalPicks(selectedFlavors);
+    (selectedFlavor ? 1 : 0);
   const roastersFilterCount = selectedCities.length + selectedRoasterEstates.length;
   const activeFilterCount = activeTab === "roasters" ? roastersFilterCount : beansFilterCount;
   const hasActiveFilters = activeTab === "roasters"
@@ -563,7 +579,7 @@ export default function BrowsePage() {
       setSelectedRoasters([]); setSelectedRoasts([]); setSelectedProcesses([]);
       setSelectedBeanTypes([]); setSelectedEstates([]); setSelectedVarietals([]);
       setSelectedAltitudes([]); setSelectedPriceBands([]);
-      setSelectedFlavors(emptyPicks());
+      setSelectedFlavor(null);
       setQuery("");
     }
   };
@@ -666,16 +682,14 @@ export default function BrowsePage() {
           <View style={{ flex: 1, minWidth: 0 }}>
             {flavorModalOpen ? (
               // Flavor wheel page — replaces the search bar + BEANS
-              // list while open. Renders inline (no Modal/absolute
-              // positioning) so the global header + footer stay
-              // painted and the wheel sits flush below the
-              // BEANS/ROASTERS tab line. The host's filter chain
-              // already reads selectedFlavors, so dismissing returns
-              // to a BEANS list filtered by the picks the user made.
+              // list while open. Single-select v3 wheel; the host's
+              // filter chain already reads `selectedFlavor`, so
+              // dismissing returns to a BEANS list filtered by the
+              // sector the user picked.
               <FlavorWheelModal
                 onClose={() => setFlavorModalOpen(false)}
-                picks={selectedFlavors}
-                onPicksChange={setSelectedFlavors}
+                selected={selectedFlavor}
+                onSelectedChange={setSelectedFlavor}
                 addressesByProduct={addressesByProduct}
                 inStockProducts={inStock}
               />
@@ -862,16 +876,16 @@ export default function BrowsePage() {
                       }}
                       style={s.filterSection}
                       accessibilityRole="button"
-                      accessibilityLabel={`Flavor wheel${totalPicks(selectedFlavors) > 0 ? `, ${totalPicks(selectedFlavors)} selected` : ""}`}
+                      accessibilityLabel={`Flavor wheel${selectedFlavor ? `, ${selectedFlavor} selected` : ""}`}
                     >
                       <View style={s.filterHead}>
                         <Text style={s.filterTitle}>Flavor</Text>
-                        {totalPicks(selectedFlavors) > 0 ? (
-                          <Text style={s.filterHeadBadge}>{totalPicks(selectedFlavors)}</Text>
+                        {selectedFlavor ? (
+                          <Text style={s.filterHeadBadge}>{selectedFlavor}</Text>
                         ) : null}
                         <View style={{ flex: 1 }} />
                         <Text style={s.flavorOpenHint}>
-                          {totalPicks(selectedFlavors) > 0 ? "Edit" : "Open wheel"}
+                          {selectedFlavor ? "Edit" : "Open wheel"}
                         </Text>
                         <ChevronRight size={16} color={t.color["text.muted"]} strokeWidth={1.75} />
                       </View>
@@ -921,6 +935,7 @@ export default function BrowsePage() {
 }
 
 function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  const s = useStyles();
   return (
     <View style={s.activeChip}>
       <Text style={s.activeChipText}>{label}</Text>
@@ -930,6 +945,7 @@ function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }
 }
 
 function TabButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const s = useStyles();
   return (
     <Pressable onPress={onPress} style={s.tabBtn}>
       <Text style={[s.tabLabel, active && s.tabLabelActive]}>{label}</Text>
@@ -961,6 +977,7 @@ function FilterSection({ title, items, selected, onToggle, maxVisible = 10 }: {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? items : items.slice(0, maxVisible);
   const hasMore = items.length > maxVisible;
+  const s = useStyles();
 
   return (
     <View style={s.filterSection}>
@@ -1029,6 +1046,7 @@ function BrowseCard({
   // + 1-line subtitle. No wasted cream — keeps the card feeling
   // tight the way CoffeeCard does.
   const imgH = Math.round(cardW * 0.7);
+  const s = useStyles();
   return (
     <Pressable onPress={onPress} style={[s.bcCard, { width: cardW }]}>
       <View style={[s.bcImage, { width: cardW, height: imgH }]}>
@@ -1082,6 +1100,7 @@ function RoastersList({
   const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
   const [roasterQuery, setRoasterQuery] = useState("");
   const { hidden: searchBarHidden, handleScroll } = useSearchBarAutoHide();
+  const s = useStyles();
 
   // Re-fetch every time the user comes back to Discover. Admin
   // approvals on a fresh enrichment land in `products` /
@@ -1238,7 +1257,7 @@ function RoastersList({
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: { flex: 1, backgroundColor: t.color.bg },
 
   // Tab bar
@@ -1363,7 +1382,7 @@ const s = StyleSheet.create({
   filterHeadBadge: {
     fontFamily: t.font["body.semibold"],
     fontSize: 11,
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
     backgroundColor: t.color.accent,
     minWidth: 18,
     height: 18,
@@ -1385,7 +1404,7 @@ const s = StyleSheet.create({
   checkRow: { flexDirection: "row", alignItems: "flex-start", gap: 14, minHeight: 24, marginBottom: 4 },
   checkbox: {
     width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: t.color.border,
-    alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF", marginTop: 1,
+    alignItems: "center", justifyContent: "center", backgroundColor: t.color["card.front"], marginTop: 1,
   },
   checkboxChecked: { backgroundColor: t.color["text.primary"], borderColor: t.color["text.primary"] },
   checkmark: { color: "white", fontSize: 11, fontWeight: "700" as any },
@@ -1405,7 +1424,7 @@ const s = StyleSheet.create({
   radioRow: { flexDirection: "row", alignItems: "center", gap: 14, height: 32 },
   radio: {
     width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: t.color.border,
-    alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF",
+    alignItems: "center", justifyContent: "center", backgroundColor: t.color["card.front"],
   },
   radioSelected: { borderColor: t.color["text.primary"] },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: t.color["text.primary"] },
@@ -1414,13 +1433,13 @@ const s = StyleSheet.create({
   wholesaleRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 2 } as any,
   wholesaleBox: {
     width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: t.color.border,
-    backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center",
+    backgroundColor: t.color["card.front"], alignItems: "center", justifyContent: "center",
   } as any,
   wholesaleBoxOn: { borderColor: t.color["text.primary"], backgroundColor: t.color["text.primary"] } as any,
   // Checkmark tick replaces the earlier minus-sign dot (per user
   // feedback — a check reads as "enabled" rather than "unavailable").
   wholesaleBoxTick: {
-    fontFamily: t.font["body.semibold"], fontSize: 11, color: "#FAF8F0",
+    fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-cta"],
     lineHeight: 13,
   } as any,
   wholesaleLabel: {
@@ -1442,7 +1461,7 @@ const s = StyleSheet.create({
   searchBarWrapHidden: { maxHeight: 0, opacity: 0 },
   searchBar: {
     flexDirection: "row", alignItems: "center", borderRadius: 20, paddingHorizontal: 14, height: 38,
-    backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: t.color.border,
+    backgroundColor: t.color["card.front"], borderWidth: 1, borderColor: t.color.border,
     alignSelf: "flex-start" as any, width: 500, maxWidth: "100%" as any,
   },
   searchInput: { flex: 1, marginLeft: 8, fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.primary"] },
@@ -1573,7 +1592,7 @@ const s = StyleSheet.create({
   filterApplyText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.md"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
   } as any,
 
   rRow: {
@@ -1592,4 +1611,4 @@ const s = StyleSheet.create({
     transitionProperty: "border-color", transitionDuration: "150ms", transitionTimingFunction: "ease",
   } as any,
   rArrowBtnHovered: { borderColor: "transparent" } as any,
-});
+}));

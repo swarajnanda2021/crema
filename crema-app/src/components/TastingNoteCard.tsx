@@ -360,12 +360,12 @@ function LandscapeCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     overflow: "hidden",
     justifyContent: "flex-start",
   } as any,
   cardLs: {
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     flexDirection: "row",
     overflow: "hidden",
     position: "relative",
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
 
   sectionLabel: {
     fontFamily: t.font["body.medium"],
-    color: "#A09580",
+    color: t.color["text.muted"],
   },
 
   labelRow: {
@@ -390,12 +390,12 @@ const styles = StyleSheet.create({
 
   label: {
     fontFamily: t.font["body.medium"],
-    color: "#351101",
+    color: t.color["text.primary"],
   },
 
   score: {
     fontFamily: t.font["body.medium"],
-    color: "#351101",
+    color: t.color["text.primary"],
     textAlign: "right",
   } as any,
 
@@ -405,25 +405,25 @@ const styles = StyleSheet.create({
   } as any,
 
   trackFill: {
-    backgroundColor: "#D798DA",
+    backgroundColor: t.color.accent,
     position: "absolute",
     left: 0,
     top: 0,
   } as any,
 
   trackDot: {
-    backgroundColor: "#D798DA",
+    backgroundColor: t.color.accent,
     position: "absolute",
   } as any,
 
   coffeeName: {
     fontFamily: t.font.display,
-    color: "#351101",
+    color: t.color["text.primary"],
   },
 
   roasterText: {
     fontFamily: t.font["body.regular"],
-    color: "#684F44",
+    color: t.color["text.secondary"],
   },
 
   bottomRow: {
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
 
   metaText: {
     fontFamily: t.font["body.regular"],
-    color: "#684F44",
+    color: t.color["text.secondary"],
     flex: 1,
     marginRight: 8,
   },

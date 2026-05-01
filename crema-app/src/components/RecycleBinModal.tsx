@@ -15,7 +15,7 @@ import {
   StyleSheet, Platform, ActivityIndicator,
 } from "react-native";
 import { X, Undo2, Trash2 } from "lucide-react-native";
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import { apiFetchRaw } from "../api/client";
 
 interface TrashEntry {
@@ -71,6 +71,7 @@ export default function RecycleBinModal({ visible, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const s = useStyles();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -206,7 +207,7 @@ export default function RecycleBinModal({ visible, onClose }: Props) {
                           disabled={busyId !== null}
                           accessibilityLabel="Restore"
                         >
-                          <Undo2 size={13} color={t.color["text.on-dark"]} strokeWidth={2} />
+                          <Undo2 size={13} color={t.color["text.on-cta"]} strokeWidth={2} />
                           <Text style={s.restoreText}>Restore</Text>
                         </Pressable>
                         <Pressable
@@ -230,7 +231,7 @@ export default function RecycleBinModal({ visible, onClose }: Props) {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   overlayWrap: {
     flex: 1, justifyContent: "center", alignItems: "center",
     ...(Platform.OS === "web" ? ({ backdropFilter: "blur(35px)", WebkitBackdropFilter: "blur(35px)" } as any) : {}),
@@ -310,7 +311,7 @@ const s = StyleSheet.create({
   } as any,
   restoreText: {
     fontFamily: t.font["body.semibold"], fontSize: 11,
-    color: t.color["text.on-dark"], letterSpacing: 0.2,
+    color: t.color["text.on-cta"], letterSpacing: 0.2,
   } as any,
   purgeBtn: {
     width: 28, height: 28, borderRadius: 14,
@@ -318,4 +319,4 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   } as any,
   busy: { opacity: 0.4 } as any,
-});
+}));

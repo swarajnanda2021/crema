@@ -108,7 +108,7 @@ export default function Navbar() {
                 onPress={() => { closeOthers("search"); setSearchOpen((v) => !v); }}
                 style={s.iconBtn}
               >
-                <Search size={24} color="#E7D5B8" strokeWidth={1.5} />
+                <Search size={24} color={t.color["navbar.text"]} strokeWidth={1.5} />
               </Pressable>
 
               {/* Messages icon — every authenticated user now. DMs
@@ -125,7 +125,7 @@ export default function Navbar() {
                   }}
                   style={s.iconBtn}
                 >
-                  <MessageCircle size={22} color="#E7D5B8" strokeWidth={1.5} />
+                  <MessageCircle size={22} color={t.color["navbar.text"]} strokeWidth={1.5} />
                   {messagesUnread > 0 && (
                     <View style={s.badge}>
                       <Text style={s.badgeText}>{messagesUnread > 9 ? "9+" : messagesUnread}</Text>
@@ -143,7 +143,7 @@ export default function Navbar() {
                   }}
                   style={s.iconBtn}
                 >
-                  <Bell size={22} color="#E7D5B8" strokeWidth={1.5} />
+                  <Bell size={22} color={t.color["navbar.text"]} strokeWidth={1.5} />
                   {unreadCount > 0 && (
                     <View style={s.badge}>
                       <Text style={s.badgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
@@ -161,7 +161,7 @@ export default function Navbar() {
                   style={s.iconBtn}
                 >
                   {user.avatar_url ? (
-                    <View style={{ borderWidth: 1.5, borderColor: "#E7D5B8", borderRadius: 16, overflow: "hidden" }}>
+                    <View style={{ borderWidth: 1.5, borderColor: t.color["navbar.text"], borderRadius: 16, overflow: "hidden" }}>
                       <CroppedAvatar
                         url={user.avatar_url}
                         cropX={user.avatar_crop_x}
@@ -171,12 +171,12 @@ export default function Navbar() {
                       />
                     </View>
                   ) : (
-                    <User size={24} color="#E7D5B8" strokeWidth={1.5} />
+                    <User size={24} color={t.color["navbar.text"]} strokeWidth={1.5} />
                   )}
                 </Pressable>
               ) : backendAvailable ? (
                 <Pressable onPress={() => router.push("/auth")} style={s.iconBtn}>
-                  <User size={24} color="#E7D5B8" strokeWidth={1.5} />
+                  <User size={24} color={t.color["navbar.text"]} strokeWidth={1.5} />
                 </Pressable>
               ) : null}
             </>
@@ -226,7 +226,7 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     paddingLeft: "6.25%" as any,   // Figma: 90/1440 = 6.25%
     paddingRight: "6.25%" as any,  // scales with viewport
-    backgroundColor: "#351101",
+    backgroundColor: t.color["accent.cta"],
   },
   leftLinks: {
     flexDirection: "row",
@@ -239,16 +239,16 @@ const s = StyleSheet.create({
   navLinkText: {
     fontFamily: t.font["body.semibold"],
     fontSize: 14,
-    color: "#E7D5B8",
+    color: t.color["navbar.text"],
     textTransform: "uppercase",
   } as any,
   // HOME active: stays white/cream
   navLinkTextActiveHome: {
-    color: "#FFFFFF",
+    color: t.color["text.on-dark"],
   },
   // SHOP active: highlighted in logo purple #D798DA
   navLinkTextActiveShop: {
-    color: "#D798DA",
+    color: t.color.accent,
   },
   logoArea: {
     position: "absolute",
@@ -270,7 +270,7 @@ const s = StyleSheet.create({
     position: "absolute",
     top: -4,
     right: -6,
-    backgroundColor: "#D798DA",
+    backgroundColor: t.color.accent,
     borderRadius: 8,
     minWidth: 16,
     height: 16,
@@ -278,7 +278,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 3,
   } as any,
-  badgeText: { fontFamily: t.font["body.semibold"], fontSize: 9, color: "#351101" },
+  badgeText: { fontFamily: t.font["body.semibold"], fontSize: 9, color: t.color["text.primary"] },
   // searchContainer / searchInput styles removed — the sitewide
   // search moved to a floating dropdown (see SearchDropdown).
 });

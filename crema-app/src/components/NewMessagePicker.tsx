@@ -22,7 +22,7 @@ import {
 } from "react-native";
 import { Search as SearchIcon, X } from "lucide-react-native";
 
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import { apiFetchRaw } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 import { CroppedAvatar } from "./primitives";
@@ -67,6 +67,7 @@ export default function NewMessagePicker({ onClose, onPick }: Props) {
   const [followers, setFollowers] = useState<Account[]>([]);
   const [others, setOthers] = useState<Account[]>([]);
   const [picking, setPicking] = useState<string | null>(null);
+  const s = useStyles();
 
   // Load my following + my followers on mount. Both endpoints are
   // cheap; no pagination needed at F&F scale.
@@ -193,6 +194,7 @@ export default function NewMessagePicker({ onClose, onPick }: Props) {
 }
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  const s = useStyles();
   return (
     <View style={s.section}>
       <Text style={s.sectionLabel}>{label}</Text>
@@ -202,6 +204,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 }
 
 function renderRow(a: Account, onPick: (username: string) => void, picking: string | null) {
+  const s = useStyles();
   const isPicking = picking === a.username;
   return (
     <Pressable
@@ -232,7 +235,7 @@ function renderRow(a: Account, onPick: (username: string) => void, picking: stri
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   root: { flex: 1, backgroundColor: t.color.bg },
   header: {
     flexDirection: "row",
@@ -328,4 +331,4 @@ const s = StyleSheet.create({
     fontSize: t.size["font.base"],
     color: t.color.bg,
   },
-});
+}));

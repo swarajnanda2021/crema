@@ -26,7 +26,7 @@ import { CroppedAvatar, ActionBar, timeAgo } from "../primitives";
 import PostGallery from "../PostGallery";
 import PostMenu from "../PostMenu";
 import { resolveUploadUrl } from "../../api/client";
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { PostLocationPinIcon } from "../icons/FigmaIcons";
 import type { Post } from "../../resources/types";
@@ -72,6 +72,7 @@ export default function PostCard({
 }: PostCardProps) {
   const router = useRouter();
   const { isMobile } = useBreakpoint();
+  const s = useStyles();
   const isPinned = !!post.is_pinned;
   const isArticle = post.post_type === "article";
   const isRepost = post.post_type === "repost";
@@ -373,7 +374,7 @@ export default function PostCard({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   // Web wide
   card: { backgroundColor: t.color.bg, paddingTop: 20, paddingBottom: 20 },
   headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 14 } as any,
@@ -387,7 +388,7 @@ const s = StyleSheet.create({
   headerRowMobile: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 } as any,
 
   avatarFb: { width: 30, height: 30, borderRadius: 15, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-dark"] },
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-cta"] },
   authorName: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
   metaRow: { flexDirection: "row", alignItems: "baseline", gap: 5 } as any,
   metaTime: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.muted"] },
@@ -414,28 +415,34 @@ const s = StyleSheet.create({
   locationTextMobile: { fontSize: 14 } as any,
 
   // Repost nested card
-  repostCard: { marginHorizontal: 20, marginBottom: 14, borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.md, backgroundColor: "#FEFDFB", padding: 12 },
-  repostCardMobile: { marginTop: 6, marginBottom: 8, borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.md, backgroundColor: "#FEFDFB", padding: 12 } as any,
+  // Nested repost (the original post being quoted). Always-light card
+  // floating on the dark page bg in dark mode (and on cream in light
+  // mode). All text + avatar inside is pinned to always-dark values
+  // so the inner card stays readable in both modes — the outer wrapper
+  // is just the page bg, which already provides the dark backdrop in
+  // night mode that the user wants behind the light inner card.
+  repostCard: { marginHorizontal: 20, marginBottom: 14, borderRadius: t.radius.md, backgroundColor: t.color["card.product.subtle"], padding: 12 },
+  repostCardMobile: { marginTop: 6, marginBottom: 8, borderRadius: t.radius.md, backgroundColor: t.color["card.product.subtle"], padding: 12 } as any,
   repostHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 } as any,
   repostAuthorRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 } as any,
-  repostAvatarFb: { width: 20, height: 20, borderRadius: 10, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,
+  repostAvatarFb: { width: 20, height: 20, borderRadius: 10, backgroundColor: t.color["text.on-light"], alignItems: "center", justifyContent: "center" } as any,
   repostAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 8, color: t.color["text.on-dark"] },
-  repostAuthor: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.primary"] },
-  repostTime: { fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["text.muted"] },
+  repostAuthor: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.on-light"] },
+  repostTime: { fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["card.product.text.muted"] },
   // Nested repost text — same 15-pt rhythm as the outer post so
   // the quoted body reads at full weight. The wrapper still shows
   // the full teaser (no numberOfLines truncation on mobile).
   repostAuthorMobile: { fontSize: 15, fontFamily: t.font["body.semibold"] } as any,
   repostTimeMobile: { fontSize: 14 } as any,
   repostAvatarLetterMobile: { fontSize: 10 } as any,
-  repostTeaser: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.secondary"], lineHeight: 18 },
-  repostTeaserMobile: { fontSize: 15, lineHeight: 20, color: t.color["text.primary"] } as any,
+  repostTeaser: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["card.product.text.muted"], lineHeight: 18 },
+  repostTeaserMobile: { fontSize: 15, lineHeight: 20, color: t.color["text.on-light"] } as any,
 
   // Article thumbnail
   articleWrap: { marginHorizontal: 20, marginBottom: 14, borderRadius: t.radius.md, overflow: "hidden", position: "relative", height: 200 } as any,
   articleWrapMobile: { marginTop: 6, marginBottom: 10, borderRadius: t.radius.md, overflow: "hidden", position: "relative", height: 200 } as any,
   articleImg: { width: "100%" as any, height: "100%" as any },
-  articleOverlay: { position: "absolute", bottom: 10, left: 10, backgroundColor: "#FFF", borderRadius: t.radius.md, paddingHorizontal: 14, paddingVertical: 10, maxWidth: "80%" } as any,
+  articleOverlay: { position: "absolute", bottom: 10, left: 10, backgroundColor: t.color["card.subtle"], borderRadius: t.radius.md, paddingHorizontal: 14, paddingVertical: 10, maxWidth: "80%" } as any,
   articleTitle: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"], lineHeight: 19, marginBottom: 2 },
   articleDomain: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"] },
 
@@ -454,4 +461,4 @@ const s = StyleSheet.create({
     fontFamily: t.font["body.semibold"], fontSize: 12,
     color: t.color.accent, letterSpacing: 0.3,
   } as any,
-});
+}));

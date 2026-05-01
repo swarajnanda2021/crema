@@ -9,6 +9,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { Image } from "expo-image";
 import { resolveUploadUrl } from "../../api/client";
+import { t } from "../../tokens/useTokens";
 
 interface AvatarProps {
   url: string;
@@ -33,7 +34,13 @@ export default function CroppedAvatar({ url, cropX, cropY, zoom, size, style }: 
   const ty = -(iH - size) * (cy / 100);
 
   return (
-    <View style={[{ width: size, height: size, borderRadius: size / 2, overflow: "hidden" }, style]}>
+    // Crema White tile under every avatar — opaque user photos cover
+    // it (no visible change), transparent roaster-logo PNGs (which get
+    // mirrored into `users.avatar_url` via `sync_roaster_logo_to_user`
+    // and therefore land here in the feed / dropdowns / messages
+    // surfaces) show the cream through, matching RoasterLogo's
+    // identity treatment site-wide.
+    <View style={[{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", backgroundColor: t.color["bg.identity"] }, style]}>
       <Image
         source={{ uri: resolveUploadUrl(url) }}
         style={{ position: "absolute", width: iW, height: iH, left: tx, top: ty } as any}

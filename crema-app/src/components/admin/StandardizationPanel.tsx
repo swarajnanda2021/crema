@@ -37,7 +37,7 @@ import {
   X,
 } from "lucide-react-native";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { apiFetchRaw } from "../../api/client";
 import { useResource } from "../../resources/useResource";
 import { tap as hapticTap, commit as hapticCommit } from "../../utils/haptics";
@@ -51,9 +51,11 @@ import type {
 
 const ALL_TASKS: StandardizeTask[] = ["tasting", "origin", "varietal", "roast", "process"];
 import { JobHistory, JobLogModal } from "./JobHistory";
+import FlavorSchemaManager from "./FlavorSchemaManager";
 
 export default function StandardizationPanel() {
   const jobs = useResource<CatalogJob>("jobs", { limit: 50 });
+  const s = useStyles();
 
   const [stats, setStats] = useState<StandardizeStats | null>(null);
   const [statsErr, setStatsErr] = useState<string | null>(null);
@@ -164,7 +166,7 @@ export default function StandardizationPanel() {
     });
   };
 
-  const runStandardize = async () => {
+  const runStandardize = async (opts: { force?: boolean } = {}) => {
     hapticCommit();
     setSubmitting(true);
     setSubmitError(null);
@@ -177,6 +179,10 @@ export default function StandardizationPanel() {
           // the explicit list so disabled tasks stay off even if state
           // drifts between client and server.
           tasks: ALL_TASKS.filter((task) => includedTasks.has(task)),
+          // When the caught-up CTA is used, re-classify every input
+          // (overwrites existing rows). Useful after a prompt or
+          // schema change.
+          force_reclassify: !!opts.force,
         }),
       });
       await jobs.refetch();
@@ -246,7 +252,11 @@ export default function StandardizationPanel() {
     }
   };
 
-  const ctaDisabled = submitting || !!liveJob || totalUnclassified === 0 || includedTasks.size === 0;
+  // The button stays clickable even when nothing is unclassified —
+  // re-running is valid after a prompt or schema change. Caught-up
+  // mode flips the call into force_reclassify mode and relabels.
+  const caughtUp = totalUnclassified === 0;
+  const ctaDisabled = submitting || !!liveJob || includedTasks.size === 0;
   // Two-line CTA: action label on top, run-mode metadata underneath
   // (regen + how many tasks are included this run).
   const includedCount = includedTasks.size;
@@ -254,11 +264,13 @@ export default function StandardizationPanel() {
     ? liveJob.status === "queued" ? "Queued…" : "Running…"
     : includedTasks.size === 0
     ? "Select a task"
-    : totalUnclassified === 0
-    ? "All caught up"
+    : caughtUp
+    ? "Re-run all (overwrite)"
     : `Run standardization (${totalUnclassified})`;
-  const ctaSubLabel = liveJob || totalUnclassified === 0 || includedTasks.size === 0
+  const ctaSubLabel = liveJob || includedTasks.size === 0
     ? null
+    : caughtUp
+    ? `${includedCount}/${ALL_TASKS.length} tasks · re-classifies every input`
     : `${includedCount}/${ALL_TASKS.length} tasks · ${anyRegen ? "regen exemplars" : "no exemplar regen"}`;
   const ctaA11yLabel = ctaSubLabel
     ? `${ctaTopLabel} · ${ctaSubLabel}`
@@ -275,7 +287,7 @@ export default function StandardizationPanel() {
          paragraph underneath summarises what the run actually does. */}
       <View style={s.ctaRow}>
         <Pressable
-          onPress={runStandardize}
+          onPress={() => runStandardize({ force: caughtUp })}
           disabled={ctaDisabled}
           style={({ pressed }) => [
             s.cta,
@@ -286,9 +298,9 @@ export default function StandardizationPanel() {
           accessibilityRole="button"
         >
           {submitting ? (
-            <ActivityIndicator size="small" color={t.color["text.on-dark"]} />
+            <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
           ) : (
-            <Sparkles size={t.size["icon.md"]} color={t.color["text.on-dark"]} strokeWidth={2} />
+            <Sparkles size={t.size["icon.md"]} color={t.color["text.on-cta"]} strokeWidth={2} />
           )}
           <View style={s.ctaTextWrap}>
             <Text style={s.ctaText} numberOfLines={1}>{ctaTopLabel}</Text>
@@ -308,6 +320,16 @@ export default function StandardizationPanel() {
         </View>
       </View>
       {submitError ? <Text style={s.errorText}>{submitError}</Text> : null}
+
+      {/* ── Flavor schema manager ────────────────────────────────
+         Single-tier flavor schemas drive the Discover wheel. Multiple
+         can coexist; one is active. Upload pastes JSON (validated
+         server-side); Activate flips `is_active`. After activation
+         the wheel re-shapes immediately but `sca_addresses` may be
+         stale until the admin re-runs Standardization Tasting — the
+         banner inside the manager surfaces the count and prompts
+         the re-run. */}
+      <FlavorSchemaManager />
 
       {/* ── Reference inspectors ──────────────────────────────────
          Pinned at the top so the admin can see the prompt + trees
@@ -526,6 +548,7 @@ function TaskCard({
 }) {
   const pct = total && total > 0 ? Math.round(((classified ?? 0) / total) * 100) : 0;
   const [showExemplars, setShowExemplars] = useState(false);
+  const s = useStyles();
   return (
     <View style={[s.taskCard, !included && s.taskCardExcluded]}>
       <Pressable
@@ -690,6 +713,7 @@ function InspectorCard({
   subtitle: string;
   onPress: () => void;
 }) {
+  const s = useStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -737,6 +761,7 @@ function TreeInspectorModal({
   } | null;
   onClose: () => void;
 }) {
+  const s = useStyles();
   const title =
     which === "prompt" ? "System Prompts (5)"
     : which === "sca" ? "SCA Flavor Tree"
@@ -815,7 +840,7 @@ function formatRelative(iso: string): string {
 
 // ── Styles ──────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   // 3-card row, wraps on mobile.
   statsRow: {
     flexDirection: "row",
@@ -947,7 +972,7 @@ const s = StyleSheet.create({
   } as any,
   regenCheck: {
     fontSize: 12,
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
     fontFamily: t.font["body.semibold"],
   },
   regenLabel: {
@@ -1056,7 +1081,7 @@ const s = StyleSheet.create({
   ctaTextSub: {
     fontFamily: t.font["body.regular"],
     fontSize: t.size["font.xs"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
     opacity: 0.72,
     marginTop: 2,
     letterSpacing: 0.2,
@@ -1064,7 +1089,7 @@ const s = StyleSheet.create({
   ctaText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.md"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
   },
   ctaHint: { flex: 1, minWidth: 240 } as any,
   ctaHintText: {
@@ -1199,4 +1224,4 @@ const s = StyleSheet.create({
     fontSize: t.size["font.sm"],
     color: t.color["accent.cta"],
   },
-});
+}));

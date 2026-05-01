@@ -13,11 +13,12 @@
  */
 import { View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { t } from "../src/tokens/useTokens";
+import { t, makeStyles } from "../src/tokens/useTokens";
 import ProfileDropdown from "../src/components/ProfileDropdown";
 
 export default function AccountScreen() {
   const router = useRouter();
+  const s = useStyles();
   return (
     <View style={s.wrap}>
       <ProfileDropdown visible={true} onClose={() => router.back()} fullScreen />
@@ -25,6 +26,6 @@ export default function AccountScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   wrap: { flex: 1, backgroundColor: t.color.bg },
-});
+}));

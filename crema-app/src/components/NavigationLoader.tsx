@@ -26,7 +26,7 @@ import { useEffect, useRef, useState } from "react";
 import { View, StyleSheet, Platform, Animated, Easing } from "react-native";
 import { usePathname } from "expo-router";
 
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import { listen } from "../utils/events";
 import CremaLogo from "./CremaLogo";
 import SiteHeader from "./SiteHeader";
@@ -45,6 +45,7 @@ export default function NavigationLoader() {
   const minHoldTimerRef = useRef<any>(null);
   const explicitHoldRef = useRef(0);
   const pulse = useRef(new Animated.Value(0.45)).current;
+  const s = useStyles();
 
   // Arm the minimum-display timer on initial mount too, so the
   // overlay isn't stuck up forever if auth resolves in under 5ms.
@@ -149,7 +150,7 @@ export default function NavigationLoader() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   // Ensures the navbar is painted for the duration of the curtain,
   // so hard-reloads (account switch) never leave a bare cream strip
   // where the nav should be. zIndex sits just above the overlay
@@ -180,4 +181,4 @@ const s = StyleSheet.create({
     justifyContent: "center",
     zIndex: 9500, // below navbar (9999), above page content
   } as any,
-});
+}));

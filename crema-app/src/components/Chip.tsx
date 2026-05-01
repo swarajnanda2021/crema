@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from "react-native";
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 
 interface ChipProps {
   children: string;
@@ -8,7 +8,8 @@ interface ChipProps {
 
 export default function Chip({ children, variant = "default" }: ChipProps) {
   const bg = variant === "accent" ? t.color["accent.soft"] : variant === "dark" ? "rgba(255,255,255,0.12)" : t.color["tag.bg"];
-  const fg = variant === "accent" ? t.color["accent.cta"] : variant === "dark" ? t.color["text.on-dark"] : t.color["tag.text"];
+  const fg = variant === "accent" ? t.color["accent.cta"] : variant === "dark" ? t.color["text.on-cta"] : t.color["tag.text"];
+  const s = useStyles();
 
   return (
     <View style={[s.chip, { backgroundColor: bg }]}>
@@ -17,7 +18,7 @@ export default function Chip({ children, variant = "default" }: ChipProps) {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   chip: {
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -28,4 +29,4 @@ const s = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 0.2,
   },
-});
+}));

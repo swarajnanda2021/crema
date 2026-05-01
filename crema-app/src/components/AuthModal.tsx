@@ -23,7 +23,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
 
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import { listen } from "../utils/events";
 import { useAuth } from "../hooks/useAuth";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -55,6 +55,7 @@ function AuthModalContent({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const s = useStyles();
 
   const reset = () => {
     setIsLogin(true);
@@ -66,7 +67,7 @@ function AuthModalContent({
 
   const isBusiness = track === "business";
   const bgColor = isBusiness ? t.color["roaster.panel"] : t.color.bg;
-  const fgColor = isBusiness ? t.color["text.on-dark"] : t.color["text.primary"];
+  const fgColor = isBusiness ? t.color["text.on-cta"] : t.color["text.primary"];
   const mutedFg = isBusiness ? "rgba(250,248,240,0.6)" : t.color["text.muted"];
 
   const submit = async () => {
@@ -223,7 +224,7 @@ function AuthModalContent({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   overlayWrap: {
     flex: 1, justifyContent: "center", alignItems: "center",
     ...(Platform.OS === "web"
@@ -300,7 +301,7 @@ const s = StyleSheet.create({
     fontFamily: t.font["body.semibold"], fontSize: 12,
     letterSpacing: 0.3,
   },
-  trackTabTextActiveLight: { color: t.color["text.on-dark"] } as any,
+  trackTabTextActiveLight: { color: t.color["text.on-cta"] } as any,
   trackTabTextActiveDark: { color: t.color["text.primary"] } as any,
 
   formCard: {
@@ -353,7 +354,7 @@ const s = StyleSheet.create({
   submitDisabled: { opacity: 0.5 } as any,
   submitText: {
     fontFamily: t.font["body.semibold"], fontSize: 13,
-    color: t.color["text.on-dark"], letterSpacing: 0.3,
+    color: t.color["text.on-cta"], letterSpacing: 0.3,
   },
   toggleText: {
     fontFamily: t.font["body.medium"], fontSize: 12.5,
@@ -384,4 +385,4 @@ const s = StyleSheet.create({
     fontFamily: t.font["body.semibold"], fontSize: 12.5,
     color: t.color["text.primary"],
   },
-});
+}));

@@ -9,11 +9,12 @@
  */
 import { View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { t } from "../src/tokens/useTokens";
+import { t, makeStyles } from "../src/tokens/useTokens";
 import NotificationsDropdown from "../src/components/NotificationsDropdown";
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const s = useStyles();
   return (
     <View style={s.wrap}>
       <NotificationsDropdown
@@ -26,6 +27,6 @@ export default function NotificationsScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   wrap: { flex: 1, backgroundColor: t.color.bg },
-});
+}));

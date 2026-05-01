@@ -10,7 +10,7 @@
  */
 
 import { View, Text, Pressable, Modal, StyleSheet, Platform } from "react-native";
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 
 interface Props {
   visible: boolean;
@@ -31,6 +31,7 @@ export default function ConfirmDeleteModal({
   onConfirm,
   onClose,
 }: Props) {
+  const s = useStyles();
   const bodyText = body
     || (permanent
         ? "This will delete it permanently — you won't be able to recover it."
@@ -60,7 +61,7 @@ export default function ConfirmDeleteModal({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   overlay: {
     flex: 1, justifyContent: "center", alignItems: "center",
     ...(Platform.OS === "web" ? ({ backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" } as any) : {}),
@@ -97,4 +98,4 @@ const s = StyleSheet.create({
     borderRadius: 6, backgroundColor: t.color.accent,
   } as any,
   confirmText: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.primary"] },
-});
+}));

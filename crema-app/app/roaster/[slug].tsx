@@ -28,7 +28,7 @@ import CropGestureWrap from "../../src/components/shell/CropGestureWrap";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
-import { t } from "../../src/tokens/useTokens";
+import { t, makeStyles } from "../../src/tokens/useTokens";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import RoasterLogo from "../../src/components/primitives/RoasterLogo";
 import CoffeeDetailSheet from "../../src/components/CoffeeDetailSheet";
@@ -91,9 +91,10 @@ function LeftPanelShareIcon({ color = t.color.accent }: { color?: string }) {
 // ── FollowButton ─────────────────────────────────────────────────────────────
 
 function FollowButton({ following, onToggle }: { following: boolean; onToggle: () => void }) {
+  const fb = useFbStyles();
   return (
     <Pressable onPress={onToggle} style={[fb.btn, following && fb.btnFollowing]}>
-      {!following && <Plus size={10} color={t.color["text.on-dark"]} strokeWidth={2.5} />}
+      {!following && <Plus size={10} color={t.color["text.on-cta"]} strokeWidth={2.5} />}
       {following && <Check size={10} color={t.color["text.primary"]} strokeWidth={2.5} />}
       <Text style={[fb.text, following && fb.textFollowing]}>
         {following ? "Following" : "Follow"}
@@ -102,16 +103,16 @@ function FollowButton({ following, onToggle }: { following: boolean; onToggle: (
   );
 }
 
-const fb = StyleSheet.create({
+const useFbStyles = makeStyles((t) => ({
   btn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 4, width: 71, height: 27, borderRadius: 2,
-    borderWidth: 1.5, borderColor: t.color["text.on-dark"],
+    borderWidth: 1.5, borderColor: t.color["text.on-cta"],
   },
   btnFollowing: { width: 88, backgroundColor: t.color.accent, borderColor: t.color.accent },
-  text: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"] },
+  text: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-cta"] },
   textFollowing: { color: t.color["text.primary"] },
-});
+}));
 
 // ── CoffeeGrid ───────────────────────────────────────────────────────────────
 
@@ -133,6 +134,7 @@ function CoffeeGrid({
   const [containerW, setContainerW] = useState(0);
   const [detailCoffee, setDetailCoffee] = useState<any>(null);
   const { isMobile } = useBreakpoint();
+  const cg = useCgStyles();
   const available = containerW > 0 ? containerW - GRID_PAD * 2 : 800;
   const numCols = Math.max(1, Math.min(4, Math.round((available + GRID_GAP) / (TARGET_CARD_W + GRID_GAP))));
   const cardW = Math.floor((available - GRID_GAP * (numCols - 1)) / numCols);
@@ -186,11 +188,11 @@ function CoffeeGrid({
   );
 }
 
-const cg = StyleSheet.create({
+const useCgStyles = makeStyles((t) => ({
   grid: { flexDirection: "row", flexWrap: "wrap" },
   empty: { paddingVertical: 48, alignItems: "center" },
   emptyText: { fontFamily: t.font["body.regular"], fontSize: 14, color: t.color["text.secondary"] },
-});
+}));
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 
@@ -202,6 +204,7 @@ export default function RoasterDetailPage() {
   const { slug, edit } = useLocalSearchParams<{ slug: string; edit?: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const s = useStyles();
   const { products, roasters, appendProducts, removeProduct, loading: coffeeLoading } = useCoffeeData();
   const { getProfile, refreshProfiles, loading: profileLoading } = useRoasterProfiles();
   const { height: winH, width: winW } = useWindowDimensions();
@@ -584,7 +587,7 @@ export default function RoasterDetailPage() {
               <Text style={s.editBannerDiscardText}>Discard</Text>
             </Pressable>
             <Pressable onPress={handleSaveProfile} style={s.editBannerSave} disabled={saving}>
-              {saving ? <ActivityIndicator size="small" color={t.color["text.on-dark"]} /> : <Text style={s.editBannerSaveText}>Save changes</Text>}
+              {saving ? <ActivityIndicator size="small" color={t.color["text.on-cta"]} /> : <Text style={s.editBannerSaveText}>Save changes</Text>}
             </Pressable>
           </View>
         </View>
@@ -604,7 +607,7 @@ export default function RoasterDetailPage() {
             <View style={[StyleSheet.absoluteFillObject, { backgroundColor: t.color["roaster.hero.fallback"] }]} />
           )}
           <Pressable onPress={() => router.back()} style={s.backFloating} accessibilityLabel="Back" hitSlop={8}>
-            <ArrowLeft size={18} color={t.color["text.on-dark"]} strokeWidth={2} />
+            <ArrowLeft size={18} color={t.color["text.on-cta"]} strokeWidth={2} />
           </Pressable>
         </View>
       )}
@@ -804,7 +807,7 @@ export default function RoasterDetailPage() {
               )}
               {isOwner && isEditing && (
                 <Pressable onPress={() => setShowHeroUpload(true)} style={s.heroEditBtn}>
-                  <Camera size={14} color={t.color["text.on-dark"]} strokeWidth={1.5} />
+                  <Camera size={14} color={t.color["text.on-cta"]} strokeWidth={1.5} />
                   <Text style={s.heroEditBtnText}>Change cover</Text>
                 </Pressable>
               )}
@@ -998,7 +1001,7 @@ export default function RoasterDetailPage() {
               })}
               style={s.fab}
             >
-              <Plus size={22} color={t.color["text.on-dark"]} strokeWidth={2.5} />
+              <Plus size={22} color={t.color["text.on-cta"]} strokeWidth={2.5} />
             </Pressable>
           )}
 
@@ -1113,7 +1116,7 @@ const liningNumerals = Platform.OS === "web"
   ? ({ fontFeatureSettings: "'lnum', 'pnum'" } as any)
   : ({ fontVariant: ["lining-nums", "proportional-nums"] } as any);
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   notFound: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: t.color.bg },
   notFoundText: { fontFamily: t.font["body.regular"], fontSize: 16, color: t.color["text.primary"] },
 
@@ -1152,7 +1155,7 @@ const s = StyleSheet.create({
   shareText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color.divider, letterSpacing: 0.5 },
 
   roasterName: {
-    fontFamily: t.font.display, fontSize: 56.8, color: t.color["text.on-dark"],
+    fontFamily: t.font.display, fontSize: 56.8, color: t.color["text.on-cta"],
     lineHeight: 63, marginTop: 8, marginBottom: 12, ...liningNumerals,
   } as any,
   // Mobile override — 56.8 pt dominates a phone screen; 28 pt reads
@@ -1164,15 +1167,15 @@ const s = StyleSheet.create({
 
   aboutBlock: { paddingRight: 20 },
   aboutText: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color.divider, lineHeight: 18 },
-  aboutMore: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"] },
+  aboutMore: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-cta"] },
 
   tagBand: { marginBottom: 14 },
   rule: { height: 1, width: 280, alignSelf: "flex-start" as any, backgroundColor: "rgba(250,248,240,0.25)", marginVertical: 0 },
-  tagText: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.on-dark"], lineHeight: 18, paddingVertical: 8 },
+  tagText: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.on-cta"], lineHeight: 18, paddingVertical: 8 },
 
   metaRow: { flexDirection: "row", flexWrap: "wrap" as any, gap: 20, marginTop: 5, marginBottom: 9 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-  metaText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.on-dark"] },
+  metaText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.on-cta"] },
 
   followRow: { marginTop: 14 },
 
@@ -1186,7 +1189,7 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(250,248,240,0.1)", textAlign: "center" as any, flex: 1,
   } as any,
   inlineEditMeta: {
-    fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.on-dark"],
+    fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.on-cta"],
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
     backgroundColor: "rgba(250,248,240,0.1)", minWidth: 80,
   } as any,
@@ -1259,12 +1262,12 @@ const s = StyleSheet.create({
     transform: [{ translateX: -70 }, { translateY: -14 }],
     backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8,
   } as any,
-  heroDragHintText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.on-dark"] },
+  heroDragHintText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.on-cta"] },
   heroEditBtn: {
     position: "absolute" as any, bottom: 14, right: 14, flexDirection: "row", alignItems: "center",
     gap: 6, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
   } as any,
-  heroEditBtnText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.on-dark"] },
+  heroEditBtnText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.on-cta"] },
 
   editDimOverlay: {
     position: "absolute" as any, top: 0, left: 0, right: 0, bottom: 0,
@@ -1322,7 +1325,7 @@ const s = StyleSheet.create({
   // Empty posts
   emptyPostsWrap: {
     marginHorizontal: 28, marginVertical: 24, padding: 20, borderRadius: 8,
-    borderWidth: 1, borderColor: t.color.border, backgroundColor: "#FFFEFB",
+    borderWidth: 1, borderColor: t.color.border, backgroundColor: t.color["card.subtle"],
   },
   emptyPostsTitle: { fontFamily: t.font.display, fontSize: 20, color: t.color["text.primary"], marginBottom: 8 },
   emptyPostsBody: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.secondary"], lineHeight: 19 },
@@ -1370,7 +1373,7 @@ const s = StyleSheet.create({
     width: t.size["avatar.xl"], height: t.size["avatar.xl"], borderRadius: t.size["avatar.xl"] / 2,
     backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center",
   } as any,
-  followerInitial: { fontFamily: t.font["body.semibold"], fontSize: 18, color: t.color["text.on-dark"] },
+  followerInitial: { fontFamily: t.font["body.semibold"], fontSize: 18, color: t.color["text.on-cta"] },
   followerInfo: { flex: 1, minWidth: 0 },
   followerName: { fontFamily: t.font["body.regular"], fontSize: 18, color: t.color["text.primary"] },
   followerLocationRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 } as any,
@@ -1383,4 +1386,4 @@ const s = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 24, elevation: 16,
     zIndex: 1,
   } as any,
-});
+}));

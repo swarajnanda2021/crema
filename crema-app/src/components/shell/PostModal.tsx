@@ -18,7 +18,7 @@ import { Repeat2, X, ArrowLeft } from "lucide-react-native";
 
 import { apiFetchRaw } from "../../api/client";
 import ComposePost from "../ComposePost";
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { showChromeNow } from "../../utils/chromeScroll";
 import { showToast } from "./Toast";
@@ -50,6 +50,7 @@ export default function PostModal({
   const [post, setPost] = useState<Post | null>(postProp || null);
   const [loading, setLoading] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const s = useStyles();
 
   // Repost state
   const [repostComment, setRepostComment] = useState("");
@@ -252,7 +253,7 @@ export default function PostModal({
                         ]}
                         accessibilityLabel="Repost"
                       >
-                        <Repeat2 size={20} color={t.color["text.on-dark"]} strokeWidth={2} />
+                        <Repeat2 size={20} color={t.color["text.on-cta"]} strokeWidth={2} />
                       </Pressable>
                     </View>
                   </View>
@@ -359,7 +360,7 @@ export default function PostModal({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   /* Shared overlay structure: background Pressable + card View as siblings */
   overlayWrap: {
     flex: 1,
@@ -408,8 +409,8 @@ const s = StyleSheet.create({
     gap: t.spacing.md,
   } as any,
   backBtn: { padding: t.spacing["2xs"] } as any,
-  editModal: { width: "90%", maxWidth: 680, backgroundColor: "#FAF8F0", borderRadius: 12, overflow: "hidden", maxHeight: "85%", zIndex: 1 } as any,
-  editModalMobile: { flex: 1, backgroundColor: "#FAF8F0", overflow: "hidden" } as any,
+  editModal: { width: "90%", maxWidth: 680, backgroundColor: t.color.bg, borderRadius: 12, overflow: "hidden", maxHeight: "85%", zIndex: 1 } as any,
+  editModalMobile: { flex: 1, backgroundColor: t.color.bg, overflow: "hidden" } as any,
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -428,7 +429,7 @@ const s = StyleSheet.create({
   repostPreview: { paddingHorizontal: t.spacing.xl, paddingVertical: t.spacing.lg },
   repostPreviewHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 12 } as any,
   repostAvatarFb: { width: 30, height: 30, borderRadius: 15, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,
-  repostAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-dark"] },
+  repostAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-cta"] },
   repostPreviewName: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
   repostPreviewSubtitle: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.secondary"], marginTop: 2 },
   repostInput: {
@@ -437,7 +438,7 @@ const s = StyleSheet.create({
   },
   repostNestedCard: {
     borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.md,
-    backgroundColor: "#FEFDFB", padding: 12, marginBottom: 16,
+    backgroundColor: t.color["card.subtle"], padding: 12, marginBottom: 16,
   },
   repostNestedHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 } as any,
   repostNestedAuthor: { fontFamily: t.font["body.medium"], fontSize: t.size["font.sm"], color: t.color["text.primary"] },
@@ -465,4 +466,4 @@ const s = StyleSheet.create({
     backgroundColor: t.color["card.back"],
     transform: [{ scale: 0.96 }],
   } as any,
-});
+}));

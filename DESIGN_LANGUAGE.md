@@ -27,10 +27,11 @@ on cream (formal, low-contrast version) or Crema on Espresso (the
 inverse for high-attention overlays). Don't reach for red, green,
 gold, orange, blue.
 
-### Functional neutrals (derived family)
+### Functional neutrals — LIGHT MODE only
 
-These are tonally consistent with the palette — warm browns +
-greys. Use them, just don't add new ones.
+Light mode has an established set of functional neutrals tonally
+consistent with the brand (warm browns + creams). These are the
+**approved** light-mode values. Use them, don't add new ones.
 
 | Token | Hex | Role |
 |---|---|---|
@@ -38,28 +39,67 @@ greys. Use them, just don't add new ones.
 | `text.muted` | `#A09580` | Time stamps, hint text, empty-state copy |
 | `card.front` | `#FFFFFF` | Card surface (post card, modal card) |
 | `card.info` | `#EFE9DB` | Card info panel (CoffeeCard bottom half), tag bg |
-| `card.back` | `#2C1810` | Dark card variant (rare) |
+| `card.subtle` | `#FEFDFB` | Subtle elevated card (article overlay, repost inner) |
+| `card.back` | `#2C1810` | Dark card variant (rare, e.g. CoffeeCard back face) |
 | `border` | `#D7D1C4` | Divider lines on cream surfaces |
 | `border.light` | `#EDE8E1` | Hairline dividers, list-row separators |
 | `divider` | `#C7BAA5` | Tab-bar underlines, section breaks |
 | `unavailable` | `#B0A89F` | Disabled control bg |
+| `tag.bg` | `#EFE9DB` | Chip background |
+| `tag.text` | `#5D4E42` | Chip text |
+| `nav.mobile.bar.bg` | `#FFFAED` | Mobile bottom-tab bar surface (warm cream, brighter than page bg so the bar reads as elevated chrome rather than blending in) |
+| `navbar.text` | `#E7D5B8` | Navbar link text on Espresso navbar |
+| `roaster.panel` | `#2a0d00` | Dark roaster hero strip |
+| `roaster.hero.fallback` | `#1a0800` | Even darker roaster hero gradient stop |
 | `flash` | `rgba(215,152,218,0.25)` | Press-state highlight (Crema with alpha) |
 | `overlay` | `rgba(104,79,68,0.6)` | Modal backdrop |
 
-**Anything outside this palette + neutral family is a violation.**
-The legal hex literals across the entire codebase should be
-exactly these values + `#FFFFFF` and `#000` for unavoidable RN
-defaults.
+**These are the only legal hex literals in light mode.** Anything
+outside this set + the three brand colors is a violation. If a
+regression introduces a new hex, fix it at the token VALUE — don't
+add a new token to legitimise it.
+
+### Tonal hierarchy — DARK MODE (alpha variants only)
+
+Dark mode does NOT inherit the light-mode functional-neutrals table.
+Tonal variation in dark mode comes exclusively from `rgba(...)`
+**alpha variants of the three brand colors**. No fourth hex, no warm
+brown sub-palette, no "slightly lighter" shade. The user explicitly
+rejected that experiment during the night-mode work — every "light
+brown" tone in dark mode collapses to Espresso `#351101` or an
+opacity pass over Crema White.
+
+| Token | Dark-mode value | Role |
+|---|---|---|
+| `text.secondary` | `rgba(250,248,240,0.7)` | Body sub-text, meta |
+| `text.muted` | `rgba(250,248,240,0.5)` | Time stamps, hint text |
+| `card.front` / `card.info` / `card.subtle` / `card.back` | `#351101` | All page-level surfaces collapse to bg in dark mode (use `card.product.*` for the persistently-light CoffeeCard surfaces) |
+| `border` / `divider` | `rgba(250,248,240,0.15)` / `rgba(250,248,240,0.2)` | Subtle cream hairlines |
+| `border.light` | `rgba(250,248,240,0.08)` | Even subtler |
+| `tag.bg` | `rgba(250,248,240,0.08)` | Chip bg |
+| `unavailable` | `rgba(250,248,240,0.4)` | Disabled |
+| `nav.mobile.bar.bg` | `#351101` | Bottom bar collapses into bg (no separation, on-palette) |
+| `navbar.text` | `#FAF8F0` | Crema White on Espresso navbar |
+| `accent.cta` | `#D798DA` | Pink CTA pops on dark Espresso bg |
+| `roaster.panel` / `roaster.hero.fallback` | `#351101` | Collapses into bg |
+| `overlay` | `rgba(0,0,0,0.7)` | Black scrim |
+
+The non-flipping `bg.identity` (`#FAF8F0` always) and `card.product.*`
+tokens (always-light cream/white set, used by CoffeeCard and avatars)
+keep their brand-identity surfaces consistent across both modes.
 
 ### Forbidden
 
 - **Inline hex** outside `design-tokens.json`. Run
   `grep -rEn "#[0-9A-Fa-f]{6}" crema-app/src crema-app/app | grep -v node_modules`
-  and verify every result is in the palette family.
+  and verify every result is one of the brand hexes or an approved
+  light-mode neutral from the table above.
 - Off-brand reds (`#C8553D`, `#B5393C`), greens (`#2F7A48`,
-  `#5A8F5A`), golds (`#E8C07A`). These were retired in
-  `9c20f43`. If a regression introduces them again, fix at the
-  token VALUE — don't add new tokens.
+  `#5A8F5A`), golds (`#E8C07A`). Retired in `9c20f43`.
+- **Inventing a new dark-mode brown.** The only legal way to add a
+  tonal tier in dark mode is an opacity variant of Espresso or Crema
+  White. If you find yourself reaching for `#3A1F12`, `#4A2A1A`,
+  `#684F44`, etc. inside the `dark` token tree — stop and use rgba.
 
 ---
 

@@ -38,7 +38,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { emit, listen } from "../../utils/events";
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 
 const DWELL_MS = 1400;
 const SLIDE_IN_MS = 220;
@@ -58,6 +58,7 @@ export default function Toast() {
   const { isMobile } = useBreakpoint();
   const insets = useSafeAreaInsets();
   const [msg, setMsg] = useState<string | null>(null);
+  const s = useStyles();
   const translateY = useRef(new Animated.Value(HIDDEN_Y)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -121,7 +122,7 @@ export default function Toast() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   host: {
     position: "absolute",
     left: 0,
@@ -151,4 +152,4 @@ const s = StyleSheet.create({
     color: t.color["text.on-dark"],
     letterSpacing: -0.1,
   },
-});
+}));

@@ -10,7 +10,7 @@
 import { useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import type { RetentionCohort } from "../../resources/types";
 import InfoModal, { InfoButton } from "./InfoModal";
 
@@ -35,6 +35,7 @@ function heatColor(pct: number): string {
 
 export default function RetentionTable({ cohorts, info }: RetentionTableProps) {
   const [showInfo, setShowInfo] = useState(false);
+  const s = useStyles();
   return (
     <>
     <View style={s.wrap}>
@@ -115,7 +116,7 @@ export default function RetentionTable({ cohorts, info }: RetentionTableProps) {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   wrap: {
     backgroundColor: t.color["card.front"],
     borderWidth: 1,
@@ -200,4 +201,4 @@ const s = StyleSheet.create({
     color: t.color["text.muted"],
     paddingVertical: t.spacing.md,
   },
-});
+}));

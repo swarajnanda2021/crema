@@ -17,7 +17,7 @@ import {
   View, Text, Pressable, ScrollView, StyleSheet, Platform, ActivityIndicator, Alert,
 } from "react-native";
 import { Plus, Archive, BellOff, Trash2 } from "lucide-react-native";
-import { t, cardShadow } from "../tokens/useTokens";
+import { t, cardShadow, makeStyles } from "../tokens/useTokens";
 import { CroppedAvatar, timeAgo, HapticPressable } from "./primitives";
 import { useDirectInbox, InboxRow } from "../hooks/useDirectInbox";
 import { useAuth } from "../hooks/useAuth";
@@ -62,6 +62,7 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
   const [pickerOpen, setPickerOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const cardRef = useRef<any>(null);
+  const s = useStyles();
 
   const [tab, setTab] = useState<InboxTab>("inbox");
   // Local archive store. Session-scoped until §2.40.8 lands the
@@ -96,7 +97,7 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
       {
         key: "mute",
         label: "Mute",
-        background: "#A09580",
+        background: t.color["text.muted"],
         icon: <BellOff size={18} color={ICON} strokeWidth={2} />,
         onPress: () => commingSoon("Mute"),
       },
@@ -240,7 +241,7 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
                   : !localArchivedKeys.has(rowKey(r)),
               );
               if (loading && threads.length === 0) {
-                return <ActivityIndicator size="small" color="#D798DA" style={{ paddingVertical: 24 }} />;
+                return <ActivityIndicator size="small" color={t.color.accent} style={{ paddingVertical: 24 }} />;
               }
               if (error) {
                 return (
@@ -317,7 +318,7 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
             accessibilityLabel="New message"
             accessibilityRole="button"
           >
-            <Plus size={22} color={t.color["text.on-dark"]} strokeWidth={2.5} />
+            <Plus size={22} color={t.color["text.on-cta"]} strokeWidth={2.5} />
           </Pressable>
         </>
       )}
@@ -325,15 +326,15 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: t.color["card.front"],
     borderRadius: 12,
     overflow: "hidden",
-    ...cardShadow,
+    shadowColor: t.shadow.card.color,
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 24,
-    shadowOffset: { width: 0, height: 8 },
     elevation: 12,
   } as any,
   cardList: { width: 340, maxHeight: 440 } as any,
@@ -346,8 +347,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   } as any,
-  headerTitle: { fontFamily: t.font["body.semibold"], fontSize: 15, color: "#351101" },
-  headerUnread: { fontFamily: t.font["body.medium"], fontSize: 10.5, color: "#D798DA" },
+  headerTitle: { fontFamily: t.font["body.semibold"], fontSize: 15, color: t.color["text.primary"] },
+  headerUnread: { fontFamily: t.font["body.medium"], fontSize: 10.5, color: t.color.accent },
   newFab: {
     position: "absolute",
     bottom: 28,
@@ -357,15 +358,15 @@ const s = StyleSheet.create({
     borderRadius: t.size["fab.size"] / 2,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: t.color["text.primary"],
-    shadowColor: "#000",
+    backgroundColor: t.color["accent.cta"],
+    shadowColor: t.shadow.card.color,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 12,
     elevation: 8,
     zIndex: 10,
   } as any,
-  divider: { height: 1, backgroundColor: "#EDE8E1", marginHorizontal: 12 },
+  divider: { height: 1, backgroundColor: t.color["border.light"], marginHorizontal: 12 },
 
   tabRow: {
     flexDirection: "row",
@@ -383,13 +384,13 @@ const s = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
   } as any,
-  tabActive: { backgroundColor: "rgba(215,152,218,0.12)" } as any,
-  tabLabel: { fontFamily: t.font["body.medium"], fontSize: 11, color: "#A09580", letterSpacing: 0.2 },
-  tabLabelActive: { color: "#351101", fontFamily: t.font["body.semibold"] } as any,
+  tabActive: { backgroundColor: t.color.flash } as any,
+  tabLabel: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.muted"], letterSpacing: 0.2 },
+  tabLabelActive: { color: t.color["text.primary"], fontFamily: t.font["body.semibold"] } as any,
   tabUnread: {
     fontFamily: t.font["body.semibold"], fontSize: 9,
-    color: "#FFFFFF",
-    backgroundColor: "#D798DA",
+    color: t.color["text.on-cta"],
+    backgroundColor: t.color.accent,
     paddingHorizontal: 5, paddingVertical: 1,
     borderRadius: 6,
     overflow: "hidden",
@@ -400,7 +401,7 @@ const s = StyleSheet.create({
 
   empty: {
     fontFamily: t.font["body.regular"], fontSize: 11.5,
-    color: "#A09580", textAlign: "center",
+    color: t.color["text.muted"], textAlign: "center",
     paddingVertical: 22, paddingHorizontal: 18, lineHeight: 16,
   } as any,
   errorText: {
@@ -409,8 +410,8 @@ const s = StyleSheet.create({
   } as any,
   retryText: {
     fontFamily: t.font["body.semibold"], fontSize: 11,
-    color: "#351101", paddingHorizontal: 10, paddingVertical: 4,
-    backgroundColor: "#EFE9DB", borderRadius: 8,
+    color: t.color["text.primary"], paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: t.color["card.info"], borderRadius: 8,
   } as any,
 
   item: {
@@ -422,34 +423,34 @@ const s = StyleSheet.create({
   itemTall: { paddingVertical: 16, gap: 12 } as any,
   avatarFbTall: { width: 44, height: 44, borderRadius: 22 } as any,
   itemUnread: { backgroundColor: "rgba(215,152,218,0.06)" },
-  itemHover: { backgroundColor: "rgba(215,152,218,0.12)" },
-  itemDivider: { height: 1, backgroundColor: "rgba(237,232,225,0.5)", marginHorizontal: 14 },
+  itemHover: { backgroundColor: t.color.flash },
+  itemDivider: { height: 1, backgroundColor: t.color["border.light"], marginHorizontal: 14, opacity: 0.5 },
   itemContent: { flex: 1, gap: 1 } as any,
   itemTopRow: {
     flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 8,
   } as any,
-  itemName: { fontFamily: t.font["body.semibold"], fontSize: 12, color: "#351101", flex: 1 },
-  itemTime: { fontFamily: t.font["body.regular"], fontSize: 9.5, color: "#A09580" },
+  itemName: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.primary"], flex: 1 },
+  itemTime: { fontFamily: t.font["body.regular"], fontSize: 9.5, color: t.color["text.muted"] },
   itemPreview: {
     fontFamily: t.font["body.regular"], fontSize: 11,
-    color: "#684F44", lineHeight: 15,
+    color: t.color["text.secondary"], lineHeight: 15,
   } as any,
-  itemPreviewUnread: { color: "#351101", fontFamily: t.font["body.medium"] } as any,
+  itemPreviewUnread: { color: t.color["text.primary"], fontFamily: t.font["body.medium"] } as any,
   unreadDot: {
     minWidth: 16, height: 16, borderRadius: 8,
-    backgroundColor: "#D798DA",
+    backgroundColor: t.color.accent,
     alignItems: "center", justifyContent: "center",
     paddingHorizontal: 4,
     alignSelf: "center",
   } as any,
   unreadDotText: {
     fontFamily: t.font["body.semibold"], fontSize: 9,
-    color: "#FFFFFF", letterSpacing: 0.2,
+    color: t.color["text.on-cta"], letterSpacing: 0.2,
   } as any,
   avatarFb: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: "#351101",
+    backgroundColor: t.color["accent.cta"],
     alignItems: "center", justifyContent: "center",
   } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: "#FAF8F0" },
-});
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-cta"] },
+}));

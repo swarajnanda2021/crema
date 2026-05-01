@@ -16,7 +16,7 @@ import Svg, { Circle, Path } from "react-native-svg";
 import { Camera, X } from "lucide-react-native";
 
 import { resolveUploadUrl } from "../../api/client";
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import ImageUploadModal from "../ImageUploadModal";
 import { CartIcon } from "../icons/FigmaIcons";
 import CropGestureWrap from "../shell/CropGestureWrap";
@@ -52,6 +52,7 @@ export default function EditableCoffeeCard({
   // original placeholder → editing flow runs.
   const startMode: "placeholder" | "editing" = initialData ? "editing" : "placeholder";
   const [mode, setMode] = useState<"placeholder" | "editing">(startMode);
+  const s = useStyles();
 
   // Field states — pre-filled from initialData when editing.
   const [coffeeName, setCoffeeName] = useState(initialData?.coffee_name || "");
@@ -347,7 +348,7 @@ export default function EditableCoffeeCard({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   outerWrap: { borderRadius: 5, overflow: "hidden", position: "relative" },
   placeholder: {
     position: "absolute", top: 0, left: 0,
@@ -361,12 +362,12 @@ const s = StyleSheet.create({
     borderBottomLeftRadius: 5, borderBottomRightRadius: 5,
   },
   imageArea: {
-    backgroundColor: "#d4c5b8",
+    backgroundColor: "rgba(53,17,1,0.06)",
     borderTopLeftRadius: 3.624, borderTopRightRadius: 3.624, overflow: "hidden",
   },
   imagePlaceholder: {
     flex: 1, alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#e8e0d0",
+    backgroundColor: "rgba(53,17,1,0.04)",
   },
   addPhotoText: { fontFamily: t.font["body.regular"], fontSize: 10.246, color: t.color["text.secondary"] },
   imgHint: { position: "absolute", bottom: 8, left: 0, right: 0, alignItems: "center" },
@@ -460,7 +461,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: t.color.border, borderRadius: 4,
     paddingHorizontal: 10, paddingVertical: 8,
     fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.primary"],
-    backgroundColor: "#FEFDFB",
+    backgroundColor: t.color["card.subtle"],
   } as any,
   urlModalDone: {
     marginTop: 12, alignSelf: "flex-end" as any,
@@ -468,4 +469,4 @@ const s = StyleSheet.create({
     borderRadius: 4, backgroundColor: t.color["text.primary"],
   },
   urlModalDoneText: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.on-dark"] },
-});
+}));

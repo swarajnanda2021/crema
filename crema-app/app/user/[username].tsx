@@ -22,7 +22,7 @@ import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
-import { t, SHELF_LABELS } from "../../src/tokens/useTokens";
+import { t, SHELF_LABELS, makeStyles } from "../../src/tokens/useTokens";
 
 import PostCard from "../../src/components/domain/PostCard";
 import SwipeToCommit from "../../src/components/mobile/SwipeToCommit";
@@ -101,6 +101,7 @@ function ShelfCarousel({ coffees, isOwner, onAddToShelf }: {
   const { isMobile } = useBreakpoint();
   const cardW = isMobile ? CAROUSEL_CARD_W_MOBILE : CAROUSEL_CARD_W;
   const cardH = isMobile ? CAROUSEL_CARD_H_MOBILE : CAROUSEL_CARD_H;
+  const g = useGStyles();
   if (coffees.length === 0) {
     return <View style={g.empty}><Text style={g.emptyText}>Nothing here yet.</Text></View>;
   }
@@ -127,10 +128,10 @@ function ShelfCarousel({ coffees, isOwner, onAddToShelf }: {
   );
 }
 
-const g = StyleSheet.create({
+const useGStyles = makeStyles((t) => ({
   empty: { paddingVertical: 60, alignItems: "center", paddingHorizontal: 32 },
   emptyText: { fontFamily: t.font["body.semibold"], fontSize: 15, color: t.color["text.primary"], marginBottom: 6 },
-});
+}));
 
 // ── Main page ────────────────────────────────────────────────────────────────
 
@@ -142,6 +143,8 @@ export default function UserProfilePage() {
   const router = useRouter();
   const { width: screenW } = useWindowDimensions();
   const isNarrow = screenW < 768;
+  const s = useStyles();
+  const g = useGStyles();
   const { isMobile } = useBreakpoint();
 
   // Avatar manual positioning state
@@ -600,7 +603,7 @@ export default function UserProfilePage() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: { flex: 1, backgroundColor: t.color.bg },
   scroll: { flex: 1 },
   scrollContent: { flexGrow: 1 },
@@ -708,7 +711,7 @@ const s = StyleSheet.create({
   },
   followAvatar: { width: 36, height: 36, borderRadius: 18, overflow: "hidden" } as any,
   followAvatarFb: { backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,
-  followAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.on-dark"] },
+  followAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.on-cta"] },
   followInfo: { flex: 1 },
   followName: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.primary"] },
   followMeta: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"], marginTop: 2 },
@@ -716,19 +719,19 @@ const s = StyleSheet.create({
   // Followers modal — same visual language as app/(tabs)/profile.tsx
   followersOverlayWrap: { flex: 1, justifyContent: "center", alignItems: "center" } as any,
   followersOverlayBg: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(104,79,68,0.6)" } as any,
-  followersModal: { width: "90%", maxWidth: 440, backgroundColor: "#FAF8F0", borderRadius: 12, padding: 20, maxHeight: "70%", zIndex: 1 } as any,
+  followersModal: { width: "90%", maxWidth: 440, backgroundColor: t.color.bg, borderRadius: 12, padding: 20, maxHeight: "70%", zIndex: 1 } as any,
   followersHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-  followersTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: "#351101" },
-  followersEmpty: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#A09580", textAlign: "center" as any, paddingVertical: 32 },
+  followersTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: t.color["text.primary"] },
+  followersEmpty: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.muted"], textAlign: "center" as any, paddingVertical: 32 },
   followerDivider: { height: 1, backgroundColor: "rgba(215,209,196,0.3)", marginVertical: 2 },
   followerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 },
   followerInfo: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   followerAvatar: { width: 32, height: 32, borderRadius: 16, overflow: "hidden" } as any,
-  followerAvatarFb: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,
-  followerAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: "#FAF8F0" },
-  followerName: { fontFamily: t.font["body.medium"], fontSize: 13, color: "#351101" },
-  followerLocation: { fontFamily: t.font["body.regular"], fontSize: 11, color: "#A09580" },
-  followerFollowBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1.5, borderColor: "#351101", borderRadius: 2, paddingHorizontal: 10, paddingVertical: 4 } as any,
-  followerFollowBtnActive: { backgroundColor: "#D798DA", borderColor: "#D798DA" },
-  followerFollowBtnText: { fontFamily: t.font["body.semibold"], fontSize: 11, color: "#351101" },
-});
+  followerAvatarFb: { backgroundColor: t.color["accent.cta"], alignItems: "center", justifyContent: "center" } as any,
+  followerAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-cta"] },
+  followerName: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"] },
+  followerLocation: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"] },
+  followerFollowBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1.5, borderColor: t.color["accent.cta"], borderRadius: 2, paddingHorizontal: 10, paddingVertical: 4 } as any,
+  followerFollowBtnActive: { backgroundColor: t.color.accent, borderColor: t.color.accent },
+  followerFollowBtnText: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.primary"] },
+}));

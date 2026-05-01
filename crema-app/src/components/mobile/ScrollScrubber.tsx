@@ -37,7 +37,7 @@ import {
   ScrollView,
 } from "react-native";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { select as hapticSelect, tap as hapticTap } from "../../utils/haptics";
 
 export interface ScrollScrubberHandle {
@@ -75,6 +75,7 @@ const ScrollScrubber = forwardRef<ScrollScrubberHandle, Props>(function ScrollSc
   // `canGrab` gates pointerEvents so an invisible scrubber doesn't
   // steal the right 32px column of taps from the feed below.
   const [canGrab, setCanGrab] = useState(false);
+  const s = useStyles();
 
   const geo = useRef({
     contentHeight: 0,
@@ -224,7 +225,7 @@ const ScrollScrubber = forwardRef<ScrollScrubberHandle, Props>(function ScrollSc
 
 export default ScrollScrubber;
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
     position: "absolute",
     right: 0,
@@ -248,4 +249,4 @@ const s = StyleSheet.create({
     backgroundColor: t.color["text.primary"],
     marginRight: TRACK_EDGE_INSET,
   } as any,
-});
+}));

@@ -30,7 +30,7 @@
 import { Modal, View, Text, Pressable, ScrollView, StyleSheet, Platform, useWindowDimensions } from "react-native";
 import { X } from "lucide-react-native";
 
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 
 interface BrewRec {
   method?: string | null;
@@ -102,6 +102,7 @@ export default function CoffeeDetailSheet({
   // Tolerate a missing coffee — modal opens, body renders the empty
   // state. Closing puts it back to harmless.
   const c: Record<string, any> = coffee || {};
+  const s = useStyles();
 
   // Hook-based window height — computing inside the component fires
   // on every render, after the Dimensions API has settled. Doing this
@@ -257,6 +258,7 @@ export default function CoffeeDetailSheet({
 }
 
 function Field({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  const s = useStyles();
   return (
     <View style={s.field}>
       <Text style={s.fieldLabel}>{label}</Text>
@@ -266,7 +268,7 @@ function Field({ label, value, hint }: { label: string; value: string; hint?: st
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   overlayWrap: {
     flex: 1,
     justifyContent: "center",
@@ -403,4 +405,4 @@ const s = StyleSheet.create({
     fontSize: t.size["font.sm"],
     color: t.color["text.primary"],
   },
-});
+}));

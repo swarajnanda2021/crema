@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent, Platform } from "react-native";
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import CoffeeCard from "./CoffeeCard";
 import CoffeeDetailSheet from "./CoffeeDetailSheet";
@@ -28,6 +28,7 @@ interface CoffeeListProps {
 export default function CoffeeList({ coffees, popularity = {}, compact, ListHeaderComponent, onScroll }: CoffeeListProps) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [containerW, setContainerW] = useState(0);
+  const s = useStyles();
   const [detailCoffee, setDetailCoffee] = useState<any>(null);
   const { isMobile } = useBreakpoint();
   const visible = (Array.isArray(coffees) ? coffees : []).slice(0, visibleCount);
@@ -112,10 +113,10 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   grid: { flexDirection: "row", flexWrap: "wrap" },
   emptyContainer: { alignItems: "center", paddingVertical: 80, paddingHorizontal: 16 },
   emptyEmoji: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontFamily: t.font["body.semibold"], fontSize: 20, marginBottom: 8, color: "#351101" },
-  emptySubtitle: { fontFamily: t.font["body.regular"], fontSize: 14, color: "#684F44" },
-});
+  emptyTitle: { fontFamily: t.font["body.semibold"], fontSize: 20, marginBottom: 8, color: t.color["text.primary"] },
+  emptySubtitle: { fontFamily: t.font["body.regular"], fontSize: 14, color: t.color["text.secondary"] },
+}));

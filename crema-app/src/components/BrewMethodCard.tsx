@@ -11,7 +11,7 @@
 
 import { View, Text, StyleSheet } from "react-native";
 import Svg, { Circle, Path, G } from "react-native-svg";
-import { t, cardShadow } from "../tokens/useTokens";
+import { t, cardShadow, makeStyles } from "../tokens/useTokens";
 import type { BrewMethod, BrewMethodKind } from "../resources/types";
 
 interface Props {
@@ -82,6 +82,7 @@ function formatField(key: keyof BrewMethod, value: unknown): string | null {
 export default function BrewMethodCard({ brew, width = 240, height = 372 }: Props) {
   const kind = (brew.method as BrewMethodKind) || "other";
   const order = METHOD_FIELD_ORDER[kind] ?? METHOD_FIELD_ORDER.other;
+  const s = useStyles();
 
   const rows = order
     .map((k) => {
@@ -151,14 +152,18 @@ export default function BrewMethodCard({ brew, width = 240, height = 372 }: Prop
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   card: {
     backgroundColor: t.color["text.primary"],
     borderRadius: 5,
     padding: 18,
     justifyContent: "flex-start",
     overflow: "hidden",
-    ...cardShadow,
+    shadowColor: t.shadow.card.color,
+    shadowOffset: { width: t.shadow.card.offset[0], height: t.shadow.card.offset[1] },
+    shadowOpacity: t.shadow.card.opacity,
+    shadowRadius: t.shadow.card.radius,
+    elevation: t.shadow.card.elevation,
   } as any,
   artWrap: {
     position: "absolute",
@@ -179,7 +184,7 @@ const s = StyleSheet.create({
   kindLabel: {
     fontFamily: t.font.display,
     fontSize: 20,
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
     letterSpacing: 0.2,
   },
   byLine: {
@@ -205,7 +210,7 @@ const s = StyleSheet.create({
   fieldValue: {
     fontFamily: t.font["body.semibold"],
     fontSize: 16,
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
   },
   emptyNote: {
     fontFamily: t.font["body.regular"],
@@ -225,4 +230,4 @@ const s = StyleSheet.create({
     color: "rgba(250,248,240,0.75)",
     lineHeight: 17,
   } as any,
-});
+}));

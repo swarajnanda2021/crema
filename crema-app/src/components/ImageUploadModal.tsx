@@ -11,7 +11,7 @@ import { View, Text, TextInput, Pressable, Modal, StyleSheet, ActivityIndicator,
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { X, ImageIcon, Camera, Link2 } from "lucide-react-native";
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import { apiUpload, resolveUploadUrl } from "../api/client";
 
 interface Props {
@@ -30,6 +30,7 @@ export default function ImageUploadModal({ visible, title, purpose = "general", 
   const [urlInput, setUrlInput] = useState("");
   const [mode, setMode] = useState<Mode>("idle");
   const [uploading, setUploading] = useState(false);
+  const s = useStyles();
 
   // Reset state when modal opens
   useEffect(() => {
@@ -181,21 +182,21 @@ export default function ImageUploadModal({ visible, title, purpose = "general", 
           {/* ── Action buttons ─────────────────────────── */}
           <View style={s.actions}>
             <ActionButton
-              icon={<ImageIcon size={20} color="#684F44" strokeWidth={1.5} />}
+              icon={<ImageIcon size={20} color={t.color["text.secondary"]} strokeWidth={1.5} />}
               label="Choose from device"
               onPress={pickFromGallery}
               disabled={uploading}
             />
             {Platform.OS !== "web" && (
               <ActionButton
-                icon={<Camera size={20} color="#684F44" strokeWidth={1.5} />}
+                icon={<Camera size={20} color={t.color["text.secondary"]} strokeWidth={1.5} />}
                 label="Take a photo"
                 onPress={takePhoto}
                 disabled={uploading}
               />
             )}
             <ActionButton
-              icon={<Link2 size={20} color="#684F44" strokeWidth={1.5} />}
+              icon={<Link2 size={20} color={t.color["text.secondary"]} strokeWidth={1.5} />}
               label={mode === "url" ? "Hide URL input" : "Paste image URL"}
               onPress={() => setMode(mode === "url" ? "idle" : "url")}
               disabled={uploading}
@@ -252,6 +253,7 @@ function ActionButton({ icon, label, onPress, disabled, active }: {
   disabled?: boolean;
   active?: boolean;
 }) {
+  const s = useStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -271,7 +273,7 @@ function ActionButton({ icon, label, onPress, disabled, active }: {
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -351,10 +353,10 @@ const s = StyleSheet.create({
   },
   actionBtnActive: {
     borderColor: t.color["text.primary"],
-    backgroundColor: "#F5F0E6",
+    backgroundColor: t.color["card.info"],
   },
   actionBtnPressed: {
-    backgroundColor: "#EDE8DE",
+    backgroundColor: t.color["border.light"],
   },
   actionLabel: {
     fontFamily: t.font["body.medium"],
@@ -394,7 +396,7 @@ const s = StyleSheet.create({
   urlGoText: {
     fontFamily: t.font["body.semibold"],
     fontSize: 13,
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
   },
 
   // Footer
@@ -427,6 +429,6 @@ const s = StyleSheet.create({
   confirmText: {
     fontFamily: t.font["body.semibold"],
     fontSize: 14,
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
   },
-});
+}));

@@ -36,7 +36,7 @@ import {
   QrCode, ClipboardList, Package, BarChart3, Settings, Users,
 } from "lucide-react-native";
 
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
 import { getChromeHiddenAnim, showChromeNow } from "../utils/chromeScroll";
 import { emit } from "../utils/events";
@@ -193,6 +193,7 @@ export default function MobileFooter() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const s = useStyles();
 
   // Per-screen tab sets (§2.40.7): the dispatcher picks the right
   // TabDef[] based on the URL prefix so café POS + roaster analytics
@@ -272,7 +273,7 @@ export default function MobileFooter() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   // Flex-sized bar at the bottom of the root layout's flex column —
   // reserves its own height so the Stack content above never gets
   // covered. Sticky behaviour comes from the parent `<View flex:1>`
@@ -302,4 +303,4 @@ const s = StyleSheet.create({
     fontSize: t.size["font.xs"],
     letterSpacing: -0.2,
   },
-});
+}));

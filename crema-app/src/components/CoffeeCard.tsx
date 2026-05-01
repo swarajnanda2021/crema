@@ -8,7 +8,7 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { openExternal } from "../utils/openExternal";
 import { Coffee, Pencil, Trash2 } from "lucide-react-native";
-import { t, cardShadow, SHELF_LABELS, ShelfKey } from "../tokens/useTokens";
+import { t, tLight, cardShadow, makeStyles, SHELF_LABELS, ShelfKey } from "../tokens/useTokens";
 import { HeartIcon, HeartFilledIcon, ShareIcon, CartIcon, UsersIcon } from "./icons/FigmaIcons";
 import CoffeeLabel, { CoffeeLabelPrice } from "./CoffeeLabel";
 import { trackClick } from "../api/client";
@@ -55,6 +55,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
   const { share } = useShare();
   const { addToShelf } = useShelves();
   const { isMobile } = useBreakpoint();
+  const s = useStyles();
 
   const imageH = Math.round(cardH * IMAGE_RATIO);
   const infoH = cardH - imageH;
@@ -136,7 +137,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
               style={[s.tlSlot, s.socialCircleLs]}
               accessibilityLabel={`${userCount} people have this on a shelf`}
             >
-              <UsersIcon size={15} color="#351101" />
+              <UsersIcon size={15} color={t.color["text.on-light"]} />
             </Pressable>
           ) : null}
 
@@ -144,7 +145,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
           {shelfMode && isOwner && onRemove ? (
             <Pressable onPress={onRemove} style={s.trSlot} accessibilityLabel="Remove bean">
               <View style={s.trashCircleLs}>
-                <Trash2 size={16} color="#351101" strokeWidth={1.8} />
+                <Trash2 size={16} color={t.color["text.on-light"]} strokeWidth={1.8} />
               </View>
             </Pressable>
           ) : !shelfMode ? (
@@ -157,7 +158,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
           {shelfMode && isOwner && onEdit && (
             <Pressable onPress={onEdit} style={s.trStackSlot} accessibilityLabel="Edit bean">
               <View style={s.trashCircleLs}>
-                <Pencil size={14} color="#351101" strokeWidth={1.7} />
+                <Pencil size={14} color={t.color["text.on-light"]} strokeWidth={1.7} />
               </View>
             </Pressable>
           )}
@@ -249,7 +250,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
       {shelfMode && isOwner && onRemove ? (
         <Pressable onPress={onRemove} style={s.binBtnRight}>
           <View style={s.binCircleRight}>
-            <Trash2 size={16} color="#351101" strokeWidth={1.8} />
+            <Trash2 size={16} color={t.color["text.on-light"]} strokeWidth={1.8} />
           </View>
         </Pressable>
       ) : shelfMode && !isOwner && onAddToShelf ? (
@@ -263,7 +264,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
       {shelfMode && isOwner && onEdit && (
         <Pressable onPress={onEdit} style={s.editPencilBtnRight} accessibilityLabel="Edit bean">
           <View style={s.editPencilCircle}>
-            <Pencil size={14} color="#351101" strokeWidth={1.7} />
+            <Pencil size={14} color={t.color["text.on-light"]} strokeWidth={1.7} />
           </View>
         </Pressable>
       )}
@@ -285,7 +286,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
             style={s.socialCircle}
             accessibilityLabel={`${userCount} people have this on a shelf`}
           >
-            <UsersIcon size={15} color="#351101" />
+            <UsersIcon size={15} color={t.color["text.on-light"]} />
           </Pressable>
         )}
 
@@ -351,18 +352,30 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
   );
 }
 
-const s = StyleSheet.create({
+// CoffeeCard intentionally pins to the LIGHT-MODE token snapshot
+// regardless of active theme — product cards retain their cream-on-
+// white identity in night mode (per the brand-identity rule, like
+// roaster logos always sitting on a Crema White surface). The factory
+// signature is retained so the makeStyles registry still rebuilds the
+// sheet when other surfaces flip; the values just don't change.
+const useStyles = makeStyles(() => {
+  const t = tLight;
+  return ({
   card: {
     borderTopLeftRadius: 3.624,
     borderTopRightRadius: 3.624,
     borderBottomLeftRadius: 5,
     borderBottomRightRadius: 5,
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     position: "relative",
-    ...cardShadow,
+    shadowColor: t.shadow.card.color,
+    shadowOffset: { width: t.shadow.card.offset[0], height: t.shadow.card.offset[1] },
+    shadowOpacity: t.shadow.card.opacity,
+    shadowRadius: t.shadow.card.radius,
+    elevation: t.shadow.card.elevation,
   },
   imageArea: {
-    backgroundColor: "#d4c5b8",
+    backgroundColor: "rgba(53,17,1,0.06)",
     borderTopLeftRadius: 3.624,
     borderTopRightRadius: 3.624,
     overflow: "hidden",
@@ -371,7 +384,7 @@ const s = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#e8e0d0",
+    backgroundColor: "rgba(53,17,1,0.04)",
   },
 
   // Bin button — Figma 243:3079. Top-LEFT variant is kept for the
@@ -396,7 +409,7 @@ const s = StyleSheet.create({
   binCircleRight: {
     width: BTN_SIZE, height: BTN_SIZE,
     borderRadius: BTN_SIZE / 2,
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     alignItems: "center",
     justifyContent: "center",
   } as any,
@@ -419,7 +432,7 @@ const s = StyleSheet.create({
   editPencilCircle: {
     width: BTN_SIZE, height: BTN_SIZE,
     borderRadius: BTN_SIZE / 2,
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     alignItems: "center",
     justifyContent: "center",
   } as any,
@@ -433,7 +446,7 @@ const s = StyleSheet.create({
     left: 12,
     width: BTN_SIZE, height: BTN_SIZE,
     borderRadius: BTN_SIZE / 2,
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     alignItems: "center",
     justifyContent: "center",
     zIndex: 10,
@@ -451,7 +464,7 @@ const s = StyleSheet.create({
   wholesaleCircle: {
     width: BTN_SIZE, height: BTN_SIZE,
     borderRadius: BTN_SIZE / 2,
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     alignItems: "center",
     justifyContent: "center",
   } as any,
@@ -469,7 +482,7 @@ const s = StyleSheet.create({
     position: "absolute",
     top: 10 + BTN_SIZE + 6,
     right: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: t.color["card.front"],
     borderRadius: 10,
     paddingVertical: 4,
     shadowColor: "#000",
@@ -487,8 +500,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  shelfOptionActive: { backgroundColor: "#EFE9DB" },
-  shelfOptionText: { fontFamily: t.font["body.medium"], fontSize: 13, color: "#351101" },
+  shelfOptionActive: { backgroundColor: t.color["card.info"] },
+  shelfOptionText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"] },
   shelfOptionTextActive: { fontFamily: t.font["body.semibold"] },
 
   // Info section — padding matches Figma, bottom radius matches card
@@ -496,7 +509,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 17,
     paddingTop: 13,
     paddingBottom: 12,
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     borderBottomLeftRadius: 5,
     borderBottomRightRadius: 5,
   },
@@ -521,13 +534,17 @@ const s = StyleSheet.create({
   cardLs: {
     flexDirection: "row",
     borderRadius: 5,
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     position: "relative",
     overflow: "hidden",
-    ...cardShadow,
+    shadowColor: t.shadow.card.color,
+    shadowOffset: { width: t.shadow.card.offset[0], height: t.shadow.card.offset[1] },
+    shadowOpacity: t.shadow.card.opacity,
+    shadowRadius: t.shadow.card.radius,
+    elevation: t.shadow.card.elevation,
   } as any,
   imageAreaLs: {
-    backgroundColor: "#d4c5b8",
+    backgroundColor: "rgba(53,17,1,0.06)",
     borderTopLeftRadius: 5,
     borderBottomLeftRadius: 5,
     overflow: "hidden",
@@ -558,7 +575,7 @@ const s = StyleSheet.create({
     overflow: "hidden",
   } as any,
   infoSectionLs: {
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     borderTopRightRadius: 5,
     borderBottomRightRadius: 5,
     paddingHorizontal: 17,
@@ -579,7 +596,7 @@ const s = StyleSheet.create({
   trashCircleLs: {
     width: BTN_SIZE, height: BTN_SIZE,
     borderRadius: BTN_SIZE / 2,
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     alignItems: "center",
     justifyContent: "center",
   } as any,
@@ -589,7 +606,7 @@ const s = StyleSheet.create({
   socialCircleLs: {
     width: BTN_SIZE, height: BTN_SIZE,
     borderRadius: BTN_SIZE / 2,
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     alignItems: "center",
     justifyContent: "center",
   } as any,
@@ -599,7 +616,7 @@ const s = StyleSheet.create({
     position: "absolute",
     top: 10 + BTN_SIZE + 6,
     right: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: t.color["card.front"],
     borderRadius: 10,
     paddingVertical: 4,
     shadowColor: "#000",
@@ -619,4 +636,5 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: "auto" as any,
   } as any,
+});
 });

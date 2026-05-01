@@ -31,7 +31,7 @@
 import { Image } from "expo-image";
 import { View, Text, StyleSheet } from "react-native";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { resolveUploadUrl } from "../../api/client";
 
 interface RoasterLogoProps {
@@ -52,6 +52,7 @@ export default function RoasterLogo({
   // Initial font scales with the box — ~38% of the box reads as a
   // confident monogram without crowding the corners.
   const initialFontSize = Math.round(size * 0.38);
+  const s = useStyles();
 
   return (
     <View
@@ -84,17 +85,20 @@ export default function RoasterLogo({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
+  // Roaster identity is always presented on a Crema White (#FAF8F0)
+  // surface — both modes — so transparent-PNG logos read consistently
+  // and the logo doesn't blend into a dark page bg in night mode.
   box: {
-    backgroundColor: t.color.bg,
-    borderColor: t.color.bg,
+    backgroundColor: t.color["bg.identity"],
+    borderColor: t.color["bg.identity"],
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   } as any,
   initial: {
     fontFamily: t.font.display,
-    color: t.color["text.primary"],
+    color: t.color["text.on-light"],
     lineHeight: undefined,
   } as any,
-});
+}));

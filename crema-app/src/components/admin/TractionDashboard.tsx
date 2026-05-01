@@ -27,7 +27,7 @@ import {
 } from "react-native";
 import { RefreshCw } from "lucide-react-native";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { useTractionStats } from "../../hooks/useTractionStats";
 import LineChart from "./LineChart";
 import MetricCard from "./MetricCard";
@@ -73,6 +73,7 @@ export default function TractionDashboard() {
   const [section, setSection] = useState<AdminSection>("engagement");
   const { stats, loading, error, refresh } = useTractionStats(true);
   const { width } = useWindowDimensions();
+  const s = useStyles();
 
   // §2.18 drill-down — Card invocations call `_openMetric` (a module
   // ref set here on mount) to open the daily-chart modal for the
@@ -103,9 +104,9 @@ export default function TractionDashboard() {
         accessibilityLabel="Refresh stats"
       >
         {loading ? (
-          <ActivityIndicator size="small" color={t.color["text.on-dark"]} />
+          <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
         ) : (
-          <RefreshCw size={18} color={t.color["text.on-dark"]} strokeWidth={2} />
+          <RefreshCw size={18} color={t.color["text.on-cta"]} strokeWidth={2} />
         )}
       </Pressable>
     </View>
@@ -165,16 +166,16 @@ export default function TractionDashboard() {
   let body: React.ReactNode = null;
   switch (section) {
     case "engagement":
-      body = renderEngagement(stats, headlineBasis);
+      body = renderEngagement(stats, headlineBasis, s);
       break;
     case "commerce":
-      body = renderCommerce(stats, headlineBasis);
+      body = renderCommerce(stats, headlineBasis, s);
       break;
     case "network":
-      body = renderNetwork(stats, headlineBasis);
+      body = renderNetwork(stats, headlineBasis, s);
       break;
     case "retention":
-      body = renderRetention(stats, headlineBasis);
+      body = renderRetention(stats, headlineBasis, s);
       break;
   }
 
@@ -212,6 +213,7 @@ function PlotCarousel({ slides }: { slides: React.ReactNode[] }) {
   const [index, setIndex] = useState(0);
   const [slideWidth, setSlideWidth] = useState(0);
   const scrollRef = useRef<ScrollView | null>(null);
+  const cs = useCsStyles();
 
   if (slides.length === 0) return null;
   if (slides.length === 1) {
@@ -259,17 +261,22 @@ function PlotCarousel({ slides }: { slides: React.ReactNode[] }) {
   );
 }
 
-const cs = StyleSheet.create({
+const useCsStyles = makeStyles((t) => ({
   wrap: { gap: t.spacing.md },
   dotsRow: { flexDirection: "row", gap: t.spacing.sm, alignSelf: "center" },
   dot: { width: 8, height: 8, borderRadius: 4 },
   dotActive: { backgroundColor: t.color["text.primary"] },
   dotInactive: { backgroundColor: t.color["border.light"] },
-});
+}));
 
 // ── Section renderers ──────────────────────────────────────────────────────
 
 function grid(children: React.ReactNode) {
+  return <Grid>{children}</Grid>;
+}
+
+function Grid({ children }: { children: React.ReactNode }) {
+  const s = useStyles();
   return <View style={s.grid}>{children}</View>;
 }
 
@@ -475,7 +482,7 @@ const E = {
     "Cities receiving the most wholesale inquiries. Pairs with cafe-cities as the supply side of the same map.",
 };
 
-function renderEngagement(stats: any, basis: any) {
+function renderEngagement(stats: any, basis: any, s: any) {
   const e = stats.engagement;
   const likeBuckets = [
     { label: "0", value: e.like_distribution["0"] ?? 0 },
@@ -538,7 +545,7 @@ function renderEngagement(stats: any, basis: any) {
   );
 }
 
-function renderCommerce(stats: any, basis: any) {
+function renderCommerce(stats: any, basis: any, s: any) {
   const c = stats.commerce;
   return (
     <View style={{ gap: t.spacing.xl }}>
@@ -601,7 +608,7 @@ function renderCommerce(stats: any, basis: any) {
   );
 }
 
-function renderNetwork(stats: any, basis: any) {
+function renderNetwork(stats: any, basis: any, s: any) {
   const n = stats.network;
   return (
     <View style={{ gap: t.spacing.xl }}>
@@ -636,7 +643,7 @@ function renderNetwork(stats: any, basis: any) {
   );
 }
 
-function renderRetention(stats: any, basis: any) {
+function renderRetention(stats: any, basis: any, s: any) {
   const r = stats.retention;
   const cohortsOldFirst = [...(r.cohorts || [])].reverse();
   return (
@@ -739,7 +746,7 @@ function Card({
 
 // ── Styles ────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   wrap: {
     paddingHorizontal: t.spacing.xl,
     paddingTop: t.spacing.xl,
@@ -857,4 +864,4 @@ const s = StyleSheet.create({
     color: t.color["text.muted"],
     textAlign: "right",
   },
-});
+}));

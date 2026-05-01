@@ -32,7 +32,7 @@ import { runOnJS } from "react-native-reanimated";
 
 import { resolveUploadUrl } from "../api/client";
 import { useBreakpoint } from "../hooks/useBreakpoint";
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import TastingNoteCard from "./TastingNoteCard";
 
 export const GALLERY_ASPECT = 371 / 281; // Portrait — Figma TastingNoteCard base (281×371)
@@ -130,6 +130,7 @@ export default function PostGallery({
   const { isMobile } = useBreakpoint();
   const { width: winW } = useWindowDimensions();
   const [cw, setCw] = useState(0);
+  const s = useStyles();
 
   if (!images || images.length === 0) return null;
 
@@ -190,6 +191,7 @@ function NoteCarouselMobile({
   const slideW = containerW;
   const slideH = Math.round(slideW * GALLERY_ASPECT_LS);
   const multi = notes.length > 1;
+  const s = useStyles();
 
   return (
     <View style={s.carousel}>
@@ -213,7 +215,7 @@ function NoteCarouselMobile({
       </ScrollView>
       {multi && idx < notes.length - 1 && (
         <View pointerEvents="none" style={[s.chevronHint, { top: slideH / 2 - 14 }]}>
-          <ChevronRight size={20} color={t.color["text.on-dark"]} strokeWidth={2.5} />
+          <ChevronRight size={20} color={t.color["text.on-cta"]} strokeWidth={2.5} />
         </View>
       )}
       {multi && (
@@ -238,6 +240,7 @@ function ImageStripMobile({
   const itemH = Math.floor(itemW * GALLERY_ASPECT);
   const slideUnit = itemW + PG_GAP;
   const multi = images.length > 3;
+  const s = useStyles();
 
   return (
     <View style={s.carousel}>
@@ -261,7 +264,7 @@ function ImageStripMobile({
       </ScrollView>
       {multi && idx < images.length - 3 && (
         <View pointerEvents="none" style={[s.chevronHint, { top: itemH / 2 - 14 }]}>
-          <ChevronRight size={20} color={t.color["text.on-dark"]} strokeWidth={2.5} />
+          <ChevronRight size={20} color={t.color["text.on-cta"]} strokeWidth={2.5} />
         </View>
       )}
       {multi && (
@@ -275,7 +278,7 @@ function ImageStripMobile({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   wrap: { marginBottom: 16, position: "relative" as any },
   carousel: { position: "relative" as any, marginBottom: 10 },
   chevronHint: {
@@ -300,4 +303,4 @@ const s = StyleSheet.create({
     backgroundColor: t.color["text.primary"],
     opacity: 1,
   } as any,
-});
+}));

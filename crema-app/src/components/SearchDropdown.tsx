@@ -14,7 +14,7 @@ import {
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Search as SearchIcon, X } from "lucide-react-native";
-import { t, cardShadow } from "../tokens/useTokens";
+import { t, cardShadow, makeStyles } from "../tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
 import { useCoffeeData } from "../hooks/useCoffeeData";
 import { CroppedAvatar, RoasterLogo } from "./primitives";
@@ -53,6 +53,7 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
   const cardRef = useRef<any>(null);
   const inputRef = useRef<any>(null);
   const debounceRef = useRef<any>(null);
+  const s = useStyles();
 
   const { products, roasters } = useCoffeeData();
 
@@ -298,6 +299,7 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
 }
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  const s = useStyles();
   return (
     <View style={s.section}>
       <Text style={s.sectionLabel}>{label}</Text>
@@ -306,17 +308,17 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   card: {
     width: 380,
     maxHeight: 540,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: t.color["card.front"],
     borderRadius: 12,
     overflow: "hidden",
-    ...cardShadow,
+    shadowColor: t.shadow.card.color,
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 24,
-    shadowOffset: { width: 0, height: 8 },
     elevation: 12,
   } as any,
 
@@ -356,7 +358,7 @@ const s = StyleSheet.create({
     paddingVertical: 4,
     ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
   } as any,
-  divider: { height: 1, backgroundColor: "#EDE8E1", marginHorizontal: 12 },
+  divider: { height: 1, backgroundColor: t.color["border.light"], marginHorizontal: 12 },
 
   results: { maxHeight: 460 } as any,
   hint: {
@@ -395,7 +397,7 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   } as any,
   avatarLetter: {
-    fontFamily: t.font["body.semibold"], fontSize: 11, color: "#FAF8F0",
+    fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-cta"],
   },
   beanDot: {
     width: 6, height: 6, borderRadius: 3,
@@ -407,4 +409,4 @@ const s = StyleSheet.create({
   // results for X" affordance was removed — it just kicked users
   // to /browse?q=... which didn't actually filter. The modal is
   // the search experience; if users need more they tap through.
-});
+}));

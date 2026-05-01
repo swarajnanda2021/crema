@@ -11,7 +11,7 @@
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { X } from "lucide-react-native";
 
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 
 interface Props {
   visible: boolean;
@@ -30,6 +30,7 @@ export default function PostPromptModal({
   onConfirm,
   onClose,
 }: Props) {
+  const s = useStyles();
   if (!visible) return null;
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -60,7 +61,7 @@ export default function PostPromptModal({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   overlayWrap: {
     flex: 1,
     justifyContent: "center",
@@ -145,4 +146,4 @@ const s = StyleSheet.create({
     fontSize: t.size["font.sm"],
     color: t.color["text.primary"],
   },
-});
+}));

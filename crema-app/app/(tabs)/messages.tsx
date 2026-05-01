@@ -12,7 +12,7 @@
  */
 import { useLocalSearchParams } from "expo-router";
 import { View, StyleSheet } from "react-native";
-import { t } from "../../src/tokens/useTokens";
+import { t, makeStyles } from "../../src/tokens/useTokens";
 import MessagesDropdown from "../../src/components/MessagesDropdown";
 
 export default function MessagesScreen() {
@@ -22,6 +22,7 @@ export default function MessagesScreen() {
     threadId && !Number.isNaN(threadId)
       ? ({ kind: "direct_message" as const, id: threadId })
       : null;
+  const s = useStyles();
 
   return (
     <View style={s.wrap}>
@@ -35,6 +36,6 @@ export default function MessagesScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   wrap: { flex: 1, backgroundColor: t.color.bg },
-});
+}));

@@ -19,7 +19,7 @@ import { Image } from "expo-image";
 import { Camera, Plus, X } from "lucide-react-native";
 
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import { HapticPressable } from "./primitives";
 import { PostDrinkIcon, PostLocationPinIcon } from "./icons/FigmaIcons";
 import ImageUploadModal from "./ImageUploadModal";
@@ -290,6 +290,7 @@ export default function ComposePost({
 
   const displayName = user?.display_name || user?.username || "You";
   const avatarUrl = user?.avatar_url;
+  const s = useStyles();
 
   return (
     <View style={s.card}>
@@ -328,7 +329,7 @@ export default function ComposePost({
           </Text>
         </View>
         <Pressable onPress={onCancel} hitSlop={8}>
-          <X size={18} color="#A09580" />
+          <X size={18} color={t.color["text.muted"]} />
         </Pressable>
       </View>
 
@@ -369,7 +370,7 @@ export default function ComposePost({
               ? "Write the long version — a sourcing story, a brew walkthrough, a detailed review."
               : "What's on your mind? Paste a link to share an article."
         }
-        placeholderTextColor="#A09580"
+        placeholderTextColor={t.color["text.muted"] as string}
         multiline
       />
       <Text style={s.charCount}>
@@ -380,7 +381,7 @@ export default function ComposePost({
       {/* ── ARTICLE MODE: link preview with title overlay ── */}
       {isArticleMode && (
         <View style={s.linkSection}>
-          {linkLoading && <ActivityIndicator size="small" color="#D798DA" style={{ marginVertical: 12 }} />}
+          {linkLoading && <ActivityIndicator size="small" color={t.color.accent} style={{ marginVertical: 12 }} />}
           {linkPreview && (
             <View style={s.previewCard}>
               {linkPreview.image_url ? (
@@ -400,18 +401,18 @@ export default function ComposePost({
               ) : (
                 <View style={s.previewNoImg}>
                   <TextInput
-                    style={[s.previewTitle, { color: "#351101" }]}
+                    style={[s.previewTitle, { color: t.color["text.primary"] }]}
                     value={linkTitle}
                     onChangeText={setLinkTitle}
                     placeholder="Title"
-                    placeholderTextColor="#A09580"
+                    placeholderTextColor={t.color["text.muted"] as string}
                   />
-                  <Text style={[s.previewDomain, { color: "#A09580" }]}>{linkPreview.domain}</Text>
+                  <Text style={[s.previewDomain, { color: t.color["text.muted"] }]}>{linkPreview.domain}</Text>
                 </View>
               )}
               {/* Detach the article — same language as image-thumb X. */}
               <Pressable onPress={clearAttachedLink} style={s.previewRemove} hitSlop={6} accessibilityLabel="Remove link">
-                <X size={14} color="#FAF8F0" strokeWidth={2.5} />
+                <X size={14} color={t.color["text.on-cta"]} strokeWidth={2.5} />
               </Pressable>
             </View>
           )}
@@ -431,13 +432,13 @@ export default function ComposePost({
                   <Image source={{ uri: resolveUploadUrl(entry) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                 )}
                 <Pressable onPress={() => setImageUrls((p) => p.filter((_, i) => i !== idx))} style={s.imageRemove}>
-                  <X size={12} color="#FAF8F0" strokeWidth={2.5} />
+                  <X size={12} color={t.color["text.on-cta"]} strokeWidth={2.5} />
                 </Pressable>
               </View>
             ))}
             {canAddImage && (
               <Pressable onPress={() => { setAddCardTab("image"); setShowAddCardModal(true); }} style={[s.imageAdd, { width: editThumbW, height: editThumbH }]}>
-                <Plus size={20} color="#A09580" strokeWidth={1.5} />
+                <Plus size={20} color={t.color["text.muted"]} strokeWidth={1.5} />
                 <Text style={s.imageAddLabel}>Add Card</Text>
               </Pressable>
             )}
@@ -559,7 +560,7 @@ export default function ComposePost({
               <Pressable style={s.addCardModal} onPress={(e) => e.stopPropagation()}>
                 <View style={s.addCardHeader}>
                   <Text style={s.addCardTitle}>Add Card</Text>
-                  <Pressable onPress={() => setShowAddCardModal(false)} hitSlop={8}><X size={18} color="#351101" /></Pressable>
+                  <Pressable onPress={() => setShowAddCardModal(false)} hitSlop={8}><X size={18} color={t.color["text.primary"]} /></Pressable>
                 </View>
                 <View style={s.addCardTabs}>
                   <Pressable onPress={() => setAddCardTab("image")} style={[s.addCardTab, addCardTab === "image" && s.addCardTabActive]}>
@@ -571,12 +572,12 @@ export default function ComposePost({
                 </View>
                 {addCardTab === "image" ? (
                   <Pressable onPress={() => { setShowAddCardModal(false); setShowImgUpload(true); }} style={s.addCardImageBtn}>
-                    <Camera size={24} color="#684F44" strokeWidth={1.2} />
+                    <Camera size={24} color={t.color["text.secondary"]} strokeWidth={1.2} />
                     <Text style={s.addCardImageBtnText}>Upload or paste an image</Text>
                   </Pressable>
                 ) : (
                   <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
-                    <TextInput style={s.tnSearch} value={tnSearch} onChangeText={setTnSearch} placeholder="Search by coffee or roaster..." placeholderTextColor="#A09580" />
+                    <TextInput style={s.tnSearch} value={tnSearch} onChangeText={setTnSearch} placeholder="Search by coffee or roaster..." placeholderTextColor={t.color["text.muted"] as string} />
                     {!tnSelectedCoffee && tnSearch.length > 1 && (products || [])
                       .filter((p: any) => {
                         const q = tnSearch.toLowerCase();
@@ -657,57 +658,57 @@ export default function ComposePost({
       <View style={s.submitRow}>
         <HapticPressable haptic="tap" onPress={onCancel} style={s.cancelBtn}><Text style={s.cancelText}>Cancel</Text></HapticPressable>
         <HapticPressable haptic="commit" onPress={handleSubmit} style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]} disabled={!canSubmit}>
-          {loading ? <ActivityIndicator size="small" color="#FAF8F0" /> : <Text style={s.submitText}>{isEditing ? "Save" : isRepost ? "Repost" : "Post"}</Text>}
+          {loading ? <ActivityIndicator size="small" color={t.color["text.on-cta"]} /> : <Text style={s.submitText}>{isEditing ? "Save" : isRepost ? "Repost" : "Post"}</Text>}
         </HapticPressable>
       </View>
     </View>
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   // Outer shell — flex column so the scroll body expands and the
   // submit row sits pinned at the bottom. Padding lives on the
   // scroll contents + submit row individually.
-  card: { backgroundColor: "#FAF8F0", flexShrink: 1 } as any,
+  card: { backgroundColor: t.color.bg, flexShrink: 1 } as any,
   scrollBody: { flexGrow: 0, flexShrink: 1 } as any,
   scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 } as any,
   // Dry-run post header
   header: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 14 } as any,
   avatar: { width: 30, height: 30, borderRadius: 15, overflow: "hidden" } as any,
-  avatarFallback: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: "#FAF8F0" },
+  avatarFallback: { backgroundColor: t.color["accent.cta"], alignItems: "center", justifyContent: "center" } as any,
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-cta"] },
   headerMeta: { flex: 1 },
   nameRow: { flexDirection: "row", alignItems: "baseline", gap: 5 } as any,
-  authorName: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: "#351101" },
-  timestamp: { fontFamily: t.font["body.medium"], fontSize: 10, color: "#A09580" },
-  subtitle: { fontFamily: t.font["body.medium"], fontSize: 10, color: "#684F44", marginTop: 2 },
+  authorName: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
+  timestamp: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.muted"] },
+  subtitle: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.secondary"], marginTop: 2 },
   // §2.23a — Short / Long mode tabs above the teaser.
   modeTabs: {
     flexDirection: "row", gap: 6, marginBottom: 10,
   } as any,
   modeTab: {
     paddingHorizontal: 12, paddingVertical: 5,
-    borderRadius: 14, borderWidth: 1, borderColor: "#D1C7B3",
+    borderRadius: 14, borderWidth: 1, borderColor: t.color.border,
     backgroundColor: "transparent",
   } as any,
   modeTabActive: {
-    backgroundColor: "#351101", borderColor: "#351101",
+    backgroundColor: t.color["accent.cta"], borderColor: t.color["accent.cta"],
   } as any,
   modeTabText: {
     fontFamily: t.font["body.medium"], fontSize: 11,
-    color: "#684F44", letterSpacing: 0.3,
+    color: t.color["text.secondary"], letterSpacing: 0.3,
   } as any,
   modeTabTextActive: {
-    color: "#FAF8F0", fontFamily: t.font["body.semibold"],
+    color: t.color["text.on-cta"], fontFamily: t.font["body.semibold"],
   } as any,
   // Teaser
-  teaserInput: { fontFamily: t.font["body.regular"], fontSize: 16.8, color: "#351101", lineHeight: 23.5, minHeight: 48, textAlignVertical: "top" } as any,
+  teaserInput: { fontFamily: t.font["body.regular"], fontSize: 16.8, color: t.color["text.primary"], lineHeight: 23.5, minHeight: 48, textAlignVertical: "top" } as any,
   // Long-form grows the textarea (modal expands with it).
   teaserInputLong: { minHeight: 220 } as any,
-  charCount: { fontFamily: t.font["body.regular"], fontSize: 10, color: "#A09580", textAlign: "right", marginTop: 2, marginBottom: 8 } as any,
+  charCount: { fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["text.muted"], textAlign: "right", marginTop: 2, marginBottom: 8 } as any,
   // Link preview (article mode)
   linkSection: { marginBottom: 8 },
-  previewCard: { borderRadius: 8, overflow: "hidden", backgroundColor: "#EFE9DB", position: "relative" } as any,
+  previewCard: { borderRadius: 8, overflow: "hidden", backgroundColor: t.color["card.info"], position: "relative" } as any,
   // Detach-article X — same visual language as the image-thumb X
   // (semi-opaque dark disc, cream glyph). Top-right so it doesn't
   // clash with the title overlay anchored bottom-left.
@@ -720,9 +721,9 @@ const s = StyleSheet.create({
   } as any,
   previewThumbWrap: { position: "relative", height: 200 } as any,
   previewThumbImg: { width: "100%" as any, height: "100%" as any },
-  previewOverlay: { position: "absolute", bottom: 10, left: 10, backgroundColor: "#FFF", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, maxWidth: "80%" } as any,
-  previewTitle: { fontFamily: t.font["body.semibold"], fontSize: 14, color: "#351101", lineHeight: 19, marginBottom: 2 },
-  previewDomain: { fontFamily: t.font["body.regular"], fontSize: 11, color: "#A09580" },
+  previewOverlay: { position: "absolute", bottom: 10, left: 10, backgroundColor: t.color["card.subtle"], borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, maxWidth: "80%" } as any,
+  previewTitle: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"], lineHeight: 19, marginBottom: 2 },
+  previewDomain: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"] },
   previewNoImg: { padding: 14 },
   // Note mode
   noteSection: { marginBottom: 8 },
@@ -735,7 +736,7 @@ const s = StyleSheet.create({
   fieldChip: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 14, borderWidth: 1, borderColor: "#D1C7B3",
+    borderRadius: 14, borderWidth: 1, borderColor: t.color.border,
     backgroundColor: "transparent", maxWidth: "100%",
   } as any,
   fieldChipActive: {
@@ -754,9 +755,9 @@ const s = StyleSheet.create({
   locationModalInput: {
     fontFamily: t.font["body.regular"], fontSize: 14,
     color: t.color["text.primary"],
-    borderRadius: 6, borderWidth: 1, borderColor: "#D7D1C4",
+    borderRadius: 6, borderWidth: 1, borderColor: t.color.border,
     paddingHorizontal: 12, paddingVertical: 10,
-    backgroundColor: "#fff",
+    backgroundColor: t.color["card.subtle"],
     ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
   } as any,
   locationModalActions: {
@@ -775,45 +776,45 @@ const s = StyleSheet.create({
   imageGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 } as any,
   imageThumb: { borderRadius: PG_RADIUS, overflow: "hidden", position: "relative" } as any,
   imageRemove: { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" } as any,
-  imageAdd: { borderRadius: PG_RADIUS, borderWidth: 1.5, borderColor: "#C7BAA5", borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: 6 } as any,
-  imageAddLabel: { fontFamily: t.font["body.medium"], fontSize: 10, color: "#A09580" },
+  imageAdd: { borderRadius: PG_RADIUS, borderWidth: 1.5, borderColor: t.color.divider, borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: 6 } as any,
+  imageAddLabel: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.muted"] },
   // Add Card modal
   addCardOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" } as any,
-  addCardModal: { backgroundColor: "#FAF8F0", borderRadius: 12, width: "90%", maxWidth: 420, maxHeight: "80%", padding: 20 } as any,
+  addCardModal: { backgroundColor: t.color.bg, borderRadius: 12, width: "90%", maxWidth: 420, maxHeight: "80%", padding: 20 } as any,
   addCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } as any,
-  addCardTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: "#351101" },
+  addCardTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: t.color["text.primary"] },
   addCardTabs: { flexDirection: "row", gap: 8, marginBottom: 16 } as any,
-  addCardTab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 4, borderWidth: 1, borderColor: "#D7D1C4", backgroundColor: "#FEFDFB" },
-  addCardTabActive: { borderColor: "#351101", backgroundColor: "#351101" },
-  addCardTabText: { fontFamily: t.font["body.medium"], fontSize: 12, color: "#684F44" },
-  addCardTabTextActive: { color: "#FAF8F0" },
-  addCardImageBtn: { alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 40, borderRadius: 8, borderWidth: 1.5, borderColor: "#C7BAA5", borderStyle: "dashed" } as any,
-  addCardImageBtnText: { fontFamily: t.font["body.medium"], fontSize: 13, color: "#684F44" },
+  addCardTab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 4, borderWidth: 1, borderColor: t.color.border, backgroundColor: t.color["card.subtle"] },
+  addCardTabActive: { borderColor: t.color["accent.cta"], backgroundColor: t.color["accent.cta"] },
+  addCardTabText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.secondary"] },
+  addCardTabTextActive: { color: t.color["text.on-cta"] },
+  addCardImageBtn: { alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 40, borderRadius: 8, borderWidth: 1.5, borderColor: t.color.divider, borderStyle: "dashed" } as any,
+  addCardImageBtnText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.secondary"] },
   // Tasting note selector
-  tnSearch: { fontFamily: t.font["body.regular"], fontSize: 14, color: "#351101", borderRadius: 6, borderWidth: 1, borderColor: "#D7D1C4", paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#fff" },
+  tnSearch: { fontFamily: t.font["body.regular"], fontSize: 14, color: t.color["text.primary"], borderRadius: 6, borderWidth: 1, borderColor: t.color.border, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: t.color["card.subtle"] },
   tnResultRow: { paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(215,209,196,0.4)" },
-  tnResultName: { fontFamily: t.font["body.medium"], fontSize: 13, color: "#351101" },
-  tnResultRoaster: { fontFamily: t.font["body.regular"], fontSize: 11, color: "#684F44", marginTop: 2 },
-  tnSelectedName: { fontFamily: t.font["body.semibold"], fontSize: 14, color: "#351101" },
-  tnSelectedRoaster: { fontFamily: t.font["body.regular"], fontSize: 12, color: "#684F44", marginBottom: 12 },
+  tnResultName: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"] },
+  tnResultRoaster: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.secondary"], marginTop: 2 },
+  tnSelectedName: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"] },
+  tnSelectedRoaster: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.secondary"], marginBottom: 12 },
   tnScoreRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 } as any,
-  tnScoreLabel: { fontFamily: t.font["body.medium"], fontSize: 13, color: "#351101", width: 80 },
+  tnScoreLabel: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"], width: 80 },
   tnScoreDots: { flexDirection: "row", gap: 8 } as any,
   tnDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: "rgba(215,209,196,0.4)", alignItems: "center", justifyContent: "center" } as any,
-  tnDotActive: { backgroundColor: "#D798DA" },
-  tnDotText: { fontFamily: t.font["body.medium"], fontSize: 11, color: "#684F44" },
-  tnDotTextActive: { color: "#351101" },
-  tnConfirmBtn: { marginTop: 16, paddingVertical: 12, borderRadius: 6, backgroundColor: "#351101", alignItems: "center" } as any,
-  tnConfirmText: { fontFamily: t.font["body.semibold"], fontSize: 13, color: "#FAF8F0" },
+  tnDotActive: { backgroundColor: t.color.accent },
+  tnDotText: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.secondary"] },
+  tnDotTextActive: { color: t.color["text.primary"] },
+  tnConfirmBtn: { marginTop: 16, paddingVertical: 12, borderRadius: 6, backgroundColor: t.color["accent.cta"], alignItems: "center" } as any,
+  tnConfirmText: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.on-cta"] },
   // Repost preview
-  repostPreview: { borderWidth: 1, borderColor: "#D7D1C4", borderRadius: 8, padding: 12, marginBottom: 12 },
+  repostPreview: { borderWidth: 1, borderColor: t.color.border, borderRadius: 8, padding: 12, marginBottom: 12 },
   repostPreviewHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 } as any,
   repostAvatar: { width: 20, height: 20, borderRadius: 10, overflow: "hidden" } as any,
-  repostAvatarFallback: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,
-  repostAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 8, color: "#FAF8F0" },
-  repostAuthor: { fontFamily: t.font["body.medium"], fontSize: 11, color: "#351101", flex: 1 },
-  repostTime: { fontFamily: t.font["body.regular"], fontSize: 10, color: "#A09580" },
-  repostTeaser: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#684F44", lineHeight: 18, marginBottom: 6 },
+  repostAvatarFallback: { backgroundColor: t.color["accent.cta"], alignItems: "center", justifyContent: "center" } as any,
+  repostAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 8, color: t.color["text.on-cta"] },
+  repostAuthor: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.primary"], flex: 1 },
+  repostTime: { fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["text.muted"] },
+  repostTeaser: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.secondary"], lineHeight: 18, marginBottom: 6 },
   repostThumb: { width: 60, height: 60, borderRadius: 4, marginTop: 4 },
   // Submit bar — pinned outside the ScrollView so it never clips
   // when Long-mode content grows. Own padding + top border visually
@@ -822,11 +823,11 @@ const s = StyleSheet.create({
     flexDirection: "row", justifyContent: "flex-end", alignItems: "center",
     gap: 12, paddingHorizontal: 20, paddingVertical: 12,
     borderTopWidth: 1, borderTopColor: "rgba(53,17,1,0.08)",
-    backgroundColor: "#FAF8F0",
+    backgroundColor: t.color.bg,
   } as any,
   cancelBtn: { paddingHorizontal: 14, paddingVertical: 8 },
-  cancelText: { fontFamily: t.font["body.medium"], fontSize: 12, color: "#A09580" },
-  submitBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 4, backgroundColor: "#351101" },
+  cancelText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.muted"] },
+  submitBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 4, backgroundColor: t.color["accent.cta"] },
   submitBtnDisabled: { opacity: 0.4 },
-  submitText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: "#FAF8F0" },
-});
+  submitText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-cta"] },
+}));

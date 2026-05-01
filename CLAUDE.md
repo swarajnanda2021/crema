@@ -10,6 +10,47 @@ The vision anchor. Everything else is downstream of this.
 
 @NORTH_STAR.md
 
+## Hard rule — palette discipline
+
+**Before touching any color value, anywhere — re-read
+[DESIGN_LANGUAGE.md](DESIGN_LANGUAGE.md) §1 in full.** Do this every time.
+Don't trust your memory. Don't reuse stale context.
+
+The Crema brand identity is exactly three colors. Pulled from Figma node
+[697-4663](https://www.figma.com/design/QIT6HorllZ7wbeULQ4iLAt/Crema-%E2%80%93-Initial-UI?node-id=697-4663):
+
+- **Espresso** `#351101`
+- **Crema** `#D798DA`
+- **Crema White** `#FAF8F0`
+
+Two-track rule for tonal hierarchy:
+
+- **Light mode** has an established set of approved functional
+  neutrals (warm browns + creams) tonally consistent with the brand —
+  see `DESIGN_LANGUAGE.md` §1's "Functional neutrals" table. Use those
+  exact tokens. Don't add new ones.
+- **Dark mode** is strict-three-colors-only. Tonal hierarchy in dark
+  mode comes exclusively from `rgba(...)` opacity variants of Espresso
+  / Crema White — never a new hex. The dark-mode block invents no new
+  browns, off-whites, or warm greys; that experiment was rejected by
+  the user during the night-mode work.
+
+In both modes, any token, any inline style, any new component must
+resolve to one of: a brand color, an approved light-mode neutral, an
+`rgba(...)` opacity variant of a brand color, or pure `#000000` /
+`#FFFFFF` for unavoidable shadow/highlight defaults.
+
+**Don't invent new colors.** No "slightly lighter" or "slightly
+darker" shade for elevation. No reaching for golds, alert reds,
+success greens, or in-between tones you've seen in prior versions of
+this codebase. If a surface needs visual separation from the page,
+either use an existing approved neutral (light mode) or an rgba
+opacity variant of a brand color (dark mode) — never a new hex.
+
+If a request seems to require a fourth color (alert red, success green,
+gold accent, neutral grey), surface the conflict back to the user
+before introducing it. Do not silently invent.
+
 ## Before any dev / implementation work — read these
 
 The moment a request is about writing, modifying, debugging, reviewing,

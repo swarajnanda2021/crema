@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from "react-native";
 import { ChevronDown, ChevronUp, Send } from "lucide-react-native";
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 
 const DRINK_STYLES = ["black","espresso","americano","lungo","cortado","macchiato","cappuccino","flat-white","latte","mocha","cold-brew","iced-latte","filter-coffee","pour-over"];
 const BREW_METHODS = ["pour-over","french-press","aeropress","espresso-machine","moka-pot","cold-brew","siphon","turkish","drip-machine","chemex","south-indian-filter","instant"];
@@ -25,6 +25,7 @@ export default function TastingNoteForm({ productId, onSubmit }: Props) {
   const [extractionTime, setExtractionTime] = useState("");
   const [grindSize, setGrindSize] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const styles = useStyles();
 
   const handleSubmit = async () => {
     if (!comment.trim() && !drinkStyle) return;
@@ -114,6 +115,7 @@ export default function TastingNoteForm({ productId, onSubmit }: Props) {
 
 function DropdownChips({ label, options, selected, onSelect }: { label: string; options: string[]; selected: string; onSelect: (v: string) => void }) {
   const [open, setOpen] = useState(false);
+  const dropStyles = useDropStyles();
   return (
     <View>
       <Pressable
@@ -144,6 +146,7 @@ function DropdownChips({ label, options, selected, onSelect }: { label: string; 
 }
 
 function NumberInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const numStyles = useNumStyles();
   return (
     <View style={{ flex: 1 }}>
       <Text style={numStyles.label}>{label}</Text>
@@ -157,7 +160,7 @@ function NumberInput({ label, value, onChange }: { label: string; value: string;
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   card: {
     borderRadius: 12,
     padding: 16,
@@ -211,9 +214,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "white",
   },
-});
+}));
 
-const dropStyles = StyleSheet.create({
+const useDropStyles = makeStyles((t) => ({
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -255,9 +258,9 @@ const dropStyles = StyleSheet.create({
     fontSize: 12,
     textTransform: "capitalize",
   },
-});
+}));
 
-const numStyles = StyleSheet.create({
+const useNumStyles = makeStyles((t) => ({
   label: {
     fontSize: 10,
     textTransform: "uppercase",
@@ -274,4 +277,4 @@ const numStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: t.color.border,
   },
-});
+}));

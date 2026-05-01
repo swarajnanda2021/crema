@@ -8,10 +8,11 @@
  * Navbar; same component, same logic — only the presentation flips.
  */
 import { View, StyleSheet } from "react-native";
-import { t } from "../src/tokens/useTokens";
+import { t, makeStyles } from "../src/tokens/useTokens";
 import SearchDropdown from "../src/components/SearchDropdown";
 
 export default function SearchScreen() {
+  const s = useStyles();
   return (
     <View style={s.wrap}>
       <SearchDropdown visible={true} onClose={() => {}} fullScreen />
@@ -19,6 +20,6 @@ export default function SearchScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   wrap: { flex: 1, backgroundColor: t.color.bg },
-});
+}));

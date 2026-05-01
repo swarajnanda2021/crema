@@ -10,7 +10,7 @@
 import { useRef, useCallback } from "react";
 import { Text, Animated, StyleSheet } from "react-native";
 import { useToggle } from "../../resources/useToggle";
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import HapticPressable from "./HapticPressable";
 
 interface ToggleProps {
@@ -48,6 +48,7 @@ export default function Toggle({
   });
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const s = useStyles();
 
   const handlePress = useCallback(() => {
     Animated.sequence([
@@ -71,7 +72,7 @@ export default function Toggle({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   btn: { flexDirection: "row", alignItems: "center", gap: 5 } as any,
   count: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
-});
+}));

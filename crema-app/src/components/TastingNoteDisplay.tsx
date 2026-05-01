@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react-native";
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import Chip from "./Chip";
 
 function formatDate(iso: string): string {
@@ -21,6 +21,7 @@ interface Props {
 
 export default function TastingNoteDisplay({ note, isOwner, onEdit, onDelete }: Props) {
   const [showBrew, setShowBrew] = useState(false);
+  const styles = useStyles();
   const hasBrew = note.dose_grams || note.yield_grams || note.water_volume_ml || note.grind_size || note.brew_ratio;
   const hasAttributes = note.acidity || note.body || note.sweetness || note.aftertaste;
 
@@ -106,6 +107,7 @@ export default function TastingNoteDisplay({ note, isOwner, onEdit, onDelete }: 
 }
 
 function MiniStat({ label, value }: { label: string; value: string }) {
+  const miniStyles = useMiniStyles();
   return (
     <View>
       <Text style={miniStyles.label}>{label}</Text>
@@ -115,6 +117,7 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 }
 
 function AttributeBar({ label, value }: { label: string; value: number }) {
+  const attrStyles = useAttrStyles();
   return (
     <View style={attrStyles.row}>
       <Text style={attrStyles.label}>{label}</Text>
@@ -128,7 +131,7 @@ function AttributeBar({ label, value }: { label: string; value: number }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   card: {
     borderRadius: 12,
     padding: 16,
@@ -202,9 +205,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
   },
-});
+}));
 
-const miniStyles = StyleSheet.create({
+const useMiniStyles = makeStyles((t) => ({
   label: {
     fontSize: 10,
     textTransform: "uppercase",
@@ -216,9 +219,9 @@ const miniStyles = StyleSheet.create({
     fontWeight: "500",
     color: t.color["text.primary"],
   },
-});
+}));
 
-const attrStyles = StyleSheet.create({
+const useAttrStyles = makeStyles((t) => ({
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -245,4 +248,4 @@ const attrStyles = StyleSheet.create({
     textAlign: "right",
     color: t.color["text.secondary"],
   },
-});
+}));

@@ -25,7 +25,7 @@ import HiddenPostRow from "../../src/components/domain/HiddenPostRow";
 import SwipeToCommit from "../../src/components/mobile/SwipeToCommit";
 import ScrollScrubber, { type ScrollScrubberHandle } from "../../src/components/mobile/ScrollScrubber";
 import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
-import { t } from "../../src/tokens/useTokens";
+import { t, makeStyles } from "../../src/tokens/useTokens";
 import type { Post } from "../../src/resources/types";
 
 const FEED_PER_PAGE = 5;
@@ -38,6 +38,7 @@ export default function FeedPage() {
   const [postToDelete, setPostToDelete] = useState<Post | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const scrubberRef = useRef<ScrollScrubberHandle>(null);
+  const s = useStyles();
   // Local hide-state overrides. The map stores the viewer's
   // current intent for a given post id: `true` = hidden,
   // `false` = explicitly un-hidden (Undo after hide). Missing key
@@ -202,7 +203,7 @@ export default function FeedPage() {
           (§2.40.3 / §2.40.6) */}
       {user && (
         <HapticPressable haptic="tap" onPress={() => openComposePost()} style={s.fab}>
-          <Plus size={22} color={t.color["text.on-dark"]} strokeWidth={2.5} />
+          <Plus size={22} color={t.color["text.on-cta"]} strokeWidth={2.5} />
         </HapticPressable>
       )}
 
@@ -228,7 +229,7 @@ export default function FeedPage() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: t.color.bg } as any,
   loadingText: { fontFamily: t.font["body.regular"], color: t.color["text.secondary"] },
   container: { flex: 1, backgroundColor: t.color.bg },
@@ -249,7 +250,7 @@ const s = StyleSheet.create({
   editOverlayWrap: { flex: 1, justifyContent: "center", alignItems: "center" } as any,
   editOverlayWrapFull: { backgroundColor: t.color.bg } as any,
   editOverlayBg: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" } as any,
-  editModal: { width: "90%", maxWidth: 680, backgroundColor: "#FAF8F0", borderRadius: 12, overflow: "hidden", maxHeight: "85%", zIndex: 1 } as any,
+  editModal: { width: "90%", maxWidth: 680, backgroundColor: t.color.bg, borderRadius: 12, overflow: "hidden", maxHeight: "85%", zIndex: 1 } as any,
   // Mobile: edge-to-edge composer. No radius, no max, no backdrop.
   editModalFull: {
     width: "100%" as any, height: "100%" as any,
@@ -262,4 +263,4 @@ const s = StyleSheet.create({
     backgroundColor: t.color["text.primary"],
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8,
   } as any,
-});
+}));

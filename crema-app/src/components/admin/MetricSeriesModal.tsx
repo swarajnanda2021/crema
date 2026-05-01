@@ -20,7 +20,7 @@ import { View, Text, Pressable, Modal, StyleSheet, Platform, ActivityIndicator }
 import { X } from "lucide-react-native";
 
 import { apiFetchRaw } from "../../api/client";
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import LineChart from "./LineChart";
 
 interface Props {
@@ -46,6 +46,7 @@ function prettyLabel(iso: string): string {
 export default function MetricSeriesModal({ visible, metricKey, label, value, info, onClose }: Props) {
   const [series, setSeries] = useState<SeriesPoint[]>([]);
   const [loading, setLoading] = useState(false);
+  const s = useStyles();
 
   useEffect(() => {
     if (!visible || !metricKey) return;
@@ -136,7 +137,7 @@ export default function MetricSeriesModal({ visible, metricKey, label, value, in
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   overlayWrap: {
     flex: 1, justifyContent: "center", alignItems: "center",
     ...(Platform.OS === "web" ? ({ backdropFilter: "blur(35px)", WebkitBackdropFilter: "blur(35px)" } as any) : {}),
@@ -207,4 +208,4 @@ const s = StyleSheet.create({
     fontFamily: t.font["body.semibold"],
     color: t.color["text.secondary"],
   },
-});
+}));

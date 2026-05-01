@@ -7,7 +7,7 @@ import { MapPin, Mountain, Leaf, Settings } from "lucide-react-native";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useShare } from "../../src/hooks/useShare";
 import { apiFetchRaw, trackClick } from "../../src/api/client";
-import { t, cardShadow } from "../../src/tokens/useTokens";
+import { t, cardShadow, makeStyles } from "../../src/tokens/useTokens";
 import { pricePer250g } from "../../src/utils/formatPrice";
 import { ShareIcon, CartIcon } from "../../src/components/icons/FigmaIcons";
 import Chip from "../../src/components/Chip";
@@ -27,6 +27,7 @@ export default function CoffeeDetailPage() {
   const router = useRouter();
 
   const coffee = productMap?.get(id);
+  const st = useStStyles();
   // Phase 1 §2.5 — roaster-submitted brew recipe cards for this product.
   const [brewMethods, setBrewMethods] = useState<BrewMethod[]>([]);
   useEffect(() => {
@@ -90,7 +91,7 @@ export default function CoffeeDetailPage() {
                 onPress={() => { trackClick(coffee.product_id, coffee.roaster_slug, "coffee_page"); openExternal(coffee.product_url); }}
                 style={st.buyBtn}
               >
-                <CartIcon size={16} color="#FFFFFF" />
+                <CartIcon size={16} color={t.color["text.on-cta"]} />
                 <Text style={st.buyText}>Buy</Text>
               </Pressable>
             </View>
@@ -143,6 +144,7 @@ export default function CoffeeDetailPage() {
 }
 
 function DetailRow({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+  const dt = useDtStyles();
   return (
     <View style={dt.row}>
       {icon && <View style={{ marginTop: 2 }}>{icon}</View>}
@@ -154,7 +156,7 @@ function DetailRow({ label, value, icon }: { label: string; value: string; icon?
   );
 }
 
-const st = StyleSheet.create({
+const useStStyles = makeStyles((t) => ({
   notFound: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: t.color.bg },
   container: { flex: 1, backgroundColor: t.color.bg },
   heroWrap: { borderBottomLeftRadius: 5, borderBottomRightRadius: 5, overflow: "hidden" },
@@ -212,15 +214,15 @@ const st = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: t.color["text.primary"],
   },
-  buyText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.on-dark"] },
+  buyText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.on-cta"] },
   divider: { height: 1, backgroundColor: t.color.divider, marginVertical: 4 },
   detailsSection: { marginTop: 16, gap: 16 },
   relatedSection: { marginTop: 32 },
   relatedTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, marginBottom: 16, color: t.color["text.primary"] },
-});
+}));
 
-const dt = StyleSheet.create({
+const useDtStyles = makeStyles((t) => ({
   row: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   label: { fontFamily: t.font["body.semibold"], fontSize: 12, letterSpacing: 0.5, color: t.color["text.muted"] },
   value: { fontFamily: t.font["body.regular"], fontSize: 14, marginTop: 2, lineHeight: 20, color: t.color["text.primary"] },
-});
+}));

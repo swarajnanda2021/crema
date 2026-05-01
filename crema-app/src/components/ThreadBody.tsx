@@ -12,7 +12,7 @@ import {
   TextInput, ActivityIndicator, ScrollView,
 } from "react-native";
 import { X, Send, ArrowLeft } from "lucide-react-native";
-import { t, cardShadow } from "../tokens/useTokens";
+import { t, cardShadow, makeStyles } from "../tokens/useTokens";
 import { apiFetchRaw } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 import { timeAgo, CroppedAvatar } from "./primitives";
@@ -55,6 +55,7 @@ export default function ThreadBody({ kind, id, onBack, onClose }: Props) {
   const scrollRef = useRef<ScrollView>(null);
   const pollRef = useRef<any>(null);
   const lastMessageCount = useRef(0);
+  const s = useStyles();
 
   const fetchUrl = `/direct-threads/${id}/thread`;
   const postUrl = `/direct-threads/${id}/messages`;
@@ -162,7 +163,7 @@ export default function ThreadBody({ kind, id, onBack, onClose }: Props) {
         showsVerticalScrollIndicator={false}
       >
         {loading && messages.length === 0 ? (
-          <ActivityIndicator size="small" color="#D798DA" style={{ marginTop: 18 }} />
+          <ActivityIndicator size="small" color={t.color.accent} style={{ marginTop: 18 }} />
         ) : messages.length === 0 ? (
           <Text style={s.emptyText}>Say hi 👋 — {counterparty.name} is waiting to hear from you.</Text>
         ) : (
@@ -223,21 +224,21 @@ export default function ThreadBody({ kind, id, onBack, onClose }: Props) {
           style={[s.sendBtn, (!draft.trim() || sending) && s.sendBtnDisabled]}
           accessibilityLabel="Send message"
         >
-          {sending ? <ActivityIndicator size="small" color="#FAF8F0" /> : <Send size={13} color="#FAF8F0" />}
+          {sending ? <ActivityIndicator size="small" color={t.color["text.on-cta"]} /> : <Send size={13} color={t.color["text.on-cta"]} />}
         </Pressable>
       </View>
     </View>
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   root: { flex: 1, backgroundColor: t.color.bg } as any,
   header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     paddingHorizontal: 10, paddingTop: 10, paddingBottom: 10,
-    borderBottomWidth: 1, borderBottomColor: "#EDE8E1",
+    borderBottomWidth: 1, borderBottomColor: t.color["border.light"],
   } as any,
   title: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.primary"] },
   iconBtn: {
@@ -250,13 +251,13 @@ const s = StyleSheet.create({
     backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
   } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: "#FAF8F0" },
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-cta"] },
   avatarFbSmall: {
     width: 20, height: 20, borderRadius: 10,
     backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
   } as any,
-  avatarLetterSmall: { fontFamily: t.font["body.semibold"], fontSize: 9, color: "#FAF8F0" },
+  avatarLetterSmall: { fontFamily: t.font["body.semibold"], fontSize: 9, color: t.color["text.on-cta"] },
   messages: { flex: 1 } as any,
   emptyText: {
     fontFamily: t.font["body.regular"], fontSize: 12,
@@ -273,7 +274,7 @@ const s = StyleSheet.create({
     gap: 2,
   } as any,
   bubbleSelf: { backgroundColor: t.color["text.primary"], borderBottomRightRadius: 3 } as any,
-  bubbleOther: { backgroundColor: "#EFE9DB", borderBottomLeftRadius: 3 } as any,
+  bubbleOther: { backgroundColor: t.color["card.info"], borderBottomLeftRadius: 3 } as any,
   bubbleName: {
     fontFamily: t.font["body.semibold"], fontSize: 9,
     color: "rgba(53,17,1,0.7)", letterSpacing: 0.3,
@@ -282,7 +283,7 @@ const s = StyleSheet.create({
     fontFamily: t.font["body.regular"], fontSize: 12,
     color: t.color["text.primary"], lineHeight: 17,
   },
-  bubbleTextSelf: { color: "#FAF8F0" } as any,
+  bubbleTextSelf: { color: t.color["text.on-cta"] } as any,
   bubbleTime: { fontFamily: t.font["body.regular"], fontSize: 8, color: t.color["text.muted"] } as any,
   bubbleTimeSelf: { color: "rgba(250,248,240,0.55)" } as any,
   error: {
@@ -294,7 +295,7 @@ const s = StyleSheet.create({
     alignItems: "flex-end",
     gap: 6,
     paddingHorizontal: 10, paddingVertical: 9,
-    borderTopWidth: 1, borderTopColor: "#EDE8E1",
+    borderTopWidth: 1, borderTopColor: t.color["border.light"],
   } as any,
   input: {
     flex: 1,
@@ -313,4 +314,4 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   } as any,
   sendBtnDisabled: { opacity: 0.4 } as any,
-});
+}));

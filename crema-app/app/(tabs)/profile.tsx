@@ -23,7 +23,7 @@ import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
-import { t, SHELF_LABELS } from "../../src/tokens/useTokens";
+import { t, SHELF_LABELS, makeStyles } from "../../src/tokens/useTokens";
 
 type ShelfKey = "open_bags" | "on_the_list";
 
@@ -141,6 +141,7 @@ function ShelfCarousel({
   const { isMobile } = useBreakpoint();
   const cardW = isMobile ? CAROUSEL_CARD_W_MOBILE : CAROUSEL_CARD_W;
   const cardH = isMobile ? CAROUSEL_CARD_H_MOBILE : CAROUSEL_CARD_H;
+  const g = useGStyles();
   if (coffees.length === 0) {
     return (
       <View style={g.empty}>
@@ -176,11 +177,11 @@ function ShelfCarousel({
   );
 }
 
-const g = StyleSheet.create({
+const useGStyles = makeStyles((t) => ({
   empty: { paddingVertical: 60, alignItems: "center", paddingHorizontal: 32 },
   emptyText: { fontFamily: t.font["body.semibold"], fontSize: 15, color: t.color["text.primary"], marginBottom: 6 },
   emptySubtext: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.secondary"], textAlign: "center" },
-});
+}));
 
 // ── Main page ────────────────────────────────────────────────────────────────
 
@@ -193,6 +194,8 @@ export default function ProfilePage() {
   const { width: screenW } = useWindowDimensions();
   const isNarrow = screenW < 768;
   const { isMobile } = useBreakpoint();
+  const s = useStyles();
+  const g = useGStyles();
 
   // Sellers (roasters) go to their storefront page instead
   useEffect(() => {
@@ -535,7 +538,7 @@ export default function ProfilePage() {
         )}
         {isEditing && (
           <Pressable onPress={() => setShowAvatarUpload(true)} style={s.avatarEditBtn}>
-            <Camera size={14} color="#FAF8F0" />
+            <Camera size={14} color={t.color["text.on-cta"]} />
             <Text style={s.avatarEditText}>Change photo</Text>
           </Pressable>
         )}
@@ -687,7 +690,7 @@ export default function ProfilePage() {
   const editBanner = isEditing ? (
     <View style={s.editBanner}>
       <View style={s.editBannerLeft}>
-        <PenLine size={12} color="#D798DA" strokeWidth={2} />
+        <PenLine size={12} color={t.color.accent} strokeWidth={2} />
         <Text style={s.editBannerLabel}>Editing profile</Text>
       </View>
       <View style={s.editBannerRight}>
@@ -724,7 +727,7 @@ export default function ProfilePage() {
         </Pressable>
         <Pressable onPress={handleSaveProfile} style={s.editBannerSave} disabled={saving}>
           {saving ? (
-            <ActivityIndicator size="small" color="#FAF8F0" />
+            <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
           ) : (
             <Text style={s.editBannerSaveText}>Save changes</Text>
           )}
@@ -901,7 +904,7 @@ export default function ProfilePage() {
                 <Text style={s.followMeta}>{f.follower_count} follower{f.follower_count !== 1 ? "s" : ""}</Text>
               </View>
               <Pressable onPress={(e) => { e.stopPropagation(); handleUnfollow(f.slug); }} style={s.followingBtn}>
-                <Check size={10} color="#351101" strokeWidth={2.5} />
+                <Check size={10} color={t.color["text.primary"]} strokeWidth={2.5} />
                 <Text style={s.followingBtnText}>Following</Text>
               </Pressable>
             </Pressable>
@@ -950,7 +953,7 @@ export default function ProfilePage() {
           })}
           style={s.fab}
         >
-          <Plus size={22} color="#FAF8F0" strokeWidth={2.5} />
+          <Plus size={22} color={t.color["text.on-cta"]} strokeWidth={2.5} />
         </Pressable>
       )}
 
@@ -973,7 +976,7 @@ export default function ProfilePage() {
               <View style={s.followersHeader}>
                 <Text style={s.followersTitle}>Favorite drink</Text>
                 <Pressable onPress={() => setShowDrinkPicker(false)} hitSlop={14} accessibilityLabel="Close drink picker">
-                  <X size={16} color="#351101" />
+                  <X size={16} color={t.color["text.primary"]} />
                 </Pressable>
               </View>
               <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
@@ -988,7 +991,7 @@ export default function ProfilePage() {
                         <View style={[s.drinkDot, editDrink === d && s.drinkDotActive]} />
                         <Text style={s.followerName}>{d}</Text>
                       </View>
-                      {editDrink === d && <Check size={14} color="#D798DA" strokeWidth={2.5} />}
+                      {editDrink === d && <Check size={14} color={t.color.accent} strokeWidth={2.5} />}
                     </Pressable>
                   </View>
                 ))}
@@ -1007,7 +1010,7 @@ export default function ProfilePage() {
               <View style={s.followersHeader}>
                 <Text style={s.followersTitle}>{followerCount} {followerCount === 1 ? "follower" : "followers"}</Text>
                 <Pressable onPress={() => setShowFollowersModal(false)} hitSlop={14} accessibilityLabel="Close followers list">
-                  <X size={16} color="#351101" />
+                  <X size={16} color={t.color["text.primary"]} />
                 </Pressable>
               </View>
               <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
@@ -1039,7 +1042,7 @@ export default function ProfilePage() {
                           </Pressable>
                           {!isMe && (
                             <Pressable onPress={() => handleToggleFollowInModal(fSlug)} style={[s.followerFollowBtn, amFollowing && s.followerFollowBtnActive]}>
-                              {amFollowing ? <Check size={10} color="#351101" strokeWidth={2.5} /> : <Plus size={10} color="#351101" strokeWidth={2.5} />}
+                              {amFollowing ? <Check size={10} color={t.color["text.primary"]} strokeWidth={2.5} /> : <Plus size={10} color={t.color["text.primary"]} strokeWidth={2.5} />}
                               <Text style={s.followerFollowBtnText}>{amFollowing ? "Following" : "Follow"}</Text>
                             </Pressable>
                           )}
@@ -1085,12 +1088,12 @@ export default function ProfilePage() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAF8F0" },
+const useStyles = makeStyles((t) => ({
+  container: { flex: 1, backgroundColor: t.color.bg },
   scroll: { flex: 1 },
   scrollContent: { flexGrow: 1 },
-  loadingWrap: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FAF8F0" },
-  loadingText: { fontFamily: t.font["body.regular"], fontSize: 16, color: "#684F44" },
+  loadingWrap: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: t.color.bg },
+  loadingText: { fontFamily: t.font["body.regular"], fontSize: 16, color: t.color["text.secondary"] },
 
   // Edit banner — positioned as a sticky overlay at the top of the
   // profile card so toggling edit mode doesn't shove the hero + image
@@ -1104,17 +1107,17 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#2a0d00",
+    backgroundColor: t.color["roaster.panel"],
     paddingHorizontal: 20,
     height: 44,
   } as any,
   editBannerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  editBannerLabel: { fontFamily: t.font["body.medium"], fontSize: 12, color: "#D798DA" },
+  editBannerLabel: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color.accent },
   editBannerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
   editBannerDiscard: { paddingHorizontal: 12, paddingVertical: 6 },
-  editBannerDiscardText: { fontFamily: t.font["body.medium"], fontSize: 12, color: "#FAF8F0" },
-  editBannerSave: { backgroundColor: "#D798DA", borderRadius: 4, paddingHorizontal: 14, paddingVertical: 6 },
-  editBannerSaveText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: "#351101" },
+  editBannerDiscardText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.on-cta"] },
+  editBannerSave: { backgroundColor: t.color.accent, borderRadius: 4, paddingHorizontal: 14, paddingVertical: 6 },
+  editBannerSaveText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.primary"] },
 
   // Hero — centered on screen
   hero: {
@@ -1166,11 +1169,11 @@ const s = StyleSheet.create({
   avatarFallback: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     alignItems: "center",
     justifyContent: "center",
   } as any,
-  avatarLetter: { fontFamily: t.font.display, fontSize: 48, color: "#351101" },
+  avatarLetter: { fontFamily: t.font.display, fontSize: 48, color: t.color["text.primary"] },
   avatarDragHint: {
     position: "absolute",
     top: "50%",
@@ -1182,7 +1185,7 @@ const s = StyleSheet.create({
   avatarDragHintText: {
     fontFamily: t.font["body.medium"],
     fontSize: 11,
-    color: "#FAF8F0",
+    color: t.color["text.on-cta"],
     backgroundColor: "rgba(0,0,0,0.45)",
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -1200,7 +1203,7 @@ const s = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 4,
   } as any,
-  avatarEditText: { fontFamily: t.font["body.medium"], fontSize: 11, color: "#FAF8F0" },
+  avatarEditText: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.on-cta"] },
 
   // Info column (Figma 202:2831 — 291x330.7)
   infoCol: { flex: 1, justifyContent: "center" } as any,
@@ -1224,7 +1227,7 @@ const s = StyleSheet.create({
   bio: {
     fontFamily: t.font["body.regular"],
     fontSize: 12,
-    color: "#684F44",
+    color: t.color["text.secondary"],
     marginTop: 4,
     lineHeight: 18,
   },
@@ -1237,7 +1240,7 @@ const s = StyleSheet.create({
   // Separator lines (Figma: 280.964px wide, #D7D1C4)
   divider: {
     height: 1,
-    backgroundColor: "#D7D1C4",
+    backgroundColor: t.color.border,
     maxWidth: 281,
     width: "100%",
     marginVertical: 8,
@@ -1255,7 +1258,7 @@ const s = StyleSheet.create({
     gap: 7,
   },
   // Info text (Figma: Inter Medium 14px, #351101)
-  infoText: { fontFamily: t.font["body.medium"], fontSize: 14, color: "#351101" },
+  infoText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.primary"] },
 
   // In-place editing — cream background only, NO padding change.
   // The display-mode <Text> has 0 padding; the edit-mode <TextInput>
@@ -1264,13 +1267,13 @@ const s = StyleSheet.create({
   // the same size edit vs display; the cream background is the only
   // visual cue that it's editable.
   inlineEdit: {
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     borderRadius: 8,
     paddingVertical: 0,
     paddingHorizontal: 0,
   },
   inlineEditSmall: {
-    backgroundColor: "#EFE9DB",
+    backgroundColor: t.color["card.info"],
     borderRadius: 6,
     paddingVertical: 0,
     paddingHorizontal: 0,
@@ -1280,16 +1283,16 @@ const s = StyleSheet.create({
   chipEditRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
   // Thin vertical rule between the roast chips and the grind chips.
   // Visual separator that matches the "Medium · Espresso" display read.
-  chipGroupSep: { width: 1, height: 12, backgroundColor: "#D7D1C4", marginHorizontal: 4 } as any,
+  chipGroupSep: { width: 1, height: 12, backgroundColor: t.color.border, marginHorizontal: 4 } as any,
   miniChip: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
     backgroundColor: "rgba(215,209,196,0.3)",
   },
-  miniChipActive: { backgroundColor: "#D798DA" },
-  miniChipText: { fontFamily: t.font["body.medium"], fontSize: 11, color: "#684F44" },
-  miniChipTextActive: { color: "#351101" },
+  miniChipActive: { backgroundColor: t.color.accent },
+  miniChipText: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.secondary"] },
+  miniChipTextActive: { color: t.color["text.primary"] },
 
   // Tab bar — left edge aligns with profile image left edge (same padding as hero)
   tabBar: {
@@ -1298,7 +1301,7 @@ const s = StyleSheet.create({
     alignSelf: "center",
     width: "100%",
     maxWidth: 860,
-    backgroundColor: "#FAF8F0",
+    backgroundColor: t.color.bg,
     height: 80,
     gap: 48,
     borderTopWidth: 1,
@@ -1320,7 +1323,7 @@ const s = StyleSheet.create({
     alignSelf: "center",
     width: "100%",
     maxWidth: 860,
-    backgroundColor: "#FAF8F0",
+    backgroundColor: t.color.bg,
     borderTopWidth: 1,
     borderTopColor: "rgba(215,209,196,0.5)",
     borderBottomWidth: 1,
@@ -1334,9 +1337,9 @@ const s = StyleSheet.create({
     height: "100%" as any,
   } as any,
   tab: { justifyContent: "center", position: "relative" } as any,
-  tabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: "#A09580", letterSpacing: 0.5, textTransform: "uppercase" },
-  tabTextActive: { color: "#351101" },
-  tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: "#351101" } as any,
+  tabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"], letterSpacing: 0.5, textTransform: "uppercase" },
+  tabTextActive: { color: t.color["text.primary"] },
+  tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: t.color["accent.cta"] } as any,
   adminTabContent: {
     alignSelf: "center",
     width: "100%",
@@ -1358,51 +1361,51 @@ const s = StyleSheet.create({
   // Following list
   followRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(215,209,196,0.3)" },
   followAvatar: { width: 36, height: 36, borderRadius: 18, overflow: "hidden" } as any,
-  followAvatarFb: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,
-  followAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 13, color: "#FAF8F0" },
+  followAvatarFb: { backgroundColor: t.color["accent.cta"], alignItems: "center", justifyContent: "center" } as any,
+  followAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.on-cta"] },
   followInfo: { flex: 1 },
-  followName: { fontFamily: t.font["body.medium"], fontSize: 14, color: "#351101" },
-  followMeta: { fontFamily: t.font["body.regular"], fontSize: 11, color: "#A09580", marginTop: 2 },
-  followingBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, width: 88, height: 27, borderRadius: 2, backgroundColor: "#D798DA", borderWidth: 1.5, borderColor: "#D798DA" },
-  followingBtnText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: "#351101" },
+  followName: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.primary"] },
+  followMeta: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"], marginTop: 2 },
+  followingBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, width: 88, height: 27, borderRadius: 2, backgroundColor: t.color.accent, borderWidth: 1.5, borderColor: t.color.accent },
+  followingBtnText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.primary"] },
 
   // FAB
-  fab: { position: "absolute", bottom: 28, right: 28, width: 52, height: 52, borderRadius: 26, backgroundColor: "#351101", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 } as any,
+  fab: { position: "absolute", bottom: 28, right: 28, width: 52, height: 52, borderRadius: 26, backgroundColor: t.color["accent.cta"], alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 } as any,
 
 
   // Drink dot (in drink picker modal)
-  drinkDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D7D1C4" },
-  drinkDotActive: { backgroundColor: "#D798DA" },
+  drinkDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.color.border },
+  drinkDotActive: { backgroundColor: t.color.accent },
 
   // Followers / picker modals
   followersOverlayWrap: { flex: 1, justifyContent: "center", alignItems: "center" } as any,
   followersOverlayBg: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(104,79,68,0.6)" } as any,
-  followersModal: { width: "90%", maxWidth: 440, backgroundColor: "#FAF8F0", borderRadius: 12, padding: 20, maxHeight: "70%", zIndex: 1 } as any,
+  followersModal: { width: "90%", maxWidth: 440, backgroundColor: t.color.bg, borderRadius: 12, padding: 20, maxHeight: "70%", zIndex: 1 } as any,
   editPostOverlayWrap: { flex: 1, justifyContent: "center", alignItems: "center" } as any,
   editPostOverlayBg: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" } as any,
-  editPostModal: { width: "90%", maxWidth: 680, backgroundColor: "#FAF8F0", borderRadius: 12, overflow: "hidden", maxHeight: "85%", zIndex: 1 } as any,
+  editPostModal: { width: "90%", maxWidth: 680, backgroundColor: t.color.bg, borderRadius: 12, overflow: "hidden", maxHeight: "85%", zIndex: 1 } as any,
   followersHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   // Café picker search input — sits above the scrolling list.
   cafePickerSearchWrap: { marginBottom: 10 } as any,
   cafePickerSearchInput: {
-    fontFamily: t.font["body.regular"], fontSize: 13, color: "#351101",
-    backgroundColor: "#FFFFFF",
+    fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.primary"],
+    backgroundColor: t.color["card.front"],
     borderWidth: 1, borderColor: "rgba(53,17,1,0.12)",
     borderRadius: 8,
     paddingHorizontal: 12, paddingVertical: 9,
     ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
   } as any,
-  followersTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: "#351101" },
-  followersEmpty: { fontFamily: t.font["body.regular"], fontSize: 13, color: "#A09580", textAlign: "center", paddingVertical: 32 },
+  followersTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: t.color["text.primary"] },
+  followersEmpty: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.muted"], textAlign: "center", paddingVertical: 32 },
   followerDivider: { height: 1, backgroundColor: "rgba(215,209,196,0.3)", marginVertical: 2 },
   followerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 },
   followerInfo: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   followerAvatar: { width: 32, height: 32, borderRadius: 16, overflow: "hidden" } as any,
-  followerAvatarFb: { backgroundColor: "#351101", alignItems: "center", justifyContent: "center" } as any,
-  followerAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: "#FAF8F0" },
-  followerName: { fontFamily: t.font["body.medium"], fontSize: 13, color: "#351101" },
-  followerLocation: { fontFamily: t.font["body.regular"], fontSize: 11, color: "#A09580" },
-  followerFollowBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1.5, borderColor: "#351101", borderRadius: 2, paddingHorizontal: 10, paddingVertical: 4 },
-  followerFollowBtnActive: { backgroundColor: "#D798DA", borderColor: "#D798DA" },
-  followerFollowBtnText: { fontFamily: t.font["body.semibold"], fontSize: 11, color: "#351101" },
-});
+  followerAvatarFb: { backgroundColor: t.color["accent.cta"], alignItems: "center", justifyContent: "center" } as any,
+  followerAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-cta"] },
+  followerName: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"] },
+  followerLocation: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"] },
+  followerFollowBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1.5, borderColor: t.color["accent.cta"], borderRadius: 2, paddingHorizontal: 10, paddingVertical: 4 },
+  followerFollowBtnActive: { backgroundColor: t.color.accent, borderColor: t.color.accent },
+  followerFollowBtnText: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.primary"] },
+}));

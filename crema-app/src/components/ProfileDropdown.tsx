@@ -8,8 +8,9 @@ import { useState, useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { Settings, PenLine, LogOut, UserPlus, Trash2, X } from "lucide-react-native";
-import { t, cardShadow } from "../tokens/useTokens";
+import { Settings, PenLine, LogOut, UserPlus, Trash2, X, Moon, Sun, Smartphone } from "lucide-react-native";
+import { t, makeStyles } from "../tokens/useTokens";
+import { useThemeOverride } from "../tokens/ThemeProvider";
 import { resolveUploadUrl } from "../api/client";
 import { useAuth, SavedAccount } from "../hooks/useAuth";
 import { emit } from "../utils/events";
@@ -29,6 +30,8 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
   const [switching, setSwitching] = useState(false);
   const [showBin, setShowBin] = useState(false);
   const cardRef = useRef<any>(null);
+  const s = useStyles();
+  const { override, setOverride } = useThemeOverride();
 
   // Outside-click dismissal on web — mirrors Messages + Notifications
   // so opening this dropdown no longer freezes the rest of the site.
@@ -117,6 +120,20 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
     }
   };
 
+  // Theme cycle: System (null) → Light → Dark → System. The icon and
+  // sublabel reflect the *user override*, not the resolved mode — when
+  // System is active, the icon is the phone and the sublabel reads
+  // "Auto" regardless of which scheme the OS is currently serving.
+  const cycleTheme = () => {
+    const next = override === null ? "light" : override === "light" ? "dark" : null;
+    setOverride(next);
+  };
+  const themeLabel = override === "light" ? "Light" : override === "dark" ? "Dark" : "Auto";
+  const themeIcon =
+    override === "light" ? <Sun size={18} color={t.color["text.secondary"]} strokeWidth={1.5} /> :
+    override === "dark"  ? <Moon size={18} color={t.color["text.secondary"]} strokeWidth={1.5} /> :
+                           <Smartphone size={18} color={t.color["text.secondary"]} strokeWidth={1.5} />;
+
   const handleAddAccount = () => {
     onClose();
     // Always open the sitewide AuthModal (cross-platform). After the
@@ -199,12 +216,12 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
 
         {/* ── Menu items ─────────────────────────────────────── */}
         <MenuItem
-          icon={<Settings size={18} color="#684F44" strokeWidth={1.5} />}
+          icon={<Settings size={18} color={t.color["text.secondary"]} strokeWidth={1.5} />}
           label="Manage account"
           onPress={handleManage}
         />
         <MenuItem
-          icon={<PenLine size={18} color="#684F44" strokeWidth={1.5} />}
+          icon={<PenLine size={18} color={t.color["text.secondary"]} strokeWidth={1.5} />}
           label="Edit profile"
           onPress={handleEdit}
         />
@@ -212,15 +229,32 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
            item the user has deleted, grouped by category. Populated by
            backend `services/trash.py` on every hard-delete path. */}
         <MenuItem
-          icon={<Trash2 size={18} color="#684F44" strokeWidth={1.5} />}
+          icon={<Trash2 size={18} color={t.color["text.secondary"]} strokeWidth={1.5} />}
           label="Recycle bin"
           onPress={() => setShowBin(true)}
         />
 
         <View style={s.divider} />
 
+        {/* Theme cycle — single row that flips System → Light → Dark on
+            tap. The trailing pill shows the current state so users can
+            see what's active without opening a sub-screen. */}
+        <HapticPressable
+          haptic="select"
+          onPress={cycleTheme}
+          style={({ pressed }) => [s.menuItem, pressed && s.menuItemPressed]}
+          accessibilityLabel={`Theme: ${themeLabel}. Tap to cycle.`}
+          accessibilityRole="button"
+        >
+          {themeIcon}
+          <Text style={s.menuItemText}>Theme</Text>
+          <View style={s.themeStatePill}>
+            <Text style={s.themeStateText}>{themeLabel}</Text>
+          </View>
+        </HapticPressable>
+
         <MenuItem
-          icon={<LogOut size={18} color="#684F44" strokeWidth={1.5} />}
+          icon={<LogOut size={18} color={t.color["text.secondary"]} strokeWidth={1.5} />}
           label="Sign out"
           onPress={handleSignOut}
         />
@@ -259,7 +293,7 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
         <View style={s.divider} />
 
         <MenuItem
-          icon={<UserPlus size={18} color="#684F44" strokeWidth={1.5} />}
+          icon={<UserPlus size={18} color={t.color["text.secondary"]} strokeWidth={1.5} />}
           label="Add another account"
           onPress={handleAddAccount}
         />
@@ -275,6 +309,7 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
 // ── Reusable menu item ───────────────────────────────────────────────────────
 
 function MenuItem({ icon, label, onPress }: { icon: React.ReactNode; label: string; onPress: () => void }) {
+  const s = useStyles();
   return (
     <HapticPressable
       haptic="tap"
@@ -289,14 +324,14 @@ function MenuItem({ icon, label, onPress }: { icon: React.ReactNode; label: stri
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    backgroundColor: t.color["card.front"],
+    borderRadius: t.radius.lg,
     minWidth: 280,
     maxWidth: 320,
-    paddingVertical: 8,
-    shadowColor: "#000",
+    paddingVertical: t.spacing.sm,
+    shadowColor: t.shadow.card.color,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 24,
@@ -330,7 +365,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: t.spacing.xl,
     paddingVertical: 14,
   },
   avatarLarge: {
@@ -342,14 +377,14 @@ const s = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#351101",
+    backgroundColor: t.color["accent.cta"],
     alignItems: "center",
     justifyContent: "center",
   },
   avatarLargeInitials: {
     fontFamily: t.font["body.semibold"],
     fontSize: 18,
-    color: "#FAF8F0",
+    color: t.color["text.on-cta"],
   },
   accountInfo: {
     flex: 1,
@@ -358,19 +393,19 @@ const s = StyleSheet.create({
   displayName: {
     fontFamily: t.font["body.semibold"],
     fontSize: 15,
-    color: "#351101",
+    color: t.color["text.primary"],
   },
   username: {
     fontFamily: t.font["body.regular"],
     fontSize: 13,
-    color: "#A09580",
+    color: t.color["text.muted"],
     marginTop: 1,
   },
 
   // ── Divider
   divider: {
     height: 1,
-    backgroundColor: "#EDE8E1",
+    backgroundColor: t.color["border.light"],
     marginHorizontal: 12,
     marginVertical: 4,
   },
@@ -381,27 +416,42 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: t.spacing.xl,
   },
   menuItemPressed: {
-    backgroundColor: "#FAF8F0",
+    backgroundColor: t.color.bg,
   },
   menuItemText: {
     fontFamily: t.font["body.medium"],
     fontSize: 14,
-    color: "#351101",
+    color: t.color["text.primary"],
+    flex: 1,
   },
+
+  // ── Theme cycle pill (right side of the Theme menu row)
+  themeStatePill: {
+    paddingHorizontal: t.spacing.sm,
+    paddingVertical: 3,
+    borderRadius: t.radius.full,
+    backgroundColor: t.color["card.info"],
+  } as any,
+  themeStateText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: 11,
+    color: t.color["text.secondary"],
+    letterSpacing: 0.3,
+  } as any,
 
   // ── Section label
   sectionLabel: {
     fontFamily: t.font["body.medium"],
     fontSize: 11,
-    color: "#A09580",
+    color: t.color["text.muted"],
     textTransform: "uppercase" as any,
     letterSpacing: 0.5,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 4,
+    paddingHorizontal: t.spacing.xl,
+    paddingTop: t.spacing.sm,
+    paddingBottom: t.spacing.xs,
   },
 
   // ── Saved account row
@@ -410,17 +460,17 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingHorizontal: t.spacing.xl,
   },
   accountRowName: {
     fontFamily: t.font["body.medium"],
     fontSize: 13,
-    color: "#351101",
+    color: t.color["text.primary"],
   },
   accountRowUser: {
     fontFamily: t.font["body.regular"],
     fontSize: 11,
-    color: "#A09580",
+    color: t.color["text.muted"],
   },
   avatarSmall: {
     width: 32,
@@ -431,13 +481,13 @@ const s = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#351101",
+    backgroundColor: t.color["accent.cta"],
     alignItems: "center",
     justifyContent: "center",
   },
   avatarSmallInitials: {
     fontFamily: t.font["body.semibold"],
     fontSize: 13,
-    color: "#FAF8F0",
+    color: t.color["text.on-cta"],
   },
-});
+}));

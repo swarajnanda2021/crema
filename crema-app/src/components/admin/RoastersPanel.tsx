@@ -34,7 +34,7 @@ import {
 import { ChevronDown, ChevronRight, Sparkles, SlidersHorizontal, Undo2, X } from "lucide-react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { apiFetchRaw } from "../../api/client";
 import { useResource } from "../../resources/useResource";
 import type { DeletedRoaster, RoasterProfile, RoasterSource } from "../../resources/types";
@@ -66,6 +66,7 @@ function ageHours(iso: string | null | undefined): number | null {
 
 export default function RoastersPanel() {
   const router = useRouter();
+  const s = useStyles();
   const roasters = useResource<RoasterProfile>("roaster_profiles", { limit: 500 });
   // Source rows give us `last_scraped_at` for the bean-context
   // "Last enriched" filter — joined per-profile via website match.
@@ -245,9 +246,9 @@ export default function RoastersPanel() {
             ]}
           >
             {enriching ? (
-              <ActivityIndicator size="small" color={t.color["text.on-dark"]} />
+              <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
             ) : (
-              <Sparkles size={t.size["icon.md"]} color={t.color["text.on-dark"]} strokeWidth={2} />
+              <Sparkles size={t.size["icon.md"]} color={t.color["text.on-cta"]} strokeWidth={2} />
             )}
             <Text style={s.ctaText}>
               {enriching ? "Enriching…" : "Enrich profile"}
@@ -572,6 +573,7 @@ function CollapsibleSection({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(activeCount > 0);
+  const s = useStyles();
   useEffect(() => {
     if (activeCount > 0) setOpen(true);
   }, [activeCount]);
@@ -602,7 +604,7 @@ function CollapsibleSection({
 
 // ── Styles — every value is a token reference ────────────────────────────
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   // Hero strip
   hero: {
     backgroundColor: t.color["card.front"],
@@ -656,7 +658,7 @@ const s = StyleSheet.create({
   ctaText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.md"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
   },
   heroSubtitle: {
     fontFamily: t.font["body.regular"],
@@ -778,7 +780,7 @@ const s = StyleSheet.create({
   collapsibleBadge: {
     fontFamily: t.font["body.semibold"],
     fontSize: 11,
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
     backgroundColor: t.color.accent,
     minWidth: 18,
     height: 18,
@@ -848,7 +850,7 @@ const s = StyleSheet.create({
   checkBoxTick: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.xs"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
     lineHeight: t.lineHeight.tight,
   } as any,
   checkLabel: {
@@ -887,7 +889,7 @@ const s = StyleSheet.create({
   locApplyText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.sm"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -985,4 +987,4 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-});
+}));

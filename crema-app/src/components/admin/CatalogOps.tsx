@@ -24,7 +24,7 @@ import {
   Pressable,
 } from "react-native";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import RoastersPanel from "./RoastersPanel";
 import StandardizationPanel from "./StandardizationPanel";
 
@@ -49,6 +49,7 @@ const SECTION_BLURB: Record<CatalogOpsSection, string> = {
 
 export default function CatalogOps() {
   const [section, setSection] = useState<CatalogOpsSection>("roasters");
+  const s = useStyles();
 
   const subTabs = (
     <ScrollView
@@ -98,7 +99,7 @@ export default function CatalogOps() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   wrap: {
     paddingHorizontal: t.spacing.xl,
     paddingTop: t.spacing.xl,
@@ -151,4 +152,4 @@ const s = StyleSheet.create({
     height: 3,
     backgroundColor: t.color["text.primary"],
   } as any,
-});
+}));

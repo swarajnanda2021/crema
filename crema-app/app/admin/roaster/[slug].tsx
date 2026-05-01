@@ -53,7 +53,7 @@ import {
   X,
 } from "lucide-react-native";
 
-import { t } from "../../../src/tokens/useTokens";
+import { t, makeStyles } from "../../../src/tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../../../src/api/client";
 import { onChromeScroll } from "../../../src/utils/chromeScroll";
 import { useBreakpoint } from "../../../src/hooks/useBreakpoint";
@@ -77,6 +77,7 @@ export default function AdminRoasterPage() {
   const { isMobile } = useBreakpoint();
   const { slug: rawSlug } = useLocalSearchParams<{ slug: string }>();
   const slug = typeof rawSlug === "string" ? rawSlug : "";
+  const s = useStyles();
 
   const [profile, setProfile] = useState<RoasterProfile | null>(null);
   const [source, setSource] = useState<RoasterSource | null>(null);
@@ -565,7 +566,7 @@ export default function AdminRoasterPage() {
                 style={({ pressed }) => [s.backFloating, pressed && s.linkBtnPressed]}
                 accessibilityLabel="Back to Catalog Ops"
               >
-                <ArrowLeft size={18} color={t.color["text.on-dark"]} strokeWidth={2} />
+                <ArrowLeft size={18} color={t.color["text.on-cta"]} strokeWidth={2} />
               </Pressable>
             ) : null}
             {/* Floating Remove button — top-right of the hero,
@@ -585,7 +586,7 @@ export default function AdminRoasterPage() {
               style={({ pressed }) => [s.deleteFloating, pressed && s.linkBtnPressed]}
               accessibilityLabel="Remove roaster"
             >
-              <Trash2 size={18} color={t.color["text.on-dark"]} strokeWidth={2} />
+              <Trash2 size={18} color={t.color["text.on-cta"]} strokeWidth={2} />
             </Pressable>
             <View style={s.heroContent}>
               <RoasterLogo
@@ -638,12 +639,12 @@ export default function AdminRoasterPage() {
               {busyAction === "publish" ? (
                 <ActivityIndicator
                   size="small"
-                  color={profile.published === 1 ? t.color["text.on-dark"] : t.color["text.primary"]}
+                  color={profile.published === 1 ? t.color["text.on-cta"] : t.color["text.primary"]}
                 />
               ) : (
                 <Check
                   size={14}
-                  color={profile.published === 1 ? t.color["text.on-dark"] : t.color["text.muted"]}
+                  color={profile.published === 1 ? t.color["text.on-cta"] : t.color["text.muted"]}
                   strokeWidth={2}
                 />
               )}
@@ -693,9 +694,9 @@ export default function AdminRoasterPage() {
               accessibilityRole="button"
             >
               {enrichBusy ? (
-                <ActivityIndicator size="small" color={t.color["text.on-dark"]} />
+                <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
               ) : (
-                <Sparkles size={14} color={t.color["text.on-dark"]} strokeWidth={2} />
+                <Sparkles size={14} color={t.color["text.on-cta"]} strokeWidth={2} />
               )}
               <Text style={s.enrichCtaText}>
                 {enrichBusy ? "Refreshing…" : "Refresh roaster"}
@@ -818,7 +819,7 @@ export default function AdminRoasterPage() {
                       {regeneratePromptOnNext ? (
                         <Check
                           size={12}
-                          color={t.color["text.on-dark"]}
+                          color={t.color["text.on-cta"]}
                           strokeWidth={2.4}
                         />
                       ) : null}
@@ -982,7 +983,7 @@ export default function AdminRoasterPage() {
                       >
                         <Trash2
                           size={12}
-                          color={t.color["text.on-dark"]}
+                          color={t.color["text.on-cta"]}
                           strokeWidth={2}
                         />
                       </Pressable>
@@ -1073,9 +1074,9 @@ export default function AdminRoasterPage() {
                   ]}
                 >
                   {deletingProduct ? (
-                    <ActivityIndicator size="small" color={t.color["text.on-dark"]} />
+                    <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
                   ) : (
-                    <Trash2 size={t.size["icon.sm"]} color={t.color["text.on-dark"]} strokeWidth={2} />
+                    <Trash2 size={t.size["icon.sm"]} color={t.color["text.on-cta"]} strokeWidth={2} />
                   )}
                   <Text style={s.ctaText}>Delete bean</Text>
                 </Pressable>
@@ -1136,9 +1137,9 @@ export default function AdminRoasterPage() {
                   ]}
                 >
                   {busyAction === "delete" ? (
-                    <ActivityIndicator size="small" color={t.color["text.on-dark"]} />
+                    <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
                   ) : (
-                    <Trash2 size={t.size["icon.sm"]} color={t.color["text.on-dark"]} strokeWidth={2} />
+                    <Trash2 size={t.size["icon.sm"]} color={t.color["text.on-cta"]} strokeWidth={2} />
                   )}
                   <Text style={s.ctaText}>Remove roaster</Text>
                 </Pressable>
@@ -1185,6 +1186,7 @@ function EditableField({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<TextInput | null>(null);
+  const s = useStyles();
 
   // Re-sync the draft if the parent reloads / re-enriches and our
   // committed value changes from underneath us — but only when we're
@@ -1266,9 +1268,9 @@ function EditableField({
         accessibilityRole="button"
       >
         {saving ? (
-          <ActivityIndicator size="small" color={t.color["text.on-dark"]} />
+          <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
         ) : (
-          <Check size={16} color={t.color["text.on-dark"]} strokeWidth={2.2} />
+          <Check size={16} color={t.color["text.on-cta"]} strokeWidth={2.2} />
         )}
       </Pressable>
     </View>
@@ -1382,7 +1384,7 @@ function relativeAge(iso: string | null | undefined): string {
 
 // ── Styles — every value reads from design tokens ────────────────────────
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   page: {
     flex: 1,
     backgroundColor: t.color.bg,
@@ -1466,13 +1468,13 @@ const s = StyleSheet.create({
   heroTitle: {
     fontFamily: t.font.display,
     fontSize: t.size["font.2xl"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
     lineHeight: t.lineHeight.loose,
   },
   heroMeta: {
     fontFamily: t.font["body.regular"],
     fontSize: t.size["font.sm"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
     opacity: 0.8,
     marginTop: t.spacing.xs,
   },
@@ -1513,7 +1515,7 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  pillTextOn: { color: t.color["text.on-dark"] },
+  pillTextOn: { color: t.color["text.on-cta"] },
   pillTextOff: { color: t.color["text.muted"] },
 
   // Section block
@@ -1567,7 +1569,7 @@ const s = StyleSheet.create({
   enrichCtaText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.sm"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -1970,6 +1972,6 @@ const s = StyleSheet.create({
   ctaText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.md"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
   },
-});
+}));

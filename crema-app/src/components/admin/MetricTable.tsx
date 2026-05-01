@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import InfoModal, { InfoButton } from "./InfoModal";
 
 export interface MetricRow {
@@ -43,6 +43,7 @@ export default function MetricTable({
   info,
 }: MetricTableProps) {
   const [showInfo, setShowInfo] = useState(false);
+  const s = useStyles();
   const body =
     rows.length === 0 ? (
       <Text style={s.empty}>{emptyLabel}</Text>
@@ -111,7 +112,7 @@ export default function MetricTable({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   wrap: {
     backgroundColor: t.color["card.front"],
     borderWidth: 1,
@@ -195,4 +196,4 @@ const s = StyleSheet.create({
     color: t.color["text.muted"],
     paddingVertical: t.spacing.md,
   },
-});
+}));

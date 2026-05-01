@@ -11,7 +11,7 @@
 import { useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import InfoModal, { InfoButton } from "./InfoModal";
 
 interface MetricCardProps {
@@ -36,6 +36,7 @@ export default function MetricCard({
   info,
 }: MetricCardProps) {
   const [showInfo, setShowInfo] = useState(false);
+  const s = useStyles();
   const valueColor =
     tone === "positive"
       ? t.color["accent.positive"]
@@ -71,7 +72,7 @@ export default function MetricCard({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   card: {
     backgroundColor: t.color["card.front"],
     borderWidth: 1,
@@ -112,4 +113,4 @@ const s = StyleSheet.create({
     fontSize: t.size["font.sm"],
     color: t.color["text.secondary"],
   },
-});
+}));

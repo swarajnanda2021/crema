@@ -11,7 +11,7 @@ import Svg, { Path } from "react-native-svg";
 import Toggle from "./Toggle";
 import HapticPressable from "./HapticPressable";
 import { showToast } from "../shell/Toast";
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import {
   HeartOutlineIcon, HeartFilledOutlineIcon,
@@ -38,6 +38,7 @@ export default function ActionBar({
 }: ActionBarProps) {
   const { isMobile } = useBreakpoint();
   const [showCopied, setShowCopied] = useState(false);
+  const s = useStyles();
 
   // Mobile: icon sizes match X's timeline action bar — ~20 px
   // heart / comment / repost, ~18 px share. Counts at 14 pt to
@@ -95,7 +96,7 @@ export default function ActionBar({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   bar: { flexDirection: "row", alignItems: "center", gap: 20, paddingHorizontal: 20, paddingTop: 12 } as any,
   // Mobile: PostCard already indents the action row with the rest
   // of the X-style content column, so the bar drops its own
@@ -108,4 +109,4 @@ const s = StyleSheet.create({
   // (14 pt), keeping the action bar visually inline with the meta
   // rhythm above.
   countMobile: { fontSize: 14 } as any,
-});
+}));

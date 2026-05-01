@@ -44,7 +44,7 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { HeartFilledOutlineIcon, CommentBubbleIcon } from "../icons/FigmaIcons";
 import { commit as hapticCommit, select as hapticSelect } from "../../utils/haptics";
 
@@ -70,6 +70,7 @@ export default function SwipeToCommit(props: Props) {
 }
 
 function Native({ onSwipeLike, onSwipeComment, children }: Props) {
+  const s = useStyles();
   const tx = useSharedValue(0);
   // Tracks the last threshold-crossing sign (-1 = past like, 1 = past
   // comment, 0 = neutral). When this changes while dragging we fire a
@@ -184,10 +185,10 @@ function Native({ onSwipeLike, onSwipeComment, children }: Props) {
          gesture and the commit happens there. */}
       <View pointerEvents="none" style={s.revealLayer}>
         <Animated.View style={[s.disc, s.discLeft, commentStyle]}>
-          <CommentBubbleIcon size={24} color={t.color["text.on-dark"]} />
+          <CommentBubbleIcon size={24} color={t.color["text.on-cta"]} />
         </Animated.View>
         <Animated.View style={[s.disc, s.discRight, heartStyle]}>
-          <HeartFilledOutlineIcon size={24} color={t.color["text.on-dark"]} />
+          <HeartFilledOutlineIcon size={24} color={t.color["text.on-cta"]} />
         </Animated.View>
       </View>
 
@@ -200,7 +201,7 @@ function Native({ onSwipeLike, onSwipeComment, children }: Props) {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   wrap: { position: "relative", backgroundColor: t.color.bg } as any,
   revealLayer: {
     ...StyleSheet.absoluteFillObject,
@@ -219,4 +220,4 @@ const s = StyleSheet.create({
   } as any,
   discLeft: {},
   discRight: {},
-});
+}));

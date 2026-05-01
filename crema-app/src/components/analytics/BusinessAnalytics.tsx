@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   View, Text, Pressable, StyleSheet, ActivityIndicator,
 } from "react-native";
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { apiFetchRaw } from "../../api/client";
 import LineChart, { LineDatum } from "../admin/LineChart";
 import InfoModal, { InfoButton } from "../admin/InfoModal";
@@ -67,6 +67,7 @@ export default function BusinessAnalytics({ kind, slug }: Props) {
   const [data, setData] = useState<Record<string, Section> | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const s = useStyles();
 
   const tabs = SECTIONS[kind];
   const [activeTab, setActiveTab] = useState(tabs[0].key);
@@ -201,6 +202,7 @@ function MiniCard({
 }) {
   const [showInfo, setShowInfo] = useState(false);
   const delta = formatDelta(card.delta_pct);
+  const cs = useCsStyles();
 
   const valueColor =
     card.tone === "positive"
@@ -256,7 +258,7 @@ function MiniCard({
 
 // ── styles ──────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   // Horizontal padding mirrors the Beans tab's GRID_PAD (20) so the
   // analytics subtab/chart/cards sit at the same inset from the left
   // column divider as the coffee grid. Top padding gives the first
@@ -333,9 +335,9 @@ const s = StyleSheet.create({
     flexWrap: "wrap",
     gap: t.spacing.md,
   } as any,
-});
+}));
 
-const cs = StyleSheet.create({
+const useCsStyles = makeStyles((t) => ({
   card: {
     // Friendly aspect — ~180px wide, ~140px tall.
     minWidth: 170,
@@ -401,4 +403,4 @@ const cs = StyleSheet.create({
     flexShrink: 1,
     minWidth: 0,
   } as any,
-});
+}));

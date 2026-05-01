@@ -23,7 +23,7 @@ import {
 } from "react-native";
 import { X } from "lucide-react-native";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import type { ScrapeProposal } from "../../resources/types";
 
 /**
@@ -102,6 +102,7 @@ export default function BeanDetailModal({
   // header-only sliver. `useWindowDimensions` reads after RN settles.
   const { height: winH } = useWindowDimensions();
   const cardHeight = Math.min(720, Math.round(winH * 0.75));
+  const s = useStyles();
 
   // Defensive coercion — see `_coerceState`. Handles the regular case
   // (server pre-parsed the JSON), the rare case (server shipped the
@@ -217,7 +218,7 @@ function formatVal(v: any): string {
   }
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   detailOverlayWrap: {
     flex: 1,
     justifyContent: "center",
@@ -318,4 +319,4 @@ const s = StyleSheet.create({
     fontStyle: "italic",
     paddingTop: 2,
   } as any,
-});
+}));

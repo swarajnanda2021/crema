@@ -17,7 +17,7 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { ArrowRight } from "lucide-react-native";
 
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { tap as hapticTap } from "../utils/haptics";
 import RoasterLogo from "./primitives/RoasterLogo";
@@ -42,6 +42,7 @@ export default function RoasterRow({
   onPress: () => void;
 }) {
   const { isMobile } = useBreakpoint();
+  const s = useStyles();
   // Square thumbs sitewide (canonical roaster identity treatment).
   // Slightly larger than the previous 100×76 / 167×76 rectangles so
   // the logo has room to breathe inside the rounded square.
@@ -110,15 +111,15 @@ export default function RoasterRow({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: t.spacing.md,
-    // Tight horizontal padding (xs = 4) so the image hugs the left
-    // edge and the arrow hugs the right — gives the name + sub +
-    // count their full share of a 360-px viewport.
-    paddingHorizontal: t.spacing.xs,
+    // Match the BEANS grid's `GRID_PAD = 16` so BEANS / ROASTERS read
+    // as one consistent inset across the Discover sub-tabs (was xs = 4
+    // before — too tight, broke parity with the bean grid).
+    paddingHorizontal: t.spacing.lg,
     paddingVertical: t.spacing.md,
     backgroundColor: "transparent",
     position: "relative",
@@ -139,7 +140,7 @@ const s = StyleSheet.create({
   pillText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.xs"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -185,10 +186,10 @@ const s = StyleSheet.create({
     position: "absolute",
     // Inset matches the row's `paddingHorizontal` so the hairline
     // starts/ends flush with the image / arrow.
-    left: t.spacing.xs,
-    right: t.spacing.xs,
+    left: t.spacing.lg,
+    right: t.spacing.lg,
     bottom: 0,
     height: 1,
     backgroundColor: t.color.divider,
   } as any,
-});
+}));

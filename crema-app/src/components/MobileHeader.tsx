@@ -26,7 +26,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Search, Bell } from "lucide-react-native";
 
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
 import { emit } from "../utils/events";
@@ -60,6 +60,7 @@ export default function MobileHeader() {
   const { unreadCount } = useNotifications(!!user);
   const insets = useSafeAreaInsets();
   const hidden = getChromeHiddenAnim();
+  const s = useStyles();
   const fullHeight = MOBILE_HEADER_HEIGHT + insets.top;
   // Collapse only the NAVBAR portion (63 px) — the safe-area top
   // inset stays painted in navbar.bg so on notched iPhones the
@@ -142,7 +143,7 @@ export default function MobileHeader() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   // Animated wrapper. Height is driven by the scroll-aware hidden
   // animation; when collapsed, `overflow: hidden` clips the bar
   // underneath so nothing leaks out.
@@ -187,4 +188,4 @@ const s = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: t.color.accent,
   } as any,
-});
+}));

@@ -13,7 +13,8 @@ import { View } from "react-native";
 import { usePathname } from "expo-router";
 import { AuthProvider, useAuth } from "../src/hooks/useAuth";
 import { CoffeeDataProvider, useCoffeeData } from "../src/hooks/useCoffeeData";
-import { t } from "../src/tokens/useTokens";
+import { t, makeStyles, useTheme } from "../src/tokens/useTokens";
+import { ThemeProvider } from "../src/tokens/ThemeProvider";
 import { listen, emit } from "../src/utils/events";
 import { useBreakpoint } from "../src/hooks/useBreakpoint";
 import PostModal from "../src/components/shell/PostModal";
@@ -95,6 +96,7 @@ function GlobalComposePost() {
   const { isMobile } = useBreakpoint();
   const insets = useSafeAreaInsets();
   const [data, setData] = useState<any>(null);
+  const gStyles = useGStyles();
 
   useEffect(() => listen("crema:open-compose", (detail) => setData(detail || {})), []);
 
@@ -161,7 +163,7 @@ function GlobalComposePost() {
   );
 }
 
-const gStyles = StyleSheet.create({
+const useGStyles = makeStyles((t) => ({
   mobileHost: {
     position: "absolute",
     left: 0,
@@ -191,7 +193,7 @@ const gStyles = StyleSheet.create({
     maxHeight: "85%",
     zIndex: 1,
   } as any,
-});
+}));
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading, backendAvailable } = useAuth();
@@ -246,122 +248,143 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <AuthProvider>
-        <CoffeeDataProvider>
-          <AuthGate>
-          <View style={{ flex: 1 }}>
-          {/* Relative wrapper — the Stack fills this, and
-              `MobileOverlays` absolute-positions inside it with
-              safe-area + chrome offsets so the slide panels sit
-              BETWEEN the (tabs) SiteHeader and the MobileFooter
-              below. */}
-          <View style={{ flex: 1, position: "relative" } as any}>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: t.color.bg },
-            }}
-          >
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="auth" options={{ presentation: "modal" }} />
-            <Stack.Screen
-              name="coffee/[id]"
-              options={{
-                headerShown: true,
-                title: "",
-                headerTintColor: t.color["accent.cta"],
-                headerStyle: { backgroundColor: t.color.bg },
-                headerShadowVisible: false,
-              }}
-            />
-            <Stack.Screen
-              name="roaster/[slug]"
-              options={{
-                headerShown: true,
-                title: "",
-                headerTintColor: t.color["accent.cta"],
-                headerStyle: { backgroundColor: t.color.bg },
-                headerShadowVisible: false,
-              }}
-            />
-            <Stack.Screen
-              name="user/[username]"
-              options={{
-                headerShown: true,
-                title: "",
-                headerTintColor: t.color["accent.cta"],
-                headerStyle: { backgroundColor: t.color.bg },
-                headerShadowVisible: false,
-              }}
-            />
-            {/* Mobile-only destinations behind the MobileHeader
-               search + bell icons. Native stack renders a back
-               button for free via headerShown:true. On web wide
-               these URLs exist but the Navbar's floating dropdowns
-               are preferred — nothing there navigates here. */}
-            <Stack.Screen
-              name="search"
-              options={{
-                headerShown: true,
-                title: "Search",
-                headerTintColor: t.color["accent.cta"],
-                headerStyle: { backgroundColor: t.color.bg },
-                headerShadowVisible: false,
-              }}
-            />
-            <Stack.Screen
-              name="notifications"
-              options={{
-                headerShown: true,
-                title: "Notifications",
-                headerTintColor: t.color["accent.cta"],
-                headerStyle: { backgroundColor: t.color.bg },
-                headerShadowVisible: false,
-              }}
-            />
-            <Stack.Screen
-              name="account"
-              options={{
-                headerShown: true,
-                title: "Account",
-                headerTintColor: t.color["accent.cta"],
-                headerStyle: { backgroundColor: t.color.bg },
-                headerShadowVisible: false,
-              } as any}
-            />
-          </Stack>
-          {/* Sitewide modals — mounted inside the relative wrapper so
-              on mobile their absolute-positioned mid-band layers
-              resolve to the chrome-excluding parent. MobileFooter is
-              a sibling OUTSIDE this wrapper, so `bottom: 0` here
-              lands at the top of MobileFooter exactly. (§2.40.3) */}
-          <GlobalPostModal />
-          <GlobalPopularityModal />
-          <GlobalComposePost />
-          {/* Sitewide floating auth modal — opened from ProfileDropdown's
-              "Add another account" item via crema:open-auth-modal event. */}
-          <AuthModal />
-          {/* Mobile slide-in panels (search / notifications /
-              account). Last inside the wrapper so slide chrome
-              paints above any open modal. */}
-          <MobileOverlays />
-          </View>
-          <ConditionalMobileFooter />
-          {/* Sitewide status toast — sibling OUTSIDE the relative
-              wrapper so its top offset is screen-absolute and it can
-              paint above MobileHeader + the relative band.
-              Triggered via `showToast("Liked")` etc. */}
-          <Toast />
-          </View>
-          <StatusBar style="light" />
-          {/* Page-transition overlay. Paints the content area below the
-              navbar solid cream + a pulsing crema wordmark while routes
-              change, so the partial-render flicker doesn't show. */}
-          <NavigationLoader />
-        </AuthGate>
-        </CoffeeDataProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <CoffeeDataProvider>
+            <AuthGate>
+              <ThemedRoot />
+            </AuthGate>
+          </CoffeeDataProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+/** Subscribes to theme changes so the Stack's screenOptions and any
+ *  inline `t.color.X` reads below repaint when the user switches modes.
+ *  Sits inside ThemeProvider so `useTheme()` resolves correctly. */
+function ThemedRoot() {
+  // Subscribe — re-renders on theme change so all the inline
+  // `t.color.X` reads in screenOptions below pick up the new values.
+  useTheme();
+  return (
+    // backgroundColor on the outermost theme-aware view so the iOS
+    // home-indicator safe area beneath the MobileFooter (and any
+    // pixel exposed mid-animation when the footer slides out) paints
+    // with the theme bg instead of leaking the OS window's default
+    // white. Without this the dark-mode footer-hide animation flashes
+    // a light strip across the home indicator zone. (Reported with a
+    // dark-mode screen capture during scroll-hide.)
+    <View style={{ flex: 1, backgroundColor: t.color.bg }}>
+      {/* Relative wrapper — the Stack fills this, and
+          `MobileOverlays` absolute-positions inside it with
+          safe-area + chrome offsets so the slide panels sit
+          BETWEEN the (tabs) SiteHeader and the MobileFooter
+          below. */}
+      <View style={{ flex: 1, position: "relative" } as any}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: t.color.bg },
+          }}
+        >
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="auth" options={{ presentation: "modal" }} />
+          <Stack.Screen
+            name="coffee/[id]"
+            options={{
+              headerShown: true,
+              title: "",
+              headerTintColor: t.color["accent.cta"],
+              headerStyle: { backgroundColor: t.color.bg },
+              headerShadowVisible: false,
+            }}
+          />
+          <Stack.Screen
+            name="roaster/[slug]"
+            options={{
+              headerShown: true,
+              title: "",
+              headerTintColor: t.color["accent.cta"],
+              headerStyle: { backgroundColor: t.color.bg },
+              headerShadowVisible: false,
+            }}
+          />
+          <Stack.Screen
+            name="user/[username]"
+            options={{
+              headerShown: true,
+              title: "",
+              headerTintColor: t.color["accent.cta"],
+              headerStyle: { backgroundColor: t.color.bg },
+              headerShadowVisible: false,
+            }}
+          />
+          {/* Mobile-only destinations behind the MobileHeader
+             search + bell icons. Native stack renders a back
+             button for free via headerShown:true. On web wide
+             these URLs exist but the Navbar's floating dropdowns
+             are preferred — nothing there navigates here. */}
+          <Stack.Screen
+            name="search"
+            options={{
+              headerShown: true,
+              title: "Search",
+              headerTintColor: t.color["accent.cta"],
+              headerStyle: { backgroundColor: t.color.bg },
+              headerShadowVisible: false,
+            }}
+          />
+          <Stack.Screen
+            name="notifications"
+            options={{
+              headerShown: true,
+              title: "Notifications",
+              headerTintColor: t.color["accent.cta"],
+              headerStyle: { backgroundColor: t.color.bg },
+              headerShadowVisible: false,
+            }}
+          />
+          <Stack.Screen
+            name="account"
+            options={{
+              headerShown: true,
+              title: "Account",
+              headerTintColor: t.color["accent.cta"],
+              headerStyle: { backgroundColor: t.color.bg },
+              headerShadowVisible: false,
+            } as any}
+          />
+        </Stack>
+        {/* Sitewide modals — mounted inside the relative wrapper so
+            on mobile their absolute-positioned mid-band layers
+            resolve to the chrome-excluding parent. MobileFooter is
+            a sibling OUTSIDE this wrapper, so `bottom: 0` here
+            lands at the top of MobileFooter exactly. (§2.40.3) */}
+        <GlobalPostModal />
+        <GlobalPopularityModal />
+        <GlobalComposePost />
+        {/* Sitewide floating auth modal — opened from ProfileDropdown's
+            "Add another account" item via crema:open-auth-modal event. */}
+        <AuthModal />
+        {/* Mobile slide-in panels (search / notifications /
+            account). Last inside the wrapper so slide chrome
+            paints above any open modal. */}
+        <MobileOverlays />
+      </View>
+      <ConditionalMobileFooter />
+      {/* Sitewide status toast — sibling OUTSIDE the relative
+          wrapper so its top offset is screen-absolute and it can
+          paint above MobileHeader + the relative band.
+          Triggered via `showToast("Liked")` etc. */}
+      <Toast />
+      <StatusBar style="light" />
+      {/* Page-transition overlay. Paints the content area below the
+          navbar solid cream + a pulsing crema wordmark while routes
+          change, so the partial-render flicker doesn't show. */}
+      <NavigationLoader />
+    </View>
   );
 }

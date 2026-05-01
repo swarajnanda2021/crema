@@ -4,7 +4,12 @@
  */
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { useRouter } from "expo-router";
-import { t } from "../tokens/useTokens";
+// CoffeeLabel sits inside CoffeeCard, which intentionally pins to the
+// light-mode token snapshot (product cards keep their cream-on-white
+// identity in night mode). We mirror that by reading `tLight` here so
+// the price + tasting-note text stays Deep Brown on cream regardless
+// of the active theme.
+import { tLight as t } from "../tokens/useTokens";
 
 // Canela lining + proportional numerals. On web we set the OpenType
 // features directly; on native iOS/Android the equivalent is the
@@ -141,7 +146,7 @@ const s = StyleSheet.create({
   coffeeName: {
     fontFamily: t.font.display,
     fontSize: 22.7,
-    color: "#351101",
+    color: t.color["text.primary"],
     lineHeight: 27,
     ...canelaNumeral,
   },
@@ -156,7 +161,7 @@ const s = StyleSheet.create({
   roasterLabel: {
     fontFamily: t.font["body.regular"],
     fontSize: 10.9,
-    color: "#684F44",
+    color: t.color["text.secondary"],
   },
   roasterLinkPressable: {
     flexShrink: 1,
@@ -166,7 +171,7 @@ const s = StyleSheet.create({
   // 1px line, #C7BAA5
   divider: {
     height: 1,
-    backgroundColor: "#C7BAA5",
+    backgroundColor: t.color.divider,
     marginTop: 7,
     marginBottom: 7,
   },
@@ -175,14 +180,14 @@ const s = StyleSheet.create({
   beanTypeText: {
     fontFamily: t.font["body.regular"],
     fontSize: 10.2,
-    color: "#684F44",
+    color: t.color["text.secondary"],
   },
 
   // Inter Regular, 10.165px, #684F44
   detailText: {
     fontFamily: t.font["body.regular"],
     fontSize: 10.2,
-    color: "#684F44",
+    color: t.color["text.secondary"],
     ...canelaNumeral,
   },
 
@@ -190,7 +195,7 @@ const s = StyleSheet.create({
   tastingText: {
     fontFamily: t.font["body.regular"],
     fontSize: 10.2,
-    color: "#684F44",
+    color: t.color["text.secondary"],
     lineHeight: 14.5,
     ...canelaNumeral,
   },
@@ -204,7 +209,7 @@ const s = StyleSheet.create({
   priceText: {
     fontFamily: t.font.display,
     fontSize: 18.2,
-    color: "#351101",
+    color: t.color["text.primary"],
     ...canelaNumeral,
   },
 
@@ -212,7 +217,7 @@ const s = StyleSheet.create({
   weightText: {
     fontFamily: t.font["body.regular"],
     fontSize: 10.2,
-    color: "#351101",
+    color: t.color["text.primary"],
     ...canelaNumeral,
   },
 });

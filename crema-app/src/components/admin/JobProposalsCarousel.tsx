@@ -37,7 +37,7 @@ import {
 
 import * as Haptics from "expo-haptics";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { apiFetchRaw } from "../../api/client";
 import CoffeeCard from "../CoffeeCard";
 import BeanDetailModal from "./BeanDetailModal";
@@ -97,6 +97,7 @@ export default function JobProposalsCarousel({
   const [proposals, setProposals] = useState<ScrapeProposal[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
+  const s = useStyles();
   // Surfaces approve/reject failures (and partial-skip warnings) to
   // the admin so a silent 500/401 doesn't make the bulk button look
   // like a dud. Cleared at the start of every action.
@@ -286,7 +287,7 @@ export default function JobProposalsCarousel({
                       pressed && s.ctaPressed,
                     ]}
                   >
-                    <Check size={t.size["icon.sm"]} color={t.color["text.on-dark"]} strokeWidth={2} />
+                    <Check size={t.size["icon.sm"]} color={t.color["text.on-cta"]} strokeWidth={2} />
                     <Text style={s.bulkApproveText}>
                       {def.actionLabel} all ({pending.length})
                     </Text>
@@ -327,6 +328,7 @@ function ProposalCard({
   onApprove: () => void;
   onReject: () => void;
 }) {
+  const s = useStyles();
   const def = PROPOSAL_DEF[proposal.change_type];
   const coffee = proposal.proposed_state || proposal.prev_state || {};
   const status = proposal.status;
@@ -395,9 +397,9 @@ function ProposalCard({
             accessibilityLabel={def.actionLabel}
           >
             {busy ? (
-              <ActivityIndicator size="small" color={t.color["text.on-dark"]} />
+              <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
             ) : (
-              <ActionIcon size={14} color={t.color["text.on-dark"]} strokeWidth={2} />
+              <ActionIcon size={14} color={t.color["text.on-cta"]} strokeWidth={2} />
             )}
             <Text style={s.cardPrimaryBtnText}>{def.actionLabel}</Text>
           </Pressable>
@@ -412,7 +414,7 @@ function ProposalCard({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   body: {
     paddingHorizontal: t.spacing.lg,
     paddingVertical: t.spacing.lg,
@@ -501,7 +503,7 @@ const s = StyleSheet.create({
   bulkApproveText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.xs"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -537,7 +539,7 @@ const s = StyleSheet.create({
   cardPrimaryBtnText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.sm"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
   },
   cardSecondaryBtn: {
     flex: 1,
@@ -588,4 +590,4 @@ const s = StyleSheet.create({
     transform: [{ scale: 0.97 }],
   } as any,
   iconBtnPressed: { opacity: 0.7 } as any,
-});
+}));

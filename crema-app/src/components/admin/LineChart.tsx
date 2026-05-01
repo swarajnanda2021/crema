@@ -17,7 +17,7 @@ import Svg, {
   Text as SvgText,
 } from "react-native-svg";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import InfoModal, { InfoButton } from "./InfoModal";
 
 export interface LineDatum {
@@ -43,6 +43,7 @@ export default function LineChart({
 }: LineChartProps) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [showInfo, setShowInfo] = useState(false);
+  const s = useStyles();
 
   const {
     plotWidth,
@@ -267,7 +268,7 @@ export default function LineChart({
                         y={yTop + 17}
                         fontSize={11}
                         fontFamily={t.font["body.semibold"]}
-                        fill={t.color["text.on-dark"]}
+                        fill={t.color["text.on-cta"]}
                         textAnchor="middle"
                       >
                         {d.label}: {d.value}
@@ -301,7 +302,7 @@ function formatTick(n: number): string {
   return String(Math.round(n));
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   wrap: {
     backgroundColor: t.color["card.front"],
     borderWidth: 1,
@@ -357,4 +358,4 @@ const s = StyleSheet.create({
     fontSize: t.size["font.sm"],
     color: t.color["text.muted"],
   },
-});
+}));

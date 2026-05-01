@@ -43,7 +43,7 @@ import {
   X,
 } from "lucide-react-native";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { apiFetchRaw } from "../../api/client";
 import { useResource } from "../../resources/useResource";
 import type { CatalogJob } from "../../resources/types";
@@ -61,6 +61,7 @@ export function RecentEnrichmentRuns() {
   const [undoTarget, setUndoTarget] = useState<CatalogJob | null>(null);
   const [undoBusy, setUndoBusy] = useState(false);
   const [undoResult, setUndoResult] = useState<string | null>(null);
+  const s = useStyles();
 
   const liveJob = useMemo(
     () => (jobs.data || []).find(
@@ -192,6 +193,7 @@ export function JobHistory({
   // pending proposals so the admin lands on what needs review.
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [autoExpandedId, setAutoExpandedId] = useState<number | null>(null);
+  const s = useStyles();
 
   useEffect(() => {
     if (autoExpandedId !== null) return;
@@ -310,6 +312,7 @@ export function JobLogModal({
   job: CatalogJob | null;
   onClose: () => void;
 }) {
+  const s = useStyles();
   return (
     <Modal
       visible={!!job}
@@ -357,6 +360,7 @@ function UndoConfirmModal({
   onClose: () => void;
   onConfirm: (job: CatalogJob) => Promise<void> | void;
 }) {
+  const s = useStyles();
   return (
     <Modal
       visible={!!job}
@@ -407,11 +411,11 @@ function UndoConfirmModal({
                   ]}
                 >
                   {busy ? (
-                    <ActivityIndicator size="small" color={t.color["text.on-dark"]} />
+                    <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
                   ) : (
                     <RotateCcw
                       size={t.size["icon.sm"]}
-                      color={t.color["text.on-dark"]}
+                      color={t.color["text.on-cta"]}
                       strokeWidth={2}
                     />
                   )}
@@ -479,7 +483,7 @@ function summarizeJob(job: CatalogJob): string {
 
 // ── Styles ─────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   emptyBlock: {
     alignItems: "center",
     paddingVertical: t.spacing["2xl"],
@@ -687,7 +691,7 @@ const s = StyleSheet.create({
   ctaText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.md"],
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
   },
 
   // Job log modal
@@ -749,4 +753,4 @@ const s = StyleSheet.create({
     fontSize: t.size["font.sm"],
     color: t.color["accent.cta"],
   },
-});
+}));

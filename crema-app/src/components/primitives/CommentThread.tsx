@@ -14,7 +14,7 @@ import HapticPressable from "./HapticPressable";
 import { showToast } from "../shell/Toast";
 import { timeAgo } from "./TimeAgo";
 import { useResource } from "../../resources/useResource";
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 import { HeartOutlineIcon, HeartFilledOutlineIcon } from "../icons/FigmaIcons";
 import type { Comment } from "../../resources/types";
 
@@ -52,6 +52,7 @@ export default function CommentThread({
   const [replyTo, setReplyTo] = useState<{ id: number; username: string } | null>(null);
   const flashAnims = useRef<Record<number, Animated.Value>>({}).current;
   const inputRef = useRef<TextInput>(null);
+  const s = useStyles();
 
   // If the caller asked for auto-focus, pop the keyboard as soon as
   // the thread mounts. A small delay lets the parent modal finish its
@@ -201,7 +202,7 @@ export default function CommentThread({
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   section: { paddingHorizontal: 20, paddingBottom: 20 },
   headerDivider: { height: 1, backgroundColor: t.color["border.light"], marginVertical: 16 },
   header: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.primary"], marginBottom: 12 },
@@ -211,7 +212,7 @@ const s = StyleSheet.create({
   divider: { height: 1, backgroundColor: "rgba(237,232,225,0.5)", marginVertical: 8 },
   body: { flexDirection: "row", gap: 10 } as any,
   avatarFb: { width: 28, height: 28, borderRadius: 14, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-dark"] },
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-cta"] },
   content: { flex: 1 },
   nameRow: { flexDirection: "row", alignItems: "baseline", gap: 6, marginBottom: 2 } as any,
   name: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.primary"] },
@@ -224,7 +225,7 @@ const s = StyleSheet.create({
 
   replyIndicator: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    backgroundColor: "#F5F0E8", borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6, marginTop: 8,
+    backgroundColor: t.color["card.info"], borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6, marginTop: 8,
   } as any,
   replyText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.secondary"] },
 
@@ -235,4 +236,4 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8,
   } as any,
   inputField: { flex: 1, fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.primary"] },
-});
+}));

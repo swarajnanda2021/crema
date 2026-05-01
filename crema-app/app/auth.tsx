@@ -25,7 +25,7 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 
 import { useAuth } from "../src/hooks/useAuth";
-import { t } from "../src/tokens/useTokens";
+import { t, makeStyles } from "../src/tokens/useTokens";
 import CremaLogo from "../src/components/CremaLogo";
 
 type Track = "user" | "business";
@@ -43,12 +43,13 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const s = useStyles();
 
   const isBusiness = track === "business";
   // Cream for the user track, roaster-panel dark brown for business.
   // Foreground text flips to stay readable on each.
   const bgColor = isBusiness ? t.color["roaster.panel"] : t.color.bg;
-  const fgColor = isBusiness ? t.color["text.on-dark"] : t.color["text.primary"];
+  const fgColor = isBusiness ? t.color["text.on-cta"] : t.color["text.primary"];
   const mutedFg = isBusiness ? "rgba(250,248,240,0.6)" : t.color["text.muted"];
 
   const handleSubmit = async () => {
@@ -217,7 +218,7 @@ export default function AuthPage() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
@@ -273,7 +274,7 @@ const s = StyleSheet.create({
     fontFamily: t.font["body.semibold"], fontSize: 13,
     letterSpacing: 0.3,
   },
-  trackTabTextActiveLight: { color: t.color["text.on-dark"] } as any,
+  trackTabTextActiveLight: { color: t.color["text.on-cta"] } as any,
   trackTabTextActiveDark: { color: t.color["text.primary"] } as any,
 
   // Form card. Always cream regardless of outer background so the
@@ -336,7 +337,7 @@ const s = StyleSheet.create({
   submitBtnLoading: { backgroundColor: t.color["text.muted"] } as any,
   submitText: {
     fontFamily: t.font["body.semibold"], fontSize: 14,
-    color: t.color["text.on-dark"],
+    color: t.color["text.on-cta"],
     letterSpacing: 0.3,
   },
   toggleText: {
@@ -374,4 +375,4 @@ const s = StyleSheet.create({
     textAlign: "center",
     textDecorationLine: "underline",
   } as any,
-});
+}));

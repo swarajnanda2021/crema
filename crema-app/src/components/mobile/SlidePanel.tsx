@@ -27,7 +27,7 @@ import {
   Animated, Pressable, StyleSheet, Platform, BackHandler,
   useWindowDimensions, View,
 } from "react-native";
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 
 interface Props {
   visible: boolean;
@@ -49,6 +49,7 @@ export default function SlidePanel({
   const defaultH = 85;
   const wPct = widthPercent ?? defaultW;
   const hPct = heightPercent ?? defaultH;
+  const styles = useStyles();
 
   // Panel dimensions (used only for the transform distance).
   // Parent container constrains the actual layout — we just translate
@@ -141,7 +142,7 @@ export default function SlidePanel({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: t.color["overlay.panel"],
@@ -159,4 +160,4 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 16,
   } as any,
-});
+}));

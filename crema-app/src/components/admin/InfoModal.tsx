@@ -9,7 +9,7 @@
 import { View, Text, Pressable, Modal, StyleSheet, Platform } from "react-native";
 import { HelpCircle, X } from "lucide-react-native";
 
-import { t } from "../../tokens/useTokens";
+import { t, makeStyles } from "../../tokens/useTokens";
 
 // ── InfoButton — circular "?" in the top-right corner of a card ──────────
 
@@ -20,6 +20,7 @@ export function InfoButton({
   onPress: () => void;
   accessibilityLabel?: string;
 }) {
+  const s = useStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -49,6 +50,7 @@ export default function InfoModal({
   body: string;
   onClose: () => void;
 }) {
+  const s = useStyles();
   return (
     <Modal
       visible={visible}
@@ -76,7 +78,7 @@ export default function InfoModal({
 
 // ── Styles ────────────────────────────────────────────────────────────────
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   // Circular "?" icon button — top-right corner of info-bearing cards
   btn: {
     width: 22,
@@ -140,4 +142,4 @@ const s = StyleSheet.create({
     color: t.color["text.secondary"],
     lineHeight: t.lineHeight.relaxed,
   },
-});
+}));

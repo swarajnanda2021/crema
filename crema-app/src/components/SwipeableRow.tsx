@@ -28,7 +28,7 @@ import Animated, {
   withSpring,
   runOnJS,
 } from "react-native-reanimated";
-import { t } from "../tokens/useTokens";
+import { t, makeStyles } from "../tokens/useTokens";
 
 export interface SwipeAction {
   key: string;
@@ -65,6 +65,7 @@ export default function SwipeableRow({ actions, children }: Props) {
 }
 
 function NativeRow({ actions, children }: Props) {
+  const s = useStyles();
   const reveal = actions.length * ACTION_WIDTH;
   const tx = useSharedValue(0);
   // Gesture-start anchor — translationX is relative to gesture start,
@@ -171,6 +172,7 @@ function NativeRow({ actions, children }: Props) {
  *  because the gesture-handler + reanimated pipeline doesn't carry
  *  its weight for a desktop menu. */
 function WebRow({ actions, children }: Props) {
+  const s = useStyles();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const menuRef = useRef<any>(null);
@@ -226,7 +228,7 @@ function WebRow({ actions, children }: Props) {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   wrap: {
     position: "relative",
     overflow: "hidden",
@@ -285,4 +287,4 @@ const s = StyleSheet.create({
     fontSize: t.size["font.md"],
     color: t.color["text.primary"],
   },
-});
+}));
