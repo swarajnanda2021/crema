@@ -113,6 +113,7 @@ export default function RoasterRow({
 
 const useStyles = makeStyles((t) => ({
   row: {
+    width: "100%" as any,
     flexDirection: "row",
     alignItems: "center",
     gap: t.spacing.md,
@@ -184,10 +185,14 @@ const useStyles = makeStyles((t) => ({
   } as any,
   divider: {
     position: "absolute",
-    // Inset matches the row's `paddingHorizontal` so the hairline
-    // starts/ends flush with the image / arrow.
-    left: t.spacing.lg,
-    right: t.spacing.lg,
+    // Spans the full row width so the visible delineation between
+    // rows matches the outer edge of the Onboard hero card on the
+    // admin Catalog Ops Roasters surface (and reads as a single
+    // continuous list on the consumer Discover ROASTERS tab).
+    // Earlier inset was `t.spacing.lg` on each side which made
+    // rows look narrower than the bordered hero card stacked above.
+    left: 0,
+    right: 0,
     bottom: 0,
     height: 1,
     backgroundColor: t.color.divider,
