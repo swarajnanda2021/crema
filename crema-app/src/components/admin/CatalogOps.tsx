@@ -85,34 +85,20 @@ export default function CatalogOps() {
         </View>
       </View>
       {subTabs}
-      {/* Both panels stay mounted across sub-tab flips so any in-flight
-          job state (the polling timers + derived `liveJob` flags +
-          submit-error strings) survives. The previous `key={section}`
-          unmount-on-flip behaviour silently dropped enrichment + scrape
-          state when the admin switched sub-tabs mid-run. The async-job
-          pipeline + orphan-recovery handles backend continuity; this
-          ensures the UI side stays attached to it.
-
-          Active panel renders inline so it takes natural layout height
-          (the parent profile ScrollView measures it for scroll math).
-          Inactive panel renders inside an off-screen absolute container
-          so it stays React-mounted (polling timers + state alive) but
-          contributes ZERO to the layout tree and zero touch area —
-          earlier `display: 'none'` left the hidden panel measurable on
-          iOS, swallowing vertical scroll gestures that should have hit
-          the outer ScrollView. */}
+      {/* Plain conditional render of the active panel. Earlier we
+          tried `display: 'none'` and an off-screen `position: 'absolute'`
+          mount to keep the inactive panel React-alive across sub-tab
+          flips (so polling timers + submit-error strings survived).
+          Both broke vertical scroll on iOS — the hidden panel's
+          subviews kept entering the layout / hit-test tree and
+          swallowed scroll touches. The async-job backend already
+          handles state continuity (see `_apply_roaster_enrichment`
+          and the orphan-recovery on server boot), so dropping the
+          UI-side polling state on tab flip is a tolerable trade.
+          When the user flips back, the panel re-mounts and its
+          first poll re-attaches to whatever job is still running. */}
       <View style={{ gap: t.spacing.xl }}>
-        {section === "roasters" ? <RoastersPanel /> : null}
-        {section === "standardization" ? <StandardizationPanel /> : null}
-      </View>
-      {/* Off-screen mount for the inactive panel — keeps polling timers
-          + submit-error strings alive across sub-tab flips. */}
-      <View
-        pointerEvents="none"
-        style={{ position: "absolute", left: -10000, top: 0, width: 1, height: 1, opacity: 0 }}
-      >
-        {section !== "roasters" ? <RoastersPanel /> : null}
-        {section !== "standardization" ? <StandardizationPanel /> : null}
+        {section === "roasters" ? <RoastersPanel /> : <StandardizationPanel />}
       </View>
     </View>
   );
