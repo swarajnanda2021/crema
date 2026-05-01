@@ -482,7 +482,11 @@ export default function AdminRoasterPage() {
       setConfirmDelete(false);
       // Drop the route from the back stack — going back lands on the
       // ROASTERS sub-tab so the deleted row's removal is visible.
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/profile?tab=catalog");
+      }
     } catch (e: any) {
       setError(e?.message || "Couldn't remove roaster");
       setBusyAction(null);
@@ -560,7 +564,18 @@ export default function AdminRoasterPage() {
               <Pressable
                 onPress={() => {
                   hapticTap();
-                  router.back();
+                  // `canGoBack()` guard — Expo Router's `router.back()`
+                  // dispatches a GO_BACK action that throws "not handled
+                  // by any navigator" when the admin/roaster page was
+                  // reached via deep-link or after a fast-refresh that
+                  // wiped the back stack. Fall back to the admin profile
+                  // tab (where Catalog Ops lives) so the user always
+                  // ends up somewhere sensible.
+                  if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace("/profile?tab=catalog");
+                  }
                 }}
                 hitSlop={8}
                 style={({ pressed }) => [s.backFloating, pressed && s.linkBtnPressed]}

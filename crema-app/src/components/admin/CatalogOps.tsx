@@ -91,14 +91,28 @@ export default function CatalogOps() {
           unmount-on-flip behaviour silently dropped enrichment + scrape
           state when the admin switched sub-tabs mid-run. The async-job
           pipeline + orphan-recovery handles backend continuity; this
-          ensures the UI side stays attached to it. */}
+          ensures the UI side stays attached to it.
+
+          Active panel renders inline so it takes natural layout height
+          (the parent profile ScrollView measures it for scroll math).
+          Inactive panel renders inside an off-screen absolute container
+          so it stays React-mounted (polling timers + state alive) but
+          contributes ZERO to the layout tree and zero touch area —
+          earlier `display: 'none'` left the hidden panel measurable on
+          iOS, swallowing vertical scroll gestures that should have hit
+          the outer ScrollView. */}
       <View style={{ gap: t.spacing.xl }}>
-        <View style={{ display: section === "roasters" ? "flex" : "none" }}>
-          <RoastersPanel />
-        </View>
-        <View style={{ display: section === "standardization" ? "flex" : "none" }}>
-          <StandardizationPanel />
-        </View>
+        {section === "roasters" ? <RoastersPanel /> : null}
+        {section === "standardization" ? <StandardizationPanel /> : null}
+      </View>
+      {/* Off-screen mount for the inactive panel — keeps polling timers
+          + submit-error strings alive across sub-tab flips. */}
+      <View
+        pointerEvents="none"
+        style={{ position: "absolute", left: -10000, top: 0, width: 1, height: 1, opacity: 0 }}
+      >
+        {section !== "roasters" ? <RoastersPanel /> : null}
+        {section !== "standardization" ? <StandardizationPanel /> : null}
       </View>
     </View>
   );

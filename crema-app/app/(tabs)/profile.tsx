@@ -190,7 +190,7 @@ export default function ProfilePage() {
   const { shelves, fetchShelves, addToShelf, removeFromShelf } = useShelves();
   const { productMap } = useCoffeeData();
   const router = useRouter();
-  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const { edit, tab: tabParam } = useLocalSearchParams<{ edit?: string; tab?: string }>();
   const { width: screenW } = useWindowDimensions();
   const isNarrow = screenW < 768;
   const { isMobile } = useBreakpoint();
@@ -204,8 +204,13 @@ export default function ProfilePage() {
     }
   }, [user]);
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
+  // Tab state. Initial value honours the optional `?tab=` query param so
+  // deep-link returns from descendant pages (e.g. admin/roaster back
+  // button when the back-stack is empty) land on the right tab.
+  const [activeTab, setActiveTab] = useState<ProfileTab>(() => {
+    const valid: ProfileTab[] = ["posts", "shelf", "following", "analytics", "catalog"];
+    return (tabParam && valid.includes(tabParam as ProfileTab)) ? (tabParam as ProfileTab) : "posts";
+  });
   // No more sub-tab state — both shelf sections render at once
 
   // Data

@@ -610,7 +610,18 @@ export default function RoasterDetailPage() {
           ) : (
             <View style={[StyleSheet.absoluteFillObject, { backgroundColor: t.color["roaster.hero.fallback"] }]} />
           )}
-          <Pressable onPress={() => router.back()} style={s.backFloating} accessibilityLabel="Back" hitSlop={8}>
+          <Pressable
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/(tabs)/browse");
+              }
+            }}
+            style={s.backFloating}
+            accessibilityLabel="Back"
+            hitSlop={8}
+          >
             <ArrowLeft size={18} color={t.color["text.on-cta"]} strokeWidth={2} />
           </Pressable>
         </View>
@@ -648,7 +659,16 @@ export default function RoasterDetailPage() {
              on mobile, out of scope here). */}
           {isWide && (
             <>
-              <Pressable onPress={() => router.back()} style={s.backBtn}>
+              <Pressable
+                onPress={() => {
+                  if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace("/(tabs)/browse");
+                  }
+                }}
+                style={s.backBtn}
+              >
                 <BackArrowIcon />
                 <Text style={s.backText}>Back</Text>
               </Pressable>
