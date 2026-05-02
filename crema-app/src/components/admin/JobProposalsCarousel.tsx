@@ -196,17 +196,14 @@ export default function JobProposalsCarousel({
     }
   };
 
-  const grouped = useMemo(() => {
-    const out: Record<ProposalKind, ScrapeProposal[]> = {
-      insert: [],
-      update: [],
-      restore_available: [],
-      mark_sold_out: [],
-    };
-    for (const p of proposals) out[p.change_type].push(p);
-    return out;
-  }, [proposals]);
-
+  // Only render rows that still need admin action. The local refetch
+  // pulls every status (pending + applied + rejected) so we can
+  // recompute counts after Add-all / Skip-all without a stale
+  // "all-statuses" snapshot, but the rails themselves should only
+  // show what's still actionable — otherwise the just-approved cards
+  // linger as a history rail and read as "Add all didn't actually do
+  // anything." `pendingByKind` was already the right list; collapsing
+  // `grouped` to it makes resolved rails disappear on the next render.
   const pendingByKind = useMemo(() => {
     const out: Record<ProposalKind, ScrapeProposal[]> = {
       insert: [],
@@ -219,6 +216,7 @@ export default function JobProposalsCarousel({
     }
     return out;
   }, [proposals]);
+  const grouped = pendingByKind;
 
   if (loading && proposals.length === 0) {
     return (

@@ -63,10 +63,15 @@ export function RecentEnrichmentRuns() {
   const [undoResult, setUndoResult] = useState<string | null>(null);
   const s = useStyles();
 
+  // Live = anything currently in flight that the admin would think of
+  // as "an enrichment run." That covers BOTH the per-roaster catalog
+  // scrape AND the bio-enrich job kicked off by the Onboard hero
+  // (kind=roaster_enrich); the latter was previously filtered out so
+  // a fresh Onboard submission never lit up the live badge.
   const liveJob = useMemo(
     () => (jobs.data || []).find(
       (j) =>
-        (j.kind as any) === "scrape" &&
+        ((j.kind as any) === "scrape" || (j.kind as any) === "roaster_enrich") &&
         (j.status === "queued" || j.status === "running"),
     ),
     [jobs.data],
@@ -88,10 +93,20 @@ export function RecentEnrichmentRuns() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveJob?.id]);
 
+  // Surface every roaster-side run, not just catalog scrapes — the
+  // Onboard hero submits as `roaster_enrich` (bio enrichment that
+  // chains its own scrape) and the per-roaster Refresh button kicks
+  // off `scrape`. Both belong in the same history list. `standardize`
+  // and `geolocate` have their own panels and stay out of here.
   const scrapeJobs = useMemo(
     () =>
       (jobs.data || [])
-        .filter((j) => (j.kind as any) === "scrape" || (j.kind as any) === "manual_sold_out")
+        .filter(
+          (j) =>
+            (j.kind as any) === "scrape" ||
+            (j.kind as any) === "roaster_enrich" ||
+            (j.kind as any) === "manual_sold_out",
+        )
         .slice(0, 20),
     [jobs.data],
   );
@@ -457,6 +472,7 @@ export function formatRelative(iso: string): string {
 
 function jobLabel(kind: CatalogJob["kind"]): string {
   if ((kind as any) === "scrape") return "Enrichment";
+  if ((kind as any) === "roaster_enrich") return "Bio enrichment";
   if (kind === "geolocate") return "Classify";
   if (kind === "tree_validate") return "Tree";
   if ((kind as any) === "manual_sold_out") return "Manual sold-out";
@@ -474,6 +490,16 @@ function summarizeJob(job: CatalogJob): string {
   const r = parseResult(job.result_summary);
   if ((job.kind as any) === "scrape") {
     return `${r.scraped ?? 0} fetched · ${r.new_products_total ?? 0} new · ${r.updated_total ?? 0} updated · ${r.missing_total ?? 0} missing`;
+  }
+  if ((job.kind as any) === "roaster_enrich") {
+    const name = r.name || r.slug || "roaster";
+    if (r.scrape_skipped_reason) {
+      return `${name} · bio updated · scrape skipped (${r.scrape_skipped_reason})`;
+    }
+    if (r.scrape_job_id) {
+      return `${name} · bio updated · chained scrape #${r.scrape_job_id}`;
+    }
+    return `${name} · bio updated`;
   }
   if (job.kind === "geolocate") {
     return `${r.unclassified_input ?? 0} input · ${r.classified ?? 0} classified · ${r.null_resolved ?? 0} null`;

@@ -18,7 +18,7 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, Stack, useRouter } from "expo-router";
 import { openExternal } from "../../src/utils/openExternal";
 import Svg, { Path } from "react-native-svg";
-import { Plus, X, PenLine, Camera, MapPin, Check, ArrowLeft } from "lucide-react-native";
+import { Plus, X, PenLine, Camera, MapPin, Check, ArrowLeft, MessageCircle } from "lucide-react-native";
 
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
@@ -94,7 +94,11 @@ function FollowButton({ following, onToggle }: { following: boolean; onToggle: (
   const fb = useFbStyles();
   return (
     <Pressable onPress={onToggle} style={[fb.btn, following && fb.btnFollowing]}>
-      {!following && <Plus size={10} color={t.color["text.on-cta"]} strokeWidth={2.5} />}
+      {/* `+` icon matches the cream border + "Follow" text — both use
+         text.on-dark which stays cream in both modes. The previous
+         text.on-cta token flipped to Espresso in dark mode and made
+         the icon invisible against the dark roaster.panel bg. */}
+      {!following && <Plus size={10} color={t.color["text.on-dark"]} strokeWidth={2.5} />}
       {following && <Check size={10} color={t.color["text.primary"]} strokeWidth={2.5} />}
       <Text style={[fb.text, following && fb.textFollowing]}>
         {following ? "Following" : "Follow"}
@@ -202,7 +206,15 @@ const useCgStyles = makeStyles((t) => ({
 
 const NAVBAR_H = 72;
 const POSTS_PER_PAGE = 5;
+// 260 chars on wide reads as a comfortable 4-5 line preview in the
+// roomy left rail; on a phone the same string spills to 7-8 lines and
+// pushes the POSTS / BEANS tabs below the fold. The mobile cap is
+// tuned so the bio block is a near-constant height across roasters
+// (paired with the per-line tag + meta layout below) — the tabs peek
+// in the same screen position every time, regardless of how long
+// each roaster's bio happens to be.
 const ABOUT_LIMIT = 260;
+const ABOUT_LIMIT_MOBILE = 130;
 
 export default function RoasterDetailPage() {
   const { slug, edit } = useLocalSearchParams<{ slug: string; edit?: string }>();
@@ -210,14 +222,49 @@ export default function RoasterDetailPage() {
   const { user } = useAuth();
   const s = useStyles();
   const { products, roasters, appendProducts, removeProduct, loading: coffeeLoading } = useCoffeeData();
-  const { getProfile, refreshProfiles, loading: profileLoading } = useRoasterProfiles();
+  const profilesCache = useRoasterProfiles();
   const { height: winH, width: winW } = useWindowDimensions();
   const isWide = winW >= 800;
   const { isMobile } = useBreakpoint();
 
-  // Roaster lookup
+  // Roaster lookup. The cached profile from `RoasterProfilesProvider`
+  // hydrates the page on the first render — when the user taps a
+  // roaster on Discover, the logo URL is already known synchronously
+  // and `expo-image` paints from its disk cache in the same frame.
+  // Without the cache the page would mount with `profile=null`,
+  // wait on `/roaster_profiles/{slug}`, and only then start the image
+  // load — that "wait then load" was the visible logo-pop the user
+  // flagged. The silent revalidation below keeps the cache fresh
+  // without a loading flash.
   const productRoaster = roasters.find((r: any) => r.slug === slug);
-  const profile = getProfile(slug, productRoaster?.website, productRoaster?.name);
+  const cachedProfile = profilesCache.getBySlug(slug);
+  const [profile, setProfile] = useState<any>(cachedProfile);
+  const [profileLoading, setProfileLoading] = useState(!cachedProfile);
+  const fetchProfile = useCallback(async () => {
+    if (!slug) return;
+    if (!profilesCache.getBySlug(slug)) setProfileLoading(true);
+    try {
+      const res: any = await apiFetchRaw(`/roaster_profiles/${slug}`);
+      const fresh = res?.data ?? res;
+      setProfile(fresh);
+      // Push the freshly-fetched row back into the sitewide cache so
+      // ROASTERS sub-tab + the next visit see the latest (esp. after
+      // an owner edits their profile).
+      profilesCache.upsert(fresh);
+    } catch {
+      // Keep the cached value if the per-slug fetch fails.
+    } finally {
+      setProfileLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+  useEffect(() => { fetchProfile(); }, [fetchProfile]);
+  // If the cache hydrates AFTER the page mounts (deep-link case),
+  // adopt the cached value as initial state without re-running the
+  // per-slug fetch.
+  useEffect(() => {
+    if (!profile && cachedProfile) setProfile(cachedProfile);
+  }, [profile, cachedProfile]);
   const roaster = productRoaster ?? (profile ? {
     slug: profile.roaster_slug ?? slug,
     name: profile.name ?? slug,
@@ -337,14 +384,15 @@ export default function RoasterDetailPage() {
 
   useEffect(() => {
     if (!slug) return;
+    // `/followers/{slug}` now bundles `viewer_following` so the page
+    // doesn't pay a second `/follow-status/{slug}` round-trip — one
+    // call covers both the follower list/count and the "Follow /
+    // Following" CTA state. Anonymous viewers read false.
     apiFetchRaw(`/followers/${slug}`).then((res) => {
       const d = res?.data ?? res;
       setFollowerCount(d?.follower_count || 0);
       setFollowers(d?.followers || []);
-    }).catch(() => {});
-    apiFetchRaw(`/follow-status/${slug}`).then((res) => {
-      const d = res?.data ?? res;
-      setFollowing(d?.following || false);
+      setFollowing(d?.viewer_following || false);
     }).catch(() => {});
   }, [slug]);
 
@@ -505,7 +553,7 @@ export default function RoasterDetailPage() {
           hero_crop_x: editCropX, hero_crop_y: editCropY, hero_zoom: editHeroZoom,
         }),
       });
-      await refreshProfiles();
+      await fetchProfile();
       setIsEditing(false);
       if (typeof window !== "undefined") {
         const url = new URL(window.location.href);
@@ -684,21 +732,32 @@ export default function RoasterDetailPage() {
 
           {/* About */}
           {isEditing ? (
-            <View style={s.aboutBlock}>
+            <View style={[s.aboutBlock, isMobile && s.aboutBlockMobile]}>
               <TextInput style={[s.aboutText, s.inlineEdit]} value={editAbout} onChangeText={setEditAbout}
                 placeholder="Tell people about your roastery\u2026" placeholderTextColor="rgba(199,186,165,0.35)" multiline />
             </View>
           ) : aboutBlurb ? (
-            <View style={s.aboutBlock}>
+            <View style={[s.aboutBlock, isMobile && s.aboutBlockMobile]}>
               <Text style={s.aboutText}>
-                {aboutExpanded || aboutBlurb.length <= ABOUT_LIMIT ? aboutBlurb : aboutBlurb.slice(0, ABOUT_LIMIT) + "\u2026"}
-                {aboutBlurb.length > ABOUT_LIMIT && (
-                  <Text onPress={() => setAboutExpanded((v) => !v)} style={s.aboutMore}>{aboutExpanded ? " less" : " more"}</Text>
-                )}
+                {(() => {
+                  const limit = isMobile ? ABOUT_LIMIT_MOBILE : ABOUT_LIMIT;
+                  const overflows = aboutBlurb.length > limit;
+                  const visible = aboutExpanded || !overflows
+                    ? aboutBlurb
+                    : aboutBlurb.slice(0, limit) + "\u2026";
+                  return (
+                    <>
+                      {visible}
+                      {overflows && (
+                        <Text onPress={() => setAboutExpanded((v) => !v)} style={s.aboutMore}>{aboutExpanded ? " less" : " more"}</Text>
+                      )}
+                    </>
+                  );
+                })()}
               </Text>
             </View>
           ) : isOwner ? (
-            <Pressable onPress={() => setIsEditing(true)} style={s.aboutBlock}>
+            <Pressable onPress={() => setIsEditing(true)} style={[s.aboutBlock, isMobile && s.aboutBlockMobile]}>
               <Text style={[s.aboutText, { opacity: 0.4 }]}>Tap the pencil to add your story\u2026</Text>
             </Pressable>
           ) : null}
@@ -718,20 +777,39 @@ export default function RoasterDetailPage() {
           {!isEditing && <View style={{ flex: 1 }} />}
           {isEditing && <View style={{ height: 24 }} />}
 
-          {/* Specialty tags */}
+          {/* Specialty tags as bordered pill chips. The `/`-joined
+             text version read as ugly typographic clutter; pills give
+             each specialty its own visual boundary and wrap cleanly
+             at the panel width on both modes. Border + text use
+             `text.on-dark` so the chip pops on the persistently-dark
+             roaster.panel background. Mirrors the FollowButton's
+             cream-border-on-dark treatment for a coherent leftPanel
+             chrome language. */}
           <View style={s.tagBand}>
-            {!isEditing && <View style={s.rule} />}
+            {!isEditing && <View style={[s.rule, isMobile && s.ruleMobile]} />}
             {isEditing ? (
               <TextInput style={[s.tagText, s.inlineEditTag]} value={editSpecialties} onChangeText={setEditSpecialties}
                 placeholder="Single Origin, Estate Grown" placeholderTextColor="rgba(199,186,165,0.35)" />
             ) : (
-              <Text style={s.tagText}>{specialtyTags.join(" / ")}</Text>
+              <View style={s.tagsRow}>
+                {specialtyTags.map((tag, i) => (
+                  <View key={`${tag}-${i}`} style={s.tagChip}>
+                    <Text style={s.tagChipText} numberOfLines={1}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
             )}
-            {!isEditing && <View style={s.rule} />}
+            {!isEditing && <View style={[s.rule, isMobile && s.ruleMobile]} />}
           </View>
 
-          {/* Meta row */}
-          <View style={s.metaRow}>
+          {/* Meta row. Wide mode keeps the gap-based row that fits
+             alongside the narrow left rail. Mobile spreads the items
+             across the full panel width via `justify-content: space-
+             between` so Website starts at the line start (matching
+             the rule above) and the last item ends flush with the
+             rule's right edge — the bio block reads as a single
+             aligned column. */}
+          <View style={[s.metaRow, isMobile && s.metaRowMobile]}>
             {isEditing ? (
               <>
                 <View style={s.metaItem}>
@@ -760,10 +838,47 @@ export default function RoasterDetailPage() {
             )}
           </View>
 
-          {!isEditing && <View style={s.rule} />}
+          {!isEditing && <View style={[s.rule, isMobile && s.ruleMobile]} />}
 
           {!isOwner && (
-            <View style={s.followRow}><FollowButton following={following} onToggle={handleFollowToggle} /></View>
+            <View style={s.followRow}>
+              <FollowButton following={following} onToggle={handleFollowToggle} />
+              {user && (
+                <Pressable
+                  onPress={async () => {
+                    try {
+                      const raw: any = await apiFetchRaw(
+                        `/direct-threads/with-roaster/${slug}`,
+                        { method: "POST" },
+                      );
+                      const d = raw?.data ?? raw;
+                      if (!d?.thread_id) return;
+                      // Cross-platform open — same pattern as user profile.
+                      // Native / narrow web: nav to /messages with route
+                      // params; Messages screen reads useLocalSearchParams
+                      // and opens the thread. Web wide: hit Navbar's
+                      // MessagesDropdown bridge.
+                      if (isMobile) {
+                        router.push({
+                          pathname: "/messages",
+                          params: { thread_id: String(d.thread_id), kind: "direct_message" },
+                        } as any);
+                      } else if (typeof window !== "undefined") {
+                        (window as any).__crema_openThread?.("direct_message", d.thread_id);
+                      }
+                    } catch (e) {
+                      console.warn("Open roaster DM failed:", e);
+                    }
+                  }}
+                  style={s.messageBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Message ${roaster.name}`}
+                >
+                  <MessageCircle size={11} color={t.color["text.on-dark"]} strokeWidth={2} />
+                  <Text style={s.messageBtnText}>Message</Text>
+                </Pressable>
+              )}
+            </View>
           )}
         </View>
 
@@ -1199,19 +1314,62 @@ const useStyles = makeStyles((t) => ({
     fontSize: 28, lineHeight: 32, marginTop: 0, marginBottom: 6,
   } as any,
 
+  // `paddingRight` keeps the wide-rail layout's right gutter under the
+  // 280-px accent rule; on mobile the rule stretches edge-to-edge, so
+  // the right padding gets zeroed via `aboutBlockMobile` below to
+  // line the text's right edge up with the rule's right edge.
   aboutBlock: { paddingRight: 20 },
+  aboutBlockMobile: { paddingRight: 0 } as any,
   aboutText: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.on-dark"], lineHeight: 18 },
   aboutMore: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"] },
 
   tagBand: { marginBottom: 14 },
   rule: { height: 1, width: 280, alignSelf: "flex-start" as any, backgroundColor: "rgba(250,248,240,0.25)", marginVertical: 0 },
-  tagText: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.on-dark"], lineHeight: 18, paddingVertical: 8 },
+  // Mobile override — wide-mode keeps the 280-px accent line that fits
+  // the narrow left rail; on phones the bio panel is full screen width
+  // and the short 280-px line read as truncated junk floating above
+  // the tags + meta. Stretch the divider edge-to-edge so the panel
+  // padding matches on both sides.
+  ruleMobile: { width: "100%" as any, alignSelf: "stretch" as any } as any,
+  tagText: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.on-dark"], lineHeight: 18, paddingVertical: 8, textAlign: "justify" as any },
+  // Pill-chip tag list — wraps freely so 1-6 specialties land cleanly
+  // in either the wide-rail or mobile panel. `paddingVertical` here
+  // matches the prior text-band rhythm so the rules above/below sit
+  // at the same y-coordinates as before.
+  tagsRow: { flexDirection: "row" as any, flexWrap: "wrap" as any, gap: 8, paddingVertical: 8 } as any,
+  tagChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: t.color["text.on-dark"],
+    borderRadius: (t.radius as any).full,
+  } as any,
+  tagChipText: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.on-dark"], lineHeight: 16 },
 
-  metaRow: { flexDirection: "row", flexWrap: "wrap" as any, gap: 20, marginTop: 5, marginBottom: 9 },
+  // Top + bottom margins now match so the icon row sits on the
+  // centerline between the rule above (below tags) and the rule
+  // below (above the Follow button). Earlier the asymmetric 5/9
+  // pair pulled the row a few pixels toward the top rule.
+  metaRow: { flexDirection: "row", flexWrap: "wrap" as any, gap: 20, marginTop: 8, marginBottom: 8 },
+  // Mobile: spread the meta items across the full panel width so the
+  // first item starts at the rule's left edge and the last item ends
+  // at the rule's right edge — same alignment as the bio block above.
+  metaRowMobile: { gap: 0 as any, justifyContent: "space-between" as any } as any,
   metaItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   metaText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.on-dark"] },
 
-  followRow: { marginTop: 14 },
+  followRow: { flexDirection: "row" as any, gap: 8, marginTop: 14 },
+  // Message button mirrors the FollowButton's cream-border-on-dark
+  // chrome (text.on-dark for both border + text + icon) so the two
+  // CTAs read as a paired set on the persistently-dark roaster.panel.
+  // Width is content-driven (paddingHorizontal) since "Message" is
+  // longer than "Follow" / "Following" and a fixed width would clip.
+  messageBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 4, paddingHorizontal: 12, height: 27, borderRadius: 2,
+    borderWidth: 1.5, borderColor: t.color["text.on-dark"],
+  } as any,
+  messageBtnText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"] },
 
   // Inline editing
   inlineEdit: {
@@ -1350,6 +1508,12 @@ const useStyles = makeStyles((t) => ({
     flexGrow: 0,
     flexShrink: 0,
     backgroundColor: t.color.bg,
+    // Top + bottom divider mirrors the user-profile / café tab
+    // strips so the POSTS / BEANS bar reads as the same component
+    // across every profile type — without the top rule the strip
+    // bled into the bio panel above.
+    borderTopWidth: 1,
+    borderTopColor: t.color.border,
     borderBottomWidth: 1,
     borderBottomColor: t.color.border,
   } as any,

@@ -227,8 +227,12 @@ export default function AdminRoasterPage() {
   }, []);
 
   useEffect(() => {
+    // Re-fetch on slug change too — Expo Router reuses this `[slug]`
+    // component instance when navigating between admin roasters, so a
+    // mount-only fetch leaves `allProposals` stale and the proposals
+    // carousel never appears for roasters scraped after the first load.
     fetchProposals();
-  }, [fetchProposals]);
+  }, [fetchProposals, slug]);
 
   const fetchCatalogProducts = useCallback(async () => {
     if (!slug) return;
@@ -366,6 +370,74 @@ export default function AdminRoasterPage() {
     }, 2000);
   };
 
+  // Auto-attach the poll to an in-flight scrape that THIS page didn't
+  // start. The Onboard hero (Catalog Ops) submits a `roaster_enrich`
+  // job that, on success, chains a `scrape` job and routes the admin
+  // here — but `refreshAll` never ran on this page, so without the
+  // attach we'd sit idle and the proposals carousel wouldn't appear
+  // until the admin navigated away and back. We find the most recent
+  // `roaster_enrich` for this slug, read its `result_summary.scrape_
+  // job_id`, and if that scrape is still queued/running we wire up
+  // the existing `startPoll` machinery — its success branch already
+  // refetches proposals + catalog and clears the spinner state.
+  useEffect(() => {
+    if (!slug) return;
+    if (enrichPollRef.current) return;
+    let canceled = false;
+    (async () => {
+      try {
+        const res: any = await apiFetchRaw("/jobs?limit=50");
+        if (canceled) return;
+        const jobs = ((res?.data ?? res) as CatalogJob[]) || [];
+        const enrichJob = jobs.find((j: any) => {
+          if ((j.kind as any) !== "roaster_enrich") return false;
+          try {
+            const rs =
+              typeof j.result_summary === "string"
+                ? JSON.parse(j.result_summary)
+                : j.result_summary;
+            return rs?.slug === slug;
+          } catch {
+            return false;
+          }
+        });
+        if (!enrichJob) return;
+        let rs: any = null;
+        try {
+          rs =
+            typeof (enrichJob as any).result_summary === "string"
+              ? JSON.parse((enrichJob as any).result_summary)
+              : (enrichJob as any).result_summary;
+        } catch {
+          rs = null;
+        }
+        const scrapeJobId = rs?.scrape_job_id as number | undefined;
+        if (!scrapeJobId) return;
+        const scrapeJob = jobs.find((j) => j.id === scrapeJobId);
+        if (!scrapeJob) return;
+        if (
+          scrapeJob.status !== "queued" &&
+          scrapeJob.status !== "running"
+        )
+          return;
+        if (canceled || enrichPollRef.current) return;
+        setEnrichJobId(scrapeJobId);
+        setEnrichBusy(true);
+        setRefreshPhase("scraping");
+        setPhaseProgress("Fetching catalog…");
+        startPoll(scrapeJobId);
+      } catch {
+        // Best-effort attach — a failure here just falls back to the
+        // navigate-away-and-back behaviour, which is what we had
+        // before this fix landed.
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
   // Combined refresh — bio enrich + catalog scrape in one click.
   // Single POST: the backend runs Sonnet against the homepage,
   // upserts the profile, and enqueues a per-roaster scrape job.
@@ -398,6 +470,7 @@ export default function AdminRoasterPage() {
       const data: any = res?.data ?? res;
       const updatedProfile = data?.profile as RoasterProfile | undefined;
       const job = data?.job as { id: number } | undefined;
+      const scrapeBlockedBy = data?.scrape_blocked_by_job_id as number | undefined;
       if (updatedProfile) setProfile(updatedProfile);
       if (data?.warning) setEnrichError(data.warning);
       refetch();
@@ -408,12 +481,22 @@ export default function AdminRoasterPage() {
         setPhaseProgress("Fetching catalog…");
         startPoll(job.id);
       } else {
+        // Bio enrichment landed but no scrape kicked off — either there
+        // was nothing to scrape, or another scrape is in flight and the
+        // backend deferred this one (`scrape_blocked_by_job_id`). Soft
+        // status either way; no enrichError so the bio panel reads as
+        // success.
         setRefreshPhase("done");
         setEnrichBusy(false);
+        if (scrapeBlockedBy) {
+          setPhaseProgress(
+            `Bio enriched. Catalog scrape queued behind job ${scrapeBlockedBy} — retry once it finishes.`,
+          );
+        }
         setTimeout(() => {
           setRefreshPhase((cur) => (cur === "done" ? "idle" : cur));
           setPhaseProgress(null);
-        }, 2500);
+        }, scrapeBlockedBy ? 5000 : 2500);
       }
     } catch (e: any) {
       setEnrichError(e?.message || "Refresh failed");
@@ -692,7 +775,7 @@ export default function AdminRoasterPage() {
                     {refreshPhase === "bio" && "Updating roaster bio…"}
                     {refreshPhase === "scraping" && (phaseProgress || "Fetching catalog…")}
                     {refreshPhase === "enriching" && (phaseProgress || "Enriching beans…")}
-                    {refreshPhase === "done" && "Done."}
+                    {refreshPhase === "done" && (phaseProgress || "Done.")}
                   </Text>
                 </>
               )}
