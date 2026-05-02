@@ -469,18 +469,52 @@ multi-handle) so subsequent runs skip enumeration.
 For each article URL:
 
 1. **Fetch HTML** with a real User-Agent + 12-second timeout.
-2. **og: metadata** — `og:title`, `og:description`, `og:image`,
-   `og:article:published_time` (or `<time datetime>`).
-3. **Body extraction** with bs4 + `html.parser`. Selector chain:
-   `<article>` → `.article-template__content` (Shopify theme) →
-   `.rte` (Shopify rich-text-editor) → `.entry-content` (WordPress)
-   → `<main>`. `nav, header, footer, script, style,
-   [aria-hidden='true']` get `decompose()`'d before `get_text`.
-4. **HTML stored, not markdown.** No `markdownify`, no `trafilatura`,
-   no `lxml`. Atom/RSS parsed with stdlib `xml.etree.ElementTree`.
-5. **Dedup by URL.** `roaster_articles.url UNIQUE` makes re-running
-   the scrape idempotent. Per-row commits inside `upsert_article`
-   keep the SQLite writer-lock window short.
+2. **Cleaned text + og: hints** in one pass via
+   `extract_for_enrichment()`: strip `nav, header, footer, script,
+   style, noscript, form, [aria-hidden='true']` globally, return
+   the page text + `og:title` / `og:description` / `og:image` /
+   `og:article:published_time` (or `<time datetime>`) + a bs4
+   fallback extraction. Stdlib XML parsing for Atom/RSS feeds —
+   no `lxml`.
+3. **Per-article Haiku enrichment** (`services/article_enricher.py`)
+   — single tool-use call, model `claude-haiku-4-5-20251001`, max
+   4000 output tokens. Page text clipped to 16K chars (~4-5K
+   tokens). Returns:
+
+       {
+         is_article: bool,                  # gate — false rejects URL
+         title: str,
+         summary: str,                      # 1-2 sentences (excerpt)
+         body_html: str,                    # h2/h3, p, ul/ol/li,
+                                            # blockquote, img, hr ONLY
+         image_url: Optional[str],          # absolute hero URL
+         published_at: Optional[str],       # ISO 8601
+         word_count: int,
+       }
+
+   Strict tag subset — no inline `<span>`, `<strong>`, `<em>`,
+   `<a>`, no class/id/style attributes. Every output emitted by
+   the enricher maps 1:1 to the consumer reader's `htmlToBlocks`
+   walker, so the renderer never has to handle stray markup.
+   `is_article=false` rejects category landings, 404s, product
+   listings the discovery step mis-classified. Cost ~$0.01 per
+   article, latency ~3-5 s. Falls back to bs4 extraction with
+   `enrichment_status='failed'` when the call errors.
+4. **WebP hero pipeline** (`download_hero_image()`): fetch the
+   chosen hero URL, run through Pillow → WebP @ q=82, persist
+   under `Community/coffee-community-api/uploads/articles/<uuid>.webp`
+   (mounted at `/uploads/articles/`). URL-form retry on first
+   failure: try `https://` (force) and drop `www.` prefix —
+   recovers stale `http://www....` URLs Haiku sometimes relays
+   from in-body `<img>` tags. 8 MiB input cap. Same WebP pipeline
+   as user-uploaded photos in `routes/uploads.py`. Falls back to
+   the original external URL when the download / convert fails.
+5. **Dedup by URL.** `roaster_articles.url UNIQUE` makes re-runs
+   idempotent. Skip-cheap path: already-enriched URLs (`enrichment_status='enriched'`)
+   don't trigger HTTP, Haiku, or WebP — pass `force_enrich=true`
+   on the admin scrape endpoints to re-process every URL.
+   Per-row commits inside `upsert_article` keep the SQLite
+   writer-lock window short.
 
 ### Data shape
 

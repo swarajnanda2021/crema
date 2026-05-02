@@ -759,8 +759,8 @@ never leak even via deep link.
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /api/admin/articles/scrape-all` | Bulk article scrape across every enabled `roaster_sources` row. Same conflict + `BackgroundTasks` shape as `/admin/scrape/run`; only one `article_scrape` may be live at a time. |
-| `POST /api/admin/roasters/{slug}/scrape-articles` | Per-roaster article scrape. Per-row Refresh button on the Articles sub-tab posts here. |
+| `POST /api/admin/articles/scrape-all` | Bulk article scrape across every enabled `roaster_sources` row. Body `{ force_enrich?: bool }` — when true, re-runs Haiku for every URL even if it's already `enrichment_status='enriched'`. Same conflict + `BackgroundTasks` shape as `/admin/scrape/run`; only one `article_scrape` may be live at a time. |
+| `POST /api/admin/roasters/{slug}/scrape-articles` | Per-roaster article scrape. Per-row Refresh button on the Articles sub-tab posts here. Same `force_enrich` body field as the bulk endpoint. |
 | `GET /api/admin/articles?roaster_slug=&include_hidden=` | Admin list. `include_hidden=1` (default) returns `published=0` rows so the admin sees what they hid. |
 | `POST /api/admin/articles/{id}/publish` | Toggle visibility. Body `{ published: 0 \| 1 }`. |
 | `DELETE /api/admin/articles/{id}` | Hard-delete. Re-scrape will re-insert if the URL still resolves; use this for truly stale entries, not for hiding. |
@@ -772,10 +772,48 @@ lifecycle as the catalog scrape. `result_summary` carries:
 - `roasters_processed: int`
 - `articles_inserted: int`
 - `articles_updated: int`
-- `articles_skipped: int`
+- `articles_skipped: int` — already-enriched URLs that the
+  skip-cheap path bypassed (no fetch, no Haiku, no WebP)
 - `discoveries: int` — first-time discovery count (cached on
   `roaster_sources` for subsequent runs)
+- `enriched: int` — articles where the Haiku tool-use call
+  returned a clean payload and was used as the canonical body
+- `enrich_failed: int` — articles where Haiku errored or
+  returned None; row is written with the bs4 fallback body and
+  `enrichment_status='failed'` for re-run with `force_enrich`
+- `not_article_skipped: int` — articles where Haiku returned
+  `is_article=false` (mis-classified URLs — category landings,
+  404s, product listings)
 - `errors: list[{slug, url?, message}]`
+
+### Enrichment status flow
+
+| `enrichment_status` | Set when |
+|---|---|
+| `pending` | Initial column default; never set by the scraper directly. |
+| `enriched` | Haiku returned `is_article=true` with a valid `body_html`. The skip-cheap path on subsequent runs reads this to bypass HTTP / Haiku / WebP entirely (set `force_enrich=true` on the admin endpoint to override). |
+| `failed` | Haiku call errored, returned None, or the SDK / `ANTHROPIC_API_KEY` were unavailable. Row carries the bs4-fallback body so the article still surfaces in JOURNAL — re-run with `force_enrich=true` to retry the LLM call. |
+
+### Hero image pipeline
+
+Each article's hero is downloaded once at scrape time, converted to
+WebP via Pillow @ quality 82, and persisted under
+`Community/coffee-community-api/uploads/articles/<uuid>.webp`
+(mounted at `/uploads/articles/`). The `image_url` column then
+stores the local path so the consumer endpoint serves a resized,
+already-cached asset instead of hot-linking the roaster's CDN.
+
+URL-form retry: when the original download fails, the helper tries
+`https://`-forced + dropped-`www.` variants before giving up.
+Recovers stale `http://www....` URLs that Haiku occasionally
+relays from in-body `<img src=...>` tags even when the canonical
+asset lives at `https://...` (Black Baza's mixed-form CDN paths
+were the motivating case).
+
+Frontend renders the local path through `resolveUploadUrl()` →
+`thumbnailUrl()`: the resolve adds the API origin, the thumbnail
+helper passes through unchanged for non-Shopify hosts (the
+Shopify `?width=N` resize only applies to live Shopify CDN URLs).
 
 ### Frontend wiring
 
