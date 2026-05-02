@@ -1896,7 +1896,8 @@ def run_roaster_enrich_job(job_id: int, *, website: str,
 
 
 def run_article_scrape_job(job_id: int, *,
-                              roaster_slug: str | None = None) -> None:
+                              roaster_slug: str | None = None,
+                              force_enrich: bool = False) -> None:
     """Discover + scrape blog/journal articles for one roaster (or
     every enabled roaster when roaster_slug is None) and write them
     into `roaster_articles`.
@@ -1905,15 +1906,22 @@ def run_article_scrape_job(job_id: int, *,
       1. Pull (or rediscover) the article index — strategy + URL +
          optional Shopify handle list — and persist back to
          `roaster_sources.articles_*` so the next run can skip the
-         enumeration. The discovery cache is invalidated only when
-         the cached strategy returns zero articles two runs in a
-         row (handled implicitly: the second empty run rediscovers).
-      2. Enumerate article stubs from the index. Atom + RSS carry
-         inline content; sitemap + HTML index return URL-only stubs.
-      3. For each stub, skip if URL is already in `roaster_articles`
-         AND the row is fresh (default: skip on every existing row,
-         re-fetch only when caller forces). Otherwise fetch full
-         HTML, extract body via bs4 + og:, and upsert.
+         enumeration.
+      2. Enumerate article stubs from the index.
+      3. For each stub:
+         a. If URL is already in `roaster_articles` with
+            enrichment_status='enriched', skip cheaply (no fetch,
+            no Haiku, no WebP). Pass `force_enrich=True` to
+            re-process every URL.
+         b. Otherwise fetch the page HTML, strip chrome, send the
+            cleaned text + og: hints to Haiku
+            (services.article_enricher) and use its structured
+            response for title / body_html / summary / image_url /
+            published_at. Falls back to the bs4 extraction when
+            Haiku fails or returns is_article=False.
+         c. Download the hero image, convert to WebP, persist under
+            `/uploads/articles/`, store the local path. External URL
+            stays as the fallback when the download fails.
       4. Refresh `articles_count` + `last_articles_scraped_at` on
          the source.
 
@@ -1922,10 +1930,11 @@ def run_article_scrape_job(job_id: int, *,
     `services/scrape_runner.py:_insert_proposal`.
 
     Result summary keys: `roasters_processed`, `articles_inserted`,
-    `articles_updated`, `articles_skipped`, `discoveries`, `errors`
-    (list of `{slug, message}`).
+    `articles_updated`, `articles_skipped`, `discoveries`, `enriched`,
+    `enrich_failed`, `not_article_skipped`, `errors` (list of
+    `{slug, message}`).
     """
-    from services import article_scraper
+    from services import article_scraper, article_enricher
 
     db = get_db()
     log_lines: list[str] = []
@@ -1940,6 +1949,9 @@ def run_article_scrape_job(job_id: int, *,
         "articles_updated": 0,
         "articles_skipped": 0,
         "discoveries": 0,
+        "enriched": 0,
+        "enrich_failed": 0,
+        "not_article_skipped": 0,
         "errors": [],
     }
 
@@ -2031,48 +2043,142 @@ def run_article_scrape_job(job_id: int, *,
                     if not url:
                         skipped += 1
                         continue
-                    # Atom/RSS already carry body_html; only the
-                    # sitemap + HTML strategies need a per-URL fetch.
-                    if not stub.get("body_html"):
-                        try:
-                            full = article_scraper.fetch_full_article(url)
-                            article = article_scraper.merge_full(stub, full)
-                        except Exception as e:
-                            summary["errors"].append({
-                                "slug": slug, "url": url,
-                                "message": f"{type(e).__name__}: {e}",
-                            })
-                            skipped += 1
-                            continue
+
+                    # Skip-cheap path: already enriched, not forced.
+                    # No HTTP, no Haiku, no WebP download — just
+                    # advance the loop. This keeps re-scrapes
+                    # essentially free in token + bandwidth cost.
+                    existing_row = db.execute(
+                        "SELECT id, enrichment_status FROM roaster_articles "
+                        "WHERE url = ?",
+                        (url,),
+                    ).fetchone()
+                    if (
+                        existing_row
+                        and (existing_row["enrichment_status"] or "") == "enriched"
+                        and not force_enrich
+                    ):
+                        skipped += 1
+                        continue
+
+                    # Fetch the article HTML — needed for both the
+                    # Haiku enricher (cleaned page text) and the
+                    # bs4 fallback (when Haiku fails).
+                    try:
+                        page_html = article_scraper.fetch_article_html(url)
+                    except Exception as e:
+                        summary["errors"].append({
+                            "slug": slug, "url": url,
+                            "message": f"page fetch failed: "
+                                       f"{type(e).__name__}: {e}",
+                        })
+                        skipped += 1
+                        continue
+
+                    # Cleaned text + og: hints + bs4 fallback all in
+                    # one pass.
+                    extracted = article_scraper.extract_for_enrichment(
+                        page_html, base_url=url,
+                    )
+                    fallback = extracted["fallback"]
+
+                    # Haiku enrichment — primary content source.
+                    enriched = None
+                    enrichment_status = "pending"
+                    try:
+                        enriched = article_enricher.enrich_article(
+                            url=url,
+                            page_text=extracted["page_text"],
+                            og_title=extracted["og_title"],
+                            og_description=extracted["og_description"],
+                            og_image=extracted["og_image"],
+                            og_published_at=extracted["og_published_at"],
+                        )
+                    except article_enricher.ArticleEnricherError as e:
+                        # Setup error (no SDK, etc.) — bubble up,
+                        # falls into the per-roaster except block
+                        # below, but record the cause first.
+                        summary["errors"].append({
+                            "slug": slug, "url": url,
+                            "message": f"enrich setup: "
+                                       f"{type(e).__name__}: {e}",
+                        })
+
+                    if enriched is not None and enriched.get("is_article") is False:
+                        # Haiku says this URL isn't an article —
+                        # category landing, 404, product listing
+                        # mis-classified by the discovery step. Skip
+                        # without writing a row.
+                        summary["not_article_skipped"] += 1
+                        skipped += 1
+                        continue
+
+                    # Build the article dict from Haiku output
+                    # (preferred) or bs4 fallback. Always merge in
+                    # the stub fields (Atom feed title/published_at)
+                    # so we don't lose canonical roaster-asserted
+                    # values.
+                    if enriched and enriched.get("body_html"):
+                        article = {
+                            "url": url,
+                            "title": (
+                                enriched.get("title")
+                                or stub.get("title")
+                                or fallback.get("title")
+                            ),
+                            "excerpt": (
+                                enriched.get("summary")
+                                or stub.get("excerpt")
+                                or fallback.get("excerpt")
+                            ),
+                            "image_url": (
+                                enriched.get("image_url")
+                                or extracted["og_image"]
+                                or fallback.get("image_url")
+                            ),
+                            "body_html": enriched.get("body_html"),
+                            "word_count": (
+                                enriched.get("word_count")
+                                or fallback.get("word_count")
+                            ),
+                            "published_at": (
+                                enriched.get("published_at")
+                                or stub.get("published_at")
+                                or fallback.get("published_at")
+                            ),
+                        }
+                        enrichment_status = "enriched"
+                        summary["enriched"] += 1
                     else:
-                        # Atom/RSS gives us the body, but og:image still
-                        # lives on the article page. One extra GET per
-                        # stub — only when the stub is image-less. This
-                        # is a deliberate trade so JOURNAL cards always
-                        # render with hero imagery.
-                        if not stub.get("image_url"):
-                            try:
-                                full = article_scraper.fetch_full_article(url)
-                                article = article_scraper.merge_full(
-                                    stub, full,
-                                )
-                            except Exception as e:
-                                # Fall back to the inline-body stub —
-                                # we still have content, just no hero.
-                                summary["errors"].append({
-                                    "slug": slug, "url": url,
-                                    "message": (
-                                        f"image fetch failed: "
-                                        f"{type(e).__name__}: {e}"
-                                    ),
-                                })
-                                article = stub
-                        else:
-                            article = stub
+                        # Haiku call failed (transient, missing key,
+                        # parse error) — write the bs4 fallback so
+                        # the scrape still produces a row, and stamp
+                        # enrichment_status='failed' so admin can
+                        # re-run with force_enrich later.
+                        article = article_scraper.merge_full(
+                            stub, fallback,
+                        )
+                        enrichment_status = "failed"
+                        summary["enrich_failed"] += 1
+
+                    # Hero image: download external URL → WebP local.
+                    # Falls back to the external URL when the download
+                    # or convert fails so cards still render heroes.
+                    external_image = article.get("image_url")
+                    if external_image and not external_image.startswith(
+                        "/uploads/"
+                    ):
+                        local_path = article_scraper.download_hero_image(
+                            external_image,
+                        )
+                        if local_path:
+                            article["image_url"] = local_path
+
                     try:
                         outcome = article_scraper.upsert_article(
                             db, roaster_slug=slug, article=article,
                             now_iso=now_iso,
+                            enrichment_status=enrichment_status,
                         )
                     except Exception as e:
                         summary["errors"].append({

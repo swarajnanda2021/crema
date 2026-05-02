@@ -2623,9 +2623,16 @@ def admin_scrape_articles_all(body: dict = None,
                                 user=Depends(get_current_user)):
     """Bulk article scrape across every enabled `roaster_sources` row.
     Same conflict + BackgroundTasks pattern as /admin/scrape/run.
-    Body is empty (no per-call options yet).
+
+    Body:
+      `force_enrich` (optional, default false): re-run Haiku
+        enrichment for every article, even ones already marked
+        enrichment_status='enriched'. Use after a prompt change or
+        when the admin notices systemic body-extraction issues.
     """
     _require_admin(user)
+    body = body or {}
+    force_enrich = bool(body.get("force_enrich"))
     db = get_db()
     try:
         try:
@@ -2638,7 +2645,8 @@ def admin_scrape_articles_all(body: dict = None,
                 409, str(e), headers={"X-Live-Job-Id": str(e.live_job_id)},
             )
         background_tasks.add_task(
-            catalog_ops.run_article_scrape_job, job_id, roaster_slug=None,
+            catalog_ops.run_article_scrape_job, job_id,
+            roaster_slug=None, force_enrich=force_enrich,
         )
         return ok(_job_to_response(db, job_id), resource="jobs")
     finally:
@@ -2646,14 +2654,21 @@ def admin_scrape_articles_all(body: dict = None,
 
 
 @router.post("/admin/roasters/{slug}/scrape-articles", status_code=202)
-def admin_scrape_articles_one(slug: str,
+def admin_scrape_articles_one(slug: str, body: dict = None,
                                 background_tasks: BackgroundTasks = None,
                                 user=Depends(get_current_user)):
     """Per-roaster article scrape — what the per-roaster admin page's
     "Refresh articles" button posts. Same job kind as the bulk endpoint
     so both share the active-job gate (only one article_scrape can be
-    in flight at a time)."""
+    in flight at a time).
+
+    Body:
+      `force_enrich` (optional, default false): re-run Haiku for every
+        article, even already-enriched ones.
+    """
     _require_admin(user)
+    body = body or {}
+    force_enrich = bool(body.get("force_enrich"))
     db = get_db()
     try:
         prof = db.execute(
@@ -2674,7 +2689,8 @@ def admin_scrape_articles_one(slug: str,
                 409, str(e), headers={"X-Live-Job-Id": str(e.live_job_id)},
             )
         background_tasks.add_task(
-            catalog_ops.run_article_scrape_job, job_id, roaster_slug=slug,
+            catalog_ops.run_article_scrape_job, job_id,
+            roaster_slug=slug, force_enrich=force_enrich,
         )
         return ok(_job_to_response(db, job_id), resource="jobs")
     finally:

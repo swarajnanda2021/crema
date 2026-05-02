@@ -39,9 +39,13 @@ remain unintroduced unless a roaster lands with hostile markup.
 from __future__ import annotations
 
 import datetime
+import io
 import json
+import os
 import re
+import uuid
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import Callable, Iterable, Optional
 from urllib.parse import urljoin, urlparse
 
@@ -53,6 +57,18 @@ UA = (
     "+https://crema.coffee)"
 )
 TIMEOUT = 12
+
+# WebP article-hero pipeline. Hero images downloaded by the scraper
+# get converted to WebP and stored under `/uploads/articles/` so the
+# consumer reader serves a local, already-resized asset (the same
+# treatment the rest of the site gives user-uploaded photos via
+# `routes/uploads.py`). External hot-linking is the bs4-fallback
+# behaviour and stays as a fallback when the download fails.
+_API_ROOT = Path(__file__).resolve().parent.parent
+_ARTICLE_UPLOADS_DIR = _API_ROOT / "uploads" / "articles"
+_WEBP_QUALITY = 82
+_IMG_TIMEOUT = 15
+_IMG_MAX_BYTES = 8 * 1024 * 1024  # 8 MiB cap — refuse oversized hero downloads
 
 # Atom + RSS namespaces (we handle both verbatim and namespace-bound).
 NS = {
@@ -122,12 +138,19 @@ def fetch_full_article(url: str) -> dict:
     """Fetch + extract a single article URL. Returns a dict with the
     canonical fields; missing values are None. Raises on network or
     parse failure (caller decides whether to swallow)."""
+    return _extract_html_article(fetch_article_html(url), base_url=url)
+
+
+def fetch_article_html(url: str) -> str:
+    """Just the raw HTML — for callers that want to do their own
+    extraction (e.g. the Haiku enricher takes the cleaned text +
+    og: hints separately and shouldn't pay the bs4 cost twice)."""
     r = requests.get(
         url, headers={"User-Agent": UA}, timeout=TIMEOUT,
         allow_redirects=True,
     )
     r.raise_for_status()
-    return _extract_html_article(r.text, base_url=url)
+    return r.text
 
 
 def merge_full(stub: dict, full: dict) -> dict:
@@ -545,15 +568,180 @@ def _normalize_pubdate(raw: Optional[str]) -> Optional[str]:
     return raw
 
 
+# ── Page-text + og: hint extraction (Haiku enricher input) ─────────────────
+
+
+def extract_for_enrichment(html: str, *, base_url: str) -> dict:
+    """Strip every chrome element from the page and return the cleaned
+    text + og: hints + the bs4-fallback structured extraction in one
+    pass. The Haiku enricher takes the cleaned text + hints; the
+    fallback extraction stays as a safety net so the runner can still
+    write an article row when the LLM call fails or
+    `is_article=False` is returned in error.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+
+    og_title = _meta(soup, "og:title")
+    og_description = _meta(soup, "og:description")
+    og_image_raw = _meta(soup, "og:image")
+    og_image = urljoin(base_url, og_image_raw) if og_image_raw else None
+    og_published_at = (
+        _meta(soup, "article:published_time")
+        or _meta(soup, "og:article:published_time")
+    )
+    if not og_published_at:
+        time_el = soup.find("time", attrs={"datetime": True})
+        if time_el and time_el.get("datetime"):
+            og_published_at = time_el["datetime"].strip()
+
+    # Strip globally — nav, header, footer, scripts, styles, noscript,
+    # forms, and aria-hidden subtrees. Page text becomes the article
+    # body + any inline figcaptions / pull quotes / sidebars Haiku
+    # needs to judge what's body and what's not.
+    cleaned = BeautifulSoup(html, "html.parser")
+    for sel in ("nav", "header", "footer", "script", "style",
+                "noscript", "form"):
+        for el in cleaned.find_all(sel):
+            el.decompose()
+    for el in cleaned.select("[aria-hidden='true']"):
+        el.decompose()
+    page_text = cleaned.get_text("\n", strip=True)
+    # Collapse 3+ blank lines so the LLM doesn't waste tokens on
+    # whitespace.
+    page_text = re.sub(r"\n{3,}", "\n\n", page_text)
+
+    return {
+        "page_text": page_text,
+        "og_title": og_title,
+        "og_description": og_description,
+        "og_image": og_image,
+        "og_published_at": og_published_at,
+        "fallback": _extract_html_article(html, base_url=base_url),
+    }
+
+
+# ── Hero image: download + WebP convert + persist ─────────────────────────
+
+
+def download_hero_image(image_url: Optional[str]) -> Optional[str]:
+    """Fetch the hero, convert to WebP, persist under
+    `/uploads/articles/`, return the path the API serves it at
+    (`/uploads/articles/...webp`). Returns None when the download
+    fails or Pillow can't decode the bytes — caller falls back to the
+    original external URL.
+
+    Tries common URL-form variations on first failure (force https,
+    drop `www.`) — Haiku occasionally relays a stale URL form from
+    in-body `<img src="http://www....">` even when the canonical
+    asset lives at `https://...`. The retry is cheap and recovers
+    real-world cases like Black Baza's mixed-form CDN paths.
+
+    Mirrors `routes/uploads.py:_save_converted` so consumer-facing
+    article hero images go through the same WebP pipeline as user-
+    uploaded photos. Quality 82, single-frame (animated GIFs flatten
+    to first frame), max 8 MiB input.
+    """
+    if not image_url:
+        return None
+    try:
+        from PIL import Image, UnidentifiedImageError  # local import — keeps boot light
+    except ImportError:
+        return None  # Pillow missing — shouldn't happen, surfaces in the upload route too
+
+    content = _fetch_image_bytes(image_url)
+    if content is None:
+        # Try canonical variants. Order: https + drop www, https only,
+        # drop www only. Stops at first 200 with body.
+        for alt in _alt_image_urls(image_url):
+            content = _fetch_image_bytes(alt)
+            if content is not None:
+                break
+    if content is None:
+        return None
+
+    try:
+        img = Image.open(io.BytesIO(content))
+        if getattr(img, "is_animated", False):
+            img.seek(0)
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGBA" if "A" in img.getbands() else "RGB")
+        os.makedirs(_ARTICLE_UPLOADS_DIR, exist_ok=True)
+        # Random suffix per write — articles can rescrape and the
+        # roaster might rotate the hero, so a fresh filename keeps
+        # CDN/expo-image caches honest. Old files for replaced heroes
+        # become orphans on disk; a periodic cleanup can sweep them
+        # but the bytes are small enough that the leak isn't urgent.
+        fname = f"{uuid.uuid4().hex}.webp"
+        out_path = _ARTICLE_UPLOADS_DIR / fname
+        img.save(str(out_path), format="WEBP", quality=_WEBP_QUALITY,
+                 method=4)
+        return f"/uploads/articles/{fname}"
+    except (UnidentifiedImageError, OSError, ValueError):
+        return None
+
+
+def _fetch_image_bytes(url: str) -> Optional[bytes]:
+    try:
+        r = requests.get(
+            url,
+            headers={"User-Agent": UA, "Accept": "image/*,*/*"},
+            timeout=_IMG_TIMEOUT,
+            stream=True,
+            allow_redirects=True,
+        )
+        r.raise_for_status()
+        content = r.raw.read(_IMG_MAX_BYTES + 1, decode_content=True)
+        if len(content) > _IMG_MAX_BYTES:
+            return None  # oversized — skip
+        return content
+    except Exception:
+        return None
+
+
+def _alt_image_urls(url: str) -> list[str]:
+    """Yield URL forms to retry when the original fails. Covers the
+    two common drift modes we've hit: stale http:// (force https),
+    and a `www.` host that the CDN doesn't resolve (drop the prefix).
+    """
+    parts = urlparse(url)
+    if not parts.scheme or not parts.netloc:
+        return []
+    host = parts.netloc
+    out: list[str] = []
+    # Force https + drop www (most aggressive).
+    if host.startswith("www."):
+        out.append(parts._replace(scheme="https", netloc=host[4:]).geturl())
+    # Force https only.
+    if parts.scheme != "https":
+        out.append(parts._replace(scheme="https").geturl())
+    # Drop www only (keep scheme).
+    if host.startswith("www."):
+        out.append(parts._replace(netloc=host[4:]).geturl())
+    # Dedup while preserving order.
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for u in out:
+        if u != url and u not in seen:
+            seen.add(u)
+            deduped.append(u)
+    return deduped
+
+
 # ── Upsert helper (called from catalog_ops.run_article_scrape_job) ────────
 
 
 def upsert_article(db, *, roaster_slug: str, article: dict,
-                    now_iso: str) -> str:
+                    now_iso: str,
+                    enrichment_status: str = "pending") -> str:
     """Insert or update one article row. Returns 'inserted' / 'updated'
     / 'skipped'. URL is the dedup key (UNIQUE constraint). Per-row
     commits keep the writer-lock window short — same DB-lock
-    discipline as services/scrape_runner.py:_insert_proposal."""
+    discipline as services/scrape_runner.py:_insert_proposal.
+
+    `enrichment_status` is stamped on every write — caller passes
+    'enriched' when Haiku succeeded, 'failed' when Haiku errored, or
+    leaves the default 'pending' for bs4-only fallback writes.
+    """
     url = (article.get("url") or "").strip()
     if not url:
         return "skipped"
@@ -563,7 +751,7 @@ def upsert_article(db, *, roaster_slug: str, article: dict,
 
     existing = db.execute(
         "SELECT id, title, excerpt, image_url, body_html, "
-        "  word_count, published_at "
+        "  word_count, published_at, enrichment_status "
         "FROM roaster_articles WHERE url = ?",
         (url,),
     ).fetchone()
@@ -580,9 +768,9 @@ def upsert_article(db, *, roaster_slug: str, article: dict,
             "(roaster_slug, url, title, excerpt, image_url, body_html, "
             " word_count, published_at, scraped_at, published, "
             " enrichment_status) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'pending')",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)",
             (roaster_slug, url, title, excerpt, image_url, body_html,
-             word_count, published_at, now_iso),
+             word_count, published_at, now_iso, enrichment_status),
         )
         db.commit()
         return "inserted"
@@ -594,7 +782,8 @@ def upsert_article(db, *, roaster_slug: str, article: dict,
         (existing["image_url"] or "") != (image_url or "") or
         (existing["body_html"] or "") != (body_html or "") or
         (existing["word_count"] or 0) != (word_count or 0) or
-        (existing["published_at"] or "") != (published_at or "")
+        (existing["published_at"] or "") != (published_at or "") or
+        (existing["enrichment_status"] or "") != (enrichment_status or "")
     )
     if not changed:
         return "skipped"
@@ -602,10 +791,10 @@ def upsert_article(db, *, roaster_slug: str, article: dict,
         "UPDATE roaster_articles SET "
         "  title = ?, excerpt = ?, image_url = ?, body_html = ?, "
         "  word_count = ?, published_at = COALESCE(?, published_at), "
-        "  scraped_at = ? "
+        "  scraped_at = ?, enrichment_status = ? "
         "WHERE id = ?",
         (title, excerpt, image_url, body_html, word_count,
-         published_at, now_iso, existing["id"]),
+         published_at, now_iso, enrichment_status, existing["id"]),
     )
     db.commit()
     return "updated"
