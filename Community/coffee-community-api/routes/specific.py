@@ -346,8 +346,8 @@ _ARTICLE_CARD_COLS = (
 
 
 @router.get("/articles")
-def list_articles(limit: int = 50, before: int | None = None,
-                   roaster_slug: str | None = None):
+def list_articles(limit: int = 50, before: Optional[int] = None,
+                   roaster_slug: Optional[str] = None):
     """Chronological article feed (newest first) for Discover JOURNAL.
     `before=<id>` paginates — pass the smallest id from the previous page.
     `roaster_slug` is an optional filter (same endpoint backs the
@@ -2343,7 +2343,7 @@ def admin_refresh_roaster_all(
         # return 200 with `job=None` and a `scrape_blocked_by_job_id`
         # hint so the admin sees "Bio enriched. Catalog scrape queued
         # behind active job N — retry in a moment."
-        scrape_blocked_by: int | None = None
+        scrape_blocked_by: Optional[int] = None
         try:
             job_id = catalog_ops.enqueue_job(db, "scrape", started_by=user["id"])
         except catalog_ops.JobConflict as e:
@@ -2682,7 +2682,7 @@ def admin_scrape_articles_one(slug: str,
 
 
 @router.get("/admin/articles")
-def admin_list_articles(roaster_slug: str | None = None,
+def admin_list_articles(roaster_slug: Optional[str] = None,
                           limit: int = 100, offset: int = 0,
                           include_hidden: int = 1,
                           user=Depends(get_current_user)):
