@@ -276,9 +276,15 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
             {roasterHits.length > 0 && (
               <Section label="Roasters">
                 {roasterHits.map((r: any) => (
+                  // `useCoffeeData`'s derived roasters expose `.slug`
+                  // (built from products' `roaster_slug` in the
+                  // hook), not `.roaster_slug`. Reading the wrong
+                  // field gave every row the key `r-undefined`,
+                  // which collided across hits and produced
+                  // duplicate-key warnings + dropped rows.
                   <Pressable
-                    key={`r-${r.roaster_slug}`}
-                    onPress={() => goto(`/roaster/${r.roaster_slug}`)}
+                    key={`r-${r.slug ?? r.roaster_slug}`}
+                    onPress={() => goto(`/roaster/${r.slug ?? r.roaster_slug}`)}
                     style={({ pressed }: any) => [s.row, pressed && s.rowPressed]}
                   >
                     <RoasterLogo url={r.logo_url} size={28} fallbackInitial={r.name} />

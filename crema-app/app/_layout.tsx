@@ -13,6 +13,9 @@ import { View } from "react-native";
 import { usePathname } from "expo-router";
 import { AuthProvider, useAuth } from "../src/hooks/useAuth";
 import { CoffeeDataProvider, useCoffeeData } from "../src/hooks/useCoffeeData";
+import { RoasterProfilesProvider } from "../src/hooks/useRoasterProfiles";
+import { NotificationsProvider } from "../src/hooks/useNotifications";
+import { DirectInboxProvider } from "../src/hooks/useDirectInbox";
 import { t, makeStyles, useTheme } from "../src/tokens/useTokens";
 import { ThemeProvider } from "../src/tokens/ThemeProvider";
 import { listen, emit } from "../src/utils/events";
@@ -251,9 +254,15 @@ export default function RootLayout() {
       <ThemeProvider>
         <AuthProvider>
           <CoffeeDataProvider>
-            <AuthGate>
-              <ThemedRoot />
-            </AuthGate>
+            <RoasterProfilesProvider>
+              <NotificationsProvider>
+                <DirectInboxProvider>
+                  <AuthGate>
+                    <ThemedRoot />
+                  </AuthGate>
+                </DirectInboxProvider>
+              </NotificationsProvider>
+            </RoasterProfilesProvider>
           </CoffeeDataProvider>
         </AuthProvider>
       </ThemeProvider>

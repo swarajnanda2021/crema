@@ -72,8 +72,19 @@ export function useResource<T = any>(resource: string, options: UseResourceOptio
     }
   }, [resource, parentKey, filterKey, limit, offset]);
 
-  const refetch = useCallback(async () => {
-    setLoading(true);
+  // Stale-while-revalidate. The first fetch flips `loading=true` so
+  // pages can show a spinner while the initial payload is in flight.
+  // Subsequent calls — typically `useFocusEffect(() => refetch())`
+  // wired so admin-approved data appears without an app reload —
+  // can pass `{ silent: true }` to refresh in-place: `data` updates
+  // when the response lands but `loading` never flips back to true,
+  // so the page renders the cached array instantly instead of being
+  // gated behind a spinner on every tab return. Mirrors the same
+  // pattern adopted on `useCoffeeData.fetchProducts`.
+  const hasFetchedRef = useRef(false);
+  const refetch = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
+    if (!silent) setLoading(true);
     setError(null);
     try {
       // Use raw fetch to get both data and meta (for pagination)
@@ -85,10 +96,11 @@ export function useResource<T = any>(resource: string, options: UseResourceOptio
         setData(items as any);
       }
       setTotal(raw?.meta?.total ?? (Array.isArray(items) ? items.length : 0));
+      hasFetchedRef.current = true;
     } catch (e: any) {
       setError(e.message || "Failed to fetch");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [url]);
 

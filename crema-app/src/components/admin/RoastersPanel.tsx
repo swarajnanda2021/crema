@@ -84,10 +84,14 @@ export default function RoastersPanel() {
   // so the panel must be ready to show the new state on the way back).
   useFocusEffect(
     useCallback(() => {
-      roasters.refetch();
-      sources.refetch();
-      deletedRoasters.refetch();
-      jobs.refetch();
+      // Silent refetch on focus — the first mount fetches with the
+      // loading spinner, every subsequent return just refreshes the
+      // cache underneath without the panel flashing back through a
+      // loading state.
+      roasters.refetch({ silent: true });
+      sources.refetch({ silent: true });
+      deletedRoasters.refetch({ silent: true });
+      jobs.refetch({ silent: true });
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []),
   );

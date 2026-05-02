@@ -251,7 +251,17 @@ export default function MobileFooter() {
               showChromeNow();
             } else {
               hapticTap();
+              // NavigationLoader keys off pathname change to paint the
+              // sitewide cream curtain + crema wordmark, but on bottom-
+              // tab `router.replace` switches the destination tab can
+              // commit its first paint before the loader's min-display
+              // overlay actually renders — the curtain "doesn't show".
+              // Emit the explicit start/end pair so the loader is up
+              // for the full hold regardless of how fast the
+              // destination tab hydrates.
+              emit("crema:loading-start");
               router.replace(tab.path as any);
+              setTimeout(() => emit("crema:loading-end"), 350);
             }
           };
           return (

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef, ReactNode } from "react";
 import { apiFetchRaw } from "../api/client";
 
 // Bundled fallback data
@@ -10,8 +10,19 @@ export function CoffeeDataProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
+  // Stale-while-revalidate. The first fetch on app boot blocks the
+  // page (loading=true) so consumers can show a spinner. Subsequent
+  // refetches — fired by `useFocusEffect` on Discover and similar
+  // pages so admin-approved beans appear without an app reload —
+  // run silently: they update `products` in place but never flip
+  // `loading` back to true. The page renders the stale cache
+  // instantly and updates a tick later when the fresh payload
+  // lands. Without this, every Discover return triggered a full
+  // ~MB payload + loading gate (the dominant Discover-load cost).
+  const hasFetchedRef = useRef(false);
+  const fetchProducts = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? hasFetchedRef.current;
+    if (!silent) setLoading(true);
     try {
       // Explicit high limit — the registry default is 500 and the
       // catalog passed that mark with the late-April scrape batch
@@ -23,11 +34,17 @@ export function CoffeeDataProvider({ children }: { children: ReactNode }) {
       const res = await apiFetchRaw<any>("/products?limit=5000");
       const data = res?.data ?? res;
       setProducts(Array.isArray(data) ? data : []);
+      hasFetchedRef.current = true;
     } catch {
-      // Fallback to bundled JSON
-      setProducts(Array.isArray(fallbackProducts) ? fallbackProducts : []);
+      // Fallback to bundled JSON only on the very first fetch — silent
+      // refreshes that fail leave the existing cache untouched so the
+      // user keeps seeing real data instead of being kicked back to
+      // a stale bundle.
+      if (!hasFetchedRef.current) {
+        setProducts(Array.isArray(fallbackProducts) ? fallbackProducts : []);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 

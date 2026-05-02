@@ -14,6 +14,7 @@ import CoffeeLabel, { CoffeeLabelPrice } from "./CoffeeLabel";
 import { trackClick } from "../api/client";
 import { useShare } from "../hooks/useShare";
 import { useShelves } from "../hooks/useShelves";
+import { thumbnailUrl } from "../utils/imageUrl";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { openPopularityModal } from "./primitives";
 
@@ -108,7 +109,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
         {/* ── IMAGE (left half) ── */}
         <View style={[s.imageAreaLs, { width: lsImgW, height: lsCardH }]}>
           {coffee.image_url ? (
-            <Image source={{ uri: coffee.image_url }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
+            <Image source={{ uri: thumbnailUrl(coffee.image_url, 480) || undefined }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
           ) : (
             <View style={s.imagePlaceholder}><Coffee size={40} color="rgba(53,17,1,0.12)" /></View>
           )}
@@ -224,7 +225,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
       {/* Image area — 160px at 240w, clips to top corners */}
       <View style={[s.imageArea, { height: imageH }]}>
         {coffee.image_url ? (
-          <Image source={{ uri: coffee.image_url }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
+          <Image source={{ uri: thumbnailUrl(coffee.image_url, 480) || undefined }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
         ) : (
           <View style={s.imagePlaceholder}><Coffee size={40} color="rgba(53,17,1,0.12)" /></View>
         )}

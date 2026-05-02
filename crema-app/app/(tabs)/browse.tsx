@@ -11,8 +11,9 @@ import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { Image } from "expo-image";
 import { Search, X, ArrowRight, ChevronDown, ChevronRight } from "lucide-react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import { emit } from "../../src/utils/events";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
-import { useResource } from "../../src/resources/useResource";
+import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { useSearchBarAutoHide } from "../../src/hooks/useSearchBarAutoHide";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { t, cardShadow, makeStyles } from "../../src/tokens/useTokens";
@@ -601,8 +602,24 @@ export default function BrowsePage() {
             </View>
           )}
           <View style={[s.tabBarRight, isMobile && s.tabBarRightMobile]}>
-            <TabButton label="BEANS" active={activeTab === "beans"} onPress={() => setActiveTab("beans")} />
-            <TabButton label="ROASTERS" active={activeTab === "roasters"} onPress={() => setActiveTab("roasters")} />
+            {/* Sub-tab toggles flip local state, not router pathname,
+               so NavigationLoader's pathname-change effect never fires
+               for BEANS↔ROASTERS. Mirror the MobileFooter pattern: emit
+               the explicit start/end pair around the state flip so the
+               crema curtain shows for the same ~350 ms across every
+               navigation surface (bottom-tabs, sub-tabs, page nav). */}
+            <TabButton label="BEANS" active={activeTab === "beans"} onPress={() => {
+              if (activeTab === "beans") return;
+              emit("crema:loading-start");
+              setActiveTab("beans");
+              setTimeout(() => emit("crema:loading-end"), 350);
+            }} />
+            <TabButton label="ROASTERS" active={activeTab === "roasters"} onPress={() => {
+              if (activeTab === "roasters") return;
+              emit("crema:loading-start");
+              setActiveTab("roasters");
+              setTimeout(() => emit("crema:loading-end"), 350);
+            }} />
             {isMobile && (
               <Pressable
                 onPress={() => setFilterDrawerOpen(true)}
@@ -1089,12 +1106,12 @@ function RoastersList({
 }) {
   const router = useRouter();
   const { products } = useCoffeeData();
-  // Discover ROASTERS now reads `roaster_profiles` directly so the
-  // list is 1:1 with what the admin enriched (and published), not a
-  // products-derived view that hid every freshly-enriched roaster
-  // until at least one bean was scraped + approved. Profiles with
-  // `published=0` (unreviewed drafts) stay hidden from consumers.
-  const profilesResource = useResource<RoasterProfile>("roaster_profiles", { limit: 500 });
+  // Discover ROASTERS reads from the sitewide `RoasterProfilesProvider`
+  // cache so the list shares storage with the per-roaster page (tap
+  // a row → roaster page hydrates synchronously) and with the admin
+  // Catalog Ops list. Profiles with `published=0` (unreviewed drafts)
+  // stay hidden from consumers.
+  const profilesCache = useRoasterProfiles();
   const { width } = useWindowDimensions();
   const { isMobile } = useBreakpoint();
   const isDesktop = width >= 1024;
@@ -1103,13 +1120,12 @@ function RoastersList({
   const { hidden: searchBarHidden, handleScroll } = useSearchBarAutoHide();
   const s = useStyles();
 
-  // Re-fetch every time the user comes back to Discover. Admin
-  // approvals on a fresh enrichment land in `products` /
-  // `roaster_profiles`; this hook makes those visible without
-  // requiring an app reload.
+  // Silent refresh on focus so admin-approved roasters appear without
+  // an app reload. The shared cache means this fetch updates Discover
+  // ROASTERS, the per-roaster page, and any other reader in lockstep.
   useFocusEffect(
     useCallback(() => {
-      profilesResource.refetch();
+      profilesCache.refetch({ silent: true });
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []),
   );
@@ -1126,8 +1142,8 @@ function RoastersList({
   }, [products]);
 
   const publishedProfiles = useMemo(() => {
-    return (profilesResource.data || []).filter((p) => p.published === 1);
-  }, [profilesResource.data]);
+    return (profilesCache.profiles || []).filter((p: any) => p.published === 1);
+  }, [profilesCache.profiles]);
 
   const filteredRoasters = useMemo(() => {
     let result = publishedProfiles;
