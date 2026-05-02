@@ -53,7 +53,8 @@ export function showChromeNow() {
  *  idiom and the user explicitly asked for it to NOT apply on web. */
 export function onChromeScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
   if (Platform.OS === "web") return;
-  const y = e.nativeEvent.contentOffset.y;
+  const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+  const y = contentOffset.y;
   const dy = y - state.lastY;
   state.lastY = y;
 
@@ -65,6 +66,18 @@ export function onChromeScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
     }
     return;
   }
+
+  // At or past the bottom — bail. iOS rubber-bands when momentum
+  // carries the scroll past `maxScrollY`, then springs back in a
+  // burst of `dy < 0` events as it recovers. The threshold heuristic
+  // below would read those as "user scrolled up → show chrome",
+  // making the header/footer flash back open the moment a fast
+  // scroll hits the end of a short page. Locking the chrome state
+  // while we're at/past the bottom suppresses that flicker; the
+  // user gets the chrome back the first time they actually scroll
+  // up off the end.
+  const maxY = Math.max(0, contentSize.height - layoutMeasurement.height);
+  if (y >= maxY) return;
 
   // Ignore fidgety motion below the threshold.
   if (Math.abs(dy) < THRESHOLD) return;
