@@ -70,28 +70,57 @@ contexts. The current dual-track rule:
 - **Brand identity in dark mode is still strictly the three brand
   hexes** (Espresso, Crema, Crema White). New brand-color tonal
   experiments (warm grey, light brown, etc.) are still forbidden.
+- **`#2a0d00` is the dark-mode page-body hex.** All page-level
+  surfaces (`bg`, `card.front` / `card.back` / `card.info` /
+  `card.subtle`, and `roaster.panel`) resolve to `#2a0d00` in dark
+  mode. This is the same hex light mode uses for the Roaster bio
+  panel — extending it to the page body in dark mode (refined
+  2026-05-01) makes the feed read as a slightly-darker-than-Espresso
+  body that the Espresso chrome (`navbar.bg`, `nav.mobile.bar.bg`)
+  floats above as a distinct brand strip. Without this, the page
+  bg and the chrome were the same Espresso, with no visible layering.
 - **Line and inactive-secondary surfaces in dark mode use the
-  approved warm-brown set** below — these are the only opaque
-  hexes allowed in dark mode beyond the three brand colors.
+  approved opaque set** below: `#684F44` for lines and `#C7BAA5`
+  for `text.muted`. Combined with the page-body `#2a0d00` and
+  the brand `#351101` chrome, those are the only opaque hexes
+  allowed in dark mode beyond the three brand colors.
 
 | Token | Dark-mode value | Role |
 |---|---|---|
+| `bg` | `#2a0d00` | Page body in dark mode — the feed, profile, browse, etc. all paint here. Same hex as the Roaster bio panel (in both modes) and as the page-level cards below. |
+| `card.front` / `card.info` / `card.subtle` / `card.back` | `#2a0d00` | All page-level card surfaces collapse into `bg` — same `#2a0d00` as the page body. Use `card.product.*` for the persistently-light CoffeeCard surfaces that don't flip. |
+| `roaster.panel` | `#2a0d00` | **Roaster bio panel** on the consumer roaster page (Discover → roaster slug) and any surface marked as the dark identity band (Business-track auth, profile edit banner). Same exact hex as light mode and as the dark-mode page bg — the band merges with the page body in dark mode (no extra separation needed) but stays distinct in light mode. |
 | `text.primary` | `#FAF8F0` | Body text, **active tab labels**, **active tab underline** |
 | `text.secondary` | `rgba(250,248,240,0.7)` | Body sub-text, meta |
 | `text.muted` | `#C7BAA5` | Time stamps, hint text, **inactive tab labels** |
-| `card.front` / `card.info` / `card.subtle` / `card.back` | `#351101` | All page-level surfaces collapse to bg (use `card.product.*` for the persistently-light CoffeeCard surfaces) |
 | `border` / `border.light` / `divider` | `#684F44` | **Every line element** — post separators, card outlines, tab-bar borders, section breaks, hairlines. Single-value tier (collapsed 2026-05-01). |
 | `tag.bg` | `rgba(250,248,240,0.08)` | Chip bg |
 | `unavailable` | `rgba(250,248,240,0.4)` | Disabled |
-| `nav.mobile.bar.bg` | `#351101` | Bottom bar collapses into bg (no separation, on-palette) |
+| `navbar.bg` | `#351101` | Espresso brand chrome — the top navbar floats as a distinct strip above the slightly-darker `#2a0d00` page body. |
+| `nav.mobile.bar.bg` | `#351101` | Espresso brand chrome — the mobile bottom tab bar mirrors `navbar.bg` so chrome reads as one band on both edges. |
 | `navbar.text` | `#FAF8F0` | Crema White on Espresso navbar |
 | `accent.cta` | `#D798DA` | Pink CTA pops on dark Espresso bg |
-| `roaster.panel` / `roaster.hero.fallback` | `#351101` | Collapses into bg |
+| `roaster.hero.fallback` | `#351101` | Espresso fallback under the hero image — only seen if the image fails to load. |
 | `overlay` | `rgba(0,0,0,0.7)` | Black scrim |
 
 The non-flipping `bg.identity` (`#FAF8F0` always) and `card.product.*`
 tokens (always-light cream/white set, used by CoffeeCard and avatars)
 keep their brand-identity surfaces consistent across both modes.
+
+**Page body vs. brand chrome — the dark-mode layering.** Dark mode
+splits the brand into two opaque tones: page-body surfaces use
+`#2a0d00` (slightly darker than Espresso) and chrome surfaces use
+`#351101` (Espresso, the brand color). The 2026-05-01 refinement
+adopted this split because pre-refinement, page bg and chrome were
+both `#351101` — the navbar and bottom bar disappeared into the
+page with no visible boundary. Pulling the page to `#2a0d00`
+floats the Espresso chrome as a distinct identity strip on both
+edges, while keeping the Roaster bio panel (`#2a0d00` in light
+mode) consistent in dark mode (it merges with the page body, which
+is the desired dark-mode behaviour). Don't reach for `#2a0d00`
+outside these named tokens (`bg`, `card.front`/`card.back`/`card.info`/
+`card.subtle`, `roaster.panel`); it's role-bound, not a free
+elevation tone.
 
 ### Tab labels — explicit pairing
 
@@ -134,10 +163,11 @@ elsewhere — the pink is the *post engagement* signal.
   dark mode, which mis-reads. Use `text.primary` for active-tab
   underlines.
 - **Inventing a new dark-mode hex.** Beyond the three brand colors
-  and the explicitly-named warm-brown tokens (`#684F44` for lines,
-  `#C7BAA5` for `text.muted`), no new opaque hex enters the dark
-  tree. Tonal variants of brand colors continue to be `rgba(...)`
-  opacity passes only.
+  and the explicitly-named opaque tokens (`#684F44` for lines,
+  `#C7BAA5` for `text.muted`, `#2a0d00` for the page body +
+  page-level cards + `roaster.panel`), no new opaque hex enters the
+  dark tree. Tonal variants of brand colors continue to be
+  `rgba(...)` opacity passes only.
 
 ---
 

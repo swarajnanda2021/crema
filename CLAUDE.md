@@ -33,15 +33,27 @@ Two-track rule for tonal hierarchy (refined 2026-05-01):
   neutrals (warm browns + creams) tonally consistent with the brand —
   see `DESIGN_LANGUAGE.md` §1's "Functional neutrals — LIGHT MODE"
   table. Use those exact tokens. Don't add new ones.
-- **Dark mode** allows two specific opaque warm-brown tokens beyond
-  the three brand colors: `#684F44` for **all line elements**
-  (border / border.light / divider — collapsed to a single tier) and
-  `#C7BAA5` for `text.muted` (inactive tab labels, timestamps, hint
-  text). Beyond those two named values, dark-mode tonal hierarchy is
-  still `rgba(...)` opacity variants of brand colors only.
-  *(Earlier rule was strict-rgba-only; relaxed because that produced
-  invisible cream-on-cream lines on the persistently-light CoffeeCard
-  and muddy dark-on-dark lines elsewhere.)*
+- **Dark mode** splits into two opaque page-tones plus two named
+  hexes for lines and muted text:
+  - `#2a0d00` is the **page body** in dark mode — `bg`, `card.front`,
+    `card.back`, `card.info`, `card.subtle`, and `roaster.panel` all
+    resolve to it. Same hex as the light-mode roaster bio panel.
+  - `#351101` (Espresso, brand color) is the **chrome** —
+    `navbar.bg`, `nav.mobile.bar.bg`, `roaster.hero.fallback`. Chrome
+    floats as a distinct strip above the slightly-darker `#2a0d00`
+    page body.
+  - `#684F44` is for **all line elements** (`border`, `border.light`,
+    `divider` — collapsed to one tier).
+  - `#C7BAA5` is for `text.muted` (inactive tab labels, timestamps,
+    hint text).
+
+  Beyond those four named values, dark-mode tonal hierarchy is still
+  `rgba(...)` opacity variants of brand colors only.
+  *(Refined 2026-05-01 in three passes: first lines + muted text got
+  named warm-brown hexes; then the roaster bio panel got `#2a0d00`
+  to preserve its identity band in dark mode; then the same `#2a0d00`
+  was extended to the page body so the Espresso chrome reads as
+  distinct chrome instead of melting into the body.)*
 - **Line tokens are a single tier per mode.** `border`, `border.light`,
   and `divider` all resolve to the same value (`#D7D1C4` light /
   `#684F44` dark). There's no hairline / divider / separator
@@ -51,9 +63,10 @@ Two-track rule for tonal hierarchy (refined 2026-05-01):
   Crema pink is reserved for post-action icons (like, comment, share).
 
 In both modes, any token, any inline style, any new component must
-resolve to one of: a brand color, an approved light-mode neutral, the
-dark-mode warm-brown pair (`#684F44` / `#C7BAA5`), an `rgba(...)`
-opacity variant of a brand color, or pure `#000000` / `#FFFFFF` for
+resolve to one of: a brand color, an approved light-mode neutral, a
+dark-mode named opaque (`#2a0d00` page body + bio panel, `#351101`
+chrome, `#684F44` lines, `#C7BAA5` muted text), an `rgba(...)` opacity
+variant of a brand color, or pure `#000000` / `#FFFFFF` for
 unavoidable shadow/highlight defaults.
 
 **Don't invent new colors.** No "slightly lighter" or "slightly
