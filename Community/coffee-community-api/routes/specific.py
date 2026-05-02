@@ -143,7 +143,7 @@ def follow_status(slug: str, authorization: str = Header(None)):
 
 
 @router.get("/followers/{slug}")
-def followers_list(slug: str):
+def followers_list(slug: str, authorization: str = Header(None)):
     db = get_db()
     try:
         count = db.execute("SELECT COUNT(*) as c FROM follows WHERE roaster_slug = ?", (slug,)).fetchone()["c"]
@@ -156,7 +156,23 @@ def followers_list(slug: str):
             "FROM follows f JOIN users u ON f.follower_user_id = u.id WHERE f.roaster_slug = ?",
             (slug,),
         ).fetchall()
-        return ok({"follower_count": count, "followers": [dict(r) for r in rows]}, resource="follows")
+        # `viewer_following` lets the consumer roaster page render the
+        # "Follow / Following" CTA without a second `/follow-status/{slug}`
+        # round-trip. Anonymous viewers always read false; the legacy
+        # endpoint stays in place for callers that haven't migrated.
+        viewer = get_optional_user(authorization)
+        viewer_following = False
+        if viewer:
+            row = db.execute(
+                "SELECT id FROM follows WHERE follower_user_id = ? AND roaster_slug = ?",
+                (viewer["id"], slug),
+            ).fetchone()
+            viewer_following = bool(row)
+        return ok({
+            "follower_count": count,
+            "followers": [dict(r) for r in rows],
+            "viewer_following": viewer_following,
+        }, resource="follows")
     finally:
         db.close()
 
@@ -995,6 +1011,53 @@ def db_scoped_other_user(username: str):
         ).fetchone()
     finally:
         conn.close()
+
+
+@router.post("/direct-threads/with-roaster/{slug}", status_code=201)
+def open_direct_thread_with_roaster(slug: str, user=Depends(get_current_user)):
+    """Open or re-use a direct thread with a roaster's owning user.
+    The consumer roaster page (Discover → roaster slug) needs to DM
+    the roaster, but `/direct-threads/with/{username}` resolves only
+    by username — and the roaster's owning username isn't surfaced
+    on the public roaster_profile fetch. This route resolves
+    `roaster_slug → user_id` directly and reuses the same canonical-
+    ordering / dedup logic as the username variant."""
+    import datetime as _dt
+    from fastapi import HTTPException
+    if not user:
+        raise HTTPException(401, "Authentication required")
+
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id FROM users WHERE roaster_slug = ? AND account_type = 'roaster'",
+            (slug,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, f"Roaster {slug} has no owner account")
+        other_id = row["id"]
+        if other_id == user["id"]:
+            raise HTTPException(400, "You can't message your own roaster")
+
+        user_a, user_b = sorted([user["id"], other_id])
+        existing = db.execute(
+            "SELECT id FROM direct_threads WHERE user_a_id = ? AND user_b_id = ?",
+            (user_a, user_b),
+        ).fetchone()
+        if existing:
+            return ok({"thread_id": existing["id"], "created": False},
+                      resource="direct_threads")
+        now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        cur = db.execute(
+            "INSERT INTO direct_threads (user_a_id, user_b_id, created_at) "
+            "VALUES (?, ?, ?)",
+            (user_a, user_b, now),
+        )
+        db.commit()
+        return ok({"thread_id": cur.lastrowid, "created": True},
+                  resource="direct_threads")
+    finally:
+        db.close()
 
 
 @router.get("/direct-threads/{thread_id}/thread")
@@ -2167,24 +2230,35 @@ def admin_refresh_roaster_all(
 
         # Step 3 — enqueue the scrape job. Same conflict + background-
         # task wiring as /admin/scrape/run.
+        #
+        # On JobConflict: bio enrichment already landed; surfacing a
+        # 409 here would make the frontend treat the whole call as a
+        # failure and bury the bio's partial-success signal. Instead
+        # return 200 with `job=None` and a `scrape_blocked_by_job_id`
+        # hint so the admin sees "Bio enriched. Catalog scrape queued
+        # behind active job N — retry in a moment."
+        scrape_blocked_by: int | None = None
         try:
             job_id = catalog_ops.enqueue_job(db, "scrape", started_by=user["id"])
         except catalog_ops.JobConflict as e:
-            from fastapi import HTTPException
-            raise HTTPException(
-                409, str(e), headers={"X-Live-Job-Id": str(e.live_job_id)},
+            scrape_blocked_by = e.live_job_id
+            job_payload = None
+        else:
+            background_tasks.add_task(
+                catalog_ops.run_scrape_job, job_id,
+                roaster_slug=slug,
+                regenerate_prompt=regenerate_prompt,
             )
-        background_tasks.add_task(
-            catalog_ops.run_scrape_job, job_id,
-            roaster_slug=slug,
-            regenerate_prompt=regenerate_prompt,
-        )
-        job_payload = _job_to_response(db, job_id)
+            job_payload = _job_to_response(db, job_id)
     finally:
         db.close()
 
     return ok(
-        {"profile": bio_data, "job": job_payload},
+        {
+            "profile": bio_data,
+            "job": job_payload,
+            "scrape_blocked_by_job_id": scrape_blocked_by,
+        },
         resource="roaster_refresh",
     )
 

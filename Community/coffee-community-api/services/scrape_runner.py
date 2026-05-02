@@ -549,6 +549,17 @@ def stage_scrape_proposals(db, job_id: int,
             if len(missing_items) < 50:
                 missing_items.append(existing_lite)
 
+    # Atomic visibility flip — every proposal staged during this run
+    # was inserted with `status='staging'` so the admin GET
+    # (filtered to `status='pending'`) couldn't see them mid-run.
+    # Single UPDATE moves the whole batch to pending in one writer
+    # transaction (~ms), so the carousel populates with the full
+    # set in one go rather than dripping in product-by-product.
+    db.execute(
+        "UPDATE scrape_proposals SET status='pending' "
+        "WHERE job_id = ? AND status='staging'",
+        (job_id,),
+    )
     db.commit()
 
     # ── Post-run meta-prompt generation ──────────────────────────
@@ -705,11 +716,25 @@ def _empty_summary() -> dict:
 def _insert_proposal(db, job_id: int, product_id: str, change_type: str,
                       *, proposed_state: dict | None, prev_state: dict | None,
                       now: str) -> None:
+    # Commit per-row. The enclosing `stage_scrape_proposals` loop runs a
+    # multi-second Sonnet `enrich_product` call between each insert; if
+    # the writer transaction stayed open for the whole loop (default
+    # Python sqlite3 isolation), the WAL writer slot would be held for
+    # minutes and any concurrent admin write (publish, refresh-all bio
+    # upsert) would hit `database is locked` after the busy_timeout.
+    # Per-row commits drop the held-lock window to milliseconds.
+    #
+    # Insert as `status='staging'` (NOT 'pending'). The admin GET
+    # endpoint filters on `status='pending'`, so staging rows are
+    # invisible to the UI. `stage_scrape_proposals` flips this run's
+    # staging rows → pending in a single bulk UPDATE at the end, so
+    # the user sees all of a scrape's proposals appear together rather
+    # than trickle in product-by-product as Sonnet enriches each one.
     db.execute(
         "INSERT INTO scrape_proposals "
         "(job_id, product_id, change_type, proposed_state_json, "
         " prev_state_json, status, created_at) "
-        "VALUES (?, ?, ?, ?, ?, 'pending', ?)",
+        "VALUES (?, ?, ?, ?, ?, 'staging', ?)",
         (
             job_id, product_id, change_type,
             json.dumps(proposed_state) if proposed_state is not None else None,
@@ -717,6 +742,7 @@ def _insert_proposal(db, job_id: int, product_id: str, change_type: str,
             now,
         ),
     )
+    db.commit()
 
 
 # ── Apply / reject / undo helpers ──────────────────────────────────────────
