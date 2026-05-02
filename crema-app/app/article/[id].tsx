@@ -45,6 +45,7 @@ import { thumbnailUrl } from "../../src/utils/imageUrl";
 import { openExternal } from "../../src/utils/openExternal";
 import { tap as hapticTap } from "../../src/utils/haptics";
 import { htmlToBlocks } from "../../src/utils/htmlToBlocks";
+import { onChromeScroll } from "../../src/utils/chromeScroll";
 import RoasterLogo from "../../src/components/primitives/RoasterLogo";
 import SiteHeader from "../../src/components/SiteHeader";
 import CoffeeCard, {
@@ -202,6 +203,12 @@ export default function ArticlePage() {
         style={s.page}
         contentContainerStyle={{ paddingBottom: 64 }}
         showsVerticalScrollIndicator={false}
+        // Sitewide scroll-aware chrome — header collapses on
+        // scroll-down, expands on scroll-up. Same pattern Discover
+        // BEANS, the feed, and every other long-scroll surface
+        // share via onChromeScroll.
+        onScroll={onChromeScroll}
+        scrollEventThrottle={16}
       >
       {/* Hero with floating back FAB */}
       <View style={[s.heroWrap, { height: heroHeight }]}>
