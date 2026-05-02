@@ -287,6 +287,32 @@ every future buy-this-bean affordance. There must not be a
 parallel "lighter" or "carousel-only" variant. **Every coffee
 card the user sees follows the rules below.**
 
+### Built-in affordances — never reimplement at the call-site
+
+`CoffeeCard` ships with these behaviors baked in. Call-sites
+must NOT re-add them via wrapper Pressables or sibling
+components — duplicating these is a regression:
+
+- **Long-press → `CoffeeDetailSheet`.** The detail sheet (every
+  enriched field with prettified labels, sectioned by Origin /
+  Roast & process / Brew guide / Tasting / Pack) opens on
+  long-press of any CoffeeCard. Haptic medium-impact on native.
+  Local state inside CoffeeCard owns the sheet's visibility.
+  This is the **central card affordance** — the user's primary
+  way to inspect a bean's full provenance — and it must work on
+  every card, every surface, with zero call-site wiring.
+- **Buy click-through.** Cart icon → `trackClick(...)` then
+  `openExternal(coffee.product_url)`. Already inside CoffeeCard.
+- **Share.** Share icon → `useShare().share(coffee)`. Already
+  inside CoffeeCard.
+- **Popularity dot.** Top-left circle showing on-shelf user
+  count → emits `crema:open-popularity` for the sitewide
+  modal. Already inside CoffeeCard.
+- **Add-to-shelf / shelf-picker / sold-out pill.** All inside.
+
+The wrapper's only job is to allocate width + height. Don't add
+anything else.
+
 ### Geometry (Figma 66:6267 + 66:6268)
 
 The constants live in `crema-app/src/components/CoffeeCard.tsx`
@@ -294,40 +320,85 @@ and are exported for every call-site:
 
 | Constant | Value | Used for |
 |---|---|---|
-| `CARD_TARGET_WIDTH` | `240` | Default card width on every surface — both grids and carousels. |
+| `CARD_TARGET_WIDTH` | `240` | Default card width on **wide / web** surfaces — both grids and carousels. |
 | `CARD_PORTRAIT_ASPECT` | `400 / 240` | Wide / web height = `width × 1.667`. |
 | `CARD_LANDSCAPE_ASPECT` | `251 / 370` | Mobile height = `width × 0.679`. |
 
 The card flips landscape on mobile and portrait on wide via its
 internal `useBreakpoint().isMobile` check. **The wrapper's job
 is to allocate matching height** so the variant doesn't sit
-inside dead vertical space. Use the helper:
+inside dead vertical space. Use `coffeeCardHeight(width, isMobile)`.
+
+### Width — exact Discover BEANS dims, no reinvention
+
+The 240 constant is the **wide / portrait** canonical. Mobile
+landscape uses a different number — and that number must come
+from the same grid math `CoffeeList.tsx` (the Discover BEANS
+implementation) uses for one cell. **Don't invent a new formula.**
+
+The math in `CoffeeList.tsx`:
+
+```
+availableWidth = containerWidth - GRID_PAD * 2  // GRID_PAD = 16
+numCols       = round((availableWidth + GAP) / (TARGET_CARD_W + GAP))
+cardWidth     = (availableWidth - GAP * (numCols - 1)) / numCols
+```
+
+On a 390-px mobile viewport: `availableWidth = 358`, `numCols = 1`,
+`cardWidth = 358`. That 358 is the canonical **mobile card width**
+across every surface that renders a coffee card — including
+horizontal carousel rails. Don't second-guess it with peek-of-
+next-card heuristics.
+
+For a single-row horizontal carousel the simplification is direct:
 
 ```ts
 import CoffeeCard, {
   CARD_TARGET_WIDTH,
   coffeeCardHeight,
 } from "../../src/components/CoffeeCard";
+import { useWindowDimensions } from "react-native";
 
-const cardW = CARD_TARGET_WIDTH;
+const { width: vpWidth } = useWindowDimensions();
+const { isMobile } = useBreakpoint();
+
+// Match Discover BEANS cell dims exactly.
+const cardW = isMobile ? vpWidth - 32 : CARD_TARGET_WIDTH;
 const cardH = coffeeCardHeight(cardW, isMobile);
 
-<View style={{ width: cardW, height: cardH }}>
-  <CoffeeCard coffee={c} width={cardW} height={cardH} />
-</View>
+<ScrollView horizontal>
+  {items.map((c) => (
+    <View key={c.product_id} style={{ width: cardW, height: cardH }}>
+      <CoffeeCard coffee={c} width={cardW} height={cardH} />
+    </View>
+  ))}
+</ScrollView>
 ```
 
-`CoffeeList.tsx` is the canonical reference implementation —
-its grid does the same calc per cell.
+| Surface | Reference |
+|---|---|
+| **Discover BEANS grid** | `CoffeeList.tsx` — the source of truth for grid math. |
+| **Roaster page coffees grid** | Mirrors `CoffeeList.tsx`. |
+| **Horizontal carousel rails** (`/coffee/[id]` related, `/article/[id]` "More from {roaster}") | `app/coffee/[id].tsx` + `app/article/[id].tsx` — `cardW = isMobile ? vpWidth - 32 : 240`. |
+
+If this width formula needs to change for a future surface,
+change the formula in `CoffeeList.tsx` first and cascade — never
+fork a different one in a single call-site.
 
 ### What you may NOT do
 
-- Hardcode `width: 240, height: 372` (or any literal). The card
-  will render landscape on mobile and leave 200+ px of dead space
-  below. Always go through `coffeeCardHeight()`.
-- Wrap the card in a smaller frame to "make it tighter". The
-  Figma frame is 240 wide for a reason — narrower cards clip the
-  info column and make the price chip overflow.
+- Hardcode `width: 240, height: 372` (or any literal pair). The
+  wrapper height has to come from `coffeeCardHeight()` so it
+  matches the variant the card flips to internally; otherwise
+  mobile leaves 200+ px of dead space below.
+- Pass `width = 240` to a card on **mobile**. Period. 240 is the
+  wide-portrait canonical; mobile rendering uses landscape, and
+  the landscape variant needs ~360-370 px to render the image +
+  info columns at Figma proportions. Use `vpWidth - 32` on mobile
+  (the value `CoffeeList.tsx`'s grid math hands to a 1-col cell).
+- Invent a new "carousel sizing formula" with peek-of-next-card
+  heuristics or min/max clamps. There is one width formula in the
+  codebase — `CoffeeList.tsx`'s — and every surface uses it.
 - Override the variant manually with `forceLandscape` outside
   admin Catalog Ops. That prop exists only because the admin
   carousel needs landscape on web wide too; consumer surfaces
@@ -335,6 +406,11 @@ its grid does the same calc per cell.
 - Build a parallel `<MiniCoffeeCard />` / `<CarouselCoffeeCard />`
   / `<RelatedCoffeesCard />`. Every card surface ships through
   `<CoffeeCard />`. Compose, don't fork.
+- Re-add long-press → `CoffeeDetailSheet` at the call-site
+  (wrapper Pressable + a sibling sheet). It's already inside
+  `CoffeeCard`. Doing it again either double-mounts the sheet
+  (two opens on one long-press) or shadows the built-in with a
+  stale variant. The wrapper is just `<View width height>`.
 
 ### Pre-flight check (additive to §8 below)
 

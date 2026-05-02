@@ -4,7 +4,7 @@
  * Top corners: 3.624px. Bottom corners: 5px.
  */
 import { useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { openExternal } from "../utils/openExternal";
 import { Coffee, Pencil, Trash2 } from "lucide-react-native";
@@ -17,6 +17,8 @@ import { useShelves } from "../hooks/useShelves";
 import { thumbnailUrl } from "../utils/imageUrl";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { openPopularityModal } from "./primitives";
+import CoffeeDetailSheet from "./CoffeeDetailSheet";
+import * as Haptics from "expo-haptics";
 
 interface CoffeeCardProps {
   coffee: any;
@@ -80,6 +82,17 @@ const BTN_SIZE = 31;
 export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 240, height: cardH = 372, shelfMode, isOwner = true, currentShelf, onMoveShelf, onRemove, onAddToShelf, onEdit, forceLandscape = false }: CoffeeCardProps) {
   const [showShelfPicker, setShowShelfPicker] = useState(false);
   const [shelvedAs, setShelvedAs] = useState<ShelfKey | null>(currentShelf || null);
+  // Long-press detail sheet — central card affordance, baked in here
+  // so every CoffeeCard surface (Discover BEANS grid, roaster page,
+  // related-coffees rail, JOURNAL article rail, admin scrape carousel)
+  // gets it for free. Per DESIGN_LANGUAGE §7.
+  const [showDetail, setShowDetail] = useState(false);
+  const openDetail = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    }
+    setShowDetail(true);
+  };
   const { share } = useShare();
   const { addToShelf } = useShelves();
   const { isMobile } = useBreakpoint();
@@ -132,6 +145,12 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
 
   if (isMobile || forceLandscape) {
     return (
+      <Pressable
+        onLongPress={openDetail}
+        delayLongPress={350}
+        accessibilityHint="Long-press to inspect every detail the roaster shared about this coffee"
+        style={{ width: lsCardW, height: lsCardH }}
+      >
       <View style={[s.cardLs, { width: lsCardW, height: lsCardH }]}>
         {/* ── IMAGE (left half) ── */}
         <View style={[s.imageAreaLs, { width: lsImgW, height: lsCardH }]}>
@@ -242,12 +261,24 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
           </View>
         </View>
       </View>
+      <CoffeeDetailSheet
+        coffee={coffee}
+        visible={showDetail}
+        onClose={() => setShowDetail(false)}
+      />
+      </Pressable>
     );
   }
 
   // ── Portrait (web wide) — unchanged ───────────────────────────────
 
   return (
+    <Pressable
+      onLongPress={openDetail}
+      delayLongPress={350}
+      accessibilityHint="Long-press to inspect every detail the roaster shared about this coffee"
+      style={{ width: cardW, height: cardH }}
+    >
     <View style={[s.card, { width: cardW, height: cardH }]}>
       {/* Image area — 160px at 240w, clips to top corners */}
       <View style={[s.imageArea, { height: imageH }]}>
@@ -377,6 +408,12 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
          GlobalPopularityModal at root layout handles presentation
          (mid-band on mobile, centered card on web). (§2.40.3) */}
     </View>
+    <CoffeeDetailSheet
+      coffee={coffee}
+      visible={showDetail}
+      onClose={() => setShowDetail(false)}
+    />
+    </Pressable>
   );
 }
 

@@ -282,14 +282,14 @@ export default function ArticlePage() {
           </View>
         )}
 
-        {/* "More from {roaster}" coffee carousel — closes the loop
-            from sourcing-story content to a buy-the-bean intent.
-            Card sizing per DESIGN_LANGUAGE §8: canonical 240-wide,
-            height computed via coffeeCardHeight() so the wrapper
-            allocates landscape height on mobile (the card flips
-            internally) and portrait height on wide. Without this
-            rule the wrapper reserves portrait height on mobile and
-            leaves dead space below the landscape variant. */}
+        {/* "More from {roaster}" — closes the loop from sourcing-
+            story content to a buy-the-bean intent. Per DESIGN_LANGUAGE
+            §7: horizontal carousel on every viewport. Mobile cards
+            size up to ~Figma's 370-wide landscape so the variant has
+            room to render cleanly (left a 60px gutter for the peek
+            of the next card cuing scroll); wide cards stay at the
+            canonical 240-wide portrait. coffeeCardHeight() picks the
+            right aspect by viewport. */}
         {roasterCoffees.length > 0 ? (
           <View style={s.coffeeRailWrap}>
             <Text style={s.coffeeRailTitle}>
@@ -301,10 +301,16 @@ export default function ArticlePage() {
               contentContainerStyle={{ gap: 16, paddingRight: 16 }}
             >
               {roasterCoffees.map((c: any) => {
-                const cardW = CARD_TARGET_WIDTH;
+                // Match Discover BEANS cell dims exactly (CoffeeList
+                // grid math): mobile = viewport - 32 (1-col edge-to-
+                // edge minus GRID_PAD), wide = CARD_TARGET_WIDTH.
+                const cardW = isMobile ? width - 32 : CARD_TARGET_WIDTH;
                 const cardH = coffeeCardHeight(cardW, isMobile);
                 return (
-                  <View key={c.product_id} style={{ width: cardW, height: cardH }}>
+                  <View
+                    key={c.product_id}
+                    style={{ width: cardW, height: cardH }}
+                  >
                     <CoffeeCard coffee={c} width={cardW} height={cardH} />
                   </View>
                 );

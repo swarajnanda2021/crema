@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent, Platform } from "react-native";
+import { View, Text, ScrollView, StyleSheet, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
 import { t, makeStyles } from "../tokens/useTokens";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import CoffeeCard, {
@@ -7,8 +7,6 @@ import CoffeeCard, {
   CARD_PORTRAIT_ASPECT,
   CARD_LANDSCAPE_ASPECT,
 } from "./CoffeeCard";
-import CoffeeDetailSheet from "./CoffeeDetailSheet";
-import * as Haptics from "expo-haptics";
 
 const PAGE_SIZE = 24;
 const GAP = 20;                          // Figma: 20px between cards
@@ -33,18 +31,8 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [containerW, setContainerW] = useState(0);
   const s = useStyles();
-  const [detailCoffee, setDetailCoffee] = useState<any>(null);
   const { isMobile } = useBreakpoint();
   const visible = (Array.isArray(coffees) ? coffees : []).slice(0, visibleCount);
-
-  // Long-press → CoffeeDetailSheet. Owns the modal state here so the
-  // sheet is mounted once for the whole grid, not per card.
-  const openDetail = useCallback((c: any) => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    }
-    setDetailCoffee(c);
-  }, []);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     setContainerW(e.nativeEvent.layout.width);
@@ -91,12 +79,12 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
       {ListHeaderComponent}
       <View style={[s.grid, { gap: GAP, paddingHorizontal: GRID_PAD }]}>
         {visible.map((item) => (
-          <Pressable
+          // CoffeeCard now owns long-press → CoffeeDetailSheet
+          // internally (DESIGN_LANGUAGE §7); the wrapper just sizes
+          // the cell so the variant has matching height to render.
+          <View
             key={item.product_id}
-            onLongPress={() => openDetail(item)}
-            delayLongPress={350}
             style={{ width: cardWidth, height: cardHeight }}
-            accessibilityHint="Long-press to inspect every detail the roaster shared about this coffee"
           >
             <CoffeeCard
               coffee={item}
@@ -105,14 +93,9 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
               width={cardWidth}
               height={cardHeight}
             />
-          </Pressable>
+          </View>
         ))}
       </View>
-      <CoffeeDetailSheet
-        coffee={detailCoffee}
-        visible={detailCoffee !== null}
-        onClose={() => setDetailCoffee(null)}
-      />
     </ScrollView>
   );
 }

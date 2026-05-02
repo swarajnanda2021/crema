@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, Platform } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, Platform, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { openExternal } from "../../src/utils/openExternal";
@@ -30,6 +30,7 @@ export default function CoffeeDetailPage() {
   const { share } = useShare();
   const router = useRouter();
   const { isMobile } = useBreakpoint();
+  const { width: vpWidth } = useWindowDimensions();
 
   const coffee = productMap?.get(id);
   const st = useStStyles();
@@ -128,11 +129,13 @@ export default function CoffeeDetailPage() {
             </View>
           )}
 
-          {/* Related coffees — sized per DESIGN_LANGUAGE §8 so the
-              wrapper allocates landscape height on mobile (the card
-              flips internally) and portrait on wide. */}
+          {/* Related coffees — exact Discover BEANS cell dims so the
+              card here renders identically. Mobile = viewport - 32
+              (1-col, edge-to-edge minus GRID_PAD); wide = canonical
+              240. coffeeCardHeight() picks the right aspect by
+              viewport so the wrapper never reserves dead space. */}
           {related.length > 0 && (() => {
-            const cardW = CARD_TARGET_WIDTH;
+            const cardW = isMobile ? vpWidth - 32 : CARD_TARGET_WIDTH;
             const cardH = coffeeCardHeight(cardW, isMobile);
             return (
               <View style={st.relatedSection}>
