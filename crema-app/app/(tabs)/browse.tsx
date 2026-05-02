@@ -16,6 +16,7 @@ import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { useRoasterArticles } from "../../src/hooks/useRoasterArticles";
 import ArticleCard from "../../src/components/domain/ArticleCard";
+import RoasterLogo from "../../src/components/primitives/RoasterLogo";
 import { useSearchBarAutoHide } from "../../src/hooks/useSearchBarAutoHide";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { t, cardShadow, makeStyles } from "../../src/tokens/useTokens";
@@ -1296,14 +1297,13 @@ function RoastersList({
 
 function JournalList() {
   const articlesCache = useRoasterArticles();
+  const profilesCache = useRoasterProfiles();
   const { width } = useWindowDimensions();
   const { isMobile } = useBreakpoint();
   const isWide = width >= 768;
   const s = useStyles();
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
 
-  // Silent refetch on focus so a fresh admin scrape lands in the
-  // feed without an app reload. Same SWR pattern Discover BEANS +
-  // ROASTERS use.
   useFocusEffect(
     useCallback(() => {
       articlesCache.refetch({ silent: true });
@@ -1311,7 +1311,45 @@ function JournalList() {
     }, []),
   );
 
-  const articles = articlesCache.articles;
+  const allArticles = articlesCache.articles;
+
+  // Roster strip — one entry per roaster that has at least one
+  // article. Sorted by their newest article (published_at, falling
+  // back to scraped_at) DESC so the freshest publishers surface
+  // first. Each entry carries the latest-published timestamp for
+  // display in the future ("posted 2d ago").
+  const roastersByLatest = useMemo(() => {
+    const byRoaster = new Map<string, { latest: number; count: number }>();
+    for (const a of allArticles) {
+      if (!a.roaster_slug) continue;
+      const ts = Date.parse(a.published_at || a.scraped_at) || 0;
+      const cur = byRoaster.get(a.roaster_slug);
+      if (!cur) {
+        byRoaster.set(a.roaster_slug, { latest: ts, count: 1 });
+      } else {
+        cur.count += 1;
+        if (ts > cur.latest) cur.latest = ts;
+      }
+    }
+    return Array.from(byRoaster.entries())
+      .map(([slug, info]) => {
+        const profile = profilesCache.getBySlug(slug);
+        return {
+          slug,
+          name: profile?.name || slug,
+          logo_url: profile?.logo_url || null,
+          ...info,
+        };
+      })
+      .sort((a, b) => b.latest - a.latest);
+  }, [allArticles, profilesCache]);
+
+  // Filter the rendered feed by the selected roaster. "All" leaves
+  // the chronological feed unfiltered.
+  const articles = useMemo(() => {
+    if (!selectedSlug) return allArticles;
+    return allArticles.filter((a) => a.roaster_slug === selectedSlug);
+  }, [allArticles, selectedSlug]);
 
   // Two-column on wide viewports, one-column on mobile. The wide
   // layout matches the BEANS grid's `GRID_PAD = 16` outer inset
@@ -1327,7 +1365,7 @@ function JournalList() {
   }, [width, cols]);
 
   const showSpinner =
-    articlesCache.loading && articles.length === 0;
+    articlesCache.loading && allArticles.length === 0;
 
   return (
     <View style={{ flex: 1 }}>
@@ -1337,44 +1375,139 @@ function JournalList() {
         contentContainerStyle={{
           paddingTop: 16,
           paddingBottom: 100,
-          paddingHorizontal: GRID_PAD,
           gap: GRID_GAP,
         }}
         onScroll={(e) => onChromeScroll(e)}
         scrollEventThrottle={16}
       >
-        {showSpinner ? (
-          <View style={{ paddingVertical: 64, alignItems: "center" }}>
-            <ActivityIndicator size="small" color={t.color["text.primary"]} />
-          </View>
-        ) : articles.length === 0 ? (
-          // Canonical empty state per DESIGN_LANGUAGE §6 — single
-          // line, body.regular, font.md, text.muted, centered.
-          <View style={{ paddingVertical: 96 }}>
-            <Text
-              style={{
-                fontFamily: t.font["body.regular"],
-                fontSize: t.size["font.md"],
-                color: t.color["text.muted"],
-                textAlign: "center",
-              }}
-            >
-              Nothing here yet.
-            </Text>
-          </View>
-        ) : cols === 1 ? (
-          articles.map((a) => (
-            <ArticleCard key={a.id} article={a} width={cardWidth} />
-          ))
-        ) : (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: GRID_GAP }}>
-            {articles.map((a) => (
+        {/* Roaster strip — newest-first carousel above the feed.
+           Hidden when there are no roasters yet (empty state). */}
+        {roastersByLatest.length > 0 ? (
+          <RoasterStrip
+            roasters={roastersByLatest}
+            selectedSlug={selectedSlug}
+            onSelect={setSelectedSlug}
+          />
+        ) : null}
+
+        <View style={{ paddingHorizontal: GRID_PAD, gap: GRID_GAP }}>
+          {showSpinner ? (
+            <View style={{ paddingVertical: 64, alignItems: "center" }}>
+              <ActivityIndicator size="small" color={t.color["text.primary"]} />
+            </View>
+          ) : articles.length === 0 ? (
+            // Canonical empty state per DESIGN_LANGUAGE §6 — single
+            // line, body.regular, font.md, text.muted, centered.
+            <View style={{ paddingVertical: 96 }}>
+              <Text
+                style={{
+                  fontFamily: t.font["body.regular"],
+                  fontSize: t.size["font.md"],
+                  color: t.color["text.muted"],
+                  textAlign: "center",
+                }}
+              >
+                {selectedSlug
+                  ? "No articles from this roaster yet."
+                  : "Nothing here yet."}
+              </Text>
+            </View>
+          ) : cols === 1 ? (
+            articles.map((a) => (
               <ArticleCard key={a.id} article={a} width={cardWidth} />
-            ))}
-          </View>
-        )}
+            ))
+          ) : (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: GRID_GAP }}>
+              {articles.map((a) => (
+                <ArticleCard key={a.id} article={a} width={cardWidth} />
+              ))}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </View>
+  );
+}
+
+
+// ── RoasterStrip — horizontal carousel of roasters that have published
+//    articles, sorted newest-first. Tap an avatar to filter the feed
+//    below; the leading "All" pill clears the filter.
+
+function RoasterStrip({
+  roasters,
+  selectedSlug,
+  onSelect,
+}: {
+  roasters: Array<{ slug: string; name: string; logo_url: string | null; count: number; latest: number }>;
+  selectedSlug: string | null;
+  onSelect: (slug: string | null) => void;
+}) {
+  const s = useStyles();
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+      style={{ flexGrow: 0 }}
+    >
+      <Pressable
+        onPress={() => onSelect(null)}
+        style={({ pressed }) => [
+          s.roasterStripAllPill,
+          selectedSlug === null && s.roasterStripAllPillActive,
+          pressed && s.roasterStripPressed,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="Show all journal articles"
+      >
+        <Text
+          style={[
+            s.roasterStripAllText,
+            selectedSlug === null && s.roasterStripAllTextActive,
+          ]}
+        >
+          All
+        </Text>
+      </Pressable>
+      {roasters.map((r) => {
+        const active = selectedSlug === r.slug;
+        return (
+          <Pressable
+            key={r.slug}
+            onPress={() => onSelect(active ? null : r.slug)}
+            style={({ pressed }) => [
+              s.roasterStripItem,
+              pressed && s.roasterStripPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Filter to ${r.name}'s articles`}
+          >
+            <View
+              style={[
+                s.roasterStripAvatarWrap,
+                active && s.roasterStripAvatarWrapActive,
+              ]}
+            >
+              <RoasterLogo
+                url={r.logo_url}
+                size={56}
+                fallbackInitial={r.name}
+              />
+            </View>
+            <Text
+              style={[
+                s.roasterStripName,
+                active && s.roasterStripNameActive,
+              ]}
+              numberOfLines={1}
+            >
+              {r.name}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -1734,4 +1867,66 @@ const useStyles = makeStyles((t) => ({
     transitionProperty: "border-color", transitionDuration: "150ms", transitionTimingFunction: "ease",
   } as any,
   rArrowBtnHovered: { borderColor: "transparent" } as any,
+
+  // ── JOURNAL roaster strip ──────────────────────────────────────────
+  // Stacked avatar + name pill; active state lights up with a Crema
+  // ring around the avatar (the Crema-pink accent is reserved for
+  // post-action icons elsewhere, but the avatar ring is a discovery
+  // affordance so it earns the pink). Inactive items use the brand
+  // text colour and stay subtle.
+  roasterStripPressed: { opacity: 0.75 },
+  roasterStripItem: {
+    alignItems: "center",
+    width: 72,
+    gap: 6,
+  } as any,
+  roasterStripAvatarWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+    padding: 2,
+  } as any,
+  roasterStripAvatarWrapActive: {
+    borderColor: t.color["accent.cta"],
+  } as any,
+  roasterStripName: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.xs"],
+    lineHeight: 14,
+    color: t.color["text.muted"],
+    textAlign: "center",
+    width: "100%" as any,
+  } as any,
+  roasterStripNameActive: {
+    color: t.color["text.primary"],
+    fontFamily: t.font["body.semibold"],
+  } as any,
+  roasterStripAllPill: {
+    width: 64,
+    height: 64,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: t.color.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  } as any,
+  roasterStripAllPillActive: {
+    borderColor: t.color["text.primary"],
+    backgroundColor: t.color["text.primary"],
+  } as any,
+  roasterStripAllText: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.primary"],
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  roasterStripAllTextActive: {
+    color: t.color["text.on-cta"],
+  },
 }));

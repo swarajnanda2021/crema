@@ -510,11 +510,16 @@ function summarizeJob(job: CatalogJob): string {
   }
   if ((job.kind as any) === "article_scrape") {
     const errs = Array.isArray(r.errors) ? r.errors.length : 0;
+    const enriched = r.enriched ?? 0;
+    const enrichFailed = r.enrich_failed ?? 0;
+    const notArticle = r.not_article_skipped ?? 0;
     return (
       `${r.roasters_processed ?? 0} roasters · ` +
       `+${r.articles_inserted ?? 0} new · ` +
       `~${r.articles_updated ?? 0} updated · ` +
-      `${r.discoveries ?? 0} discoveries` +
+      `${enriched} enriched` +
+      (enrichFailed ? ` · ${enrichFailed} enrich-failed` : "") +
+      (notArticle ? ` · ${notArticle} non-article` : "") +
       (errs ? ` · ${errs} error${errs === 1 ? "" : "s"}` : "")
     );
   }

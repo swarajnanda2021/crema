@@ -25,6 +25,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 
 import { t, makeStyles, cardShadow } from "../../tokens/useTokens";
+import { resolveUploadUrl } from "../../api/client";
 import { thumbnailUrl } from "../../utils/imageUrl";
 import { tap as hapticTap } from "../../utils/haptics";
 import RoasterLogo from "../primitives/RoasterLogo";
@@ -44,8 +45,13 @@ export default function ArticleCard({ article, width }: ArticleCardProps) {
 
   const cardWidth = width || 360;
   const heroHeight = Math.round(cardWidth * (9 / 16));
+  // Local /uploads/articles/<...>.webp paths get the API origin
+  // prepended; absolute URLs (Shopify CDN, etc.) pass through.
   const heroSrc = article.image_url
-    ? thumbnailUrl(article.image_url, 800) || article.image_url
+    ? (() => {
+        const resolved = resolveUploadUrl(article.image_url) || article.image_url;
+        return thumbnailUrl(resolved, 800) || resolved;
+      })()
     : null;
 
   const dateLabel = formatPublishedDate(

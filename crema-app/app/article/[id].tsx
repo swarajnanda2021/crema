@@ -33,18 +33,21 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, ExternalLink } from "lucide-react-native";
 
 import { t, makeStyles } from "../../src/tokens/useTokens";
 import { useRoasterArticles } from "../../src/hooks/useRoasterArticles";
+import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
-import { apiFetchRaw, trackClick } from "../../src/api/client";
+import { apiFetchRaw, resolveUploadUrl, trackClick } from "../../src/api/client";
 import { thumbnailUrl } from "../../src/utils/imageUrl";
 import { openExternal } from "../../src/utils/openExternal";
 import { tap as hapticTap } from "../../src/utils/haptics";
 import { htmlToBlocks } from "../../src/utils/htmlToBlocks";
 import RoasterLogo from "../../src/components/primitives/RoasterLogo";
+import SiteHeader from "../../src/components/SiteHeader";
+import CoffeeCard from "../../src/components/CoffeeCard";
 import type { RoasterArticle } from "../../src/resources/types";
 
 export default function ArticlePage() {
@@ -53,6 +56,7 @@ export default function ArticlePage() {
   const { width } = useWindowDimensions();
   const { isMobile } = useBreakpoint();
   const cache = useRoasterArticles();
+  const { products } = useCoffeeData();
   const s = useStyles();
 
   const idNum = id ? Number(id) : NaN;
@@ -109,7 +113,10 @@ export default function ArticlePage() {
   const heroSrc = useMemo(() => {
     if (!article?.image_url) return null;
     const w = isMobile ? 1080 : 1600;
-    return thumbnailUrl(article.image_url, w) || article.image_url;
+    // Local /uploads/articles/<...>.webp paths need the API origin
+    // prepended; absolute URLs (Shopify CDN, etc.) pass through.
+    const resolved = resolveUploadUrl(article.image_url) || article.image_url;
+    return thumbnailUrl(resolved, w) || resolved;
   }, [article?.image_url, isMobile]);
 
   const heroHeight = isMobile
@@ -120,6 +127,19 @@ export default function ArticlePage() {
     () => (article?.body_html ? htmlToBlocks(article.body_html) : []),
     [article?.body_html],
   );
+
+  // Bottom-of-article carousel: this roaster's available products.
+  // Source = the same `useCoffeeData` cache the rest of the app reads,
+  // so no per-article fetch is needed and the carousel paints in the
+  // same frame as the body. Cap at 12 — beyond that the user is
+  // browsing, not buying-from-this-article.
+  const roasterCoffees = useMemo(() => {
+    const slug = article?.roaster_slug;
+    if (!slug || !products?.length) return [];
+    return (products as any[])
+      .filter((p) => p.roaster_slug === slug && p.available !== 0)
+      .slice(0, 12);
+  }, [article?.roaster_slug, products]);
 
   const goBack = () => {
     hapticTap();
@@ -145,29 +165,20 @@ export default function ArticlePage() {
   };
 
   if (!article) {
-    // No cached row + first fetch in flight. Spinner full-page;
-    // there's no useful header to render until we know who wrote
-    // this.
+    // No cached row + first fetch in flight. Render the SiteHeader
+    // anyway so chrome stays consistent across the loading hop.
     return (
-      <View style={s.fullCenter}>
-        <Pressable
-          onPress={goBack}
-          style={s.backFloating}
-          accessibilityLabel="Back"
-          hitSlop={8}
-        >
-          <ArrowLeft
-            size={18}
-            color={t.color["text.on-cta"]}
-            strokeWidth={2}
-          />
-        </Pressable>
-        {error ? (
-          <Text style={s.errorText}>{error}</Text>
-        ) : (
-          <ActivityIndicator size="small" color={t.color["text.primary"]} />
-        )}
-      </View>
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <SiteHeader />
+        <View style={s.fullCenter}>
+          {error ? (
+            <Text style={s.errorText}>{error}</Text>
+          ) : (
+            <ActivityIndicator size="small" color={t.color["text.primary"]} />
+          )}
+        </View>
+      </>
     );
   }
 
@@ -176,11 +187,19 @@ export default function ArticlePage() {
   const externalDomain = safeDomain(article.url);
 
   return (
-    <ScrollView
-      style={s.page}
-      contentContainerStyle={{ paddingBottom: 64 }}
-      showsVerticalScrollIndicator={false}
-    >
+    <>
+      {/* Override the layout's `headerShown: false` so the SiteHeader
+         (mobile MobileHeader / web Navbar) renders above the page —
+         consistent with /coffee/[id], /roaster/[slug], /user/[username].
+         The MobileFooter renders globally inside the root layout, so
+         the bottom tab bar is already in place. */}
+      <Stack.Screen options={{ headerShown: false }} />
+      <SiteHeader />
+      <ScrollView
+        style={s.page}
+        contentContainerStyle={{ paddingBottom: 64 }}
+        showsVerticalScrollIndicator={false}
+      >
       {/* Hero with floating back FAB */}
       <View style={[s.heroWrap, { height: heroHeight }]}>
         {heroSrc ? (
@@ -260,6 +279,35 @@ export default function ArticlePage() {
           </View>
         )}
 
+        {/* "More from {roaster}" coffee carousel — closes the loop
+            from sourcing-story content to a buy-the-bean intent.
+            Reads from the sitewide CoffeeData cache so painting is
+            instant; uses the same horizontal-ScrollView pattern as
+            /coffee/[id]'s related-coffees rail. */}
+        {roasterCoffees.length > 0 ? (
+          <View style={s.coffeeRailWrap}>
+            <Text style={s.coffeeRailTitle}>
+              More from {article.roaster_name || article.roaster_slug}
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 16, paddingRight: 16 }}
+            >
+              {roasterCoffees.map((c: any) => (
+                <View key={c.product_id} style={{ width: 240 }}>
+                  <CoffeeCard
+                    coffee={c}
+                    width={240}
+                    height={372}
+                    compact
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
         {/* Read-on-original CTA. Always visible — even when the
             in-app body rendered cleanly, the original page often
             has video / interactive content the renderer skipped. */}
@@ -285,7 +333,8 @@ export default function ArticlePage() {
           </Pressable>
         ) : null}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 }
 
@@ -574,4 +623,16 @@ const useStyles = makeStyles((t) => ({
     letterSpacing: 0.4,
     color: t.color["text.on-cta"],
   } as any,
+  coffeeRailWrap: {
+    marginTop: t.spacing["2xl"],
+    paddingTop: t.spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: t.color.divider,
+    gap: t.spacing.md,
+  } as any,
+  coffeeRailTitle: {
+    fontFamily: t.font.display,
+    fontSize: t.size["font.xl"],
+    color: t.color["text.primary"],
+  },
 }));
