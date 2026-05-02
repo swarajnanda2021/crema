@@ -329,6 +329,112 @@ def featured_posts(slug: str):
         db.close()
 
 
+# ── Roaster Journal — scraped articles ──────────────────────────────────────
+# Articles are written by the article-scraper (services/article_scraper.py)
+# and surface in the consumer Discover JOURNAL tab. The feed is public; the
+# list endpoint excludes `body_html` so the chronological row payload stays
+# small. The reader screen calls `/articles/{id}` for the full HTML body.
+# Only published articles from published roasters surface to consumers — an
+# unreviewed roaster (`roaster_profiles.published=0`) hides every article
+# the scraper found, even if `roaster_articles.published=1`.
+
+_ARTICLE_CARD_COLS = (
+    "a.id, a.roaster_slug, a.url, a.title, a.excerpt, a.image_url, "
+    "a.word_count, a.published_at, a.scraped_at, "
+    "rp.name AS roaster_name, rp.logo_url AS roaster_logo_url"
+)
+
+
+@router.get("/articles")
+def list_articles(limit: int = 50, before: int | None = None,
+                   roaster_slug: str | None = None):
+    """Chronological article feed (newest first) for Discover JOURNAL.
+    `before=<id>` paginates — pass the smallest id from the previous page.
+    `roaster_slug` is an optional filter (same endpoint backs the
+    per-roaster strip if we add one later).
+
+    Excludes `body_html`; the reader screen fetches that via
+    `/articles/{id}` only when needed.
+    """
+    limit = max(1, min(int(limit or 50), 100))
+    where = ["a.published = 1", "rp.published = 1"]
+    args: list = []
+    if before is not None:
+        where.append("a.id < ?")
+        args.append(int(before))
+    if roaster_slug:
+        where.append("a.roaster_slug = ?")
+        args.append(roaster_slug)
+    where_sql = " AND ".join(where)
+
+    db = get_db()
+    try:
+        rows = db.execute(
+            f"SELECT {_ARTICLE_CARD_COLS} "
+            "FROM roaster_articles a "
+            "JOIN roaster_profiles rp ON rp.roaster_slug = a.roaster_slug "
+            f"WHERE {where_sql} "
+            # Sort by published_at when present (the roaster's own date),
+            # falling back to scraped_at so articles without a parsed
+            # published_at still order sensibly. Tie-break on id DESC.
+            "ORDER BY COALESCE(a.published_at, a.scraped_at) DESC, a.id DESC "
+            "LIMIT ?",
+            (*args, limit),
+        ).fetchall()
+        return ok([dict(r) for r in rows], resource="roaster_articles",
+                  meta={"limit": limit, "count": len(rows)})
+    finally:
+        db.close()
+
+
+@router.get("/articles/{article_id}")
+def get_article(article_id: int):
+    """Full article including body_html. Powers the in-app reader.
+    404 if the article is unpublished or its roaster is unreviewed —
+    consumers shouldn't reach an article that wouldn't appear in the
+    feed even with a deep link.
+    """
+    db = get_db()
+    try:
+        row = db.execute(
+            f"SELECT {_ARTICLE_CARD_COLS}, a.body_html "
+            "FROM roaster_articles a "
+            "JOIN roaster_profiles rp ON rp.roaster_slug = a.roaster_slug "
+            "WHERE a.id = ? AND a.published = 1 AND rp.published = 1",
+            (article_id,),
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Article {article_id} not found")
+        return ok(dict(row), resource="roaster_articles")
+    finally:
+        db.close()
+
+
+@router.get("/roasters/{slug}/articles")
+def roaster_articles(slug: str, limit: int = 20):
+    """Per-roaster article list — same shape as `/articles?roaster_slug=`
+    but with a stable URL the roaster page can call without depending
+    on query-arg conventions. No `before` cursor (the per-roaster list
+    is small enough to render in one page)."""
+    limit = max(1, min(int(limit or 20), 100))
+    db = get_db()
+    try:
+        rows = db.execute(
+            f"SELECT {_ARTICLE_CARD_COLS} "
+            "FROM roaster_articles a "
+            "JOIN roaster_profiles rp ON rp.roaster_slug = a.roaster_slug "
+            "WHERE a.roaster_slug = ? AND a.published = 1 AND rp.published = 1 "
+            "ORDER BY COALESCE(a.published_at, a.scraped_at) DESC, a.id DESC "
+            "LIMIT ?",
+            (slug, limit),
+        ).fetchall()
+        return ok([dict(r) for r in rows], resource="roaster_articles",
+                  meta={"roaster_slug": slug, "count": len(rows)})
+    finally:
+        db.close()
+
+
 # ── Roaster follow toggle (old path) ────────────────────────────────────────
 
 @router.post("/roasters/{slug}/follow")
@@ -2498,5 +2604,186 @@ def admin_delete_roaster(slug: str, user=Depends(get_current_user)):
             )
         db.commit()
         return ok({"deleted": slug}, resource="roaster_profiles")
+    finally:
+        db.close()
+
+
+# ── Admin: Roaster Journal ──────────────────────────────────────────────────
+# Per-roaster + bulk article scrape endpoints. Mirrors the
+# /admin/scrape/run + /admin/roasters/{slug}/refresh-all wiring (enqueue
+# job → BackgroundTasks → run_article_scrape_job in catalog_ops). The
+# job runner discovers the roaster's blog feed (Atom/RSS/sitemap/HTML),
+# fetches each article, extracts metadata + body via bs4 + og:, and
+# upserts into `roaster_articles` (idempotent on `url`).
+
+
+@router.post("/admin/articles/scrape-all", status_code=202)
+def admin_scrape_articles_all(body: dict = None,
+                                background_tasks: BackgroundTasks = None,
+                                user=Depends(get_current_user)):
+    """Bulk article scrape across every enabled `roaster_sources` row.
+    Same conflict + BackgroundTasks pattern as /admin/scrape/run.
+    Body is empty (no per-call options yet).
+    """
+    _require_admin(user)
+    db = get_db()
+    try:
+        try:
+            job_id = catalog_ops.enqueue_job(
+                db, "article_scrape", started_by=user["id"],
+            )
+        except catalog_ops.JobConflict as e:
+            from fastapi import HTTPException
+            raise HTTPException(
+                409, str(e), headers={"X-Live-Job-Id": str(e.live_job_id)},
+            )
+        background_tasks.add_task(
+            catalog_ops.run_article_scrape_job, job_id, roaster_slug=None,
+        )
+        return ok(_job_to_response(db, job_id), resource="jobs")
+    finally:
+        db.close()
+
+
+@router.post("/admin/roasters/{slug}/scrape-articles", status_code=202)
+def admin_scrape_articles_one(slug: str,
+                                background_tasks: BackgroundTasks = None,
+                                user=Depends(get_current_user)):
+    """Per-roaster article scrape — what the per-roaster admin page's
+    "Refresh articles" button posts. Same job kind as the bulk endpoint
+    so both share the active-job gate (only one article_scrape can be
+    in flight at a time)."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        prof = db.execute(
+            "SELECT roaster_slug, website FROM roaster_profiles "
+            "WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not prof:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Roaster {slug} not found")
+        try:
+            job_id = catalog_ops.enqueue_job(
+                db, "article_scrape", started_by=user["id"],
+            )
+        except catalog_ops.JobConflict as e:
+            from fastapi import HTTPException
+            raise HTTPException(
+                409, str(e), headers={"X-Live-Job-Id": str(e.live_job_id)},
+            )
+        background_tasks.add_task(
+            catalog_ops.run_article_scrape_job, job_id, roaster_slug=slug,
+        )
+        return ok(_job_to_response(db, job_id), resource="jobs")
+    finally:
+        db.close()
+
+
+@router.get("/admin/articles")
+def admin_list_articles(roaster_slug: str | None = None,
+                          limit: int = 100, offset: int = 0,
+                          include_hidden: int = 1,
+                          user=Depends(get_current_user)):
+    """List articles for the admin sub-tab. Includes `published=0`
+    rows by default (admin needs to see hidden ones to un-hide); pass
+    `include_hidden=0` to mirror the consumer-side filter. No
+    rp.published filter — admin sees articles even from unreviewed
+    roasters."""
+    _require_admin(user)
+    limit = max(1, min(int(limit or 100), 500))
+    offset = max(0, int(offset or 0))
+    where = ["1=1"]
+    args: list = []
+    if roaster_slug:
+        where.append("a.roaster_slug = ?")
+        args.append(roaster_slug)
+    if not include_hidden:
+        where.append("a.published = 1")
+    where_sql = " AND ".join(where)
+    db = get_db()
+    try:
+        rows = db.execute(
+            f"SELECT a.id, a.roaster_slug, a.url, a.title, a.excerpt, "
+            "a.image_url, a.word_count, a.published_at, a.scraped_at, "
+            "a.published, rp.name AS roaster_name, "
+            "rp.logo_url AS roaster_logo_url "
+            "FROM roaster_articles a "
+            "LEFT JOIN roaster_profiles rp ON rp.roaster_slug = a.roaster_slug "
+            f"WHERE {where_sql} "
+            "ORDER BY COALESCE(a.published_at, a.scraped_at) DESC, a.id DESC "
+            "LIMIT ? OFFSET ?",
+            (*args, limit, offset),
+        ).fetchall()
+        total = db.execute(
+            f"SELECT COUNT(*) AS c FROM roaster_articles a WHERE {where_sql}",
+            args,
+        ).fetchone()["c"]
+        return ok([dict(r) for r in rows], resource="roaster_articles",
+                  meta={"total": total, "limit": limit, "offset": offset})
+    finally:
+        db.close()
+
+
+@router.post("/admin/articles/{article_id}/publish")
+def admin_toggle_article_published(article_id: int, body: dict = None,
+                                      user=Depends(get_current_user)):
+    """Toggle the consumer-visibility flag. Body: { published: 0 | 1 }."""
+    _require_admin(user)
+    if body is None:
+        body = {}
+    desired = body.get("published")
+    if desired not in (0, 1):
+        from fastapi import HTTPException
+        raise HTTPException(422, "published must be 0 or 1")
+    db = get_db()
+    try:
+        cur = db.execute(
+            "UPDATE roaster_articles SET published = ? WHERE id = ?",
+            (desired, article_id),
+        )
+        db.commit()
+        if cur.rowcount == 0:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Article {article_id} not found")
+        return ok({"id": article_id, "published": desired},
+                    resource="roaster_articles")
+    finally:
+        db.close()
+
+
+@router.delete("/admin/articles/{article_id}")
+def admin_delete_article(article_id: int, user=Depends(get_current_user)):
+    """Hard-delete an article. Re-scraping the roaster will re-insert
+    if the URL still resolves (URL is the dedup key) — so use this for
+    truly stale entries, not for hiding."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT roaster_slug FROM roaster_articles WHERE id = ?",
+            (article_id,),
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Article {article_id} not found")
+        slug = row["roaster_slug"]
+        db.execute("DELETE FROM roaster_articles WHERE id = ?", (article_id,))
+        # Refresh the denormalized articles_count on the source row so
+        # the admin Roasters & Beans list doesn't drift from reality.
+        new_count = db.execute(
+            "SELECT COUNT(*) AS c FROM roaster_articles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()["c"]
+        db.execute(
+            "UPDATE roaster_sources rs SET articles_count = ? "
+            "WHERE rs.website IN ("
+            "  SELECT website FROM roaster_profiles WHERE roaster_slug = ?"
+            ")",
+            (new_count, slug),
+        )
+        db.commit()
+        return ok({"deleted": article_id}, resource="roaster_articles")
     finally:
         db.close()

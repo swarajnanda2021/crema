@@ -987,6 +987,44 @@ _MIGRATIONS = [
     # Maceration") that the CoffeeCard renders. Filter chips group by
     # canonical; cards show display.
     "ALTER TABLE process_addresses ADD COLUMN display_label TEXT",
+    # ── Discover JOURNAL tab — roaster blog ingestion ─────────────────
+    # `roaster_articles` stores articles scraped from each roaster's
+    # blog/journal. Mirrors the `products` pattern (one row per article,
+    # `roaster_slug` joins back to `roaster_profiles`) but skips the
+    # proposals workflow — articles are roaster-authored content, not
+    # catalog data we modify, so the scraper writes rows directly.
+    # Admin curation lives on `published` (default 1 — auto-visible);
+    # the consumer JOURNAL feed filters on it.
+    """CREATE TABLE IF NOT EXISTS roaster_articles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        roaster_slug TEXT NOT NULL,
+        url TEXT UNIQUE NOT NULL,
+        title TEXT NOT NULL,
+        excerpt TEXT,
+        image_url TEXT,
+        body_html TEXT,
+        word_count INTEGER,
+        published_at TEXT,
+        scraped_at TEXT NOT NULL,
+        published INTEGER NOT NULL DEFAULT 1,
+        enrichment_status TEXT NOT NULL DEFAULT 'pending'
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_roaster_articles_roaster ON roaster_articles(roaster_slug)",
+    "CREATE INDEX IF NOT EXISTS idx_roaster_articles_published_at ON roaster_articles(published_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_roaster_articles_published ON roaster_articles(published)",
+    # Per-roaster article-discovery state on `roaster_sources` so a
+    # successful first-time discovery (Atom feed at /blogs/news.atom,
+    # WP /feed/, or a list of Shopify blog handles via sitemap) is
+    # cached — subsequent scrapes hit one URL instead of re-running
+    # the full enumeration. `articles_handles` is a JSON array; the
+    # other three are bare strings/timestamps. `articles_count` is
+    # denormalized so the admin Roasters & Beans list doesn't have
+    # to JOIN+COUNT roaster_articles per row.
+    "ALTER TABLE roaster_sources ADD COLUMN articles_index_url TEXT",
+    "ALTER TABLE roaster_sources ADD COLUMN articles_feed_kind TEXT",
+    "ALTER TABLE roaster_sources ADD COLUMN articles_handles TEXT",
+    "ALTER TABLE roaster_sources ADD COLUMN last_articles_scraped_at TEXT",
+    "ALTER TABLE roaster_sources ADD COLUMN articles_count INTEGER NOT NULL DEFAULT 0",
 ]
 
 

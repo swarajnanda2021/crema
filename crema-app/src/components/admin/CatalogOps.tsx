@@ -27,24 +27,32 @@ import {
 import { t, makeStyles } from "../../tokens/useTokens";
 import RoastersPanel from "./RoastersPanel";
 import StandardizationPanel from "./StandardizationPanel";
+import ArticlesPanel from "./ArticlesPanel";
 
-export type CatalogOpsSection = "roasters" | "standardization";
+export type CatalogOpsSection = "roasters" | "standardization" | "articles";
 
-const SECTIONS: CatalogOpsSection[] = ["roasters", "standardization"];
+const SECTIONS: CatalogOpsSection[] = [
+  "roasters",
+  "standardization",
+  "articles",
+];
 
 const SECTION_LABEL: Record<CatalogOpsSection, string> = {
   roasters: "ROASTERS & BEANS",
   standardization: "STANDARDIZATION",
+  articles: "ARTICLES",
 };
 
 const SECTION_TITLE: Record<CatalogOpsSection, string> = {
   roasters: "Roasters & Beans",
   standardization: "Catalog Standardization",
+  articles: "Roaster Journal",
 };
 
 const SECTION_BLURB: Record<CatalogOpsSection, string> = {
   roasters: "Manage roaster identities + run per-roaster bean enrichment from the same surface.",
   standardization: "Five sequential Haiku passes that map tasting notes, origins, varietals, roast levels, and processes onto Crema canonical references.",
+  articles: "Discover and refresh the blog/journal articles each roaster publishes on their site. Articles surface in Discover JOURNAL.",
 };
 
 export default function CatalogOps() {
@@ -98,7 +106,13 @@ export default function CatalogOps() {
           When the user flips back, the panel re-mounts and its
           first poll re-attaches to whatever job is still running. */}
       <View style={{ gap: t.spacing.xl }}>
-        {section === "roasters" ? <RoastersPanel /> : <StandardizationPanel />}
+        {section === "roasters" ? (
+          <RoastersPanel />
+        ) : section === "articles" ? (
+          <ArticlesPanel />
+        ) : (
+          <StandardizationPanel />
+        )}
       </View>
     </View>
   );

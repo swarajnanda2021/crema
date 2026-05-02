@@ -449,6 +449,14 @@ export interface RoasterSource {
   enabled: number;
   added_at: string;
   last_scraped_at: string | null;
+  // Article-discovery state cached after the first article scrape.
+  // The journal scraper (`run_article_scrape_job`) writes these so
+  // subsequent runs skip the discovery enumeration.
+  articles_index_url: string | null;
+  articles_feed_kind: "rss" | "atom" | "sitemap" | "html" | null;
+  articles_handles: string | null; // JSON array of Shopify blog handles
+  last_articles_scraped_at: string | null;
+  articles_count: number;
   // Computed via subquery in the registry — `roaster_slug` is the
   // `roaster_profiles` slug whose website matches this row, and
   // `products_count` is how many rows the marketplace currently
@@ -456,6 +464,25 @@ export interface RoasterSource {
   // source so the admin can judge importance at a glance.
   roaster_slug: string | null;
   products_count: number;
+}
+
+/** Single article row returned by `/api/articles*` endpoints.
+ *  `body_html` is only populated by `/articles/{id}` (the reader);
+ *  the chronological list returns the lightweight fields only. */
+export interface RoasterArticle {
+  id: number;
+  roaster_slug: string;
+  url: string;
+  title: string;
+  excerpt: string | null;
+  image_url: string | null;
+  body_html?: string | null;
+  word_count: number | null;
+  published_at: string | null;
+  scraped_at: string;
+  published?: number;
+  roaster_name: string | null;
+  roaster_logo_url: string | null;
 }
 
 /** Audit row written by the admin DELETE-roaster endpoint just before
@@ -476,7 +503,14 @@ export interface DeletedRoaster {
 /** Background job tracked in the `jobs` table. */
 export interface CatalogJob {
   id: number;
-  kind: "scrape" | "geolocate" | "tree_validate" | "standardize" | "manual_sold_out" | "roaster_enrich";
+  kind:
+    | "scrape"
+    | "geolocate"
+    | "tree_validate"
+    | "standardize"
+    | "manual_sold_out"
+    | "roaster_enrich"
+    | "article_scrape";
   status: "queued" | "running" | "succeeded" | "failed";
   started_by: number;
   started_at: string | null;

@@ -1893,3 +1893,246 @@ def run_roaster_enrich_job(job_id: int, *, website: str,
             pass
     finally:
         db.close()
+
+
+def run_article_scrape_job(job_id: int, *,
+                              roaster_slug: str | None = None) -> None:
+    """Discover + scrape blog/journal articles for one roaster (or
+    every enabled roaster when roaster_slug is None) and write them
+    into `roaster_articles`.
+
+    Per-source steps:
+      1. Pull (or rediscover) the article index — strategy + URL +
+         optional Shopify handle list — and persist back to
+         `roaster_sources.articles_*` so the next run can skip the
+         enumeration. The discovery cache is invalidated only when
+         the cached strategy returns zero articles two runs in a
+         row (handled implicitly: the second empty run rediscovers).
+      2. Enumerate article stubs from the index. Atom + RSS carry
+         inline content; sitemap + HTML index return URL-only stubs.
+      3. For each stub, skip if URL is already in `roaster_articles`
+         AND the row is fresh (default: skip on every existing row,
+         re-fetch only when caller forces). Otherwise fetch full
+         HTML, extract body via bs4 + og:, and upsert.
+      4. Refresh `articles_count` + `last_articles_scraped_at` on
+         the source.
+
+    Per-row commits inside `article_scraper.upsert_article` keep the
+    SQLite writer-lock window short — same DB-lock discipline as
+    `services/scrape_runner.py:_insert_proposal`.
+
+    Result summary keys: `roasters_processed`, `articles_inserted`,
+    `articles_updated`, `articles_skipped`, `discoveries`, `errors`
+    (list of `{slug, message}`).
+    """
+    from services import article_scraper
+
+    db = get_db()
+    log_lines: list[str] = []
+
+    def log(line: str) -> None:
+        ts = datetime.datetime.utcnow().strftime("%H:%M:%S")
+        log_lines.append(f"[{ts}] {line}")
+
+    summary = {
+        "roasters_processed": 0,
+        "articles_inserted": 0,
+        "articles_updated": 0,
+        "articles_skipped": 0,
+        "discoveries": 0,
+        "errors": [],
+    }
+
+    try:
+        mark_running(db, job_id)
+        log(f"starting article scrape (scope={roaster_slug or 'all enabled'})")
+
+        # Pull the source rows we'll iterate. JOIN to roaster_profiles
+        # so we have the slug (sources is keyed on website, but the
+        # public articles surface is keyed on roaster_slug).
+        if roaster_slug:
+            rows = db.execute(
+                "SELECT rs.id, rs.website, rs.platform, "
+                "  rs.articles_index_url, rs.articles_feed_kind, "
+                "  rs.articles_handles, rp.roaster_slug "
+                "FROM roaster_sources rs "
+                "JOIN roaster_profiles rp ON rp.website = rs.website "
+                "WHERE rp.roaster_slug = ?",
+                (roaster_slug,),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT rs.id, rs.website, rs.platform, "
+                "  rs.articles_index_url, rs.articles_feed_kind, "
+                "  rs.articles_handles, rp.roaster_slug "
+                "FROM roaster_sources rs "
+                "JOIN roaster_profiles rp ON rp.website = rs.website "
+                "WHERE rs.enabled = 1",
+            ).fetchall()
+
+        log(f"iterating {len(rows)} roaster(s)")
+        if not rows:
+            mark_finished(
+                db, job_id, status="succeeded",
+                log_tail="\n".join(log_lines + ["no sources to scrape"]),
+                result_summary=summary,
+            )
+            return
+
+        for row in rows:
+            slug = row["roaster_slug"]
+            website = row["website"]
+            try:
+                index_url = row["articles_index_url"]
+                kind = row["articles_feed_kind"]
+                handles_raw = row["articles_handles"]
+                handles = json.loads(handles_raw) if handles_raw else None
+
+                if not index_url or not kind:
+                    # First-time discovery for this roaster (or a
+                    # rediscovery after the cached strategy stopped
+                    # working). One Sonnet-bio probe per roaster on
+                    # first run; re-runs are cheap.
+                    discovered = article_scraper.discover(
+                        website, platform=row["platform"],
+                    )
+                    if not discovered:
+                        log(f"  {slug}: no article feed found, skipping")
+                        summary["roasters_processed"] += 1
+                        continue
+                    summary["discoveries"] += 1
+                    index_url = discovered["index_url"]
+                    kind = discovered["kind"]
+                    handles = discovered.get("handles")
+                    db.execute(
+                        "UPDATE roaster_sources SET "
+                        "  articles_index_url = ?, articles_feed_kind = ?, "
+                        "  articles_handles = ? "
+                        "WHERE id = ?",
+                        (
+                            index_url, kind,
+                            json.dumps(handles) if handles else None,
+                            row["id"],
+                        ),
+                    )
+                    db.commit()
+                    log(f"  {slug}: discovered {kind} index "
+                        f"({len(handles) if handles else 1} feed(s))")
+
+                stubs = article_scraper.enumerate_articles(
+                    website, index_url=index_url, kind=kind, handles=handles,
+                )
+                log(f"  {slug}: {len(stubs)} article(s) in index")
+
+                inserted = updated = skipped = 0
+                now_iso = _now()
+                for stub in stubs:
+                    url = (stub.get("url") or "").strip()
+                    if not url:
+                        skipped += 1
+                        continue
+                    # Atom/RSS already carry body_html; only the
+                    # sitemap + HTML strategies need a per-URL fetch.
+                    if not stub.get("body_html"):
+                        try:
+                            full = article_scraper.fetch_full_article(url)
+                            article = article_scraper.merge_full(stub, full)
+                        except Exception as e:
+                            summary["errors"].append({
+                                "slug": slug, "url": url,
+                                "message": f"{type(e).__name__}: {e}",
+                            })
+                            skipped += 1
+                            continue
+                    else:
+                        # Atom/RSS gives us the body, but og:image still
+                        # lives on the article page. One extra GET per
+                        # stub — only when the stub is image-less. This
+                        # is a deliberate trade so JOURNAL cards always
+                        # render with hero imagery.
+                        if not stub.get("image_url"):
+                            try:
+                                full = article_scraper.fetch_full_article(url)
+                                article = article_scraper.merge_full(
+                                    stub, full,
+                                )
+                            except Exception as e:
+                                # Fall back to the inline-body stub —
+                                # we still have content, just no hero.
+                                summary["errors"].append({
+                                    "slug": slug, "url": url,
+                                    "message": (
+                                        f"image fetch failed: "
+                                        f"{type(e).__name__}: {e}"
+                                    ),
+                                })
+                                article = stub
+                        else:
+                            article = stub
+                    try:
+                        outcome = article_scraper.upsert_article(
+                            db, roaster_slug=slug, article=article,
+                            now_iso=now_iso,
+                        )
+                    except Exception as e:
+                        summary["errors"].append({
+                            "slug": slug, "url": url,
+                            "message": f"upsert failed: {type(e).__name__}: {e}",
+                        })
+                        skipped += 1
+                        continue
+                    if outcome == "inserted":
+                        inserted += 1
+                    elif outcome == "updated":
+                        updated += 1
+                    else:
+                        skipped += 1
+
+                # Refresh denormalized count + scrape stamp on the
+                # source row.
+                count_row = db.execute(
+                    "SELECT COUNT(*) AS c FROM roaster_articles "
+                    "WHERE roaster_slug = ?",
+                    (slug,),
+                ).fetchone()
+                db.execute(
+                    "UPDATE roaster_sources SET "
+                    "  articles_count = ?, last_articles_scraped_at = ? "
+                    "WHERE id = ?",
+                    (count_row["c"], now_iso, row["id"]),
+                )
+                db.commit()
+
+                summary["articles_inserted"] += inserted
+                summary["articles_updated"] += updated
+                summary["articles_skipped"] += skipped
+                summary["roasters_processed"] += 1
+                log(
+                    f"  {slug}: +{inserted} inserted · "
+                    f"~{updated} updated · -{skipped} skipped",
+                )
+            except Exception as e:
+                summary["errors"].append({
+                    "slug": slug,
+                    "message": f"{type(e).__name__}: {e}",
+                })
+                log(f"  {slug}: ERROR {type(e).__name__}: {e}")
+
+        mark_finished(
+            db, job_id, status="succeeded",
+            log_tail="\n".join(log_lines)[-10_000:],
+            result_summary=summary,
+        )
+    except Exception as e:
+        log(f"unexpected error: {type(e).__name__}: {e}")
+        try:
+            mark_finished(
+                db, job_id, status="failed",
+                error_message=f"{type(e).__name__}: {e}",
+                log_tail="\n".join(log_lines)[-10_000:],
+                result_summary=summary,
+            )
+        except Exception:
+            pass
+    finally:
+        db.close()

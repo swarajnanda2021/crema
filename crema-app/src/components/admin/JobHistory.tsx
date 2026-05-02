@@ -54,7 +54,18 @@ import JobProposalsCarousel from "./JobProposalsCarousel";
 // expands when a live job is in flight so the admin doesn't have to
 // hunt for the progress strip.
 
-export function RecentEnrichmentRuns() {
+const DEFAULT_RUN_KINDS = ["scrape", "roaster_enrich", "manual_sold_out"];
+
+export function RecentEnrichmentRuns({
+  kinds = DEFAULT_RUN_KINDS,
+  title = "Recent enrichment runs",
+}: {
+  // Subset of CatalogJob['kind'] values to include in the live + recent
+  // lists. ArticlesPanel passes ["article_scrape"] to scope this widget
+  // to journal runs; default keeps the original Roasters & Beans behavior.
+  kinds?: string[];
+  title?: string;
+} = {}) {
   const jobs = useResource<CatalogJob>("jobs", { limit: 50 });
   const [expanded, setExpanded] = useState(false);
   const [logModalJob, setLogModalJob] = useState<CatalogJob | null>(null);
@@ -63,18 +74,20 @@ export function RecentEnrichmentRuns() {
   const [undoResult, setUndoResult] = useState<string | null>(null);
   const s = useStyles();
 
+  const kindSet = useMemo(() => new Set(kinds), [kinds]);
+
   // Live = anything currently in flight that the admin would think of
-  // as "an enrichment run." That covers BOTH the per-roaster catalog
-  // scrape AND the bio-enrich job kicked off by the Onboard hero
-  // (kind=roaster_enrich); the latter was previously filtered out so
-  // a fresh Onboard submission never lit up the live badge.
+  // as "an enrichment run" within this widget's scope. The default set
+  // covers Roasters & Beans (catalog scrape + bio enrich + manual
+  // sold-out); the Articles sub-tab passes ["article_scrape"] to scope
+  // the widget to journal runs only.
   const liveJob = useMemo(
     () => (jobs.data || []).find(
       (j) =>
-        ((j.kind as any) === "scrape" || (j.kind as any) === "roaster_enrich") &&
+        kindSet.has(j.kind as any) &&
         (j.status === "queued" || j.status === "running"),
     ),
-    [jobs.data],
+    [jobs.data, kindSet],
   );
 
   // Auto-expand whenever a job goes live so the admin sees progress.
@@ -93,22 +106,12 @@ export function RecentEnrichmentRuns() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveJob?.id]);
 
-  // Surface every roaster-side run, not just catalog scrapes — the
-  // Onboard hero submits as `roaster_enrich` (bio enrichment that
-  // chains its own scrape) and the per-roaster Refresh button kicks
-  // off `scrape`. Both belong in the same history list. `standardize`
-  // and `geolocate` have their own panels and stay out of here.
   const scrapeJobs = useMemo(
     () =>
       (jobs.data || [])
-        .filter(
-          (j) =>
-            (j.kind as any) === "scrape" ||
-            (j.kind as any) === "roaster_enrich" ||
-            (j.kind as any) === "manual_sold_out",
-        )
+        .filter((j) => kindSet.has(j.kind as any))
         .slice(0, 20),
-    [jobs.data],
+    [jobs.data, kindSet],
   );
 
   return (
@@ -126,7 +129,7 @@ export function RecentEnrichmentRuns() {
         ) : (
           <ChevronRight size={t.size["icon.sm"]} color={t.color["text.secondary"]} />
         )}
-        <Text style={s.recentTitle}>Recent enrichment runs ({scrapeJobs.length})</Text>
+        <Text style={s.recentTitle}>{title} ({scrapeJobs.length})</Text>
         {liveJob ? (
           <View style={s.liveBadge}>
             <View style={s.livePulse} />
@@ -473,6 +476,7 @@ export function formatRelative(iso: string): string {
 function jobLabel(kind: CatalogJob["kind"]): string {
   if ((kind as any) === "scrape") return "Enrichment";
   if ((kind as any) === "roaster_enrich") return "Bio enrichment";
+  if ((kind as any) === "article_scrape") return "Article scrape";
   if (kind === "geolocate") return "Classify";
   if (kind === "tree_validate") return "Tree";
   if ((kind as any) === "manual_sold_out") return "Manual sold-out";
@@ -503,6 +507,16 @@ function summarizeJob(job: CatalogJob): string {
   }
   if (job.kind === "geolocate") {
     return `${r.unclassified_input ?? 0} input · ${r.classified ?? 0} classified · ${r.null_resolved ?? 0} null`;
+  }
+  if ((job.kind as any) === "article_scrape") {
+    const errs = Array.isArray(r.errors) ? r.errors.length : 0;
+    return (
+      `${r.roasters_processed ?? 0} roasters · ` +
+      `+${r.articles_inserted ?? 0} new · ` +
+      `~${r.articles_updated ?? 0} updated · ` +
+      `${r.discoveries ?? 0} discoveries` +
+      (errs ? ` · ${errs} error${errs === 1 ? "" : "s"}` : "")
+    );
   }
   return "—";
 }
