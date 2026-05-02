@@ -1,0 +1,577 @@
+/**
+ * Article reader — full-page renderer for a roaster's blog/journal
+ * article. Hydrates synchronously from RoasterArticlesProvider's
+ * cache (every field except body_html), then silent-revalidates via
+ * `/articles/{id}` so the body_html slots in a tick later.
+ *
+ * Layout:
+ *   • Floating back FAB (text.primary fill, on-cta icon — same
+ *     pattern as the consumer roaster page hero back button).
+ *   • Hero image (full-width, 16:9 on mobile).
+ *   • Title (display, font.display).
+ *   • Roaster row — RoasterLogo + name → tap routes to
+ *     /roaster/{slug}; meta line (date · reading time).
+ *   • Body — htmlToBlocks() produces a flat list of native blocks
+ *     (heading, paragraph, list, image, quote, hr) rendered with
+ *     token-driven styles.
+ *   • Bottom CTA — "Read the original on [domain]" → openExternal,
+ *     tracked via /clicks with source_page='article'. The escape
+ *     hatch when the in-app renderer drops markup it doesn't know.
+ *
+ * Tap the roaster identity row → /roaster/{slug}. The back FAB
+ * routes to history when canGoBack() else replaces to JOURNAL.
+ */
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  useWindowDimensions,
+} from "react-native";
+import { Image } from "expo-image";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { ArrowLeft, ExternalLink } from "lucide-react-native";
+
+import { t, makeStyles } from "../../src/tokens/useTokens";
+import { useRoasterArticles } from "../../src/hooks/useRoasterArticles";
+import { useBreakpoint } from "../../src/hooks/useBreakpoint";
+import { apiFetchRaw, trackClick } from "../../src/api/client";
+import { thumbnailUrl } from "../../src/utils/imageUrl";
+import { openExternal } from "../../src/utils/openExternal";
+import { tap as hapticTap } from "../../src/utils/haptics";
+import { htmlToBlocks } from "../../src/utils/htmlToBlocks";
+import RoasterLogo from "../../src/components/primitives/RoasterLogo";
+import type { RoasterArticle } from "../../src/resources/types";
+
+export default function ArticlePage() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const { isMobile } = useBreakpoint();
+  const cache = useRoasterArticles();
+  const s = useStyles();
+
+  const idNum = id ? Number(id) : NaN;
+  const cached = cache.getById(idNum);
+  // Local state for the full payload (with body_html). Falls back to
+  // the cached row's body_html if it's already present (e.g. user
+  // reopened the same article from the cache after a /articles/{id}
+  // fetch).
+  const [full, setFull] = useState<RoasterArticle | null>(
+    cached && cached.body_html ? cached : null,
+  );
+  const [fetching, setFetching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!Number.isFinite(idNum)) {
+      setError("Invalid article id");
+      return;
+    }
+    if (full && full.body_html) return; // already have everything
+
+    setFetching(true);
+    apiFetchRaw<RoasterArticle>(`/articles/${idNum}`)
+      .then((res: any) => {
+        if (cancelled) return;
+        const data = res?.data ?? res;
+        if (data && data.id != null) {
+          setFull(data as RoasterArticle);
+          // Merge back into the sitewide cache so other views see the
+          // body_html without their own round-trip.
+          cache.upsert(data as RoasterArticle);
+        } else {
+          setError("Article not found");
+        }
+      })
+      .catch((e: any) => {
+        if (!cancelled) setError(e?.message || "Failed to load article");
+      })
+      .finally(() => {
+        if (!cancelled) setFetching(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idNum]);
+
+  // Article shape rendered: full payload preferred, cached stub as
+  // fallback. The cached stub doesn't carry body_html (the list
+  // endpoint excludes it for payload size).
+  const article = full || cached;
+
+  const heroSrc = useMemo(() => {
+    if (!article?.image_url) return null;
+    const w = isMobile ? 1080 : 1600;
+    return thumbnailUrl(article.image_url, w) || article.image_url;
+  }, [article?.image_url, isMobile]);
+
+  const heroHeight = isMobile
+    ? Math.round(width * (9 / 16))
+    : Math.min(540, Math.round(width * 0.4));
+
+  const blocks = useMemo(
+    () => (article?.body_html ? htmlToBlocks(article.body_html) : []),
+    [article?.body_html],
+  );
+
+  const goBack = () => {
+    hapticTap();
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)/browse?tab=journal" as any);
+  };
+
+  const openOriginal = () => {
+    if (!article?.url) return;
+    // Track as a click event on the click_events table — articles
+    // don't have a product_id, so we synthesize one from the article
+    // id ("article:42"). The traction dashboard already buckets by
+    // source_page, so 'article' is the lens that surfaces journal
+    // engagement separately from card / coffee-page clicks.
+    trackClick(`article:${article.id}`, article.roaster_slug, "article");
+    openExternal(article.url);
+  };
+
+  const goToRoaster = () => {
+    if (!article?.roaster_slug) return;
+    hapticTap();
+    router.push(`/roaster/${article.roaster_slug}` as any);
+  };
+
+  if (!article) {
+    // No cached row + first fetch in flight. Spinner full-page;
+    // there's no useful header to render until we know who wrote
+    // this.
+    return (
+      <View style={s.fullCenter}>
+        <Pressable
+          onPress={goBack}
+          style={s.backFloating}
+          accessibilityLabel="Back"
+          hitSlop={8}
+        >
+          <ArrowLeft
+            size={18}
+            color={t.color["text.on-cta"]}
+            strokeWidth={2}
+          />
+        </Pressable>
+        {error ? (
+          <Text style={s.errorText}>{error}</Text>
+        ) : (
+          <ActivityIndicator size="small" color={t.color["text.primary"]} />
+        )}
+      </View>
+    );
+  }
+
+  const dateLabel = formatDate(article.published_at || article.scraped_at);
+  const readingTime = estimateReadingTime(article.word_count);
+  const externalDomain = safeDomain(article.url);
+
+  return (
+    <ScrollView
+      style={s.page}
+      contentContainerStyle={{ paddingBottom: 64 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Hero with floating back FAB */}
+      <View style={[s.heroWrap, { height: heroHeight }]}>
+        {heroSrc ? (
+          <Image
+            source={{ uri: heroSrc }}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+            transition={200}
+          />
+        ) : (
+          <View style={s.heroFallback} />
+        )}
+        <Pressable
+          onPress={goBack}
+          style={s.backFloating}
+          accessibilityLabel="Back"
+          hitSlop={8}
+        >
+          <ArrowLeft
+            size={18}
+            color={t.color["text.on-cta"]}
+            strokeWidth={2}
+          />
+        </Pressable>
+      </View>
+
+      {/* Body column — capped width on wide viewports for readability. */}
+      <View style={[s.bodyColumn, { maxWidth: 720 }]}>
+        <Text style={s.title}>{article.title}</Text>
+
+        <Pressable
+          onPress={goToRoaster}
+          style={({ pressed }) => [s.metaRow, pressed && { opacity: 0.7 }]}
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${article.roaster_name || article.roaster_slug}'s page`}
+        >
+          <RoasterLogo
+            url={article.roaster_logo_url}
+            size={32}
+            fallbackInitial={article.roaster_name || article.roaster_slug}
+          />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={s.metaName} numberOfLines={1}>
+              {article.roaster_name || article.roaster_slug}
+            </Text>
+            <Text style={s.metaSub} numberOfLines={1}>
+              {[dateLabel, readingTime].filter(Boolean).join(" · ")}
+            </Text>
+          </View>
+        </Pressable>
+
+        {/* Body blocks. Empty while body_html is in flight; the
+            cached stub still gives us hero + meta. */}
+        {fetching && !article.body_html ? (
+          <View style={s.bodySpinner}>
+            <ActivityIndicator
+              size="small"
+              color={t.color["text.primary"]}
+            />
+          </View>
+        ) : (
+          <View style={s.blocks}>
+            {blocks.map((block, idx) => (
+              <RenderedBlock
+                key={`${block.kind}-${idx}`}
+                block={block}
+                pageWidth={width}
+              />
+            ))}
+            {blocks.length === 0 && article.excerpt ? (
+              // Body extraction came back empty but we have an
+              // og:description excerpt — render that as a single
+              // paragraph so the page isn't blank, then the bottom
+              // CTA carries the user to the original.
+              <Text style={s.paragraph}>{article.excerpt}</Text>
+            ) : null}
+          </View>
+        )}
+
+        {/* Read-on-original CTA. Always visible — even when the
+            in-app body rendered cleanly, the original page often
+            has video / interactive content the renderer skipped. */}
+        {article.url ? (
+          <Pressable
+            onPress={openOriginal}
+            style={({ pressed }) => [
+              s.externalCta,
+              pressed && s.externalCtaPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Read the original on ${externalDomain || "the roaster's site"}`}
+          >
+            <ExternalLink
+              size={t.size["icon.sm"]}
+              color={t.color["text.on-cta"]}
+              strokeWidth={2}
+            />
+            <Text style={s.externalCtaLabel}>
+              Read the original
+              {externalDomain ? ` on ${externalDomain}` : ""}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </ScrollView>
+  );
+}
+
+
+// ── Block renderer ─────────────────────────────────────────────────────────
+
+function RenderedBlock({
+  block,
+  pageWidth,
+}: {
+  block: ReturnType<typeof htmlToBlocks>[number];
+  pageWidth: number;
+}) {
+  const s = useStyles();
+  if (block.kind === "paragraph") {
+    return <Text style={s.paragraph}>{block.text}</Text>;
+  }
+  if (block.kind === "heading") {
+    const styleByLevel: Record<number, any> = {
+      1: s.h1,
+      2: s.h2,
+      3: s.h3,
+      4: s.h4,
+      5: s.h4,
+      6: s.h4,
+    };
+    return <Text style={styleByLevel[block.level]}>{block.text}</Text>;
+  }
+  if (block.kind === "quote") {
+    return (
+      <View style={s.quoteWrap}>
+        <Text style={s.quote}>{block.text}</Text>
+      </View>
+    );
+  }
+  if (block.kind === "list") {
+    return (
+      <View style={s.listWrap}>
+        {block.items.map((item, i) => (
+          <View key={i} style={s.listItemRow}>
+            <Text style={s.listMarker}>
+              {block.ordered ? `${i + 1}.` : "·"}
+            </Text>
+            <Text style={s.listItem}>{item}</Text>
+          </View>
+        ))}
+      </View>
+    );
+  }
+  if (block.kind === "image") {
+    const maxImgW = Math.min(720, pageWidth - 32);
+    const sized = thumbnailUrl(block.src, 1200) || block.src;
+    return (
+      <View style={[s.imageBlock, { width: maxImgW }]}>
+        <Image
+          source={{ uri: sized }}
+          style={[s.image, { width: maxImgW, height: maxImgW * 0.62 }]}
+          contentFit="cover"
+          transition={200}
+        />
+        {block.alt ? <Text style={s.imageAlt}>{block.alt}</Text> : null}
+      </View>
+    );
+  }
+  if (block.kind === "hr") return <View style={s.hr} />;
+  return null;
+}
+
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const ms = Date.parse(iso);
+  if (!ms) return "";
+  const d = new Date(ms);
+  return d.toLocaleString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function estimateReadingTime(words: number | null | undefined): string {
+  if (!words || words <= 0) return "";
+  const minutes = Math.max(1, Math.round(words / 200));
+  return `${minutes} min read`;
+}
+
+function safeDomain(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+
+// ── Styles ─────────────────────────────────────────────────────────────────
+
+const useStyles = makeStyles((t) => ({
+  page: {
+    flex: 1,
+    backgroundColor: t.color.bg,
+  },
+  fullCenter: {
+    flex: 1,
+    backgroundColor: t.color.bg,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: t.spacing.lg,
+  } as any,
+  heroWrap: {
+    width: "100%" as any,
+    backgroundColor: t.color["card.info"],
+    position: "relative",
+  } as any,
+  heroFallback: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: t.color["card.info"],
+  } as any,
+  // Floating FAB — text.primary fill + on-cta icon. Same shape as the
+  // consumer roaster page back button (1d1759a).
+  backFloating: {
+    position: "absolute",
+    top: 16,
+    left: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: t.color["text.primary"],
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+  } as any,
+  bodyColumn: {
+    width: "100%" as any,
+    alignSelf: "center",
+    paddingHorizontal: t.spacing.xl,
+    paddingTop: t.spacing.xl,
+    gap: t.spacing.lg,
+  } as any,
+  title: {
+    fontFamily: t.font.display,
+    fontSize: t.size["font.display"],
+    lineHeight: 38,
+    color: t.color["text.primary"],
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: t.spacing.md,
+    paddingVertical: t.spacing.sm,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: t.color.divider,
+  } as any,
+  metaName: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.md"],
+    color: t.color["text.primary"],
+  },
+  metaSub: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.muted"],
+    marginTop: 2,
+  } as any,
+  bodySpinner: {
+    paddingVertical: t.spacing["3xl"],
+    alignItems: "center",
+  } as any,
+  blocks: {
+    gap: t.spacing.lg,
+  } as any,
+  paragraph: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.lg"],
+    lineHeight: 28,
+    color: t.color["text.primary"],
+  } as any,
+  h1: {
+    fontFamily: t.font.display,
+    fontSize: t.size["font.display"],
+    lineHeight: 38,
+    color: t.color["text.primary"],
+    marginTop: t.spacing.md,
+  } as any,
+  h2: {
+    fontFamily: t.font.display,
+    fontSize: t.size["font.2xl"],
+    lineHeight: 32,
+    color: t.color["text.primary"],
+    marginTop: t.spacing.md,
+  } as any,
+  h3: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.xl"],
+    lineHeight: 26,
+    color: t.color["text.primary"],
+    marginTop: t.spacing.sm,
+  } as any,
+  h4: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.lg"],
+    lineHeight: 24,
+    color: t.color["text.primary"],
+  } as any,
+  quoteWrap: {
+    paddingLeft: t.spacing.lg,
+    borderLeftWidth: 3,
+    borderLeftColor: t.color["accent.cta"],
+    paddingVertical: t.spacing.sm,
+  } as any,
+  quote: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.lg"],
+    lineHeight: 28,
+    color: t.color["text.secondary"],
+    fontStyle: "italic",
+  } as any,
+  listWrap: {
+    gap: t.spacing.sm,
+  } as any,
+  listItemRow: {
+    flexDirection: "row",
+    gap: t.spacing.sm,
+    alignItems: "flex-start",
+  } as any,
+  listMarker: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.lg"],
+    color: t.color["text.muted"],
+    minWidth: 20,
+  } as any,
+  listItem: {
+    flex: 1,
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.lg"],
+    lineHeight: 26,
+    color: t.color["text.primary"],
+  } as any,
+  imageBlock: {
+    alignSelf: "center",
+    marginVertical: t.spacing.sm,
+    gap: t.spacing.xs,
+  } as any,
+  image: {
+    borderRadius: t.radius.md,
+    backgroundColor: t.color["card.info"],
+  } as any,
+  imageAlt: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.muted"],
+    textAlign: "center",
+  },
+  hr: {
+    height: 1,
+    backgroundColor: t.color.divider,
+    marginVertical: t.spacing.md,
+  } as any,
+  errorText: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.md"],
+    color: t.color["text.muted"],
+    textAlign: "center",
+  },
+  externalCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: t.spacing.sm,
+    marginTop: t.spacing.xl,
+    alignSelf: "flex-start",
+    paddingHorizontal: t.spacing.lg,
+    paddingVertical: t.spacing.md,
+    borderRadius: t.radius.full,
+    backgroundColor: t.color["accent.cta"],
+  } as any,
+  externalCtaPressed: { opacity: 0.85 },
+  externalCtaLabel: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.sm"],
+    letterSpacing: 0.4,
+    color: t.color["text.on-cta"],
+  } as any,
+}));

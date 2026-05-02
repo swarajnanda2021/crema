@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useMemo, useState, useEffect } from "react";
-import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
+import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, useWindowDimensions, ActivityIndicator } from "react-native";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { Image } from "expo-image";
 import { Search, X, ArrowRight, ChevronDown, ChevronRight } from "lucide-react-native";
@@ -14,6 +14,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { emit } from "../../src/utils/events";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
+import { useRoasterArticles } from "../../src/hooks/useRoasterArticles";
+import ArticleCard from "../../src/components/domain/ArticleCard";
 import { useSearchBarAutoHide } from "../../src/hooks/useSearchBarAutoHide";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { t, cardShadow, makeStyles } from "../../src/tokens/useTokens";
@@ -81,7 +83,7 @@ export default function BrowsePage() {
   const sidebarW = Math.max(160, Math.min(280, Math.round(width * 0.135)));
   const [query, setQuery] = useState("");
   const [popularity, setPopularity] = useState<Record<string, number>>({});
-  const [activeTab, setActiveTab] = useState<"beans" | "roasters">("beans");
+  const [activeTab, setActiveTab] = useState<"beans" | "roasters" | "journal">("beans");
   const [sortBy, setSortBy] = useState<string>("featured");
   const [selectedRoasters, setSelectedRoasters] = useState<string[]>([]);
   const [selectedRoasts, setSelectedRoasts] = useState<string[]>([]);
@@ -620,7 +622,17 @@ export default function BrowsePage() {
               setActiveTab("roasters");
               setTimeout(() => emit("crema:loading-end"), 350);
             }} />
-            {isMobile && (
+            <TabButton label="JOURNAL" active={activeTab === "journal"} onPress={() => {
+              if (activeTab === "journal") return;
+              emit("crema:loading-start");
+              setActiveTab("journal");
+              setTimeout(() => emit("crema:loading-end"), 350);
+            }} />
+            {/* Filter icon hides on JOURNAL — no filter dimensions in
+               v1; the tab is a chronological feed only. The roaster +
+               topic filters land in a follow-up once the feed is live
+               and we can pick the dimensions that pull weight. */}
+            {isMobile && activeTab !== "journal" && (
               <Pressable
                 onPress={() => setFilterDrawerOpen(true)}
                 style={({ pressed }) => [
@@ -776,7 +788,7 @@ export default function BrowsePage() {
             )}
           </View>
         </View>
-      ) : (
+      ) : activeTab === "roasters" ? (
         <RoastersList
           cityOptions={cityOptions}
           selectedCities={selectedCities}
@@ -786,6 +798,8 @@ export default function BrowsePage() {
           setSelectedEstates={setSelectedRoasterEstates}
           roasterEstateMap={roasterEstateMap}
         />
+      ) : (
+        <JournalList />
       )}
 
       {/* §2.34 — Mobile filter drawer. Reuses the SlidePanel primitive
@@ -1268,6 +1282,98 @@ function RoastersList({
           ))}
         </ScrollView>
       </View>
+    </View>
+  );
+}
+
+// ── JOURNAL ────────────────────────────────────────────────────────────────
+//
+// Chronological article feed — newest first, paginated by the SWR
+// cache fed via `RoasterArticlesProvider`. v1 has no filter scope
+// (the prompt explicitly defers the filter dimensions until the feed
+// is live and we can react to the actual content shape). The card
+// component (`ArticleCard`) handles its own tap → /article/[id].
+
+function JournalList() {
+  const articlesCache = useRoasterArticles();
+  const { width } = useWindowDimensions();
+  const { isMobile } = useBreakpoint();
+  const isWide = width >= 768;
+  const s = useStyles();
+
+  // Silent refetch on focus so a fresh admin scrape lands in the
+  // feed without an app reload. Same SWR pattern Discover BEANS +
+  // ROASTERS use.
+  useFocusEffect(
+    useCallback(() => {
+      articlesCache.refetch({ silent: true });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
+  );
+
+  const articles = articlesCache.articles;
+
+  // Two-column on wide viewports, one-column on mobile. The wide
+  // layout matches the BEANS grid's `GRID_PAD = 16` outer inset
+  // and a `GRID_GAP = 16` between cards so the visual rhythm reads
+  // as one product across the Discover sub-tabs.
+  const cols = isWide ? 2 : 1;
+  const GRID_PAD = 16;
+  const GRID_GAP = 16;
+  const cardWidth = useMemo(() => {
+    const inner = Math.max(0, width - GRID_PAD * 2);
+    if (cols === 1) return inner;
+    return Math.floor((inner - GRID_GAP * (cols - 1)) / cols);
+  }, [width, cols]);
+
+  const showSpinner =
+    articlesCache.loading && articles.length === 0;
+
+  return (
+    <View style={{ flex: 1 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingTop: 16,
+          paddingBottom: 100,
+          paddingHorizontal: GRID_PAD,
+          gap: GRID_GAP,
+        }}
+        onScroll={(e) => onChromeScroll(e)}
+        scrollEventThrottle={16}
+      >
+        {showSpinner ? (
+          <View style={{ paddingVertical: 64, alignItems: "center" }}>
+            <ActivityIndicator size="small" color={t.color["text.primary"]} />
+          </View>
+        ) : articles.length === 0 ? (
+          // Canonical empty state per DESIGN_LANGUAGE §6 — single
+          // line, body.regular, font.md, text.muted, centered.
+          <View style={{ paddingVertical: 96 }}>
+            <Text
+              style={{
+                fontFamily: t.font["body.regular"],
+                fontSize: t.size["font.md"],
+                color: t.color["text.muted"],
+                textAlign: "center",
+              }}
+            >
+              Nothing here yet.
+            </Text>
+          </View>
+        ) : cols === 1 ? (
+          articles.map((a) => (
+            <ArticleCard key={a.id} article={a} width={cardWidth} />
+          ))
+        ) : (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: GRID_GAP }}>
+            {articles.map((a) => (
+              <ArticleCard key={a.id} article={a} width={cardWidth} />
+            ))}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }

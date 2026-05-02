@@ -356,7 +356,7 @@ def list_articles(limit: int = 50, before: int | None = None,
     Excludes `body_html`; the reader screen fetches that via
     `/articles/{id}` only when needed.
     """
-    limit = max(1, min(int(limit or 50), 100))
+    limit = max(1, min(int(limit or 50), 500))
     where = ["a.published = 1", "rp.published = 1"]
     args: list = []
     if before is not None:

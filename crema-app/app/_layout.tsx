@@ -14,6 +14,7 @@ import { usePathname } from "expo-router";
 import { AuthProvider, useAuth } from "../src/hooks/useAuth";
 import { CoffeeDataProvider, useCoffeeData } from "../src/hooks/useCoffeeData";
 import { RoasterProfilesProvider } from "../src/hooks/useRoasterProfiles";
+import { RoasterArticlesProvider } from "../src/hooks/useRoasterArticles";
 import { NotificationsProvider } from "../src/hooks/useNotifications";
 import { DirectInboxProvider } from "../src/hooks/useDirectInbox";
 import { t, makeStyles, useTheme } from "../src/tokens/useTokens";
@@ -255,13 +256,15 @@ export default function RootLayout() {
         <AuthProvider>
           <CoffeeDataProvider>
             <RoasterProfilesProvider>
-              <NotificationsProvider>
-                <DirectInboxProvider>
-                  <AuthGate>
-                    <ThemedRoot />
-                  </AuthGate>
-                </DirectInboxProvider>
-              </NotificationsProvider>
+              <RoasterArticlesProvider>
+                <NotificationsProvider>
+                  <DirectInboxProvider>
+                    <AuthGate>
+                      <ThemedRoot />
+                    </AuthGate>
+                  </DirectInboxProvider>
+                </NotificationsProvider>
+              </RoasterArticlesProvider>
             </RoasterProfilesProvider>
           </CoffeeDataProvider>
         </AuthProvider>
@@ -329,6 +332,16 @@ function ThemedRoot() {
               headerTintColor: t.color["accent.cta"],
               headerStyle: { backgroundColor: t.color.bg },
               headerShadowVisible: false,
+            }}
+          />
+          <Stack.Screen
+            name="article/[id]"
+            options={{
+              // Article reader uses its own floating back FAB on the
+              // hero image (matching the roaster page treatment); the
+              // system header is hidden so the hero can run edge-to-
+              // edge without an empty navbar above it.
+              headerShown: false,
             }}
           />
           {/* Mobile-only destinations behind the MobileHeader
