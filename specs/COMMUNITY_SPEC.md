@@ -699,3 +699,101 @@ Blends live in tasting notes (not the shelf). When writing a note, the user togg
 **Validation:** Percentages must sum to 100. Each `product_id` must exist.
 
 **Display:** "60% Attikan Estate + 40% Gangecool" in TastingNoteDisplay.
+
+---
+
+## 19. Roaster Articles — Discover JOURNAL
+
+The third Discover sub-tab. Articles are scraped from each roaster's
+own blog/journal by the article-scraper pipeline (see
+`specs/SCRAPER_SPEC.md` §13). They surface as a chronological feed
+in `app/(tabs)/browse.tsx#JournalList`, render as `ArticleCard`s, and
+open a full-page reader at `app/article/[id].tsx`.
+
+### Tables
+
+#### `roaster_articles`
+```sql
+CREATE TABLE roaster_articles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    roaster_slug TEXT NOT NULL,
+    url TEXT UNIQUE NOT NULL,                    -- dedup key
+    title TEXT NOT NULL,
+    excerpt TEXT,
+    image_url TEXT,
+    body_html TEXT,                              -- cleaned HTML
+    word_count INTEGER,
+    published_at TEXT,                           -- ISO from feed/og/<time>
+    scraped_at TEXT NOT NULL,
+    published INTEGER NOT NULL DEFAULT 1,        -- admin curation flag
+    enrichment_status TEXT NOT NULL DEFAULT 'pending'
+);
+CREATE INDEX idx_roaster_articles_roaster ON roaster_articles(roaster_slug);
+CREATE INDEX idx_roaster_articles_published_at ON roaster_articles(published_at DESC);
+CREATE INDEX idx_roaster_articles_published ON roaster_articles(published);
+```
+
+`roaster_sources` gains five discovery-state cache columns so
+subsequent scrapes skip enumeration:
+- `articles_index_url TEXT` — the discovered Atom/RSS/sitemap URL.
+- `articles_feed_kind TEXT` — `'rss' | 'atom' | 'sitemap' | 'html'`.
+- `articles_handles TEXT` — JSON array of Shopify blog handles when
+  the discovery picked the multi-handle sitemap path.
+- `last_articles_scraped_at TEXT`.
+- `articles_count INTEGER NOT NULL DEFAULT 0` — denormalized so the
+  admin Roasters & Beans list doesn't `JOIN+COUNT` per row.
+
+### Public endpoints
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/articles?limit=&before=&roaster_slug=` | Chronological feed. Newest first by `COALESCE(published_at, scraped_at)`. Excludes `body_html` for payload size. Capped at 500 per call (the sitewide `RoasterArticlesProvider` fetches the full set in one request). |
+| `GET /api/articles/{id}` | Single article including `body_html` — what the in-app reader fetches. |
+| `GET /api/roasters/{slug}/articles?limit=` | Per-roaster article list, same shape as the feed but filtered server-side. |
+
+All three gate on `roaster_articles.published = 1 AND
+roaster_profiles.published = 1` so unreviewed roasters' articles
+never leak even via deep link.
+
+### Admin endpoints
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/admin/articles/scrape-all` | Bulk article scrape across every enabled `roaster_sources` row. Same conflict + `BackgroundTasks` shape as `/admin/scrape/run`; only one `article_scrape` may be live at a time. |
+| `POST /api/admin/roasters/{slug}/scrape-articles` | Per-roaster article scrape. Per-row Refresh button on the Articles sub-tab posts here. |
+| `GET /api/admin/articles?roaster_slug=&include_hidden=` | Admin list. `include_hidden=1` (default) returns `published=0` rows so the admin sees what they hid. |
+| `POST /api/admin/articles/{id}/publish` | Toggle visibility. Body `{ published: 0 \| 1 }`. |
+| `DELETE /api/admin/articles/{id}` | Hard-delete. Re-scrape will re-insert if the URL still resolves; use this for truly stale entries, not for hiding. |
+
+### Job kind
+
+`jobs.kind = 'article_scrape'`. Same `queued → running → succeeded`
+lifecycle as the catalog scrape. `result_summary` carries:
+- `roasters_processed: int`
+- `articles_inserted: int`
+- `articles_updated: int`
+- `articles_skipped: int`
+- `discoveries: int` — first-time discovery count (cached on
+  `roaster_sources` for subsequent runs)
+- `errors: list[{slug, url?, message}]`
+
+### Frontend wiring
+
+- `RoasterArticlesProvider` (`src/hooks/useRoasterArticles.tsx`)
+  is mounted at `app/_layout.tsx`. Eager fetch on mount; SWR via
+  `refetch({ silent })`; merges full payloads back from the reader's
+  per-id fetch via `upsert(article)`.
+- `ArticleCard` (`src/components/domain/ArticleCard.tsx`) — hero +
+  display title + RoasterLogo meta row + 2-line excerpt. Hero
+  resized via `thumbnailUrl(image_url, 800)` (see
+  `src/utils/imageUrl.ts`).
+- Reader (`app/article/[id].tsx`) — floating back FAB on hero,
+  body rendered via `htmlToBlocks` (`src/utils/htmlToBlocks.ts`)
+  which walks the cleaned HTML and emits a flat list of native
+  blocks (heading, paragraph, list, image, quote, hr). The bottom
+  "Read the original on {domain}" CTA is the escape hatch for
+  markup the renderer drops; tapping it fires `trackClick` with
+  `source_page='article'`.
+- Admin: `ArticlesPanel` (`src/components/admin/ArticlesPanel.tsx`)
+  hosts the bulk Refresh CTA + per-roaster row list +
+  `RecentEnrichmentRuns` scoped to `kind='article_scrape'`.

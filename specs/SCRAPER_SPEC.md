@@ -429,3 +429,90 @@ The refresh endpoint runs in a background thread with module isolation — it pu
 | Naivo (Wix) can't be scraped | Manual products in `manual_products.json` |
 | Cloudflare-blocked Shopify sites | Detected and reported in scrape log, skipped gracefully |
 | Module collision during unified refresh | `sys.modules` purge before importing scraper |
+
+---
+
+## 13. Article Scraper (parallel pipeline)
+
+The product scraper above feeds Discover BEANS / ROASTERS. A separate
+**article scraper** at
+`Community/coffee-community-api/services/article_scraper.py` feeds
+Discover JOURNAL — the same roaster network, different surface.
+
+It is intentionally NOT part of the `Scraper/scraper/` directory:
+
+- The product scraper writes a JSON file consumed by an `upsert` step
+  inside the API. The article scraper writes directly to the
+  `roaster_articles` table from inside the API process.
+- The product scraper runs as a CLI subprocess with SSE progress; the
+  article scraper runs as a `BackgroundTask` invoked by
+  `services/catalog_ops.run_article_scrape_job` (job kind
+  `article_scrape`).
+- The product scraper depends on platform-specific raw scraper modules
+  (`shopify_scraper.py`, `woocommerce_scraper.py`); the article
+  scraper is a single self-contained module using `requests` + `bs4`.
+
+### Discovery — strategy by platform
+
+| Platform | Strategy | Verified on |
+|---|---|---|
+| **Shopify** | `/sitemap.xml` → enumerate `sitemap_blogs_*.xml` → harvest blog handles → fetch `/blogs/<handle>.atom` for each | Black Poetry, Black Baza, Blue Tokai, Subko, Caffinary |
+| **WordPress / WooCommerce** | `/feed/` (NOT `/blog/feed/` — that's the comments-feed trap). RSS items typically carry inline HTML in `<content:encoded>` so a second per-URL fetch isn't needed except for `og:image` | Naivo |
+| **Custom / unknown** | `/feed`, `/rss`, `/atom.xml` (generic), then HTML index probes at `/blog`, `/journal`, `/articles`, `/stories`, `/blogs/news` | — |
+
+The successful strategy is cached on `roaster_sources.articles_index_url`
++ `articles_feed_kind` + `articles_handles` (JSON array for Shopify
+multi-handle) so subsequent runs skip enumeration.
+
+### Extraction
+
+For each article URL:
+
+1. **Fetch HTML** with a real User-Agent + 12-second timeout.
+2. **og: metadata** — `og:title`, `og:description`, `og:image`,
+   `og:article:published_time` (or `<time datetime>`).
+3. **Body extraction** with bs4 + `html.parser`. Selector chain:
+   `<article>` → `.article-template__content` (Shopify theme) →
+   `.rte` (Shopify rich-text-editor) → `.entry-content` (WordPress)
+   → `<main>`. `nav, header, footer, script, style,
+   [aria-hidden='true']` get `decompose()`'d before `get_text`.
+4. **HTML stored, not markdown.** No `markdownify`, no `trafilatura`,
+   no `lxml`. Atom/RSS parsed with stdlib `xml.etree.ElementTree`.
+5. **Dedup by URL.** `roaster_articles.url UNIQUE` makes re-running
+   the scrape idempotent. Per-row commits inside `upsert_article`
+   keep the SQLite writer-lock window short.
+
+### Data shape
+
+`roaster_articles`:
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | INTEGER PK | Auto-increment |
+| `roaster_slug` | TEXT NOT NULL | Joins to `roaster_profiles` |
+| `url` | TEXT UNIQUE NOT NULL | Dedup key |
+| `title` | TEXT NOT NULL | From og:title or `<title>` |
+| `excerpt` | TEXT | og:description or first `<p>` |
+| `image_url` | TEXT | og:image |
+| `body_html` | TEXT | Cleaned HTML (from extraction) |
+| `word_count` | INTEGER | Derived from text length |
+| `published_at` | TEXT | ISO from feed / og / `<time>` |
+| `scraped_at` | TEXT NOT NULL | ISO at write time |
+| `published` | INTEGER NOT NULL DEFAULT 1 | Admin curation flag |
+| `enrichment_status` | TEXT NOT NULL DEFAULT 'pending' | Reserved for future Haiku enrichment |
+
+Discovery cache columns on `roaster_sources`:
+
+- `articles_index_url TEXT`
+- `articles_feed_kind TEXT` — `'rss' | 'atom' | 'sitemap' | 'html'`
+- `articles_handles TEXT` — JSON array (Shopify only)
+- `last_articles_scraped_at TEXT`
+- `articles_count INTEGER NOT NULL DEFAULT 0`
+
+### Surfaces
+
+- Admin: Catalog Ops → **Articles** sub-tab
+  (`crema-app/src/components/admin/ArticlesPanel.tsx`).
+- Consumer: Discover → **JOURNAL** sub-tab
+  (`crema-app/app/(tabs)/browse.tsx#JournalList`).
+- Endpoints documented in `specs/COMMUNITY_SPEC.md`.
