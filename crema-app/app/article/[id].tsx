@@ -47,7 +47,10 @@ import { tap as hapticTap } from "../../src/utils/haptics";
 import { htmlToBlocks } from "../../src/utils/htmlToBlocks";
 import RoasterLogo from "../../src/components/primitives/RoasterLogo";
 import SiteHeader from "../../src/components/SiteHeader";
-import CoffeeCard from "../../src/components/CoffeeCard";
+import CoffeeCard, {
+  CARD_TARGET_WIDTH,
+  coffeeCardHeight,
+} from "../../src/components/CoffeeCard";
 import type { RoasterArticle } from "../../src/resources/types";
 
 export default function ArticlePage() {
@@ -281,9 +284,12 @@ export default function ArticlePage() {
 
         {/* "More from {roaster}" coffee carousel — closes the loop
             from sourcing-story content to a buy-the-bean intent.
-            Reads from the sitewide CoffeeData cache so painting is
-            instant; uses the same horizontal-ScrollView pattern as
-            /coffee/[id]'s related-coffees rail. */}
+            Card sizing per DESIGN_LANGUAGE §8: canonical 240-wide,
+            height computed via coffeeCardHeight() so the wrapper
+            allocates landscape height on mobile (the card flips
+            internally) and portrait height on wide. Without this
+            rule the wrapper reserves portrait height on mobile and
+            leaves dead space below the landscape variant. */}
         {roasterCoffees.length > 0 ? (
           <View style={s.coffeeRailWrap}>
             <Text style={s.coffeeRailTitle}>
@@ -294,16 +300,15 @@ export default function ArticlePage() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: 16, paddingRight: 16 }}
             >
-              {roasterCoffees.map((c: any) => (
-                <View key={c.product_id} style={{ width: 240 }}>
-                  <CoffeeCard
-                    coffee={c}
-                    width={240}
-                    height={372}
-                    compact
-                  />
-                </View>
-              ))}
+              {roasterCoffees.map((c: any) => {
+                const cardW = CARD_TARGET_WIDTH;
+                const cardH = coffeeCardHeight(cardW, isMobile);
+                return (
+                  <View key={c.product_id} style={{ width: cardW, height: cardH }}>
+                    <CoffeeCard coffee={c} width={cardW} height={cardH} />
+                  </View>
+                );
+              })}
             </ScrollView>
           </View>
         ) : null}

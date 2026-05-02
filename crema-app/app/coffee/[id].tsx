@@ -11,7 +11,11 @@ import { t, cardShadow, makeStyles } from "../../src/tokens/useTokens";
 import { pricePer250g } from "../../src/utils/formatPrice";
 import { ShareIcon, CartIcon } from "../../src/components/icons/FigmaIcons";
 import Chip from "../../src/components/Chip";
-import CoffeeCard from "../../src/components/CoffeeCard";
+import CoffeeCard, {
+  CARD_TARGET_WIDTH,
+  coffeeCardHeight,
+} from "../../src/components/CoffeeCard";
+import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import BrewMethodCard from "../../src/components/BrewMethodCard";
 import type { BrewMethod } from "../../src/resources/types";
 
@@ -25,6 +29,7 @@ export default function CoffeeDetailPage() {
   const { productMap, products } = useCoffeeData();
   const { share } = useShare();
   const router = useRouter();
+  const { isMobile } = useBreakpoint();
 
   const coffee = productMap?.get(id);
   const st = useStStyles();
@@ -123,19 +128,28 @@ export default function CoffeeDetailPage() {
             </View>
           )}
 
-          {/* Related coffees */}
-          {related.length > 0 && (
-            <View style={st.relatedSection}>
-              <Text style={st.relatedTitle}>More from {coffee.roaster_name}</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {related.map((r: any) => (
-                  <View key={r.product_id} style={{ width: 240, marginRight: 20 }}>
-                    <CoffeeCard coffee={r} width={240} height={372} compact />
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
-          )}
+          {/* Related coffees — sized per DESIGN_LANGUAGE §8 so the
+              wrapper allocates landscape height on mobile (the card
+              flips internally) and portrait on wide. */}
+          {related.length > 0 && (() => {
+            const cardW = CARD_TARGET_WIDTH;
+            const cardH = coffeeCardHeight(cardW, isMobile);
+            return (
+              <View style={st.relatedSection}>
+                <Text style={st.relatedTitle}>More from {coffee.roaster_name}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {related.map((r: any) => (
+                    <View
+                      key={r.product_id}
+                      style={{ width: cardW, height: cardH, marginRight: 20 }}
+                    >
+                      <CoffeeCard coffee={r} width={cardW} height={cardH} />
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            );
+          })()}
         </View>
         <View style={{ height: 100 }} />
       </ScrollView>

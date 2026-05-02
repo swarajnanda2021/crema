@@ -40,12 +40,39 @@ interface CoffeeCardProps {
   forceLandscape?: boolean;
 }
 
+// ── Canonical card geometry (Figma 66:6267 + 66:6268) ─────────────────
+// Exported so every call-site gets the same numbers — no magic 240 /
+// 372 / 400 sprinkled around the codebase. The card flips landscape
+// on mobile and portrait on wide via internal `useBreakpoint`; the
+// caller only controls width and is expected to allocate the
+// matching height with `coffeeCardHeight(width, isMobile)`.
+//
+// See DESIGN_LANGUAGE.md §8 for the rendering directive — every coffee-
+// card surface (Discover grid, roaster page, related-coffees rail,
+// JOURNAL article carousel) is required to follow this rule.
+export const CARD_TARGET_WIDTH = 240;
+// Discover BEANS uses 400/240 (the wrapper uses this exact aspect
+// for the grid cell). Slightly taller than the bare Figma 372 so
+// the info column has its full breathing room with no clipped
+// last-line. Used by every portrait-mode call-site.
+export const CARD_PORTRAIT_ASPECT = 400 / 240;
+// Landscape mobile (Figma 66:6267 + 66:6268): 370 × 251 frame.
+export const CARD_LANDSCAPE_ASPECT = 251 / 370;
+
+/** Compute the card height a wrapper should allocate for the
+ *  current viewport. Mobile gets the landscape frame; wide gets
+ *  the portrait frame. Use at every CoffeeCard call-site so the
+ *  wrapper doesn't reserve dead vertical space when the card flips
+ *  variant. */
+export function coffeeCardHeight(width: number, isMobile: boolean): number {
+  return Math.round(
+    width * (isMobile ? CARD_LANDSCAPE_ASPECT : CARD_PORTRAIT_ASPECT),
+  );
+}
+
 // Figma: image 160/372, info 212/372 (portrait, web wide)
 const IMAGE_RATIO = 160 / 372;
-// Landscape (mobile, Figma 66:6267 + 66:6268): 370 × 251 frame,
-// left image 180 × 251, right info 190 × 251, both with matching
-// inner radius on the outer edges only.
-const LANDSCAPE_ASPECT = 251 / 370;
+const LANDSCAPE_ASPECT = CARD_LANDSCAPE_ASPECT;
 const LANDSCAPE_IMG_RATIO = 180 / 370;
 const SHELF_KEYS: ShelfKey[] = ["open_bags", "on_the_list"];
 const BTN_SIZE = 31;

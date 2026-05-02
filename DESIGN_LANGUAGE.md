@@ -277,7 +277,74 @@ Quick lookups:
 
 ---
 
-## 7. Pre-flight checklist
+## 7. CoffeeCard rendering — single canonical surface
+
+`CoffeeCard` is the only coffee surface anywhere in the app —
+Discover BEANS grid, roaster page, profile shelves, related-
+coffees rail on `/coffee/[id]`, the JOURNAL article's "More
+from {roaster}" rail, the admin scrape-proposals carousel, and
+every future buy-this-bean affordance. There must not be a
+parallel "lighter" or "carousel-only" variant. **Every coffee
+card the user sees follows the rules below.**
+
+### Geometry (Figma 66:6267 + 66:6268)
+
+The constants live in `crema-app/src/components/CoffeeCard.tsx`
+and are exported for every call-site:
+
+| Constant | Value | Used for |
+|---|---|---|
+| `CARD_TARGET_WIDTH` | `240` | Default card width on every surface — both grids and carousels. |
+| `CARD_PORTRAIT_ASPECT` | `400 / 240` | Wide / web height = `width × 1.667`. |
+| `CARD_LANDSCAPE_ASPECT` | `251 / 370` | Mobile height = `width × 0.679`. |
+
+The card flips landscape on mobile and portrait on wide via its
+internal `useBreakpoint().isMobile` check. **The wrapper's job
+is to allocate matching height** so the variant doesn't sit
+inside dead vertical space. Use the helper:
+
+```ts
+import CoffeeCard, {
+  CARD_TARGET_WIDTH,
+  coffeeCardHeight,
+} from "../../src/components/CoffeeCard";
+
+const cardW = CARD_TARGET_WIDTH;
+const cardH = coffeeCardHeight(cardW, isMobile);
+
+<View style={{ width: cardW, height: cardH }}>
+  <CoffeeCard coffee={c} width={cardW} height={cardH} />
+</View>
+```
+
+`CoffeeList.tsx` is the canonical reference implementation —
+its grid does the same calc per cell.
+
+### What you may NOT do
+
+- Hardcode `width: 240, height: 372` (or any literal). The card
+  will render landscape on mobile and leave 200+ px of dead space
+  below. Always go through `coffeeCardHeight()`.
+- Wrap the card in a smaller frame to "make it tighter". The
+  Figma frame is 240 wide for a reason — narrower cards clip the
+  info column and make the price chip overflow.
+- Override the variant manually with `forceLandscape` outside
+  admin Catalog Ops. That prop exists only because the admin
+  carousel needs landscape on web wide too; consumer surfaces
+  must let the viewport decide.
+- Build a parallel `<MiniCoffeeCard />` / `<CarouselCoffeeCard />`
+  / `<RelatedCoffeesCard />`. Every card surface ships through
+  `<CoffeeCard />`. Compose, don't fork.
+
+### Pre-flight check (additive to §8 below)
+
+Before adding a coffee card to any surface, the wrapper code MUST
+import `coffeeCardHeight` and apply it. If you find yourself
+typing `height: 372` literally, stop — read this section.
+
+---
+
+## 8. Pre-flight checklist
 
 Run this in your head before any UI commit:
 
@@ -293,6 +360,9 @@ Run this in your head before any UI commit:
 - [ ] Layout branches on `useBreakpoint`, not `Platform.OS`.
 - [ ] Identity treatment: `CroppedAvatar` for people, `RoasterLogo`
       for roasters.
+- [ ] CoffeeCard surfaces use `<CoffeeCard />` directly (no fork);
+      wrapper allocates `coffeeCardHeight(width, isMobile)`,
+      never a hardcoded literal — see §7.
 - [ ] House-pattern check: looked at the nearest existing peer
       screen and mirrored its structural moves.
 - [ ] Empty state uses the canonical "Nothing here yet" line.

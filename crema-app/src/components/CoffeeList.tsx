@@ -2,15 +2,19 @@ import { useState, useCallback } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, LayoutChangeEvent, NativeSyntheticEvent, NativeScrollEvent, Platform } from "react-native";
 import { t, makeStyles } from "../tokens/useTokens";
 import { useBreakpoint } from "../hooks/useBreakpoint";
-import CoffeeCard from "./CoffeeCard";
+import CoffeeCard, {
+  CARD_TARGET_WIDTH,
+  CARD_PORTRAIT_ASPECT,
+  CARD_LANDSCAPE_ASPECT,
+} from "./CoffeeCard";
 import CoffeeDetailSheet from "./CoffeeDetailSheet";
 import * as Haptics from "expo-haptics";
 
 const PAGE_SIZE = 24;
-const GAP = 20;                    // Figma: 20px between cards
-const TARGET_CARD_W = 240;         // Figma target card width
-const CARD_ASPECT = 400 / 240;     // Portrait (web wide): Figma 372 + ~28px
-const LANDSCAPE_ASPECT = 251 / 370; // Landscape (mobile): Figma 66:6267/6268
+const GAP = 20;                          // Figma: 20px between cards
+const TARGET_CARD_W = CARD_TARGET_WIDTH; // Canonical 240 (DESIGN_LANGUAGE §8)
+const CARD_ASPECT = CARD_PORTRAIT_ASPECT;
+const LANDSCAPE_ASPECT = CARD_LANDSCAPE_ASPECT;
 const GRID_PAD = 16;
 
 interface CoffeeListProps {
