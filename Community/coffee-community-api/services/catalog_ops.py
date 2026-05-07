@@ -1957,11 +1957,24 @@ def run_article_scrape_job(job_id: int, *,
 
     try:
         mark_running(db, job_id)
-        log(f"starting article scrape (scope={roaster_slug or 'all enabled'})")
+        log(f"starting article scrape (scope={roaster_slug or 'all published'})")
 
         # Pull the source rows we'll iterate. JOIN to roaster_profiles
         # so we have the slug (sources is keyed on website, but the
         # public articles surface is keyed on roaster_slug).
+        #
+        # NOTE: bulk article scrape does NOT gate on `rs.enabled = 1`.
+        # The enabled flag is a CATALOG-scrape concept — it means the
+        # roaster's product page is verified parseable enough to crawl
+        # for beans. Article scraping has different cost/value
+        # tradeoffs: discovery itself is the gate (no Atom feed → no
+        # articles), there's no LLM-per-product cost, and there's no
+        # admin proposals workflow to review. Filtering on `enabled`
+        # would hide article opportunities from 90+ roasters that have
+        # perfectly fine blogs but no verified product catalog yet.
+        # Gate on `roaster_profiles.published = 1` instead so we don't
+        # spend cycles on draft/unreviewed roasters whose articles
+        # wouldn't surface to consumers anyway.
         if roaster_slug:
             rows = db.execute(
                 "SELECT rs.id, rs.website, rs.platform, "
@@ -1979,7 +1992,7 @@ def run_article_scrape_job(job_id: int, *,
                 "  rs.articles_handles, rp.roaster_slug "
                 "FROM roaster_sources rs "
                 "JOIN roaster_profiles rp ON rp.website = rs.website "
-                "WHERE rs.enabled = 1",
+                "WHERE rp.published = 1",
             ).fetchall()
 
         log(f"iterating {len(rows)} roaster(s)")
