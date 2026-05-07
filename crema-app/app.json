@@ -20,7 +20,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#FAF7F2"
+        "backgroundColor": "#D798DA"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.crema.app"
