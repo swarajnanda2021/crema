@@ -160,7 +160,6 @@ export default function ArticlesPanel() {
       articles_count: number;
       last_articles_scraped_at: string | null;
       articles_feed_kind: string | null;
-      enabled: boolean;
     };
     const list: Row[] = (roasters.data ?? []).map((p) => {
       const src = p.website ? byWebsite.get(p.website) : undefined;
@@ -173,7 +172,6 @@ export default function ArticlesPanel() {
         articles_count: src?.articles_count ?? 0,
         last_articles_scraped_at: src?.last_articles_scraped_at ?? null,
         articles_feed_kind: src?.articles_feed_kind ?? null,
-        enabled: src ? !!src.enabled : false,
       };
     });
     list.sort((a, b) => {
@@ -294,7 +292,6 @@ type ArticleRoasterRowProps = {
     articles_count: number;
     last_articles_scraped_at: string | null;
     articles_feed_kind: string | null;
-    enabled: boolean;
   };
   isLastRow: boolean;
   isSubmitting: boolean;

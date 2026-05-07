@@ -47,26 +47,26 @@ def _now() -> str:
 
 
 def write_input_catalog(db, *, roaster_slug: str | None = None) -> int:
-    """Render every `enabled=1` `roaster_sources` row into the JSON file the
+    """Render every scrapable `roaster_sources` row into the JSON file the
     scraper reads. Returns the number of sources written.
 
-    When `roaster_slug` is set, scope to just that one roaster — used by
-    the BEANS-tab dropdown so the admin can pull a single roaster's
-    inventory without re-running the catalog. The slug resolves through
-    `roaster_profiles.website` → `roaster_sources.website`, so a Tab-1
-    enrichment is what unlocks Tab-2 scraping.
+    Scrapable = `shop_url IS NOT NULL AND platform IS NOT NULL`. The
+    `roaster_sources.enabled` flag is no longer consulted: there's no
+    UI to flip it (removed earlier from the admin surface), so it
+    only ever held a stale snapshot of "verified at first-boot
+    seed". Gating bulk scrapes on it meant 92 of 96 published
+    roasters were silently excluded from any "Enrich all" run.
+
+    When `roaster_slug` is set, scope to just that one roaster — used
+    by the per-roaster Refresh button so the admin can pull a single
+    roaster's inventory without re-running the catalog.
 
     Latitude / longitude default to 0 because the prompt schema for
-    `roaster_sources` doesn't track them — the scraper itself doesn't need
-    them, but normalizers may pass them through to product output.
+    `roaster_sources` doesn't track them — the scraper itself doesn't
+    need them, but normalizers may pass them through to product
+    output.
     """
     if roaster_slug:
-        # Per-roaster scrape: the admin explicitly picked this one and
-        # tapped Enrich, so the `enabled` flag is irrelevant — the
-        # button IS the kick. As long as the source row has a
-        # `shop_url` + `platform` (the scrape_ready gate), we run.
-        # The `enabled=1` filter only governs the bulk "Enrich all"
-        # mode where we scrape every active source in one job.
         rows = db.execute(
             "SELECT rs.name, rs.website, rs.shop_url, rs.platform, "
             "       rs.city, rs.state "
@@ -80,7 +80,9 @@ def write_input_catalog(db, *, roaster_slug: str | None = None) -> int:
     else:
         rows = db.execute(
             "SELECT name, website, shop_url, platform, city, state "
-            "FROM roaster_sources WHERE enabled = 1 ORDER BY name ASC"
+            "FROM roaster_sources "
+            "WHERE shop_url IS NOT NULL AND platform IS NOT NULL "
+            "ORDER BY name ASC"
         ).fetchall()
     catalog = []
     for r in rows:
@@ -941,13 +943,13 @@ def stamp_sources_scraped(db, *, roaster_slug: str | None = None) -> int:
       • `roaster_slug` set — per-roaster run from the roaster page.
         Stamps every source row whose website matches THIS roaster's
         profile.website (case-insensitive, www./trailing-slash drift
-        tolerated). Honors enabled=0 too: the per-roaster run path
-        deliberately ignores the enabled flag (the button IS the
-        kick), so the stamp must too. Without this, freshly-enriched
-        roasters showed "Catalog not enriched yet" forever because
-        the legacy `enabled=1` filter excluded them.
-      • `roaster_slug` None — bulk run. Falls back to the legacy
-        behaviour: stamp every enabled source.
+        tolerated).
+      • `roaster_slug` None — bulk run. Stamps every scrapable
+        source row (`shop_url IS NOT NULL AND platform IS NOT NULL`)
+        — same gate `write_input_catalog` uses for which sources
+        actually got crawled, so the stamp set matches the scrape
+        set. The legacy `enabled=1` gate was retired alongside the
+        admin UI's Enabled pill.
     """
     now = _now()
     if roaster_slug:
@@ -969,7 +971,8 @@ def stamp_sources_scraped(db, *, roaster_slug: str | None = None) -> int:
         db.commit()
         return cur.rowcount
     cur = db.execute(
-        "UPDATE roaster_sources SET last_scraped_at = ? WHERE enabled = 1",
+        "UPDATE roaster_sources SET last_scraped_at = ? "
+        "WHERE shop_url IS NOT NULL AND platform IS NOT NULL",
         (now,),
     )
     db.commit()

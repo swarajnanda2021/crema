@@ -1399,10 +1399,12 @@ def admin_scrape_run(body: dict = None, background_tasks: BackgroundTasks = None
     polls `/api/jobs/{id}` until status leaves 'running'.
 
     Body:
-      `roaster_slug` (optional): scope to a single roaster's enabled
-        source — what the per-roaster Coffees-section CTA sends. When
-        omitted, every enabled `roaster_sources` row gets crawled
-        (the legacy "all sources" path).
+      `roaster_slug` (optional): scope to a single roaster's source —
+        what the per-roaster Coffees-section CTA sends. When omitted,
+        every scrapable `roaster_sources` row gets crawled (every
+        row with `shop_url + platform` set; the `enabled` flag is
+        no longer consulted — it has no UI to flip and was retired
+        alongside the admin Enabled pill).
       `regenerate_prompt` (optional, default false): force regeneration
         of the per-roaster site prompt addendum after the run
         completes. Only meaningful when `roaster_slug` is set —

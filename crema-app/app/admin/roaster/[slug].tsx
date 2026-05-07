@@ -20,7 +20,7 @@
  *   3. About blurb (multi-line edit, debounced PUT on blur).
  *   4. Specialties chip row (read-only for now).
  *   5. Location fields (city / state — inline edit).
- *   6. Scrape settings (website / shop_url / platform + Enabled pill).
+ *   6. Scrape settings (website / shop_url / platform).
  *   7. Action row (Re-enrich link + Remove destructive).
  *
  * The page is the natural surface to "progressively fill" as more
