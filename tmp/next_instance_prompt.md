@@ -1,424 +1,557 @@
-# Prompt for next Claude instance — Discover "Journal" tab (roaster blog ingestion)
+# Prompt for next Claude instance — Journals admin v2 + scrape pathology fixes
 
 > Paste this as the first message to a fresh Claude Code session in
 > `/Users/swarajnanda/Coffee_Aggregator`. Branch: `feat/mobile-readiness`
-> (still active — cut a sub-branch off it if Journal ends up spanning
-> several PRs).
-> Don't open with a recap; pick up the task directly.
-
----
-
-## Pre-flight — catch up on uncommitted work
-
-Run `git status` first. The working tree carries the user's local
-Scraper run output:
-
-- `Scraper/input/verified_roasters_catalog.json`
-- `Scraper/output/{images_manifest.json, products.json, products.xlsx, scrape_log.json}`
-
-These are routine scraper-cycle artifacts, not session work. **Don't
-auto-commit them.** Confirm with the user whether the latest run is
-the canonical state worth checkpointing, or whether to leave them
-uncommitted. If the user says "commit them", stage just those files
-and ship a `chore(scraper): refresh catalog + product data` commit
-before starting Journal work.
-
-Verify the branch is `feat/mobile-readiness`. Recent commits
-(most recent first) describe the immediate prior context:
-
-- `bfb8e8e` filter drawer — `dimBackdrop={false}` keeps partial
-  width but clears the dim/blur on the underlying app
-- `e8c2d89` RoasterRow — full-width row + edge-to-edge divider
-- `e00d49c` profile — `stickyHeaderIndices` corrected from `[2]`
-  → `[1]` after Fabric was eliding the inactive hero slot from
-  the native tree (this was THE Catalog Ops scroll bug)
-- `89c8810` `router.back()` calls now guard with `canGoBack()` and
-  fall back to `/profile?tab=catalog` (admin/roaster) or
-  `/(tabs)/browse` (consumer roaster)
-- `1d1759a` roaster chrome — back/delete buttons + hero + leftPanel
-  text now use the FAB pattern + `text.on-dark` for legibility
-- `ec7476a` palette standardization — line tokens collapsed to one
-  tier per mode; tab labels use `text.muted`/`text.primary`;
-  `accent.cta` retired as tab-underline color (was Crema pink in
-  dark mode); DESIGN_LANGUAGE.md auto-loaded via CLAUDE.md
-- `de07a20` `LAUNCH_TODO §3.4` expanded into the moderation +
-  legal-docs workplan (parked behind the iOS-launch trigger)
+> (live).
+> Don't open with a recap — pick up the task.
 
 ---
 
 ## TL;DR
 
-Add a third tab to Discover — **JOURNAL** — alongside BEANS and
-ROASTERS. The tab surfaces blog / journal articles published by
-roasters on their own sites. The existing roaster-enrichment
-pipeline focuses on bio + product catalog; we now extend it to
-discover, scrape, and store roaster blog articles, then render
-them in a chronological feed inside Crema.
+Make the admin **Journals** sub-tab as detailed as Roasters & Beans
++ Standardization. Fix the scraping pathologies the bulk run
+surfaced (off-topic content like founder bios + spirituality
+articles, broken Haiku body extraction, missing hero images, no
+tags). Add per-roaster Haiku site-quirk hint (analogous to the
+existing bean-enrichment hint). Make articles searchable sitewide
+via Haiku-generated tags.
 
-Why now (per `NORTH_STAR.md` field findings): "micro-roasters don't
-want to lead with tasting notes; they want to tell the sourcing
-story — the farm, the relationship, the processing". Journal is
-the surface where those stories live. The feed becomes the second
-discovery channel after BEANS, and a strong reason for consumers
-to open Crema even when they're not shopping.
-
-This is substantial — plan for 6-10 hours of focused work. There
-are several reasonable scopes; default to **Phase 1: scraper +
-storage + Discover tab + simple in-app reader**. Defer Haiku
-summarization / categorization unless the user asks otherwise.
+The bulk article scrape ran end-to-end against all 96 published
+roasters and landed **173 articles across 16 roasters**. Most of
+the remaining 80 roasters have no discoverable feed (Wix sites,
+custom-built sites without `/feed` or `sitemap`); a few have
+discoverable feeds but the content has problems we now need to
+address.
 
 ---
 
-## Hard rules — read first
+## Decisions already locked (do NOT re-ask)
 
-1. **Do not start dev servers from Bash or `preview_start`.** The
-   user runs their own Metro on device. The PostToolUse hook will
-   nag about preview servers — ignore it explicitly with a one-line
-   acknowledgement and continue.
-2. **Palette discipline is the dual-track refined rule** (see
-   `DESIGN_LANGUAGE.md` §1, auto-loaded via CLAUDE.md). Three brand
-   colors plus the light-mode functional neutrals plus exactly two
-   named opaque hexes in dark mode (`#684F44` for lines, `#C7BAA5`
-   for `text.muted`). No new dark-mode hexes. Re-read §1 before any
-   color edit; don't trust memory.
-3. **Phase-1 wireframe fidelity** (per `NORTH_STAR.md`). No animations
-   beyond what's already shipped. No gold accents, alert reds,
-   success greens. Article surfaces still feel native to the app.
-4. **Don't reach for new colors for "tags" / "categories".**
-   Crema-pink (`accent` `#D798DA`) is reserved for post-action
-   icons (like, comment, share). Tags on articles, if shown, use
-   the existing `tag.bg` / `tag.text` pair.
-5. **`accent.cta` is NOT a tab-underline color.** The active tab
-   underline on the new JOURNAL tab uses `text.primary` (matches
-   BEANS / ROASTERS); the underline flips to Crema White in dark.
+User locked these in the previous session — implement directly:
+
+1. **Multi-select** = checkboxes on every row + sticky "Refresh N
+   selected" CTA replacing the bulk hero when anything's selected.
+2. **Per-roaster article curation** = inline expand of the row in
+   the Journals panel (not a click-through to `/admin/roaster/[slug]`).
+   The expanded card shows the site-quirk hint AND a scrollable
+   list of the roaster's articles with show/hide toggle per
+   article.
+3. **Site-quirk hint timing** = generate after first scrape that
+   returns ≥1 enriched article (NOT ≥3). Auto-trigger, no admin
+   opt-in needed for the first generation.
+4. **Hero image must be recovered** for every article. The current
+   pipeline leaves G-Shot 2/2 + Aromas 1/9 with `image_url=NULL`.
+5. **Coffee-relevance is a HARD gate**. Founder bios (Black Baza
+   `/blogs/team/`) + Tibetan pulsing essays (G-Shot) + Osho commune
+   posts must be filtered out — these are real articles on the
+   site but topically off-brand for a coffee app.
+6. **Haiku also generates `tags[]`** per article. Tags drive
+   sitewide search (the navbar `<SearchDropdown />` should surface
+   matching articles).
+7. **Filter drawer + sort** on the Journals panel can wait — ship
+   it later if needed.
 
 ---
 
-## Workstream — Journal end-to-end
+## Symptoms confirmed in live data (concrete cases to fix)
 
-The work has four mostly-independent layers. Order them so each
-tier produces a working surface even if the next tier is deferred.
+After the bulk scrape (DB at session start):
 
-### Layer A — Backend data + endpoints (~2 h)
+### Pathology 1 — Off-topic content slipped through
 
-#### A.1 Schema migration
+| Roaster | Article | Why it's wrong |
+|---|---|---|
+| Black Baza `[26-28]` | "Radha Rangarajan", "Dr Arshiya Bose", "Dr Suri Venkatachalam" | These are **founder bio pages** at `/blogs/team/<slug>`. Discovery enumerated the `team` blog handle as if it were an article handle. Haiku's `body_html` came back as `<small class="tax-note">Taxes included…</small>` — Shopify product-page boilerplate that bled into the page text. word_count = 8 each. |
+| G-Shot `[60-61]` | "What is a Commune?" / "Explanation of Tibetan Pulsing" | Real article body extraction works; topic is Osho spirituality, not coffee. |
+| (likely others, audit needed) | — | — |
 
-New table in `community.db` via the `_MIGRATIONS` list in
-`Community/coffee-community-api/database.py` (idempotent ALTER
-pattern; gate on `PRAGMA user_version`). Suggested shape — verify
-naming against existing conventions before writing:
+**Two distinct sub-bugs:**
+- **Discovery overreach**: Shopify's blog-handle enumeration via
+  `sitemap_blogs_*.xml` walks every handle including `team`,
+  `policies`, `about`, etc. Handle filter needed.
+- **Topic relevance**: Even when discovery is correct, the page
+  itself can be off-topic. Haiku needs a coffee-relevance gate.
 
+### Pathology 2 — Broken body extraction (word_count = 0 on real articles)
+
+Black Baza `[4-5]` ("Decoding the Black Baza Bag", "Brewing
+Basics") at `/blogs/brewing-guides/...` came back with
+word_count = 0 and short body. These look like real articles
+that the extractor failed on — the brewing-guides handle is a
+known good source elsewhere.
+
+Investigate: do those pages render their body via JS? Have an
+unusual content container? Run them through `extract_for_enrichment`
+manually and see what the cleaned page text contains.
+
+### Pathology 3 — Hero image missing on some sites
+
+Image coverage from the bulk scrape:
+
+| Roaster | Total | NULL image_url |
+|---|---|---|
+| g-shot-coffee-roastery-cafe | 2 | **2** (100%) |
+| aromas-of-coorg | 9 | 1 |
+| devans-south-indian | 15 | 5 (33%) |
+| (others) | varies | mostly 0 |
+
+Cause: `og:image` is absent from those pages AND the current
+fallback chain doesn't try in-body `<img>` tags. The cascade in
+`catalog_ops.run_article_scrape_job`:
+
+```python
+external_image = (
+    enriched.get("image_url")
+    or extracted["og_image"]
+    or fallback.get("image_url")
+)
+```
+
+`fallback["image_url"]` is set only from og:image in
+`_extract_html_article`. Need a real fallback to "first prominent
+body `<img>`" (≥600px wide, not a logo/icon, not an external
+service like Twitter/Facebook).
+
+### Pathology 4 — Devans articles look truncated (but actually aren't)
+
+User reported Devans articles look incomplete. Investigation:
+they ARE genuinely short. Devans wraps each article around an
+**infographic JPG** — the meaningful content is rendered as an
+image, not as text. The full page text is ~900 chars regardless
+of how long the article "looks".
+
+Implications:
+- Don't gate on `word_count >= N` alone — it'll wrongly reject
+  these legit infographic-format articles.
+- The reader screen + ArticleCard already render `image_url` as
+  hero. The infographic IS the content. No extraction fix
+  available; accept these as legit short-text-plus-image articles.
+- The site-quirk hint *could* tell Haiku "Devans articles are
+  often infographic-driven — preserve the body even when it
+  reads as just two paragraphs surrounding an image."
+
+### Pathology 5 — Orphan-recovery races CLI script jobs
+
+The bulk scrape script ran as a CLI Python process while uvicorn
+was also running. Uvicorn's `recover_orphan_jobs` boot pass
+(see `services/catalog_ops.py:recover_orphan_jobs`) saw the
+script's `running` job row and flipped it to `failed` with
+"Server restarted while job was running…". The script kept
+working — articles + images all wrote — but the jobs row tells
+a misleading story.
+
+Fix at the lookup-side: `recover_orphan_jobs` should be safe to
+keep firing (it's the right move for actually-dead workers), but
+the CLI script should mark its own job `'succeeded'` even if the
+status was already flipped to `'failed'` by the boot pass — or
+better, attribute jobs to a runner identity so the recovery only
+flips jobs whose runner doesn't exist anymore.
+
+This is a small follow-up; not blocking the v2 work.
+
+---
+
+## Workstream — staged so each layer is shippable
+
+Order matters: fix the scrape (Layer A) **before** the admin UI
+(Layer C). The new admin surface needs to render real, vetted
+data; if the scrape still produces founder bios + spirituality
+posts, the admin tab just becomes a triage tool.
+
+### Layer A — Scraping pathology fixes
+
+**A1. Discovery handle filter (Shopify only).**
+In `services/article_scraper.py:_shopify_blog_handles_from_sitemap`,
+filter the enumerated handles to drop obvious non-article ones:
+`team`, `about`, `about-us`, `policies`, `contact`, `legal`,
+`pages`, `careers`, `press`, `terms`. Add a `_NON_ARTICLE_HANDLES`
+constant. Apply BEFORE returning the handle list.
+
+This alone removes Black Baza ids 26-28.
+
+**A2. Coffee-relevance gate in Haiku enricher.**
+Extend `services/article_enricher.py`'s `_ARTICLE_TOOL` schema
+with two new fields:
+
+```jsonc
+{
+  "is_article": true,
+  "is_about_coffee": true,        // NEW — coffee, brewing, sourcing,
+                                  // origins, processing, café culture,
+                                  // roasting, tasting; NOT general
+                                  // wellness/spirituality/lifestyle
+                                  // even if the page lives on a
+                                  // coffee site
+  "topic_category": "sourcing_story" | "brew_guide" | "origin_profile"
+                  | "industry_news" | "harvest_report" | "tasting_notes"
+                  | "company_update" | "other"  // NEW
+  "tags": ["..."],                // NEW — see A3
+  // ...existing fields
+}
+```
+
+Update `_ARTICLE_SYSTEM` prompt to be explicit:
+- "These articles surface in a coffee-discovery app called Crema.
+   The audience is specialty-coffee drinkers."
+- "Reject pages that aren't ABOUT coffee, even if they're hosted
+   on a coffee-roaster's site — author bios, café-event recaps
+   without coffee content, philosophical/spiritual essays, general
+   wellness posts, founder profiles, team pages."
+- "Acceptable: sourcing stories, brewing guides, origin profiles,
+   harvest reports, processing techniques, café culture, roasting,
+   tasting notes, industry news, company updates that mention
+   beans/equipment."
+
+In `run_article_scrape_job`:
+- If `is_article=False` → skip (existing behavior)
+- If `is_about_coffee=False` → write the row with `published=0`
+  (NOT delete; admin can still see + un-hide if Haiku is wrong).
+  Increment a new `summary["off_topic_skipped"]` counter.
+
+**A3. Tags from Haiku.**
+Add to `_ARTICLE_TOOL` schema (alongside the new gate fields above):
+
+```jsonc
+"tags": {
+  "type": "array",
+  "items": {"type": "string"},
+  "description": "3-7 lowercase keyword tags. Examples: ['ethiopia','natural-process','pour-over','single-origin','brewing'], ['arabica','robusta','blends'], ['estate','smallholder','western-ghats']. Used for sitewide search. Avoid generic tags like 'coffee' — every article is about coffee."
+}
+```
+
+Schema migration: `roaster_articles` gets `tags TEXT` (JSON
+array). Index for LIKE-search. Start with simple `LIKE '%tag%'`
+queries on the `tags` column treated as a JSON string; upgrade
+to FTS5 only if performance demands it.
+
+**A4. Hero image fallback to body-img.**
+In `services/article_scraper.py:_extract_html_article`, add a
+"first prominent body img" pass:
+
+```python
+# When og:image is absent, scan the body for a hero candidate.
+if not image_url and body_node is not None:
+    for img in body_node.find_all("img", src=True):
+        src = urljoin(base_url, img["src"])
+        # Skip data-uris, logos, tracking pixels, social-icons.
+        if src.startswith("data:"): continue
+        if any(skip in src.lower() for skip in
+               ("logo", "icon", "favicon", "twitter.com",
+                "facebook.com", "pixel", "1x1", "spacer")):
+            continue
+        # First reasonable img wins — Haiku will be asked to
+        # confirm it's a hero downstream.
+        image_url = src
+        break
+```
+
+Also update `extract_for_enrichment`'s hint cascade so when og:image
+is empty, Haiku gets the body-img candidate as the og:image hint
+(it's the closest thing the page offers).
+
+**A5. Word-count gate is conditional.**
+Don't add a generic `word_count >= 50` gate (would reject
+legit infographic articles like Devan's). Instead: the
+`is_about_coffee` gate is the primary filter. As secondary
+guard: if `body_html` AND `image_url` are both empty, skip
+(nothing to render).
+
+### Layer B — Per-roaster Haiku site-quirk hint
+
+Mirrors `services/site_prompt_generator.py` (the bean-enricher
+hint). Build a parallel pipeline for articles.
+
+**B1. Schema columns on `roaster_profiles`:**
 ```sql
-CREATE TABLE IF NOT EXISTS roaster_articles (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    roaster_slug    TEXT    NOT NULL,
-    url             TEXT    UNIQUE NOT NULL,           -- canonical article URL
-    title           TEXT    NOT NULL,
-    excerpt         TEXT,                               -- 1-2 sentence summary
-    image_url       TEXT,                               -- hero image
-    body_md         TEXT,                               -- cleaned markdown of full article
-    word_count      INTEGER,
-    published_at    TEXT,                               -- ISO from <time> / og:article:published_time / RSS
-    scraped_at      TEXT    NOT NULL,                   -- when we ingested
-    enrichment_status TEXT  NOT NULL DEFAULT 'pending'  -- pending | enriched | failed
-);
-CREATE INDEX IF NOT EXISTS idx_articles_roaster ON roaster_articles(roaster_slug);
-CREATE INDEX IF NOT EXISTS idx_articles_published ON roaster_articles(published_at DESC);
+ALTER TABLE roaster_profiles
+  ADD COLUMN article_enrichment_prompt_hint TEXT;
+ALTER TABLE roaster_profiles
+  ADD COLUMN article_enrichment_prompt_hint_updated_at TEXT;
 ```
 
-`url UNIQUE` is the dedup key. Re-running the scraper for a roaster
-should be idempotent (skip rows with matching URL).
+**B2. New `services/article_site_prompt_generator.py`:**
+Sample 3-5 enriched articles for THIS roaster (biased toward
+extraction-completeness, with one sparse sample so failure modes
+get captured). Pass page-text excerpts + Haiku outputs to Sonnet
+with a meta-prompt that asks for a 1-2 paragraph addendum
+capturing THIS roaster's quirks:
+- footer noise the bs4 strip missed
+- pull-quote convention
+- recurring section delimiters
+- stale `<img src>` URL forms (HTTP-vs-HTTPS, www-vs-bare)
+- date format if non-standard
+- whether infographic-driven (so Haiku doesn't reject the body)
 
-#### A.2 Endpoints (`routes/specific.py` or a new `routes/articles.py`)
+Token budget: ~8K input + 200 output Sonnet tokens, prompt-cached
+system block. ~$0.03 per generation.
 
-Match the existing `@router.get(...)` patterns in
-`routes/specific.py`:
+**B3. Trigger location:**
+End of the per-source loop in `run_article_scrape_job`, AFTER
+`stamp_sources_scraped`. Conditions:
+- This roaster has ≥1 enriched article (`enrichment_status='enriched'`)
+- AND (`article_enrichment_prompt_hint IS NULL` OR
+       `regenerate_article_hint` flag was passed in body)
 
-- `GET /articles?limit=50&before=<id>` — chronological feed
-  (newest first), paginated. Joins on roaster name + logo for
-  display. Public endpoint, no auth.
-- `GET /roasters/{slug}/articles` — per-roaster list (used on the
-  roaster page later if we add an Articles section there).
-- `POST /admin/roasters/{slug}/scrape-articles` — admin trigger,
-  returns 202 + job_id (mirror the
-  `/admin/roasters/enrich` pattern). Background task runs the
-  scraper, writes rows, sets `enrichment_status`.
-- `GET /admin/jobs/{id}` already exists — reuse for polling.
+**B4. enrich_article uses the hint.**
+In `services/article_enricher.py:enrich_article`, accept an
+optional `system_addendum` arg. If passed, prepend to
+`_ARTICLE_SYSTEM`. The runner passes the cached
+`roaster_profiles.article_enrichment_prompt_hint` per call.
 
-Admin endpoints gate on `_require_admin` (defense-in-depth pattern
-in `routes/specific.py:23-29` — `is_admin=1 AND username="crema"`).
+**B5. result_summary keys:**
+Add `hint_status: 'generated' | 'regenerated' | 'cached' | 'skipped' | 'failed'`.
 
-### Layer B — Scraper (~3 h)
+### Layer C — Admin Journals sub-tab v2
 
-#### B.1 Discovery
+**C1. Rename "Journal" → "Journals":**
+- `crema-app/src/components/admin/CatalogOps.tsx`:
+  - `SECTION_LABEL["articles"]: "ARTICLES"` → keep (label is fine)
+  - `SECTION_TITLE["articles"]: "Roaster Journal"` → "Roaster Journals"
+  - `SECTION_BLURB["articles"]` → wording update
 
-Per-roaster article-index URL is unknown a priori. Strategy in
-order of preference:
+**C2. Multi-select checkbox per row.**
+- Add `selectedSlugs: Set<string>` state in `ArticlesPanel`.
+- Each `ArticleRoasterRow` gets a leading checkbox (token-driven
+  square, brand pink fill when checked, espresso outline when
+  unchecked).
+- Hero "Refresh ALL article feeds" CTA flips to "Refresh N
+  selected" when `selectedSlugs.size > 0`. The CTA POSTs:
 
-1. **RSS / Atom feed** — try `/feed`, `/feed/`, `/rss`, `/blog/feed`,
-   `/journal/feed`, `/atom.xml`. Roasters on Shopify often expose
-   `/blogs/news.atom`. RSS gives clean structured data (title, link,
-   pubDate, description, content) — no HTML parsing needed.
-2. **Sitemap** — fetch `/sitemap.xml` (and recursively any nested
-   sitemap_index entries), filter URLs matching `/blog/`, `/journal/`,
-   `/articles/`, `/news/`, `/stories/`.
-3. **Index page scraping** — fetch `/blog`, `/journal`, `/articles`,
-   etc. and extract `<a>` tags with article-shaped href patterns.
+  ```
+  POST /admin/articles/scrape-all
+  body: { roaster_slugs: ["slug1", "slug2", ...], force_enrich: false }
+  ```
 
-The Onboard pipeline (`services/roaster_enricher.py`, `scrape_runner.py`)
-already does this kind of best-effort site discovery for product
-URLs — mirror its tone. Persist the *successful* discovery method
-+ root URL on the roaster row (new column `articles_index_url`,
-`articles_feed_kind` `'rss'|'sitemap'|'html'`) so subsequent runs
-are a single fetch.
+  When the array is empty, treat as "scrape all" (existing
+  behavior). When non-empty, scope.
 
-#### B.2 Extraction
+- Backend patch: `admin_scrape_articles_all` reads
+  `body.roaster_slugs?: string[]`. The runner's bulk-mode SQL
+  becomes:
 
-For each candidate article URL:
+  ```python
+  if roaster_slugs:
+      placeholders = ",".join("?" * len(roaster_slugs))
+      rows = db.execute(
+          f"SELECT ... WHERE rp.published = 1 AND rp.roaster_slug IN ({placeholders})",
+          roaster_slugs,
+      ).fetchall()
+  else:
+      rows = db.execute("SELECT ... WHERE rp.published = 1").fetchall()
+  ```
 
-1. **Fetch HTML** (already-installed `requests` + `beautifulsoup4`).
-2. **Pull metadata** — `<title>`, `og:image`, `og:description`,
-   `<time datetime>` / `og:article:published_time`. These give the
-   row's title / image / excerpt / published_at.
-3. **Body extraction** — strip nav / header / footer / sidebar, keep
-   the article body. Prefer:
-   - `trafilatura` (Python lib, ~1 dep, very robust article
-     extraction across CMS variants — used by news aggregators).
-     Add to `Community/coffee-community-api/requirements.txt`.
-   - Fallback: `<article>` tag heuristic + `bs4.get_text()`.
-4. **Markdown conversion** — convert the cleaned HTML to markdown
-   for storage in `body_md`. `markdownify` (Python) does this in
-   one pass.
-5. **Deduplication** — skip if URL already in `roaster_articles`.
+  Add `roaster_slugs?: list[str]` to `run_article_scrape_job`'s
+  signature.
 
-#### B.3 Background job
+**C3. Inline expand per row.**
+Tap a row → toggle expanded state. The expanded panel shows:
+- **Site-quirk hint card** (top) — scrollable cream card with
+  the Haiku addendum text. Header: "Site enrichment hint",
+  "Updated 2d ago" relative time. Sticky checkbox: "Regenerate
+  on next scrape" (writes a sticky flag that
+  `run_article_scrape_job` reads + auto-clears after firing the
+  regen).
+- **Articles list** (below the hint) — each article rendered as
+  a compact row: small hero thumbnail, title, scraped date,
+  `enrichment_status` badge, word count, **publish toggle**,
+  **delete button**, **re-enrich button**.
+- Use the existing `roaster_articles.published=0` gate to mean
+  "hidden from consumers but visible to admin."
+- The publish toggle calls `POST /admin/articles/{id}/publish`
+  (existing endpoint).
 
-Wire as `services/catalog_ops.run_article_scrape_job` mirroring
-`run_roaster_enrich_job`. Same `jobs` table, same status enum,
-same orphan-recovery-on-server-boot path.
+**C4. JobHistory.summarizeJob extension** for `article_scrape`:
+Add the new counters from Layer A:
+- `enriched`
+- `enrich_failed`
+- `not_article_skipped`
+- `off_topic_skipped` (NEW from A2)
+- `discoveries`
+- `errors`
 
-The "Refresh Roaster" admin action could optionally chain
-article-scrape after the bio + product scrape — confirm with user
-whether to add automatic chaining or keep article scraping
-on-demand.
+**C5. Per-row state badges** on the Articles row list:
+- "✓ Coffee" — `is_about_coffee=true` enriched
+- "⊘ Off-topic" — `is_about_coffee=false`, hidden by default
+- "⏳ Pending enrich" — `enrichment_status='pending'`
+- "⚠ Enrich failed" — `enrichment_status='failed'`
 
-### Layer C — Admin surface (~1 h)
+### Layer D — Sitewide search integration
 
-Two viable patterns; default to (1) unless the user asks otherwise:
+`crema-app/src/components/SearchDropdown.tsx` is the universal
+search surface (navbar magnifying glass on web wide, a sheet on
+mobile). It currently surfaces Users / Beans / Roasters. Add an
+**Articles** section:
 
-1. **Inline button on the per-roaster admin page**
-   (`app/admin/roaster/[slug].tsx`). New "Refresh Articles" CTA
-   under the existing Refresh Roaster combined button. Status strip
-   reuses the existing `refreshPhase` UI. Article count visible in
-   the hero meta line ("Last enriched 2d ago · 14 articles").
-2. **New sub-tab "Articles" in CatalogOps** alongside Roasters & Beans
-   and Standardization. Mass-refresh + per-roaster status. More
-   chrome but easier ops at scale.
+**D1. Backend:** Extend `/api/search` (or add `/api/articles/search`
+if simpler) to query `roaster_articles` by:
+- `title LIKE '%{q}%'`
+- `excerpt LIKE '%{q}%'`
+- `tags LIKE '%{q}%'` (the JSON-as-string approach)
+- Filter to `published=1 AND rp.published=1`
 
-Lower-friction debug: `Refresh Articles` on the per-roaster page +
-a single "Refresh ALL article feeds" button on the Catalog Ops
-Roasters & Beans hero (parallel to the existing "Onboard Roaster"
-URL hero).
+Cap at 8 hits like the other sections.
 
-### Layer D — Discover JOURNAL tab (~3 h)
+**D2. Frontend:** New section in `SearchDropdown` rendered
+between Beans and Roasters. Each hit shows the small hero
+thumbnail + title + roaster name. Tap → `/article/{id}`.
 
-#### D.1 Tab plumbing
+### Layer E — Optional follow-ups
 
-`app/(tabs)/browse.tsx` currently renders BEANS / ROASTERS. Add
-JOURNAL as a third tab via the existing `TabButton` pattern
-(line ~947). The `activeTab` union becomes
-`"beans" | "roasters" | "journal"`. Existing filter drawer +
-search behavior wraps cleanly around the new tab; if Journal needs
-no filters in v1, render the filter button as a no-op or hide it
-when `activeTab === "journal"`.
-
-#### D.2 ArticleCard primitive
-
-New component `src/components/domain/ArticleCard.tsx`. Look at
-`PostCard` and the Discover bean grid card for visual language.
-
-Suggested layout (mobile-first, full-width row on phone, optional
-2-col on wide):
-
-```
-┌─────────────────────────────────────────────┐
-│  [hero image, 16:9, t.radius.md]            │
-│                                             │
-│  Title in t.font.display, t.size["font.xl"] │
-│  Two lines max.                             │
-│                                             │
-│  [logo] Roaster Name · 12 Apr 2026 · 4 min  │
-│                                             │
-│  Excerpt body text two lines max...         │
-└─────────────────────────────────────────────┘
-```
-
-Fonts / spacing / colors all from tokens. Identity treatment: the
-small roaster logo uses `RoasterLogo` (rounded square per
-`DESIGN_LANGUAGE.md` §4 — that's the canonical roaster identity
-treatment). Tap routes to the article reader (Layer D.3) or
-external open if reader is deferred.
-
-#### D.3 Article reader screen
-
-New route `app/article/[id].tsx`. Renders `body_md` via
-`react-native-markdown-display` (already noted as a Phase-1 dep
-for the legal docs in `LAUNCH_TODO §3.4.7` — install once and
-reuse here).
-
-Layout:
-- Floating back button (use the FAB pattern from `1d1759a` —
-  `text.primary` bg + `text.on-cta` icon + token shadow). Same
-  `canGoBack()` guard pattern as `89c8810` — fall back to
-  `/(tabs)/browse?tab=journal` if back stack is empty.
-- Hero image (full-width, 16:9 or 4:3).
-- Title (display font, `font.2xl` or `font.display`).
-- Author block: `RoasterLogo` (small) + roaster name + published
-  date + estimated reading time. Tap → `/roaster/[slug]`.
-- Body — markdown rendered with the existing palette tokens
-  (paragraph text uses `text.primary`, links use `accent.cta`,
-  code / quote blocks pull from `card.info` etc.).
-- Bottom CTA: "Read on [roaster site]" external link →
-  `Linking.openURL`. Tracked as a click event via the existing
-  `POST /clicks` endpoint (`source_page` = `"article"`).
-
-If scope tight, ship the consumer JOURNAL tab with cards only and
-have `onPress` open the URL externally; add the reader screen in a
-follow-up. Cards still earn their keep without an in-app reader.
+- E1. Filter drawer + sort on Journals panel (mirror Roasters &
+  Beans's drawer pattern). User said this can wait.
+- E2. `recover_orphan_jobs` runner-identity tracking so CLI
+  scripts don't get their jobs flipped to `failed`.
+- E3. FTS5 virtual table for tags/title/excerpt if LIKE queries
+  get slow.
 
 ---
 
 ## Files to study before starting
 
-- `Scraper/scraper/` — the existing site scraping utilities. Look
-  at how it discovers product URLs and parses Shopify-flavored
-  catalogs; the article-feed discovery should reuse the same
-  patterns.
-- `Scraper/enrich_roasters.py` — the entrypoint that drives the
-  scraper from the `verified_roasters_catalog.json` input.
-- `Community/coffee-community-api/services/roaster_enricher.py` —
-  Sonnet-driven roaster bio enrichment. Already has a "do NOT
-  link to /blog" exclusion at line 199 (when picking the
-  catalog/order page); when we ADD blog support, that exclusion
-  doesn't change — bio scrape still avoids the blog, the new
-  article scrape *only* hits the blog.
-- `Community/coffee-community-api/services/scrape_runner.py` —
-  product-catalog scrape orchestration; pattern to mirror for the
-  new article scraper.
+Backend:
+- `Community/coffee-community-api/services/article_scraper.py` —
+  discovery + extraction + WebP pipeline (current state)
+- `Community/coffee-community-api/services/article_enricher.py` —
+  Haiku call + tool schema (gets the new fields)
 - `Community/coffee-community-api/services/catalog_ops.py` —
-  async-job pipeline (`run_roaster_enrich_job`, the chained
-  scrape, `_apply_roaster_enrichment`). Article scrape becomes a
-  new job kind `'article_scrape'` in this same path.
+  `run_article_scrape_job` (Layer A wiring + B trigger + slug
+  filter for C2)
+- `Community/coffee-community-api/services/site_prompt_generator.py` —
+  template for the article-site-prompt-generator
+- `Community/coffee-community-api/services/roaster_enricher.py` —
+  Sonnet pattern reference
+- `Community/coffee-community-api/routes/specific.py` — admin
+  endpoints (slug-list body field on `/admin/articles/scrape-all`)
 - `Community/coffee-community-api/database.py` — `_MIGRATIONS`
-  list pattern. Migration is idempotent ALTER.
-- `Community/coffee-community-api/routes/specific.py` —
-  `@router.post`, `@router.get` patterns. `_require_admin`
-  defense-in-depth gate at lines 23-29.
-- `app/(tabs)/browse.tsx` — Discover BEANS / ROASTERS tab plumbing.
-  `TabButton` (~line 947), filter drawer (~line 778),
-  `useBreakpoint` for mobile vs wide layout.
-- `src/components/RoasterRow.tsx` — recently fixed full-width row
-  + edge-to-edge divider. Mirror this width / inset story when
-  designing ArticleCard.
-- `src/components/domain/PostCard.tsx` — existing feed card; the
-  closest visual peer to ArticleCard.
-- `src/components/admin/RoastersPanel.tsx` — admin Roasters
-  surface. Onboard hero + jobs-poll pattern; mirror for
-  any new article-related admin chrome.
-- `DESIGN_LANGUAGE.md` (auto-loaded) — palette + typography +
-  identity treatments. Pre-flight checklist must pass on any new
-  surface.
+  list (article_enrichment_prompt_hint columns + `tags` column)
+
+Frontend:
+- `crema-app/src/components/admin/ArticlesPanel.tsx` — current
+  state (Layer C target)
+- `crema-app/src/components/admin/RoastersPanel.tsx` — pattern
+  reference (filter drawer, "Recently deleted" collapsible
+  pattern)
+- `crema-app/src/components/admin/CatalogOps.tsx` — sub-tab
+  carousel + section labels (rename target)
+- `crema-app/src/components/admin/JobHistory.tsx` —
+  `summarizeJob` (gets the new counters)
+- `crema-app/src/components/admin/JobProposalsCarousel.tsx` —
+  pattern reference for in-row expansion
+- `crema-app/src/components/SearchDropdown.tsx` — universal
+  search (Layer D target)
+- `crema-app/app/admin/roaster/[slug].tsx` — site-prompt-hint
+  card pattern reference (the bean enrichment hint surface)
+
+Inspect the data:
+```bash
+cd Community/coffee-community-api
+python -c "
+from database import get_db
+db = get_db()
+# Symptom samples for fix targeting
+print(db.execute(
+  'SELECT id, title, url, word_count FROM roaster_articles '
+  'WHERE roaster_slug IN (\"black-baza-coffee\",\"g-shot-coffee-roastery-cafe\",\"devans-south-indian-coffee-and-tea-pvt-ltd\") '
+  'ORDER BY roaster_slug, id'
+).fetchall())
+"
+```
 
 ---
 
-## Open decisions to surface BEFORE drafting
+## Hard rules — read first
 
-These are the questions that materially shape the implementation;
-ask the user before sinking time:
-
-1. **Scraper library**: ok to add `trafilatura` + `markdownify` to
-   `requirements.txt`? Both are Apache/MIT licensed, no native
-   deps. Alternative is hand-rolled bs4 with site-specific
-   selectors per roaster — more code, more fragile.
-2. **In-app reader vs external open**: ship the article reader
-   (`app/article/[id].tsx`) in v1, or just open the original URL
-   in the browser? Reader is +2 h but keeps the user inside Crema.
-3. **Haiku enrichment**: do we summarize / categorize articles
-   with Haiku at ingest time, or store the raw extracted body
-   only? Phase 1 default = no Haiku; the human roaster's prose is
-   already curated content. Add categorization later if the user
-   wants tag-based filtering.
-4. **Admin surface placement**: per-roaster button on
-   `app/admin/roaster/[slug].tsx`, or new "Articles" sub-tab in
-   CatalogOps? Default is the per-roaster button.
-5. **Auto-chain article scrape with Refresh Roaster**: should the
-   existing "Refresh Roaster" combined button also kick off
-   article scrape, or keep articles on a separate explicit
-   trigger? Default = separate trigger (scrape can be slow and
-   noisy; admin should opt in).
-6. **Filter scope on JOURNAL tab**: filter by roaster only, or also
-   by date range / reading-time? Phase-1 minimum = roaster filter
-   reusing the existing filter drawer pattern.
-7. **Empty state copy**: confirm the line. Default suggestion:
-   "Roasters haven't started telling their story yet."
-
----
-
-## Don't get distracted by
-
-- The moderation + legal pack in `LAUNCH_TODO.md §3.4` — that
-  block has a real plan now (`de07a20`) but is gated on iOS
-  launch, not Journal. Don't merge concerns.
-- The P3 color fidelity workstream is dead — the user diagnosed it
-  as their iPhone 17 Pro's display behaviour, not a Crema bug.
-  See the "P3 = WONTFIX" outcome implicit in the recent commits;
-  don't reopen.
-- The recent palette work (line standardization, chrome
-  legibility) — these are landed. Don't refactor them while
-  building Journal.
-- Trying to preserve in-flight admin polling state across sub-tab
-  flips on Catalog Ops — that experiment broke scroll twice
-  (`a4dde97` + `e00d49c`). The async-job backend handles state
-  continuity; the UI re-mounts and re-polls cleanly.
+1. **Don't start dev servers.** User runs Metro on device. The
+   PostToolUse hook will nag — acknowledge and continue.
+2. **Token-only styling, three-color brand palette,
+   `useBreakpoint` not `Platform.OS` for visual decisions.** See
+   `DESIGN_LANGUAGE.md` (auto-loaded via CLAUDE.md).
+3. **CoffeeCard rendering rule** (`DESIGN_LANGUAGE.md §7`) —
+   don't fork, don't hardcode width/height pairs, long-press
+   detail sheet is built in.
+4. **Don't reach for `forceLandscape` outside admin Catalog
+   Ops.** Consumer surfaces let the viewport decide.
+5. **`enabled` flag is dead** — all four runtime gates were
+   retired in commit `f14dcac`. Don't reintroduce a dependency
+   on `roaster_sources.enabled` for any new work.
+6. **Idempotent scrape** — re-running the bulk scrape with
+   `force_enrich=false` should skip already-enriched articles
+   cheaply (skip-cheap path is in place). Layer A changes
+   should respect this.
+7. **Off-topic articles set `published=0`, NOT delete** — admin
+   can still see and re-publish if Haiku was wrong.
+8. **Topic taxonomy is fixed**, defined in the tool schema and
+   the system prompt. Don't let it drift over time without an
+   intentional schema migration.
 
 ---
 
 ## Standing rules (from `CLAUDE.md` / `NORTH_STAR.md`)
 
-- Phase-1 surface — Discover + feed + profile are the priority.
-  Journal is a Phase-1 add (consumer discovery), not Phase 2.
-- Token-only styling. Don't introduce hex literals. Lines use
-  the single-tier `t.color.border` / `border.light` / `divider`
-  (all collapsed to one value per mode).
-- Identity treatment: `CroppedAvatar` for people, `RoasterLogo`
-  rounded-square for roasters. Don't invent a third treatment for
-  article-author display.
-- Update `BUILD_ROADMAP.md` when work lands — Journal warrants its
-  own §1.x entry once it ships.
-- When the new feature touches the scraper architecture, update
-  `specs/SCRAPER_SPEC.md` in the same change. New endpoints
-  belong in `specs/COMMUNITY_SPEC.md`.
-- The `DESIGN_LANGUAGE.md` pre-flight checklist applies to every
-  new surface (ArticleCard, JOURNAL tab, article reader).
+- Phase-1 surface — Discover + feed + profile remain priority.
+  This work falls under Discover JOURNAL refinement.
+- Update `BUILD_ROADMAP.md` §1.2 (Discover JOURNAL row) and
+  §1.5 (Catalog Ops Articles row) when work lands.
+- Update `specs/SCRAPER_SPEC.md §13` (article scraper section)
+  for the discovery filter, coffee-relevance gate, body-img
+  fallback, tags.
+- Update `specs/COMMUNITY_SPEC.md §19` for the new schema
+  columns + endpoint shape changes.
+- The `DESIGN_LANGUAGE.md` pre-flight checklist applies to
+  every new admin surface.
 
 ---
 
 ## Suggested order of attack
 
-1. Surface the 7 open decisions above; wait for the user to
-   answer before installing deps or migrating schema.
-2. Layer A.1 (migration) + A.2 (endpoints) — backend skeleton.
-3. Layer B.1-B.3 (scraper) — wire one roaster end-to-end as the
-   smoke test (Blue Tokai's blog feed is well-formed).
-4. Layer C (admin trigger) — minimal "Refresh Articles" button
-   to drive the scraper for any roaster.
-5. Layer D.1-D.2 (consumer JOURNAL tab + ArticleCard) —
-   chronological feed, external-open on tap.
-6. Layer D.3 (in-app reader) — defer to a follow-up if the user
-   wants v1 to ship faster.
-7. Update `BUILD_ROADMAP.md`, `specs/SCRAPER_SPEC.md`,
-   `specs/COMMUNITY_SPEC.md`. Commit.
+1. **Layer A first** — coffee-relevance gate + tags +
+   discovery handle filter + body-img fallback + system prompt
+   rewrite. Re-run the bulk scrape with `force_enrich=true` so
+   existing articles get re-evaluated. Black Baza founders
+   should disappear / move to `published=0`. G-Shot spirituality
+   should also flip to `published=0`. Aromas-of-coorg + G-Shot
+   articles should now have hero images.
+2. **Layer B** — site-quirk hint pipeline. Generate hints for
+   the existing 16 roasters (one per roaster). Verify the hints
+   read sensibly via the per-roaster admin page.
+3. **Layer C** — admin Journals sub-tab v2 (rename, multi-select,
+   inline expand with hint card + article list).
+4. **Layer D** — SearchDropdown integration.
+5. **Layer E** — optional follow-ups if time.
+6. **Docs** — `BUILD_ROADMAP.md` + `specs/SCRAPER_SPEC.md` +
+   `specs/COMMUNITY_SPEC.md`.
+
+When work lands, update each spec in the same change rather than
+deferring.
+
+---
+
+## Final checkpoint state (so you can verify your starting tree)
+
+Last commit on `feat/mobile-readiness`:
+
+```
+f14dcac fix(scraper): retire enabled-flag gate, leave dead column behind
+3dc7bd3 fix(journal): bulk article scrape covers ALL published roasters
+ef7594e feat(brand): new launcher icon — diver-into-cup on Crema-pink
+0ade9e2 fix(chrome-scroll): bail at/past bottom to suppress rubber-band reopen
+9f7d094 fix(article-reader): wire onChromeScroll so header/footer auto-hide
+e783049 fix(coffee-card): exact Discover dims + long-press built-in
+```
+
+Pushed to `origin/feat/mobile-readiness` at the start of this
+plan.
+
+DB state at handoff:
+- 173 articles, 16 roasters with articles
+- Top contributors: caarabi (35), chariot (30), black-baza (25),
+  coffee-culture (18), devans (15), naivo (10), aromas-of-coorg
+  (9), caffena (9), 93-degrees (7)
+- 80 published roasters returned no articles (no discoverable
+  feed; Wix / custom-built sites)
 
 When in doubt about scope, lean toward the simpler shipping
-deliverable: the consumer experience matters more than admin
-polish in v1.
+deliverable: the scrape pathology fixes (Layer A) are the
+highest-value piece — without them, the admin curation surface
+is just triage for bad content.
