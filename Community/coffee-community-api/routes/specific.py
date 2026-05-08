@@ -367,17 +367,37 @@ def featured_posts(slug: str):
 # Only published articles from published roasters surface to consumers — an
 # unreviewed roaster (`roaster_profiles.published=0`) hides every article
 # the scraper found, even if `roaster_articles.published=1`.
+#
+# These endpoints are kept in specific.py (rather than relying on the
+# generic /api/articles auto-route) for two reasons:
+#   • The publish gate joins to `roaster_profiles` on `roaster_slug` —
+#     the auto-route's WHERE-builder doesn't know about cross-table
+#     filters.
+#   • The list payload trims `body_html` for size; the auto-route
+#     would return `t.*` (~50 KB per row).
+# We still pull the SELECT clause from the registry's build_select() so
+# every list/read picks up like_count / comment_count / repost_count /
+# liked_by_me / hidden_by_me / disliked_by_me + roaster_name +
+# roaster_logo_url for free. The registry-driven path is the single
+# source of truth for the column shape on a `roaster_articles` row;
+# adding a new count or flag on the article resource lights up here
+# automatically.
 
-_ARTICLE_CARD_COLS = (
-    "a.id, a.roaster_slug, a.url, a.title, a.excerpt, a.image_url, "
-    "a.word_count, a.published_at, a.scraped_at, "
-    "rp.name AS roaster_name, rp.logo_url AS roaster_logo_url"
-)
+def _article_list_row(row, res):
+    """Convert a sqlite3.Row from the article SELECT into the response
+    dict. Trims body_html (kept on the row for the reader endpoint
+    only) and converts flag/count cells through `row_to_dict` so the
+    boolean coercion + JSON parsing matches the rest of the auto-routes.
+    """
+    item = row_to_dict(row, res)
+    item.pop("body_html", None)
+    return item
 
 
 @router.get("/articles")
 def list_articles(limit: int = 50, before: Optional[int] = None,
-                   roaster_slug: Optional[str] = None):
+                   roaster_slug: Optional[str] = None,
+                   authorization: str = Header(None)):
     """Chronological article feed (newest first) for Discover JOURNAL.
     `before=<id>` paginates — pass the smallest id from the previous page.
     `roaster_slug` is an optional filter (same endpoint backs the
@@ -387,80 +407,94 @@ def list_articles(limit: int = 50, before: Optional[int] = None,
     `/articles/{id}` only when needed.
     """
     limit = max(1, min(int(limit or 50), 500))
-    where = ["a.published = 1", "rp.published = 1"]
+    current_user = get_optional_user(authorization)
+    uid = current_user["id"] if current_user else None
+    res = get_resource("articles")
+    select_sql = build_select(res, uid)
+
+    where = ["t.published = 1", "rp.published = 1"]
     args: list = []
     if before is not None:
-        where.append("a.id < ?")
+        where.append("t.id < ?")
         args.append(int(before))
     if roaster_slug:
-        where.append("a.roaster_slug = ?")
+        where.append("t.roaster_slug = ?")
         args.append(roaster_slug)
     where_sql = " AND ".join(where)
 
+    sql = (
+        f"{select_sql}\n"
+        "    JOIN roaster_profiles rp ON rp.roaster_slug = t.roaster_slug\n"
+        f"    WHERE {where_sql}\n"
+        # Sort by published_at when present (the roaster's own date),
+        # falling back to scraped_at so articles without a parsed
+        # published_at still order sensibly. Tie-break on id DESC.
+        "    ORDER BY COALESCE(t.published_at, t.scraped_at) DESC, t.id DESC\n"
+        "    LIMIT ?"
+    )
+
     db = get_db()
     try:
-        rows = db.execute(
-            f"SELECT {_ARTICLE_CARD_COLS} "
-            "FROM roaster_articles a "
-            "JOIN roaster_profiles rp ON rp.roaster_slug = a.roaster_slug "
-            f"WHERE {where_sql} "
-            # Sort by published_at when present (the roaster's own date),
-            # falling back to scraped_at so articles without a parsed
-            # published_at still order sensibly. Tie-break on id DESC.
-            "ORDER BY COALESCE(a.published_at, a.scraped_at) DESC, a.id DESC "
-            "LIMIT ?",
-            (*args, limit),
-        ).fetchall()
-        return ok([dict(r) for r in rows], resource="roaster_articles",
-                  meta={"limit": limit, "count": len(rows)})
+        rows = db.execute(sql, (*args, limit)).fetchall()
+        items = [_article_list_row(r, res) for r in rows]
+        return ok(items, resource="articles",
+                  meta={"limit": limit, "count": len(items)})
     finally:
         db.close()
 
 
 @router.get("/articles/{article_id}")
-def get_article(article_id: int):
+def get_article(article_id: int, authorization: str = Header(None)):
     """Full article including body_html. Powers the in-app reader.
     404 if the article is unpublished or its roaster is unreviewed —
     consumers shouldn't reach an article that wouldn't appear in the
     feed even with a deep link.
     """
+    current_user = get_optional_user(authorization)
+    uid = current_user["id"] if current_user else None
+    res = get_resource("articles")
+    select_sql = build_select(res, uid)
+    sql = (
+        f"{select_sql}\n"
+        "    JOIN roaster_profiles rp ON rp.roaster_slug = t.roaster_slug\n"
+        "    WHERE t.id = ? AND t.published = 1 AND rp.published = 1"
+    )
     db = get_db()
     try:
-        row = db.execute(
-            f"SELECT {_ARTICLE_CARD_COLS}, a.body_html "
-            "FROM roaster_articles a "
-            "JOIN roaster_profiles rp ON rp.roaster_slug = a.roaster_slug "
-            "WHERE a.id = ? AND a.published = 1 AND rp.published = 1",
-            (article_id,),
-        ).fetchone()
+        row = db.execute(sql, (article_id,)).fetchone()
         if not row:
             from fastapi import HTTPException
             raise HTTPException(404, f"Article {article_id} not found")
-        return ok(dict(row), resource="roaster_articles")
+        return ok(row_to_dict(row, res), resource="articles")
     finally:
         db.close()
 
 
 @router.get("/roasters/{slug}/articles")
-def roaster_articles(slug: str, limit: int = 20):
+def roaster_articles(slug: str, limit: int = 20,
+                      authorization: str = Header(None)):
     """Per-roaster article list — same shape as `/articles?roaster_slug=`
     but with a stable URL the roaster page can call without depending
     on query-arg conventions. No `before` cursor (the per-roaster list
     is small enough to render in one page)."""
     limit = max(1, min(int(limit or 20), 100))
+    current_user = get_optional_user(authorization)
+    uid = current_user["id"] if current_user else None
+    res = get_resource("articles")
+    select_sql = build_select(res, uid)
+    sql = (
+        f"{select_sql}\n"
+        "    JOIN roaster_profiles rp ON rp.roaster_slug = t.roaster_slug\n"
+        "    WHERE t.roaster_slug = ? AND t.published = 1 AND rp.published = 1\n"
+        "    ORDER BY COALESCE(t.published_at, t.scraped_at) DESC, t.id DESC\n"
+        "    LIMIT ?"
+    )
     db = get_db()
     try:
-        rows = db.execute(
-            f"SELECT {_ARTICLE_CARD_COLS} "
-            "FROM roaster_articles a "
-            "JOIN roaster_profiles rp ON rp.roaster_slug = a.roaster_slug "
-            "WHERE a.roaster_slug = ? AND a.published = 1 AND rp.published = 1 "
-            "ORDER BY COALESCE(a.published_at, a.scraped_at) DESC, a.id DESC "
-            "LIMIT ?",
-            (slug, limit),
-        ).fetchall()
-        return ok([dict(r) for r in rows], resource="roaster_articles",
-                  meta={"roaster_slug": slug, "count": len(rows)})
+        rows = db.execute(sql, (slug, limit)).fetchall()
+        items = [_article_list_row(r, res) for r in rows]
+        return ok(items, resource="articles",
+                  meta={"roaster_slug": slug, "count": len(items)})
     finally:
         db.close()
 
@@ -1104,12 +1138,24 @@ def my_threads(user=Depends(get_current_user)):
                       )
                 ) AS unread_count
             FROM direct_threads dt
-            WHERE dt.user_a_id = ? OR dt.user_b_id = ?
+            WHERE (dt.user_a_id = ? OR dt.user_b_id = ?)
+              -- "Delete chat for me" filter — hide rows where the
+              -- caller has stamped their deleted_at AND no newer
+              -- activity has happened on the thread since (Gmail
+              -- trash semantics: a new message reopens the thread).
+              AND NOT (
+                  dt.user_a_id = ? AND dt.user_a_deleted_at IS NOT NULL AND
+                  (dt.updated_at IS NULL OR dt.updated_at <= dt.user_a_deleted_at)
+              )
+              AND NOT (
+                  dt.user_b_id = ? AND dt.user_b_deleted_at IS NOT NULL AND
+                  (dt.updated_at IS NULL OR dt.updated_at <= dt.user_b_deleted_at)
+              )
             """,
-            # 13 placeholders total: 8 CASE/subquery uses + 1 unread filter
-            # + 2 unread scope CASEs + 2 WHERE terms. Count verified by
-            # sqlite3.ProgrammingError when off-by-one.
-            (uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid),
+            # 15 placeholders total: 8 CASE/subquery uses + 1 unread filter
+            # + 2 unread scope CASEs + 2 WHERE-party terms + 2 deleted-at
+            # filter terms.
+            (uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid, uid),
         ).fetchall()
         for r in dm_rows:
             d = dict(r)
@@ -1136,7 +1182,8 @@ def _require_dm_party(db, thread_id: int, user):
     if not user:
         raise HTTPException(401, "Authentication required")
     row = db.execute(
-        "SELECT id, user_a_id, user_b_id FROM direct_threads WHERE id = ?",
+        "SELECT id, user_a_id, user_b_id, pinned_message_id "
+        "FROM direct_threads WHERE id = ?",
         (thread_id,),
     ).fetchone()
     if not row:
@@ -1250,11 +1297,22 @@ def open_direct_thread_with_roaster(slug: str, user=Depends(get_current_user)):
 
 @router.get("/direct-threads/{thread_id}/thread")
 def get_direct_thread(thread_id: int, user=Depends(get_current_user)):
-    """Return the thread metadata (counterparty info) + message list."""
+    """Return the thread metadata (counterparty info) + message list.
+
+    Filters out messages the calling user has soft-deleted via the
+    long-press "Delete for you" action (per-side stamp on
+    `direct_messages.deleted_for_user_{a|b}_at`). Surfaces the
+    thread's `pinned_message_id` so the client can render the
+    pinned-message banner. For replies, joins to the parent message
+    and exposes its (id, body, sender display_name) so bubbles can
+    render the in-bubble quote header without a second round-trip.
+    """
     db = get_db()
     try:
         row = _require_dm_party(db, thread_id, user)
-        other_id = row["user_b_id"] if row["user_a_id"] == user["id"] else row["user_a_id"]
+        is_a = row["user_a_id"] == user["id"]
+        deleted_col = "deleted_for_user_a_at" if is_a else "deleted_for_user_b_at"
+        other_id = row["user_b_id"] if is_a else row["user_a_id"]
         other = db.execute(
             "SELECT id, username, display_name, avatar_url, "
             "avatar_crop_x, avatar_crop_y, avatar_zoom, account_type "
@@ -1262,22 +1320,46 @@ def get_direct_thread(thread_id: int, user=Depends(get_current_user)):
             (other_id,),
         ).fetchone()
         messages = db.execute(
-            """SELECT m.id, m.thread_id, m.user_id, m.body, m.created_at,
-                      u.username, u.display_name, u.avatar_url,
-                      u.avatar_crop_x, u.avatar_crop_y, u.avatar_zoom,
-                      u.account_type
-               FROM direct_messages m
-               JOIN users u ON u.id = m.user_id
-               WHERE m.thread_id = ?
-               ORDER BY m.created_at ASC""",
+            f"""SELECT m.id, m.thread_id, m.user_id, m.body, m.created_at,
+                       m.reply_to_message_id, m.image_url,
+                       u.username, u.display_name, u.avatar_url,
+                       u.avatar_crop_x, u.avatar_crop_y, u.avatar_zoom,
+                       u.account_type,
+                       p.body AS reply_to_body,
+                       p.image_url AS reply_to_image_url,
+                       pu.display_name AS reply_to_display_name,
+                       pu.username AS reply_to_username
+                FROM direct_messages m
+                JOIN users u ON u.id = m.user_id
+                LEFT JOIN direct_messages p ON p.id = m.reply_to_message_id
+                LEFT JOIN users pu ON pu.id = p.user_id
+                WHERE m.thread_id = ?
+                  AND m.{deleted_col} IS NULL
+                ORDER BY m.created_at ASC""",
             (thread_id,),
         ).fetchall()
+        # Pinned-message snapshot — same shape as a message row so
+        # the banner UI can render it identically without extra
+        # joins on the client.
+        pinned = None
+        pin_id = row["pinned_message_id"] if "pinned_message_id" in row.keys() else None
+        if pin_id:
+            pinned_row = db.execute(
+                """SELECT m.id, m.thread_id, m.user_id, m.body, m.created_at,
+                          u.display_name, u.username
+                   FROM direct_messages m JOIN users u ON u.id = m.user_id
+                   WHERE m.id = ?""",
+                (pin_id,),
+            ).fetchone()
+            if pinned_row:
+                pinned = dict(pinned_row)
         return ok(
             {
                 "thread": {
                     "id": thread_id,
                     "kind": "direct_message",
                     "other": dict(other) if other else None,
+                    "pinned_message": pinned,
                 },
                 "messages": [dict(r) for r in messages],
             },
@@ -1297,19 +1379,33 @@ def post_direct_message(thread_id: int, body: dict,
     from services.notifications import create_notification
 
     text = (body or {}).get("body", "").strip()
-    if not text:
-        raise HTTPException(400, "body is required")
-    if len(text) > 2000:
+    reply_to_id = (body or {}).get("reply_to_message_id")
+    image_url = (body or {}).get("image_url") or None
+    # A message must have body OR image_url. Both is fine (caption +
+    # photo); neither is a 400. Image-only messages send body="".
+    if not text and not image_url:
+        raise HTTPException(400, "body or image_url is required")
+    if text and len(text) > 2000:
         raise HTTPException(400, "body too long (max 2000 chars)")
 
     db = get_db()
     try:
         row = _require_dm_party(db, thread_id, user)
+        # Validate reply_to_message_id — must belong to this thread.
+        # Silently drop if the parent doesn't match (e.g. stale id
+        # after a delete) rather than 400ing the send.
+        if reply_to_id is not None:
+            parent = db.execute(
+                "SELECT id FROM direct_messages WHERE id = ? AND thread_id = ?",
+                (int(reply_to_id), thread_id),
+            ).fetchone()
+            if not parent:
+                reply_to_id = None
         now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         cur = db.execute(
-            "INSERT INTO direct_messages (thread_id, user_id, body, created_at) "
-            "VALUES (?, ?, ?, ?)",
-            (thread_id, user["id"], text, now),
+            "INSERT INTO direct_messages (thread_id, user_id, body, created_at, reply_to_message_id, image_url) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (thread_id, user["id"], text, now, reply_to_id, image_url),
         )
         mid = cur.lastrowid
         db.execute(
@@ -1334,14 +1430,132 @@ def post_direct_message(thread_id: int, body: dict,
 
         msg = db.execute(
             """SELECT m.id, m.thread_id, m.user_id, m.body, m.created_at,
+                      m.reply_to_message_id, m.image_url,
                       u.username, u.display_name, u.avatar_url,
                       u.avatar_crop_x, u.avatar_crop_y, u.avatar_zoom,
-                      u.account_type
-               FROM direct_messages m JOIN users u ON u.id = m.user_id
+                      u.account_type,
+                      p.body AS reply_to_body,
+                      p.image_url AS reply_to_image_url,
+                      pu.display_name AS reply_to_display_name,
+                      pu.username AS reply_to_username
+               FROM direct_messages m
+               JOIN users u ON u.id = m.user_id
+               LEFT JOIN direct_messages p ON p.id = m.reply_to_message_id
+               LEFT JOIN users pu ON pu.id = p.user_id
                WHERE m.id = ?""",
             (mid,),
         ).fetchone()
         return ok(dict(msg), resource="direct_messages")
+    finally:
+        db.close()
+
+
+# ── DM long-press actions ──────────────────────────────────────────
+# Per-message "Delete for you" / Pin / Report. Long-press menu in
+# `<ThreadBody>` calls these.
+
+@router.delete("/direct-messages/{message_id}")
+def delete_direct_message_for_me(message_id: int,
+                                  user=Depends(get_current_user)):
+    """Soft-delete a single DM for the calling user only.
+
+    Mirrors the per-thread delete semantics but at message
+    granularity: stamps `deleted_for_user_{a|b}_at` for whichever
+    side the caller belongs to. The other party still sees the
+    message; the GET /thread endpoint filters by these stamps so the
+    deleter never sees it again (one-way for the actor — matches
+    WhatsApp "Delete for you").
+    """
+    import datetime as _dt
+    from fastapi import HTTPException
+    db = get_db()
+    try:
+        msg_row = db.execute(
+            "SELECT id, thread_id FROM direct_messages WHERE id = ?",
+            (message_id,),
+        ).fetchone()
+        if not msg_row:
+            raise HTTPException(404, "Message not found")
+        thread = _require_dm_party(db, msg_row["thread_id"], user)
+        is_a = thread["user_a_id"] == user["id"]
+        col = "deleted_for_user_a_at" if is_a else "deleted_for_user_b_at"
+        now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        db.execute(
+            f"UPDATE direct_messages SET {col} = ? WHERE id = ?",
+            (now, message_id),
+        )
+        db.commit()
+        return ok({"id": message_id, "deleted_at": now},
+                  resource="direct_messages")
+    finally:
+        db.close()
+
+
+@router.post("/direct-threads/{thread_id}/pin")
+def pin_direct_message(thread_id: int, body: dict,
+                        user=Depends(get_current_user)):
+    """Set or clear the thread's pinned message (visible to both
+    parties; either side can override). Body: `{message_id: int|null}`.
+    Passing null (or omitting message_id) clears the pin.
+
+    The pinned message must belong to this thread; otherwise 400.
+    """
+    from fastapi import HTTPException
+    new_id = (body or {}).get("message_id")
+    db = get_db()
+    try:
+        _require_dm_party(db, thread_id, user)
+        if new_id is not None:
+            ok_msg = db.execute(
+                "SELECT id FROM direct_messages WHERE id = ? AND thread_id = ?",
+                (int(new_id), thread_id),
+            ).fetchone()
+            if not ok_msg:
+                raise HTTPException(400, "message does not belong to this thread")
+        db.execute(
+            "UPDATE direct_threads SET pinned_message_id = ? WHERE id = ?",
+            (new_id, thread_id),
+        )
+        db.commit()
+        return ok({"thread_id": thread_id, "pinned_message_id": new_id},
+                  resource="direct_threads")
+    finally:
+        db.close()
+
+
+@router.post("/direct-message-reports", status_code=201)
+def create_direct_message_report(body: dict,
+                                  user=Depends(get_current_user)):
+    """File a report against a DM. Mirrors `post_reports`: each tap
+    creates a fresh row (no UNIQUE), so admins can count repeat
+    reports from the same user. The reported message must be one
+    the caller can see (i.e. they're a party to its thread).
+    """
+    import datetime as _dt
+    from fastapi import HTTPException
+    message_id = (body or {}).get("message_id")
+    reason = (body or {}).get("reason") or None
+    if message_id is None:
+        raise HTTPException(400, "message_id is required")
+    db = get_db()
+    try:
+        msg = db.execute(
+            "SELECT id, thread_id FROM direct_messages WHERE id = ?",
+            (int(message_id),),
+        ).fetchone()
+        if not msg:
+            raise HTTPException(404, "message not found")
+        _require_dm_party(db, msg["thread_id"], user)
+        now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        cur = db.execute(
+            "INSERT INTO direct_message_reports "
+            "(user_id, message_id, reason, created_at) VALUES (?, ?, ?, ?)",
+            (user["id"], int(message_id), reason, now),
+        )
+        db.commit()
+        return ok({"id": cur.lastrowid, "message_id": int(message_id),
+                   "reason": reason, "created_at": now},
+                  resource="direct_message_reports")
     finally:
         db.close()
 
@@ -1361,6 +1575,39 @@ def mark_direct_thread_read(thread_id: int, user=Depends(get_current_user)):
         )
         db.commit()
         return ok({"id": thread_id, "last_read_at": now},
+                  resource="direct_threads")
+    finally:
+        db.close()
+
+
+@router.delete("/direct-threads/{thread_id}")
+def delete_direct_thread_for_me(thread_id: int, user=Depends(get_current_user)):
+    """Hide the thread from the current party's inbox.
+
+    Stamps `user_{a|b}_deleted_at` for the calling user. The other party
+    still sees the conversation; if they send a new message later, the
+    thread's `updated_at` advances past the stamp and the thread
+    reappears in this user's inbox (Gmail-trash + WhatsApp "Delete
+    chat" hybrid). The `/my-threads` listing applies the filter so
+    the thread stops appearing without touching `direct_messages`.
+
+    Read state is cleared as well — when/if the thread reappears, any
+    new messages from the other party should be marked unread again.
+    """
+    import datetime as _dt
+    db = get_db()
+    try:
+        row = _require_dm_party(db, thread_id, user)
+        is_a = row["user_a_id"] == user["id"]
+        deleted_col = "user_a_deleted_at" if is_a else "user_b_deleted_at"
+        read_col = "user_a_last_read_at" if is_a else "user_b_last_read_at"
+        now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        db.execute(
+            f"UPDATE direct_threads SET {deleted_col} = ?, {read_col} = ? WHERE id = ?",
+            (now, now, thread_id),
+        )
+        db.commit()
+        return ok({"id": thread_id, "deleted_at": now},
                   resource="direct_threads")
     finally:
         db.close()

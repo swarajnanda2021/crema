@@ -107,6 +107,7 @@ function GlobalPostModal() {
       visible={!!data}
       postId={data?.postId}
       post={data?.post}
+      article={data?.article}
       mode={data?.mode || "view"}
       highlightCommentId={data?.highlightCommentId}
       onClose={() => setData(null)}

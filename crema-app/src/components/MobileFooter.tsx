@@ -60,6 +60,7 @@ import {
 
 import { t, makeStyles } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
+import { useDirectInbox } from "../hooks/useDirectInbox";
 import { showChromeNow } from "../utils/chromeScroll";
 import { emit } from "../utils/events";
 import { tap as hapticTap, select as hapticSelect } from "../utils/haptics";
@@ -238,6 +239,14 @@ export default function MobileFooter() {
   const { user } = useAuth();
   const s = useStyles();
 
+  // Unread DM badge — pink dot on the Messages tab icon when the
+  // sitewide inbox carries any unread threads. Mirrors the discover
+  // filter-dot pattern (8×8 accent disc, top-right of the icon
+  // slot). Polling is shared via DirectInboxProvider; passing
+  // `!!user` makes the footer a polling consumer when signed in,
+  // keeping the dot fresh without per-screen wiring.
+  const { totalUnread } = useDirectInbox(!!user);
+
   // Per-screen tab sets (§2.40.7): the dispatcher picks the right
   // TabDef[] based on the URL prefix so café POS + roaster analytics
   // screens can ship with their own 5-tab nav without mounting their
@@ -288,16 +297,24 @@ export default function MobileFooter() {
             setTimeout(() => emit("crema:loading-end"), 350);
           }
         };
+        const showUnreadDot = tab.label === "Messages" && totalUnread > 0;
         return (
           <Pressable
             key={tab.path}
             onPress={onPress}
             style={s.tab}
             hitSlop={4}
-            accessibilityLabel={tab.label}
+            accessibilityLabel={
+              showUnreadDot
+                ? `${tab.label}, ${totalUnread} unread`
+                : tab.label
+            }
             accessibilityRole="button"
           >
-            <View style={s.iconSlot}>{tab.icon(color)}</View>
+            <View style={s.iconSlot}>
+              {tab.icon(color)}
+              {showUnreadDot ? <View style={s.unreadDot} /> : null}
+            </View>
           </Pressable>
         );
       })}
@@ -356,5 +373,19 @@ const useStyles = makeStyles((t) => ({
     height: ICON_SLOT_SIZE,
     alignItems: "center",
     justifyContent: "center",
-  },
+    position: "relative",
+  } as any,
+  // Pink unread badge — mirrors the discover filter-dot style
+  // (8×8 accent disc anchored to the top-right of the icon slot).
+  // Position is slightly off the icon's outer edge so it reads as a
+  // badge on the icon rather than a dot inside it.
+  unreadDot: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: t.color.accent,
+  } as any,
 }));

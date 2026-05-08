@@ -39,18 +39,49 @@ def row_to_dict(row, res):
 
 
 def resolve_embeds(db, items, res, current_user_id=None):
-    """Resolve self-referencing embeds (e.g. original_post for reposts)."""
+    """Resolve embeds.
+
+    Two embed shapes are supported:
+
+      • Self-referencing — `{name, self_fk}`. The FK column lives on
+        the same table; the embedded row is fetched with the SAME
+        resource's build_select (e.g. `original_post` on `posts`).
+
+      • Cross-resource — `{name, fk, resource}`. The FK column lives
+        on the current row but points at a DIFFERENT resource's PK
+        (e.g. `original_article` on `posts` → an `articles` row).
+        The embedded row is fetched with the TARGET resource's
+        build_select so it carries the target's counts / flags /
+        subfields.
+    """
     for embed in res.get("embeds", []):
         for item in items:
-            fk_val = item.get(embed["self_fk"])
-            if fk_val:
-                embed_row = db.execute(
-                    _build_select(res, current_user_id) + f" WHERE t.{res['pk']} = ?",
-                    (fk_val,)
-                ).fetchone()
-                item[embed["name"]] = _row_to_dict(embed_row, res) if embed_row else None
-            else:
-                item[embed["name"]] = None
+            _hydrate_embed(db, item, embed, res, current_user_id)
+
+
+def _hydrate_embed(db, item, embed, res, current_user_id=None):
+    """Resolve a single embed onto `item`, mutating it in place."""
+    if "self_fk" in embed:
+        fk_val = item.get(embed["self_fk"])
+        target_res = res
+        target_pk = res["pk"]
+    elif "fk" in embed and "resource" in embed:
+        fk_val = item.get(embed["fk"])
+        target_res = get_resource(embed["resource"])
+        target_pk = target_res.get("pk", "id")
+    else:
+        item[embed["name"]] = None
+        return
+
+    if not fk_val:
+        item[embed["name"]] = None
+        return
+
+    embed_row = db.execute(
+        _build_select(target_res, current_user_id) + f" WHERE t.{target_pk} = ?",
+        (fk_val,),
+    ).fetchone()
+    item[embed["name"]] = _row_to_dict(embed_row, target_res) if embed_row else None
 
 
 def _now():
@@ -193,18 +224,12 @@ def list_resource(db, name, *, filters=None, limit=None, offset=0,
     rows = db.execute(sql, params).fetchall()
     items = [_row_to_dict(r, res) for r in rows]
 
-    # Embed self-referencing objects (e.g. original_post for reposts)
+    # Embed referenced rows (e.g. original_post for self-reposts,
+    # original_article for cross-resource article reposts). Two shapes
+    # are supported — see resolve_embeds() for the contract.
     for embed in res.get("embeds", []):
         for item in items:
-            fk_val = item.get(embed["self_fk"])
-            if fk_val:
-                embed_row = db.execute(
-                    _build_select(res, current_user_id) + f" WHERE t.{res['pk']} = ?",
-                    (fk_val,)
-                ).fetchone()
-                item[embed["name"]] = _row_to_dict(embed_row, res) if embed_row else None
-            else:
-                item[embed["name"]] = None
+            _hydrate_embed(db, item, embed, res, current_user_id)
 
     # Group by field if specified (e.g. shelves grouped by shelf category)
     if res.get("group_by"):
@@ -227,17 +252,9 @@ def get_resource_by_id(db, name, id_val, *, current_user_id=None):
         raise HTTPException(404, f"{name} not found")
     item = _row_to_dict(row, res)
 
-    # Embeds
+    # Embeds — see resolve_embeds() for the (self_fk vs fk+resource) shapes.
     for embed in res.get("embeds", []):
-        fk_val = item.get(embed["self_fk"])
-        if fk_val:
-            embed_row = db.execute(
-                _build_select(res, current_user_id) + f" WHERE t.{res['pk']} = ?",
-                (fk_val,)
-            ).fetchone()
-            item[embed["name"]] = _row_to_dict(embed_row, res) if embed_row else None
-        else:
-            item[embed["name"]] = None
+        _hydrate_embed(db, item, embed, res, current_user_id)
 
     return item
 

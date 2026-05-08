@@ -58,8 +58,15 @@ export interface Post {
   location: string | null;
   images: string[];
   repost_of_id: number | null;
+  /** Article reposts ride on the same `roaster_posts` row pattern as
+   *  post reposts: a "repost" row whose `repost_of_article_id` points
+   *  at a `roaster_articles` row. The cross-resource embed below
+   *  hydrates `original_article` so the feed renderer can branch on
+   *  which embed is non-null. */
+  repost_of_article_id: number | null;
   repost_comment: string | null;
   original_post: Post | null;
+  original_article: RoasterArticle | null;
   tasting_note_id: number | null;
   // Phase 1 §2.3 — long-form body for sourcing stories. Null for every
   // other post_type. The `teaser` field is still the feed-surface excerpt.
@@ -517,6 +524,14 @@ export interface RoasterArticle {
   tags?: string[];
   roaster_name: string | null;
   roaster_logo_url: string | null;
+  // Article engagement (parity with Post). Populated by the registry-
+  // driven /articles endpoints — same shape posts already carry.
+  like_count?: number;
+  comment_count?: number;
+  repost_count?: number;
+  liked_by_me?: boolean;
+  hidden_by_me?: boolean;
+  disliked_by_me?: boolean;
 }
 
 /** Per-roaster article-extraction site-quirk hint, returned from

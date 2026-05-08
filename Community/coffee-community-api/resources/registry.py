@@ -67,6 +67,11 @@ RESOURCES = {
             "location": {"type": "str"},
             "images_json": {"type": "json"},
             "repost_of_id": {"type": "int"},
+            # Article reposts ride on the same `roaster_posts` row pattern
+            # as post reposts — a "repost" row carrying `repost_of_article_id`
+            # rather than `repost_of_id`. The `original_article` cross-
+            # resource embed below resolves the article on the way out.
+            "repost_of_article_id": {"type": "int"},
             "repost_comment": {"type": "str"},
             "tasting_note_id": {"type": "int"},
             # Tagged coffee — the composer's "Tag a coffee" sub-flow
@@ -105,12 +110,22 @@ RESOURCES = {
         ],
         "embeds": [
             {"name": "original_post", "self_fk": "repost_of_id"},
+            # Cross-resource embed — `repost_of_article_id` points into
+            # the `articles` resource (table `roaster_articles`). Carries
+            # the same shape an article would when fetched directly, so
+            # the feed renderer can surface a reposted article via
+            # `<ArticlePreviewCard>` without an extra round-trip.
+            {"name": "original_article", "fk": "repost_of_article_id", "resource": "articles"},
         ],
         "order": "published_at DESC",
         "limit": 20,
         # notify_repost handles repost authors; notify_sourcing_story is a
         # no-op for any post_type other than 'sourcing_story' so it can sit
-        # alongside without an extra branch in the registry.
+        # alongside without an extra branch in the registry. Article reposts
+        # (where `repost_of_article_id` is set instead of `repost_of_id`)
+        # currently no-op — `notify_repost` exits early because there's no
+        # post-author to notify. Adding a notif type for the article's roaster
+        # is a follow-up; for v1 the roaster discovers reposts via the feed.
         "hooks": {"on_create": ["notify_repost", "notify_sourcing_story"]},
     },
 
@@ -217,6 +232,169 @@ RESOURCES = {
         "user_col": "user_id",
         "auth": {"toggle": "required"},
         "hooks": {"on_toggle_on": ["notify_comment_like"]},
+    },
+
+    # ── Articles ─────────────────────────────────────────────────────────
+    # The article catalog itself (`roaster_articles`). Specific.py already
+    # owns the listing endpoint (publish-gate JOINs to `roaster_profiles`
+    # are per-route logic), so the auto-routes here are intentionally
+    # restricted: list/read are blocked on the generic /api/articles
+    # endpoint, and create/update/delete are admin-only via the existing
+    # specific.py admin endpoints. The registration is here so the
+    # generic engine can wire up:
+    #   • the cross-resource `original_article` embed on posts (article
+    #     reposts in the feed)
+    #   • the nested /api/articles/{id}/article_comments routes
+    #   • the auto /api/article_likes/{id}/toggle route
+    # Specific.py's `/articles` endpoint will continue to call
+    # build_select(get_resource("articles"), uid) so the chronological
+    # feed payload picks up the like/comment/repost counts and the
+    # liked_by_me flag for free.
+    "articles": {
+        "table": "roaster_articles",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "roaster_slug": {"type": "str"},
+            "url": {"type": "str"},
+            "title": {"type": "str"},
+            "excerpt": {"type": "str"},
+            "image_url": {"type": "str"},
+            "body_html": {"type": "str"},
+            "word_count": {"type": "int"},
+            "published_at": {"type": "str"},
+            "scraped_at": {"type": "str"},
+            "published": {"type": "int", "default": 1},
+            "is_about_coffee": {"type": "int", "default": 1},
+            "topic_category": {"type": "str"},
+            "tags": {"type": "str"},
+            "enrichment_status": {"type": "str"},
+        },
+        "auth": {"list": "blocked", "read": "blocked",
+                 "create": "blocked", "update": "blocked", "delete": "blocked"},
+        # Mirror the existing _ARTICLE_CARD_COLS in specific.py — roaster
+        # name + logo come from `roaster_profiles` on the roaster_slug
+        # foreign key. Subqueries (rather than a JOIN) so the resource's
+        # generic build_select path doesn't depend on a JOIN clause that
+        # the engine's _build_select doesn't know about.
+        "subfields": [
+            {"name": "roaster_name",
+             "sql": "(SELECT rp.name FROM roaster_profiles rp WHERE rp.roaster_slug = t.roaster_slug)"},
+            {"name": "roaster_logo_url",
+             "sql": "(SELECT rp.logo_url FROM roaster_profiles rp WHERE rp.roaster_slug = t.roaster_slug)"},
+        ],
+        "counts": [
+            {"name": "like_count", "table": "article_likes", "fk": "article_id"},
+            {"name": "comment_count", "table": "article_comments", "fk": "article_id"},
+            # Counts every roaster_post repost row that points at this
+            # article via `repost_of_article_id`. Mirrors the posts
+            # registry's `repost_count` shape.
+            {"name": "repost_count", "table": "roaster_posts", "fk": "repost_of_article_id"},
+        ],
+        "flags": [
+            {"name": "liked_by_me", "table": "article_likes", "fk": "article_id", "user_col": "user_id"},
+            {"name": "hidden_by_me", "table": "article_hides", "fk": "article_id", "user_col": "user_id"},
+            {"name": "disliked_by_me", "table": "article_dislikes", "fk": "article_id", "user_col": "user_id"},
+        ],
+        "order": "id DESC",
+        "limit": 50,
+    },
+
+    # ── Article Likes (toggle) ───────────────────────────────────────────
+    "article_likes": {
+        "table": "article_likes",
+        "type": "toggle",
+        "parent": "articles",
+        "parent_table": "roaster_articles",
+        "fk": "article_id",
+        "user_col": "user_id",
+        "auth": {"toggle": "required"},
+    },
+
+    # ── Article Hides (toggle — recommender negative signal) ─────────────
+    "article_hides": {
+        "table": "article_hides",
+        "type": "toggle",
+        "parent": "articles",
+        "parent_table": "roaster_articles",
+        "fk": "article_id",
+        "user_col": "user_id",
+        "auth": {"toggle": "required"},
+    },
+
+    # ── Article Dislikes (toggle) ────────────────────────────────────────
+    "article_dislikes": {
+        "table": "article_dislikes",
+        "type": "toggle",
+        "parent": "articles",
+        "parent_table": "roaster_articles",
+        "fk": "article_id",
+        "user_col": "user_id",
+        "auth": {"toggle": "required"},
+    },
+
+    # ── Article Reports (create-only) ────────────────────────────────────
+    "article_reports": {
+        "table": "article_reports",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "user_id": {"type": "int", "ro": True, "auto": "current_user"},
+            "article_id": {"type": "int", "required": True},
+            "reason": {"type": "str"},
+            "created_at": {"type": "str", "ro": True, "auto": "now"},
+        },
+        "auth": {"list": "admin", "read": "admin", "create": "required",
+                 "update": None, "delete": "admin"},
+        "owner": "user_id",
+    },
+
+    # ── Article Comments ─────────────────────────────────────────────────
+    # Same shape as post_comments. Comment-likes route through the
+    # parallel `article_comment_likes` toggle resource (see below) — we
+    # didn't generalise the existing `comment_likes` table because that
+    # would mean a schema migration on the 200+ existing rows. The
+    # frontend's `<CommentThread>` already takes a `likeResource` prop
+    # so swapping per parent type is one-line.
+    "article_comments": {
+        "table": "article_comments",
+        "pk": "id",
+        "fields": {
+            "id": {"type": "int", "ro": True},
+            "user_id": {"type": "int", "ro": True, "auto": "current_user"},
+            "article_id": {"type": "int", "required": True},
+            "comment": {"type": "str", "required": True},
+            "parent_id": {"type": "int"},
+            "created_at": {"type": "str", "ro": True, "auto": "now"},
+            "updated_at": {"type": "str"},
+        },
+        "parent": "articles",
+        "parent_table": "roaster_articles",
+        "fk": "article_id",
+        "auth": {"list": None, "create": "required", "update": "owner", "delete": "owner"},
+        "owner": "user_id",
+        "joins": [
+            {"table": "users", "alias": "user", "on": "user_id",
+             "fields": ["id", "username", "display_name", "avatar_url"]},
+        ],
+        "counts": [
+            {"name": "like_count", "table": "article_comment_likes", "fk": "comment_id"},
+        ],
+        "flags": [
+            {"name": "liked_by_me", "table": "article_comment_likes", "fk": "comment_id", "user_col": "user_id"},
+        ],
+        "order": "created_at ASC",
+    },
+
+    # ── Article Comment Likes (toggle) ───────────────────────────────────
+    "article_comment_likes": {
+        "table": "article_comment_likes",
+        "type": "toggle",
+        "parent": "article_comments",
+        "parent_table": "article_comments",
+        "fk": "comment_id",
+        "user_col": "user_id",
+        "auth": {"toggle": "required"},
     },
 
     # ── Follows (toggle by slug) ─────────────────────────────────────────

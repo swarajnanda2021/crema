@@ -1059,6 +1059,124 @@ _MIGRATIONS = [
     # iteration and exits cleanly with whatever has already committed.
     "ALTER TABLE jobs ADD COLUMN current_target TEXT",
     "ALTER TABLE jobs ADD COLUMN cancel_requested INTEGER NOT NULL DEFAULT 0",
+    # ── Article engagement (parity with posts) ──────────────────────
+    # Articles get the same like / comment / repost / hide / dislike /
+    # report fan-out as posts. Tables mirror their post_* counterparts
+    # exactly so the registry can declare them with the same shape.
+    # Comment-likes get their own dedicated table (article_comment_likes)
+    # rather than a polymorphic comment_likes — the cleaner long-term
+    # answer would be a target_type column on comment_likes, but the
+    # ship-speed call is to keep the post-side comment_likes untouched
+    # and add a parallel article_comment_likes. Two paths to maintain
+    # but no migration risk on the existing 200+ comment-likes rows.
+    """CREATE TABLE IF NOT EXISTS article_likes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        article_id INTEGER NOT NULL REFERENCES roaster_articles(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        UNIQUE(user_id, article_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_article_likes_article ON article_likes(article_id)",
+    "CREATE INDEX IF NOT EXISTS idx_article_likes_user ON article_likes(user_id)",
+    """CREATE TABLE IF NOT EXISTS article_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        article_id INTEGER NOT NULL REFERENCES roaster_articles(id) ON DELETE CASCADE,
+        comment TEXT NOT NULL,
+        parent_id INTEGER,
+        created_at TEXT NOT NULL,
+        updated_at TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_article_comments_article ON article_comments(article_id)",
+    "CREATE INDEX IF NOT EXISTS idx_article_comments_user ON article_comments(user_id)",
+    """CREATE TABLE IF NOT EXISTS article_comment_likes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        comment_id INTEGER NOT NULL REFERENCES article_comments(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        UNIQUE(user_id, comment_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_article_comment_likes_comment ON article_comment_likes(comment_id)",
+    """CREATE TABLE IF NOT EXISTS article_hides (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        article_id INTEGER NOT NULL REFERENCES roaster_articles(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        UNIQUE(user_id, article_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_article_hides_user ON article_hides(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_article_hides_article ON article_hides(article_id)",
+    """CREATE TABLE IF NOT EXISTS article_dislikes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        article_id INTEGER NOT NULL REFERENCES roaster_articles(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        UNIQUE(user_id, article_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_article_dislikes_user ON article_dislikes(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_article_dislikes_article ON article_dislikes(article_id)",
+    """CREATE TABLE IF NOT EXISTS article_reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        article_id INTEGER NOT NULL REFERENCES roaster_articles(id) ON DELETE CASCADE,
+        reason TEXT,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_article_reports_article ON article_reports(article_id)",
+    "CREATE INDEX IF NOT EXISTS idx_article_reports_user ON article_reports(user_id)",
+    # Reposts of articles ride on roaster_posts the same way reposts of
+    # posts do — a "repost" row whose `repost_of_article_id` points at
+    # the article. The posts registry's repost_count subquery and the
+    # `original_article` cross-resource embed both key off this column.
+    "ALTER TABLE roaster_posts ADD COLUMN repost_of_article_id INTEGER",
+    "CREATE INDEX IF NOT EXISTS idx_rposts_repost_of_article ON roaster_posts(repost_of_article_id)",
+    # ── DM "delete chat for me" (per-party) ───────────────────────
+    # Mirrors the per-party last_read pattern: each side of a DM
+    # thread can stamp `user_a_deleted_at` / `user_b_deleted_at` to
+    # hide the thread from THEIR inbox. The other party still sees
+    # the conversation. If the other party sends a new message, the
+    # thread's `updated_at` advances past the stamp and the thread
+    # reappears for the deleter — same UX as Gmail trash + WhatsApp
+    # "Delete chat" hybrid. Hard-deleting both sides would orphan
+    # the other party's history; this is the safer default.
+    "ALTER TABLE direct_threads ADD COLUMN user_a_deleted_at TEXT",
+    "ALTER TABLE direct_threads ADD COLUMN user_b_deleted_at TEXT",
+    # ── DM long-press actions: reply / per-message delete / pin ───
+    # `reply_to_message_id` lets a message quote a prior one inline
+    # (the bubble renders a small "in reply to X" header with the
+    # original body excerpt). NULL means a normal message.
+    "ALTER TABLE direct_messages ADD COLUMN reply_to_message_id INTEGER",
+    "CREATE INDEX IF NOT EXISTS idx_dmessages_reply_to ON direct_messages(reply_to_message_id)",
+    # Per-message "Delete for you" stamps. Mirrors the per-thread
+    # delete pattern but at message granularity: each side sets
+    # their own stamp; the message stays in the table for the
+    # other party. The /thread endpoint filters by these so a
+    # deleted message doesn't reappear for the deleter even after
+    # new activity (unlike thread-level delete which DOES reopen
+    # on new activity — this is the WhatsApp "delete for me" leaf
+    # behavior, intentionally one-way for the actor).
+    "ALTER TABLE direct_messages ADD COLUMN deleted_for_user_a_at TEXT",
+    "ALTER TABLE direct_messages ADD COLUMN deleted_for_user_b_at TEXT",
+    # Single pinned message per DM thread. NULL = no pin. Either
+    # party can set or clear it; the pin is visible to both. The
+    # /thread endpoint surfaces it so the client can paint a banner
+    # above the messages list.
+    "ALTER TABLE direct_threads ADD COLUMN pinned_message_id INTEGER",
+    """CREATE TABLE IF NOT EXISTS direct_message_reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        message_id INTEGER NOT NULL REFERENCES direct_messages(id) ON DELETE CASCADE,
+        reason TEXT,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_direct_message_reports_message ON direct_message_reports(message_id)",
+    "CREATE INDEX IF NOT EXISTS idx_direct_message_reports_user ON direct_message_reports(user_id)",
+    # ── Image attachments on DMs ──────────────────────────────────
+    # Camera + gallery picker on the composer write a relative path
+    # (`/uploads/dm/<id>.webp`) into this column. The body field can
+    # be empty when the message is image-only — the post endpoint
+    # accepts (body OR image_url) rather than requiring both.
+    "ALTER TABLE direct_messages ADD COLUMN image_url TEXT",
 ]
 
 

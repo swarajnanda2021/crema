@@ -17,8 +17,13 @@ export { default as HapticPressable, type HapticKind, type HapticPressableProps 
 
 /** Fire the sitewide PostModal — Comment / Repost / post-card-tap
  * all route through here. Cross-platform via the events helper
- * (DeviceEventEmitter on native, window CustomEvent on web). */
-export function openPostModal(opts: { postId?: number; post?: any; mode?: string; highlightCommentId?: number }) {
+ * (DeviceEventEmitter on native, window CustomEvent on web).
+ *
+ * `article` triggers the article-repost compose surface — the article
+ * reader's repost button passes `{ article, mode: "repost" }`. The
+ * modal renders an ArticlePreviewCard inside the compose and submits
+ * with `repost_of_article_id` set. */
+export function openPostModal(opts: { postId?: number; post?: any; article?: any; mode?: string; highlightCommentId?: number }) {
   emit("crema:open-post", opts);
 }
 

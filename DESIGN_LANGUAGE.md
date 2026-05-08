@@ -164,8 +164,21 @@ action that just happened*.
 Don't repurpose pink for line elements, tab underlines, dot
 indicators, or general accents elsewhere — those uses dilute the
 pink's "actionable / engagement" semantic. Identity surfaces
-(avatar fallbacks, message bubbles, sold-out pills, tab underlines)
-stay on `text.primary` (Espresso/Crema White, mode-flipping).
+(avatar fallbacks, sold-out pills, tab underlines) stay on
+`text.primary` (Espresso/Crema White, mode-flipping).
+
+**Chat bubble exception (added 2026-05-08).** A self-sent message
+bubble is itself an "action I took" — sending the message — so
+its fill takes `accent.cta` (Crema pink, constant) with
+`text.on-cta` body text. The other party's bubble takes `tag.bg`
+(beige in light / translucent cream in dark, the brand's only
+mode-flipping soft surface), pairing with body text in
+`text.primary` so the contrast holds in both modes. No sender
+name renders inside the bubble — color + the avatar to the left
+of the OTHER bubble already signals the side. This is the only
+sanctioned use of `accent.cta` outside the (button / post-action
+icon) set; treat it as a one-off, not a precedent for further
+expansion.
 
 ### Forbidden
 
@@ -182,11 +195,13 @@ stay on `text.primary` (Espresso/Crema White, mode-flipping).
 - Off-brand reds (`#C8553D`, `#B5393C`), greens (`#2F7A48`,
   `#5A8F5A`), golds (`#E8C07A`). Retired in `9c20f43`.
 - **`accent.cta` (or `accent`) as a tab underline / dot indicator
-  / progress bar fill / message bubble bg.** Both tokens are
-  constant Crema pink (post-§2.40.19) and pink reads as
-  "actionable" — using it for non-button states mis-signals.
-  Use `text.primary` for active-tab underlines, dot indicators,
-  and identity-surface fills.
+  / progress bar fill.** Both tokens are constant Crema pink
+  (post-§2.40.19) and pink reads as "actionable" — using it for
+  non-button states mis-signals. Use `text.primary` for
+  active-tab underlines, dot indicators, and identity-surface
+  fills. (The chat self-bubble is the lone sanctioned exception —
+  see the "Chat bubble exception" note above; treat it as a
+  one-off, not a precedent.)
 - **Inventing a new dark-mode hex.** Beyond the three brand colors
   and the explicitly-named opaque tokens (`#684F44` for lines,
   `#C7BAA5` for `text.muted`, `#2a0d00` for the page body +

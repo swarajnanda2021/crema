@@ -23,6 +23,8 @@ import { useDirectInbox, InboxRow } from "../hooks/useDirectInbox";
 import { useAuth } from "../hooks/useAuth";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { onChromeScroll } from "../utils/chromeScroll";
+import { apiFetchRaw } from "../api/client";
+import { showToast } from "./shell/Toast";
 import ThreadBody, { ThreadKind } from "./ThreadBody";
 import NewMessagePicker from "./NewMessagePicker";
 import SwipeableRow, { SwipeAction } from "./SwipeableRow";
@@ -70,10 +72,18 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
   const [localArchivedKeys, setLocalArchivedKeys] = useState<Set<string>>(new Set());
   const rowKey = (r: InboxRow) => `direct_message:${r.thread_id}`;
 
+  // Locally-deleted thread ids. Filtered out client-side at render
+  // so the row vanishes optimistically; the next /my-threads poll
+  // confirms (the server-side filter on `user_a_deleted_at` /
+  // `user_b_deleted_at` keeps it gone unless the other party sends
+  // a new message).
+  const [deletedKeys, setDeletedKeys] = useState<Set<number>>(new Set());
+
   /** Build the Archive / Mute / Delete action set for a given inbox
    *  row. Archive toggles a row between Inbox and Archive tabs;
-   *  Mute / Delete surface "Coming soon" until the DM-side backend
-   *  lands. */
+   *  Delete calls DELETE /direct-threads/{id} (per-party "delete
+   *  for me" — the other side keeps the thread); Mute is still
+   *  "Coming soon" pending the §2.40.8 backend. */
   const buildActions = (row: InboxRow): SwipeAction[] => {
     const commingSoon = (feature: string) =>
       Alert.alert("Coming soon", `${feature} isn't wired up yet for this thread.`);
@@ -106,7 +116,29 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
         label: "Delete",
         background: t.color["accent.cta"],
         icon: <Trash2 size={18} color={ICON} strokeWidth={2} />,
-        onPress: () => commingSoon("Delete"),
+        onPress: () => {
+          // Optimistic remove — keeps the swipe feeling responsive.
+          // Server stamps `user_{a|b}_deleted_at`; the next refresh
+          // will keep the row hidden via the /my-threads filter.
+          const id = row.thread_id;
+          setDeletedKeys((prev) => new Set(prev).add(id));
+          (async () => {
+            try {
+              await apiFetchRaw(`/direct-threads/${id}`, { method: "DELETE" });
+              showToast("Chat deleted");
+              refresh();
+            } catch (e) {
+              // Roll back on failure so the row reappears and the
+              // user can retry.
+              setDeletedKeys((prev) => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+              });
+              showToast("Couldn't delete — try again");
+            }
+          })();
+        },
       },
     ];
   };
@@ -235,11 +267,13 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
             scrollEventThrottle={fullScreen ? 16 : undefined}
           >
             {(() => {
-              const visibleThreads = threads.filter((r) =>
-                tab === "archive"
-                  ? localArchivedKeys.has(rowKey(r))
-                  : !localArchivedKeys.has(rowKey(r)),
-              );
+              const visibleThreads = threads
+                .filter((r) => !deletedKeys.has(r.thread_id))
+                .filter((r) =>
+                  tab === "archive"
+                    ? localArchivedKeys.has(rowKey(r))
+                    : !localArchivedKeys.has(rowKey(r)),
+                );
               if (loading && threads.length === 0) {
                 return <ActivityIndicator size="small" color={t.color.accent} style={{ paddingVertical: 24 }} />;
               }
@@ -280,20 +314,30 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
                           cropX={pres.cropX ?? undefined}
                           cropY={pres.cropY ?? undefined}
                           zoom={pres.zoom ?? undefined}
-                          size={isMobile ? 44 : 32}
+                          size={isMobile ? 48 : 36}
                         />
                       ) : (
                         <View style={[s.avatarFb, isMobile && s.avatarFbTall]}>
-                          <Text style={s.avatarLetter}>{(pres.name || "?")[0].toUpperCase()}</Text>
+                          <Text style={[s.avatarLetter, isMobile && s.avatarLetterTall]}>
+                            {(pres.name || "?")[0].toUpperCase()}
+                          </Text>
                         </View>
                       )}
                       <View style={s.itemContent}>
                         <View style={s.itemTopRow}>
-                          <Text style={s.itemName} numberOfLines={1}>{pres.name}</Text>
-                          <Text style={s.itemTime}>{pres.time ? timeAgo(pres.time) : ""}</Text>
+                          <Text style={[s.itemName, isMobile && s.itemNameMobile]} numberOfLines={1}>
+                            {pres.name}
+                          </Text>
+                          <Text style={[s.itemTime, isMobile && s.itemTimeMobile]}>
+                            {pres.time ? timeAgo(pres.time) : ""}
+                          </Text>
                         </View>
                         <Text
-                          style={[s.itemPreview, pres.unread > 0 && s.itemPreviewUnread]}
+                          style={[
+                            s.itemPreview,
+                            isMobile && s.itemPreviewMobile,
+                            pres.unread > 0 && s.itemPreviewUnread,
+                          ]}
                           numberOfLines={1}
                         >
                           {pres.sentByMe ? "You: " : ""}{pres.preview}
@@ -420,21 +464,31 @@ const useStyles = makeStyles((t) => ({
     gap: 10,
     paddingHorizontal: 14, paddingVertical: 9,
   } as any,
-  itemTall: { paddingVertical: 16, gap: 12 } as any,
-  avatarFbTall: { width: 44, height: 44, borderRadius: 22 } as any,
+  // Mobile inbox row — sized to match the feed's mobile rhythm so a
+  // DM list reads as part of the same density (PostCard mobile uses
+  // 15-pt names, 14-pt subtitles, 45-px feed avatars). Avatar 48 +
+  // generous gap mirrors the feed; vertical padding 14 + the
+  // 4-px-spaced name/preview rows give the same breathing room as
+  // the feed post cards.
+  itemTall: { paddingHorizontal: t.spacing.lg, paddingVertical: 14, gap: t.spacing.md } as any,
+  avatarFbTall: { width: 48, height: 48, borderRadius: 24 } as any,
+  avatarLetterTall: { fontSize: 18 } as any,
   itemUnread: { backgroundColor: "rgba(215,152,218,0.06)" },
   itemHover: { backgroundColor: t.color.flash },
   itemDivider: { height: 1, backgroundColor: t.color["border.light"], marginHorizontal: 14, opacity: 0.5 },
-  itemContent: { flex: 1, gap: 1 } as any,
+  itemContent: { flex: 1, gap: 2 } as any,
   itemTopRow: {
     flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 8,
   } as any,
   itemName: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.primary"], flex: 1 },
+  itemNameMobile: { fontSize: 15 } as any,
   itemTime: { fontFamily: t.font["body.regular"], fontSize: 9.5, color: t.color["text.muted"] },
+  itemTimeMobile: { fontSize: 13, fontFamily: t.font["body.medium"] } as any,
   itemPreview: {
     fontFamily: t.font["body.regular"], fontSize: 11,
     color: t.color["text.secondary"], lineHeight: 15,
   } as any,
+  itemPreviewMobile: { fontSize: 14, lineHeight: 19 } as any,
   itemPreviewUnread: { color: t.color["text.primary"], fontFamily: t.font["body.medium"] } as any,
   unreadDot: {
     minWidth: 16, height: 16, borderRadius: 8,

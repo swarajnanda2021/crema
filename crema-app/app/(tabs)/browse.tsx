@@ -15,7 +15,7 @@ import { emit } from "../../src/utils/events";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { useRoasterArticles } from "../../src/hooks/useRoasterArticles";
-import ArticleCard from "../../src/components/domain/ArticleCard";
+import ArticleListRow from "../../src/components/domain/ArticleListRow";
 import RoasterLogo from "../../src/components/primitives/RoasterLogo";
 import { useSearchBarAutoHide } from "../../src/hooks/useSearchBarAutoHide";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
@@ -1292,8 +1292,9 @@ function RoastersList({
 // Chronological article feed — newest first, paginated by the SWR
 // cache fed via `RoasterArticlesProvider`. v1 has no filter scope
 // (the prompt explicitly defers the filter dimensions until the feed
-// is live and we can react to the actual content shape). The card
-// component (`ArticleCard`) handles its own tap → /article/[id].
+// is live and we can react to the actual content shape). The row
+// component (`ArticleListRow`) handles its own tap → /article/[id]
+// + the engagement strip + the trailing hairline divider.
 
 function JournalList() {
   const articlesCache = useRoasterArticles();
@@ -1351,18 +1352,20 @@ function JournalList() {
     return allArticles.filter((a) => a.roaster_slug === selectedSlug);
   }, [allArticles, selectedSlug]);
 
-  // Two-column on wide viewports, one-column on mobile. The wide
-  // layout matches the BEANS grid's `GRID_PAD = 16` outer inset
-  // and a `GRID_GAP = 16` between cards so the visual rhythm reads
-  // as one product across the Discover sub-tabs.
-  const cols = isWide ? 2 : 1;
+  // JOURNALS is now a single editorial column — `<ArticleListRow>`
+  // stacks tag/date · title · byline · hero · excerpt · action bar
+  // separated by hairlines, in the spirit of how the major editorial
+  // sites (Anthropic, NYT, The Verge) present article lists. On wide
+  // viewports the column is centered with a max width so the long
+  // form reads at a comfortable measure rather than spanning a
+  // 1200-px line. Outer GRID_PAD matches the rest of Discover.
   const GRID_PAD = 16;
-  const GRID_GAP = 16;
+  const GRID_GAP = 0; // dividers handle inter-row separation
+  const COLUMN_MAX = 720;
   const cardWidth = useMemo(() => {
     const inner = Math.max(0, width - GRID_PAD * 2);
-    if (cols === 1) return inner;
-    return Math.floor((inner - GRID_GAP * (cols - 1)) / cols);
-  }, [width, cols]);
+    return isWide ? Math.min(inner, COLUMN_MAX) : inner;
+  }, [width, isWide]);
 
   const showSpinner =
     articlesCache.loading && allArticles.length === 0;
@@ -1390,7 +1393,14 @@ function JournalList() {
           />
         ) : null}
 
-        <View style={{ paddingHorizontal: GRID_PAD, gap: GRID_GAP }}>
+        <View
+          style={{
+            // Single-column editorial layout — center the column on
+            // wide viewports, span full width on mobile.
+            alignSelf: "center",
+            width: cardWidth,
+          }}
+        >
           {showSpinner ? (
             <View style={{ paddingVertical: 64, alignItems: "center" }}>
               <ActivityIndicator size="small" color={t.color["text.primary"]} />
@@ -1412,16 +1422,14 @@ function JournalList() {
                   : "Nothing here yet."}
               </Text>
             </View>
-          ) : cols === 1 ? (
-            articles.map((a) => (
-              <ArticleCard key={a.id} article={a} width={cardWidth} />
-            ))
           ) : (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: GRID_GAP }}>
-              {articles.map((a) => (
-                <ArticleCard key={a.id} article={a} width={cardWidth} />
-              ))}
-            </View>
+            articles.map((a, idx) => (
+              <ArticleListRow
+                key={a.id}
+                article={a}
+                showDivider={idx < articles.length - 1}
+              />
+            ))
           )}
         </View>
       </ScrollView>

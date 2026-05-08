@@ -26,12 +26,19 @@ import { CroppedAvatar, timeAgo, HapticPressable } from "../primitives";
 import CommentThread from "../primitives/CommentThread";
 import PostCard from "../domain/PostCard";
 import PostGallery from "../PostGallery";
-import type { Post } from "../../resources/types";
+import ArticlePreviewCard from "../domain/ArticlePreviewCard";
+import type { Post, RoasterArticle } from "../../resources/types";
 
 interface PostModalProps {
   visible: boolean;
   postId?: number;
   post?: Post;
+  /** Article repost — when this is set with `mode="repost"` the modal
+   *  renders the article-repost compose surface (same Repost / cancel
+   *  affordances as the post case but with an `<ArticlePreviewCard>`
+   *  embedded; submit hits `/posts` with `repost_of_article_id` set
+   *  rather than `repost_of_id`). */
+  article?: RoasterArticle;
   mode?: "view" | "comment" | "repost";
   highlightCommentId?: number;
   onClose: () => void;
@@ -42,12 +49,13 @@ const MOBILE_HEADER_HEIGHT = (t.size as any)["navbar.mobile.height"];
 const MOBILE_FOOTER_HEIGHT = 71;
 
 export default function PostModal({
-  visible, postId, post: postProp, mode = "view",
+  visible, postId, post: postProp, article: articleProp, mode = "view",
   highlightCommentId, onClose, user,
 }: PostModalProps) {
   const { isMobile } = useBreakpoint();
   const insets = useSafeAreaInsets();
   const [post, setPost] = useState<Post | null>(postProp || null);
+  const [article, setArticle] = useState<RoasterArticle | null>(articleProp || null);
   const [loading, setLoading] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const s = useStyles();
@@ -58,9 +66,17 @@ export default function PostModal({
   const scrollRef = useRef<ScrollView>(null);
   const flashAnim = useRef(new Animated.Value(0)).current;
 
-  // Fetch post if only ID provided
+  // Fetch post if only ID provided. The article-repost path always
+  // arrives with `articleProp` set (no per-id fetch) — the article
+  // reader has the article in hand by the time the user taps repost.
   useEffect(() => {
-    if (!visible) { setPost(null); setRepostComment(""); return; }
+    if (!visible) {
+      setPost(null);
+      setArticle(null);
+      setRepostComment("");
+      return;
+    }
+    if (articleProp) { setArticle(articleProp); return; }
     if (postProp) { setPost(postProp); return; }
     if (!postId) return;
 
@@ -69,7 +85,7 @@ export default function PostModal({
       .then((raw: any) => setPost(raw?.data ?? raw))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [visible, postId, postProp]);
+  }, [visible, postId, postProp, articleProp]);
 
   useEffect(() => { setInternalMode(mode); }, [mode]);
 
@@ -149,6 +165,86 @@ export default function PostModal({
             {loading ? (
               <View style={s.loadingWrap}>
                 <ActivityIndicator size="large" color={t.color.accent} />
+              </View>
+            ) : article && internalMode === "repost" ? (
+              /* ── Article repost compose. Submits to /posts with
+                 `repost_of_article_id` set rather than `repost_of_id`;
+                 the cross-resource embed in the posts registry then
+                 hydrates `original_article` on the resulting feed
+                 row so PostCard renders it via ArticlePreviewCard. */
+              <View style={s.repostPreview}>
+                <View style={s.repostPreviewHeader}>
+                  {user?.avatar_url ? (
+                    <CroppedAvatar
+                      url={user.avatar_url}
+                      cropX={user.avatar_crop_x}
+                      cropY={user.avatar_crop_y}
+                      zoom={user.avatar_zoom}
+                      size={isMobile ? 60 : 30}
+                    />
+                  ) : (
+                    <View style={[
+                      s.repostAvatarFb,
+                      isMobile && { width: 60, height: 60, borderRadius: 30 },
+                    ]}>
+                      <Text style={[s.repostAvatarLetter, isMobile && { fontSize: 22 }]}>
+                        {(user?.display_name || "?")[0].toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                  <View>
+                    <Text style={[s.repostPreviewName, isMobile && { fontSize: 17.7 }]}>
+                      {user?.display_name}
+                    </Text>
+                    <Text style={[s.repostPreviewSubtitle, isMobile && { fontSize: 15, marginTop: 4 }]}>
+                      Reposting an article
+                    </Text>
+                  </View>
+                </View>
+
+                <TextInput
+                  value={repostComment}
+                  onChangeText={setRepostComment}
+                  placeholder="Add a comment (optional)..."
+                  placeholderTextColor={t.color["text.muted"]}
+                  style={s.repostInput}
+                  multiline
+                />
+
+                <View style={{ marginTop: 12 }}>
+                  <ArticlePreviewCard
+                    title={article.title}
+                    sourceUrl={article.url}
+                    imageUrl={article.image_url}
+                    onPress={() => {
+                      // Inert in the repost-compose context — the
+                      // ArticlePreviewCard's onPress fires the
+                      // ExternalLink in regular usage, but inside the
+                      // repost compose it would steal focus from the
+                      // submit button. No-op so the user reads it as
+                      // a preview.
+                    }}
+                  />
+                </View>
+
+                <View style={s.repostBtnRow}>
+                  <Pressable
+                    onPress={() => handleRepostSubmit({
+                      post_type: "repost",
+                      repost_of_article_id: article.id,
+                      title: "Repost",
+                      teaser: repostComment.trim() || "Repost",
+                      repost_comment: repostComment.trim() || null,
+                    })}
+                    style={({ pressed }) => [
+                      s.repostBtn,
+                      pressed && s.repostBtnPressed,
+                    ]}
+                    accessibilityLabel="Repost article"
+                  >
+                    <Repeat2 size={20} color={t.color["text.on-cta"]} strokeWidth={2} />
+                  </Pressable>
+                </View>
               </View>
             ) : !post ? (
               <Text style={s.emptyText}>Post not found</Text>

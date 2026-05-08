@@ -52,6 +52,11 @@ import CoffeeCard, {
   CARD_TARGET_WIDTH,
   coffeeCardHeight,
 } from "../../src/components/CoffeeCard";
+import ActionBar from "../../src/components/primitives/ActionBar";
+import CommentThread from "../../src/components/primitives/CommentThread";
+import { openPostModal } from "../../src/components/primitives";
+import { useAuth } from "../../src/hooks/useAuth";
+import { articleShareUrl } from "../../src/utils/articleShare";
 import type { RoasterArticle } from "../../src/resources/types";
 
 export default function ArticlePage() {
@@ -61,6 +66,7 @@ export default function ArticlePage() {
   const { isMobile } = useBreakpoint();
   const cache = useRoasterArticles();
   const { products } = useCoffeeData();
+  const { user } = useAuth();
   const s = useStyles();
 
   const idNum = id ? Number(id) : NaN;
@@ -350,6 +356,45 @@ export default function ArticlePage() {
             </Text>
           </Pressable>
         ) : null}
+
+        {/* Engagement — like / comment / repost / share. Action bar
+            and comment thread sit at the bottom of the reader, after
+            the body + "More from this roaster" carousel + "Read the
+            original" CTA. Spacing mirrors the JOURNALS row spec:
+            single hairline divider above, then the bar inset to the
+            content column, then the comment thread.
+
+            The share URL is the canonical
+            `https://crema.app/article/{id}` pattern that
+            `<ThreadBody>` unfurls into an `<ArticlePreviewCard>`
+            inside chat bubbles. Anonymous viewers still see counts;
+            the toggle / comment / repost actions surface the
+            AuthGate when triggered. */}
+        <View style={s.engagementBarWrap}>
+          <ActionBar
+            likeResource="article_likes"
+            targetId={article.id}
+            likeCount={article.like_count ?? 0}
+            commentCount={article.comment_count ?? 0}
+            repostCount={article.repost_count ?? 0}
+            likedByMe={!!article.liked_by_me}
+            shareUrl={articleShareUrl(article.id)}
+            onComment={() => hapticTap()}
+            onRepost={() => {
+              hapticTap();
+              openPostModal({ article, mode: "repost" });
+            }}
+          />
+        </View>
+        <View style={s.engagementThreadWrap}>
+          <CommentThread
+            resource="article_comments"
+            likeResource="article_comment_likes"
+            parentResource="articles"
+            parentId={article.id}
+            user={user}
+          />
+        </View>
       </View>
       </ScrollView>
     </>
@@ -475,8 +520,15 @@ const useStyles = makeStyles((t) => ({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: t.color["card.info"],
   } as any,
-  // Floating FAB — text.primary fill + on-cta icon. Same shape as the
-  // consumer roaster page back button (1d1759a).
+  // Floating FAB — `accent.cta` Crema-pink fill + `text.on-cta`
+  // Espresso glyph. Pink is the only fill that reads reliably in
+  // both modes against ANY hero image: an Espresso fill loses
+  // contrast on dark heroes, a cream fill loses contrast on cream
+  // heroes (Caarabi's beige wordmark, Coffee Culture's white logo,
+  // etc.), and the brand reserves pink + on-cta for action buttons —
+  // which is exactly what this is. Same surface treatment as the
+  // "Read the original" CTA pill at the bottom of this screen, so
+  // the two action chrome elements pair visually.
   backFloating: {
     position: "absolute",
     top: 16,
@@ -484,7 +536,7 @@ const useStyles = makeStyles((t) => ({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color["accent.cta"],
     alignItems: "center",
     justifyContent: "center",
     zIndex: 2,
@@ -653,4 +705,29 @@ const useStyles = makeStyles((t) => ({
     fontSize: t.size["font.xl"],
     color: t.color["text.primary"],
   },
+  // Engagement strip — sits below the "Read the original" CTA.
+  // Spec mirrors the JOURNALS row's old action bar wrapper: tight
+  // top gap, bar inset to the body-column 20-px text edge, single
+  // top hairline divider. The comment thread (its own primitive
+  // with paddingHorizontal: 20 baked in) is wrapped separately and
+  // negative-margins out of the body column so its 20-px inset
+  // lands at the body text edge rather than inside it.
+  engagementBarWrap: {
+    marginTop: t.spacing.lg,
+    paddingTop: t.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: t.color.divider,
+    // Span across body-column padding so the divider is full-width.
+    marginHorizontal: -t.spacing.xl,
+    // Re-add the column inset so the bar buttons sit at the body
+    // text edge on mobile (ActionBar.barMobile.paddingHorizontal: 0).
+    paddingHorizontal: t.spacing.xl,
+  } as any,
+  // CommentThread already carries its own paddingHorizontal: 20 in
+  // `section`. To land that 20-inset at the body text edge (rather
+  // than inside the body column's 20 padding), negate the column
+  // padding here so the thread's section inset lines up.
+  engagementThreadWrap: {
+    marginHorizontal: -t.spacing.xl,
+  } as any,
 }));

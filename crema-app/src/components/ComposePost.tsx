@@ -60,6 +60,18 @@ import { HapticPressable } from "./primitives";
 import TagCoffeeSheet from "./TagCoffeeSheet";
 import AddImageActionSheet from "./AddImageActionSheet";
 import CustomGallerySheet from "./CustomGallerySheet";
+import { useRoasterArticles } from "../hooks/useRoasterArticles";
+import {
+  TOPIC_LABELS,
+  formatArticleDate,
+  estimateReadingTime,
+} from "../utils/articleMeta";
+
+// Article URL detection — same shape as the chat-bubble unfurl, but
+// here we match the URL ANYWHERE in the typed text so the user can
+// paste an article URL inside a sentence and have it strip out
+// cleanly. The first capture group is the article id.
+const ARTICLE_URL_INLINE = /https?:\/\/crema\.app\/article\/(\d+)/i;
 
 interface ComposePostProps {
   onSubmit: (data: any) => Promise<void>;
@@ -116,15 +128,46 @@ export default function ComposePost({
   // since the picker already surfaces "Location Is Included" and
   // we now mirror that signal directly in the body.
   const [attachedLocation, setAttachedLocation] = useState<string | null>(null);
+  // Article share — when the user pastes a `crema.app/article/{id}`
+  // URL anywhere in the body, we strip the URL out of the visible
+  // text and store the article id here. The card preview renders
+  // below the body and the post submits as `post_type: "repost"`
+  // with `repost_of_article_id` set, so the feed's existing
+  // article-repost rendering kicks in (PostCard.repostArticleEl).
+  const [attachedArticleId, setAttachedArticleId] = useState<number | null>(null);
+  const articleCache = useRoasterArticles();
+  const attachedArticle = attachedArticleId
+    ? articleCache.getById(attachedArticleId)
+    : null;
   const len = teaser.length;
-  const canSubmit = !loading && len > 0 && len <= MAX_CHARS;
+  // An article-only post (URL-only paste) is a valid submission even
+  // with empty text, same way an image-only message in chat is.
+  const canSubmit =
+    !loading && (len > 0 || attachedArticleId != null) && len <= MAX_CHARS;
   const s = useStyles();
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
+    const trimmedText = teaser.trim();
+    // Article-share path — submit as `post_type: "repost"` with
+    // `repost_of_article_id` set so the feed's existing
+    // article-repost rendering (PostCard.repostArticleEl) hydrates
+    // the editorial preview via the cross-resource embed. Any text
+    // the user typed alongside the URL becomes the repost comment +
+    // teaser.
+    if (attachedArticleId != null) {
+      await onSubmit({
+        title: trimmedText.slice(0, 60) || "Repost",
+        teaser: trimmedText || "Repost",
+        post_type: "repost",
+        repost_of_article_id: attachedArticleId,
+        repost_comment: trimmedText || null,
+      });
+      return;
+    }
     await onSubmit({
-      title: teaser.trim().slice(0, 60) || "Note",
-      teaser: teaser.trim(),
+      title: trimmedText.slice(0, 60) || "Note",
+      teaser: trimmedText,
       post_type: "note",
       // Carry the tagged coffee through on submit. The backend
       // already accepts `product_id` on note posts (used by the
@@ -145,6 +188,22 @@ export default function ComposePost({
 
   const onChangeText = (next: string) => {
     if (next.length > MAX_CHARS) return;
+    // Detect a pasted article URL and pull it out of the visible
+    // text. The user wanted "the URL should not be visible" — the
+    // editorial card preview takes its place. We only strip the
+    // FIRST URL we see; subsequent ones (rare) stay as text. If
+    // the user later removes the article (X on the card), the
+    // body keeps whatever non-URL text remained.
+    const m = next.match(ARTICLE_URL_INLINE);
+    if (m && attachedArticleId == null) {
+      const id = parseInt(m[1], 10);
+      if (Number.isFinite(id)) {
+        const stripped = next.replace(m[0], "").replace(/\s{2,}/g, " ").trim();
+        setAttachedArticleId(id);
+        setTeaser(stripped);
+        return;
+      }
+    }
     setTeaser(next);
   };
 
@@ -265,6 +324,14 @@ export default function ComposePost({
           />
         ) : null}
 
+        {attachedArticleId ? (
+          <AttachedArticleCard
+            articleId={attachedArticleId}
+            article={attachedArticle}
+            onRemove={() => setAttachedArticleId(null)}
+          />
+        ) : null}
+
         {taggedCoffee && (
           <SelectedCoffeeChip
             coffee={taggedCoffee}
@@ -290,33 +357,44 @@ export default function ComposePost({
           divider spacing). The Tag-a-coffee row opens the search
           slider (Figma 895:415); when a coffee is tagged the row
           vanishes (chip card above takes over), per Figma 895:290.
-          The rest are stubs awaiting the user's per-row spec. */}
-      {!taggedCoffee && <View style={s.divider} />}
-      {!taggedCoffee && (
-        <ActionRow
-          icon={Coffee}
-          label="Tag a coffee"
-          onPress={() => setTagSheetOpen(true)}
-        />
-      )}
-      {/* "Add an image" row — hidden when an image is already
-          attached (the image-preview chip in the body takes its
-          place, mirroring how "Tag a coffee" hides when the
-          coffee chip is up). Per Figma 900:1915. */}
-      {!attachedImage && <View style={s.divider} />}
-      {!attachedImage && (
-        <ActionRow
-          icon={ImageIcon}
-          label="Add an image"
-          onPress={() => setAddImageSheetOpen(true)}
-        />
-      )}
-      <View style={s.divider} />
-      <ActionRow icon={MapPin} label="Add a tasting note" onPress={() => {}} />
-      {/* Location is now rendered inside the body content (see
-          `AttachedLocationLabel` above) per Figma 942:343 / 944:344,
-          not as an action row. Action rows are reserved for "add"
-          affordances; the location is a value, not an entry point. */}
+          The rest are stubs awaiting the user's per-row spec.
+
+          Article-share posts hide ALL action rows — an
+          article-repost is restricted to (article + post text)
+          only; mixing in a tagged coffee, image, or tasting note
+          would conflate two post types. The user clears the
+          article (X on the AttachedArticleCard) to get the rows
+          back. */}
+      {attachedArticleId == null ? (
+        <>
+          {!taggedCoffee && <View style={s.divider} />}
+          {!taggedCoffee && (
+            <ActionRow
+              icon={Coffee}
+              label="Tag a coffee"
+              onPress={() => setTagSheetOpen(true)}
+            />
+          )}
+          {/* "Add an image" row — hidden when an image is already
+              attached (the image-preview chip in the body takes its
+              place, mirroring how "Tag a coffee" hides when the
+              coffee chip is up). Per Figma 900:1915. */}
+          {!attachedImage && <View style={s.divider} />}
+          {!attachedImage && (
+            <ActionRow
+              icon={ImageIcon}
+              label="Add an image"
+              onPress={() => setAddImageSheetOpen(true)}
+            />
+          )}
+          <View style={s.divider} />
+          <ActionRow icon={MapPin} label="Add a tasting note" onPress={() => {}} />
+          {/* Location is now rendered inside the body content (see
+              `AttachedLocationLabel` above) per Figma 942:343 / 944:344,
+              not as an action row. Action rows are reserved for "add"
+              affordances; the location is a value, not an entry point. */}
+        </>
+      ) : null}
 
       {/* Tag-a-coffee bottom sheet. Renders into RN's <Modal>, so
           it sits above the composer's full-viewport host without
@@ -535,6 +613,78 @@ function AttachedLocationLabel({
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+/**
+ * AttachedArticleCard — editorial article preview rendered inline in
+ * the composer body when the user pastes a `crema.app/article/{id}`
+ * URL. Same content shape as the chat-bubble unfurl (tag · date ·
+ * title · byline · excerpt · reading time) but wrapped in a
+ * white-card chrome (radius + shadow) so it reads as "this is the
+ * article you're sharing" inside the focus-mode composer.
+ *
+ * Cache miss falls back to a minimal "Shared article" stub — we
+ * only have the article id, not the full row, so the user sees
+ * something useful while the cache hydrates.
+ *
+ * X (top-right) clears the attached article. The composer's
+ * `onChangeText` won't re-detect the URL after that because the
+ * URL was already stripped out of the typed text.
+ */
+function AttachedArticleCard({
+  articleId,
+  article,
+  onRemove,
+}: {
+  articleId: number;
+  article: any | null;
+  onRemove: () => void;
+}) {
+  const s = useStyles();
+  const tagLabel = article?.topic_category
+    ? TOPIC_LABELS[article.topic_category] || null
+    : null;
+  const dateLabel = article
+    ? formatArticleDate(article.published_at || article.scraped_at)
+    : "";
+  const readingTime = article ? estimateReadingTime(article.word_count) : "";
+  return (
+    <View style={s.attachedArticleCard}>
+      <Pressable
+        onPress={onRemove}
+        hitSlop={8}
+        style={s.attachedArticleClose}
+        accessibilityLabel="Remove article"
+        accessibilityRole="button"
+      >
+        <X size={14} color={t.color["text.primary"]} strokeWidth={2} />
+      </Pressable>
+      {(tagLabel || dateLabel) ? (
+        <View style={s.attachedArticleMetaRow}>
+          {tagLabel ? (
+            <Text style={s.attachedArticleMeta}>{tagLabel}</Text>
+          ) : null}
+          {dateLabel ? (
+            <Text style={s.attachedArticleMeta}>{dateLabel}</Text>
+          ) : null}
+        </View>
+      ) : null}
+      <Text style={s.attachedArticleTitle} numberOfLines={3}>
+        {article?.title || "Shared article"}
+      </Text>
+      {article?.roaster_name ? (
+        <Text style={s.attachedArticleByline} numberOfLines={1}>
+          By {article.roaster_name}
+        </Text>
+      ) : null}
+      {article?.excerpt ? (
+        <Text style={s.attachedArticleExcerpt}>{article.excerpt}</Text>
+      ) : null}
+      {readingTime ? (
+        <Text style={s.attachedArticleMeta}>{readingTime}</Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -829,6 +979,68 @@ const useStyles = makeStyles((t) => ({
     fontSize: 16,
     color: t.color["text.secondary"],
     flexShrink: 1,
+  } as any,
+
+  // ── Attached article preview ──────────────────────────────
+  // White-card chrome (rounded + subtle shadow) that wraps the
+  // editorial article info (tag/date · title · byline · excerpt
+  // · reading time). Sits in the body region after a pasted
+  // article URL is detected and stripped from the typed text.
+  attachedArticleCard: {
+    backgroundColor: t.color["card.product.bg"],
+    borderRadius: t.radius.lg,
+    padding: 14,
+    marginTop: 12,
+    gap: 4,
+    shadowColor: t.color.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    position: "relative",
+  } as any,
+  attachedArticleClose: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: t.color["card.info"],
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+  } as any,
+  attachedArticleMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: t.spacing.md,
+  } as any,
+  attachedArticleMeta: {
+    fontFamily: t.font["body.medium"],
+    fontSize: t.size["font.sm"],
+    color: t.color["card.product.text.muted"],
+    letterSpacing: 0.2,
+  } as any,
+  attachedArticleTitle: {
+    fontFamily: t.font.display,
+    fontSize: t.size["font.lg"],
+    lineHeight: 22,
+    color: t.color["card.product.text"],
+    paddingRight: 28,
+  } as any,
+  attachedArticleByline: {
+    fontFamily: t.font["body.medium"],
+    fontSize: t.size["font.sm"],
+    color: t.color["card.product.text.muted"],
+    marginTop: 2,
+  } as any,
+  attachedArticleExcerpt: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.md"],
+    lineHeight: 20,
+    color: t.color["card.product.text"],
+    marginTop: 6,
   } as any,
 
   // ── Action rows ─────────────────────────────────────────────

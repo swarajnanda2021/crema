@@ -23,9 +23,15 @@ import { openExternal } from "../../utils/openExternal";
 import { useRouter } from "expo-router";
 
 import { CroppedAvatar, ActionBar, timeAgo } from "../primitives";
+import RoasterLogo from "../primitives/RoasterLogo";
 import PostGallery, { isTastingNoteEntry as isTNEntry } from "../PostGallery";
 import PostMenu from "../PostMenu";
 import ArticlePreviewCard from "./ArticlePreviewCard";
+import {
+  TOPIC_LABELS,
+  formatArticleDate,
+  estimateReadingTime,
+} from "../../utils/articleMeta";
 import { t, makeStyles } from "../../tokens/useTokens";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { useCoffeeData } from "../../hooks/useCoffeeData";
@@ -261,6 +267,59 @@ export default function PostCard({
     </Pressable>
   ) : null;
 
+  // Article repost branch — when a roaster_post carries
+  // `repost_of_article_id`, the cross-resource embed populates
+  // `original_article` with the article row's full payload. The
+  // user's directive: render it editorial-style (heading, byline,
+  // synopsis, reading time, Read-article pill) inside the existing
+  // `repostCard` chrome — no hero, no domain, no extra roaster
+  // header. Same content shape as the chat-bubble unfurl, just
+  // wrapped in the cream `card.product.subtle` card chrome.
+  const repostArticleEl = isRepost && post.original_article ? (() => {
+    const a = post.original_article!;
+    const tagLabel = a.topic_category
+      ? TOPIC_LABELS[a.topic_category] || null
+      : null;
+    const dateLabel = formatArticleDate(a.published_at || a.scraped_at);
+    const readingTime = estimateReadingTime(a.word_count);
+    return (
+      <Pressable
+        onPress={() => router.push(`/article/${a.id}` as any)}
+        style={isMobile ? s.repostCardMobile : s.repostCard}
+        accessibilityRole="link"
+        accessibilityLabel={`Open article: ${a.title}`}
+      >
+        {(tagLabel || dateLabel) ? (
+          <View style={s.articleEditorialMetaRow}>
+            {tagLabel ? <Text style={s.articleEditorialMeta}>{tagLabel}</Text> : null}
+            {dateLabel ? <Text style={s.articleEditorialMeta}>{dateLabel}</Text> : null}
+          </View>
+        ) : null}
+        <Text style={s.articleEditorialTitle} numberOfLines={3}>
+          {a.title}
+        </Text>
+        {a.roaster_name ? (
+          <Text style={s.articleEditorialByline} numberOfLines={1}>
+            By {a.roaster_name}
+          </Text>
+        ) : null}
+        {a.excerpt ? (
+          <Text style={s.articleEditorialExcerpt}>{a.excerpt}</Text>
+        ) : null}
+        {readingTime ? (
+          <Text style={s.articleEditorialMeta}>{readingTime}</Text>
+        ) : null}
+        <Pressable
+          onPress={() => router.push(`/article/${a.id}` as any)}
+          style={s.articleEditorialCta}
+          accessibilityRole="link"
+        >
+          <Text style={s.articleEditorialCtaLabel}>Read article →</Text>
+        </Pressable>
+      </Pressable>
+    );
+  })() : null;
+
   const repostEl = isRepost && post.original_post ? (
     <Pressable
       onPress={onViewOriginal ? () => onViewOriginal(post.original_post!.id) : undefined}
@@ -398,7 +457,9 @@ export default function PostCard({
 
   const actionBarEl = hideActionBar ? null : (
     <ActionBar
-      postId={post.id}
+      // likeResource defaults to "post_likes" — keep the default; the
+      // article reader passes `article_likes` explicitly.
+      targetId={post.id}
       likeCount={post.like_count}
       commentCount={post.comment_count}
       repostCount={post.repost_count}
@@ -453,6 +514,7 @@ export default function PostCard({
         {bodyEl}
         {storyEl}
         {locationEl}
+        {repostArticleEl}
         {repostEl}
         {articleOrGalleryEl}
         {taggedCoffeeChipEl}
@@ -484,6 +546,7 @@ export default function PostCard({
       <View style={s.bodyWrap}>{bodyEl}</View>
       {storyEl}
       {locationEl}
+      {repostArticleEl}
       {repostEl}
       {articleOrGalleryEl}
       {taggedCoffeeChipEl}
@@ -673,6 +736,64 @@ const useStyles = makeStyles((t) => ({
   // compensating for cardMobile's asymmetric 16/8 padding —
   // dropped along with that asymmetry.)
   repostCardMobile: { marginTop: 6, marginBottom: 8, borderRadius: t.radius.md, backgroundColor: t.color["card.product.subtle"], padding: 12 } as any,
+  // ── Article repost editorial layout ─────────────────────────
+  // Same content shape as the chat-bubble article unfurl (tag/date
+  // · title · byline · excerpt · reading time · Read article pill)
+  // but on the cream `card.product.subtle` chrome of the repost
+  // card. All text uses `card.product.text*` constants so the card
+  // stays light in both modes — this is an "always-light identity
+  // surface" the same way the CoffeeCard is.
+  articleEditorialMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: t.spacing.md,
+    marginBottom: 4,
+  } as any,
+  articleEditorialMeta: {
+    fontFamily: t.font["body.medium"],
+    fontSize: t.size["font.sm"],
+    color: t.color["card.product.text.muted"],
+    letterSpacing: 0.2,
+  } as any,
+  articleEditorialTitle: {
+    fontFamily: t.font.display,
+    fontSize: t.size["font.lg"],
+    lineHeight: 22,
+    color: t.color["card.product.text"],
+  } as any,
+  articleEditorialByline: {
+    fontFamily: t.font["body.medium"],
+    fontSize: t.size["font.sm"],
+    color: t.color["card.product.text.muted"],
+    marginTop: 2,
+  } as any,
+  articleEditorialExcerpt: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.md"],
+    lineHeight: 20,
+    color: t.color["card.product.text"],
+    marginTop: 6,
+    marginBottom: 6,
+  } as any,
+  // CTA pill — Crema pink fill + Espresso text, same as the
+  // chat-bubble's other-side CTA. Self-aligned to flex-start so the
+  // pill hugs its content rather than stretching the card width.
+  articleEditorialCta: {
+    alignSelf: "flex-start" as any,
+    flexDirection: "row" as any,
+    alignItems: "center" as any,
+    backgroundColor: t.color["accent.cta"],
+    paddingHorizontal: t.spacing.md,
+    paddingVertical: t.spacing.xs + 2,
+    borderRadius: t.radius.full,
+    marginTop: 6,
+  } as any,
+  articleEditorialCtaLabel: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.on-cta"],
+    letterSpacing: 0.4,
+  } as any,
   repostHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 } as any,
   repostAuthorRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 } as any,
   repostAvatarFb: { width: 20, height: 20, borderRadius: 10, backgroundColor: t.color["text.on-light"], alignItems: "center", justifyContent: "center" } as any,
