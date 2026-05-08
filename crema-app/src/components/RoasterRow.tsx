@@ -129,6 +129,9 @@ const useStyles = makeStyles((t) => ({
   rowActive: {
     backgroundColor: t.color.flash,
   } as any,
+  // Status pill (e.g. "NEW") — informational badge, NOT a button.
+  // Stays on `text.primary` so it reads as Espresso in light mode
+  // rather than following the §2.40.19 accent.cta → pink rule.
   pill: {
     position: "absolute",
     top: t.spacing.xs,
@@ -136,12 +139,12 @@ const useStyles = makeStyles((t) => ({
     paddingHorizontal: t.spacing.sm,
     paddingVertical: 2,
     borderRadius: t.radius.full,
-    backgroundColor: t.color["accent.cta"],
+    backgroundColor: t.color["text.primary"],
   } as any,
   pillText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.xs"],
-    color: t.color["text.on-cta"],
+    color: t.color["text.on-dark"],
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },

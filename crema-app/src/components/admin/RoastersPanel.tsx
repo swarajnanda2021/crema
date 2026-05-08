@@ -751,7 +751,7 @@ const useStyles = makeStyles((t) => ({
     borderRadius: t.size["fab.size"] / 2,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
     shadowColor: t.color.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
@@ -904,13 +904,13 @@ const useStyles = makeStyles((t) => ({
     justifyContent: "center",
   } as any,
   radioOn: {
-    borderColor: t.color["text.primary"],
+    borderColor: t.color.accent,
   } as any,
   radioDot: {
     width: 10,
     height: 10,
     borderRadius: t.radius.full,
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
   } as any,
   locDrawerFooter: {
     flexDirection: "row",
@@ -942,8 +942,8 @@ const useStyles = makeStyles((t) => ({
     justifyContent: "center",
   } as any,
   checkBoxOn: {
-    backgroundColor: t.color["text.primary"],
-    borderColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
+    borderColor: t.color.accent,
   } as any,
   checkBoxTick: {
     fontFamily: t.font["body.semibold"],
@@ -982,7 +982,7 @@ const useStyles = makeStyles((t) => ({
     paddingHorizontal: t.spacing.lg,
     paddingVertical: t.spacing.md,
     borderRadius: t.radius.md,
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
   } as any,
   locApplyText: {
     fontFamily: t.font["body.semibold"],

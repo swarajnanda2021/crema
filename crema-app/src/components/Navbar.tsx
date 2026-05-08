@@ -218,7 +218,12 @@ export default function Navbar() {
 }
 
 const s = StyleSheet.create({
-  // Figma: 1440×72, bg #351101
+  // Figma: 1440×72, bg #351101 (Espresso). Uses `navbar.bg`
+  // explicitly rather than `accent.cta` because the two are no
+  // longer the same — `accent.cta` flipped to constant Crema pink
+  // in §2.40.19 to match the new "buttons are pink" rule. The
+  // navbar is chrome, not a button, so it stays Espresso via
+  // `navbar.bg`.
   navbar: {
     height: NAVBAR_HEIGHT,
     flexDirection: "row",
@@ -226,7 +231,7 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     paddingLeft: "6.25%" as any,   // Figma: 90/1440 = 6.25%
     paddingRight: "6.25%" as any,  // scales with viewport
-    backgroundColor: t.color["accent.cta"],
+    backgroundColor: t.color["navbar.bg"],
   },
   leftLinks: {
     flexDirection: "row",

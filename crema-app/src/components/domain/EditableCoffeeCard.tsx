@@ -466,7 +466,7 @@ const useStyles = makeStyles((t) => ({
   urlModalDone: {
     marginTop: 12, alignSelf: "flex-end" as any,
     paddingHorizontal: 16, paddingVertical: 8,
-    borderRadius: 4, backgroundColor: t.color["text.primary"],
+    borderRadius: 4, backgroundColor: t.color.accent,
   },
   urlModalDoneText: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.on-dark"] },
 }));

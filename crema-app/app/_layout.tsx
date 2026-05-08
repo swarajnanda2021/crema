@@ -12,7 +12,7 @@ import "../global.css";
 import { View } from "react-native";
 import { usePathname } from "expo-router";
 import { AuthProvider, useAuth } from "../src/hooks/useAuth";
-import { CoffeeDataProvider, useCoffeeData } from "../src/hooks/useCoffeeData";
+import { CoffeeDataProvider } from "../src/hooks/useCoffeeData";
 import { RoasterProfilesProvider } from "../src/hooks/useRoasterProfiles";
 import { RoasterArticlesProvider } from "../src/hooks/useRoasterArticles";
 import { NotificationsProvider } from "../src/hooks/useNotifications";
@@ -29,6 +29,10 @@ import ComposePost from "../src/components/ComposePost";
 import NavigationLoader from "../src/components/NavigationLoader";
 import MobileFooter from "../src/components/MobileFooter";
 import MobileOverlays from "../src/components/mobile/MobileOverlays";
+import FabPill from "../src/components/primitives/FabPill";
+import { openComposePost } from "../src/components/primitives";
+import { Plus } from "lucide-react-native";
+import { FloatingFabProvider, useIsFloatingFabRegistered } from "../src/contexts/FloatingFabContext";
 import { apiFetchRaw } from "../src/api/client";
 
 /** Sticky bottom tab bar on every mobile screen. Hidden on /auth
@@ -43,6 +47,43 @@ function ConditionalMobileFooter() {
   return <MobileFooter />;
 }
 
+/** Floating "Create post" pill on the home feed only (`/`).
+ *
+ *  /profile and /roaster/<slug> need per-page state to gate the
+ *  pill (activeTab, isEditing, isOwner) — those pages register
+ *  their own FAB via `useFloatingFab` from inside the page so the
+ *  visibility tracks the page's tab state. ArticlesPanel does the
+ *  same for the admin Refresh pill.
+ *
+ *  Mounted at the root layout's relative wrapper level so the
+ *  pill is anchored to a parent whose bottom edge doesn't move
+ *  when MobileHeader animates its height on scroll-collapse —
+ *  fixes the per-frame jitter that inline mounts produced
+ *  (§2.40.16).
+ *
+ *  `useIsFloatingFabRegistered()` short-circuits to null whenever
+ *  another component has claimed the FAB slot — defensive
+ *  guard against future dynamic FAB registrations on the home
+ *  feed (no current use case, but the cost is one context read). */
+function ConditionalCreatePostFab() {
+  const { user } = useAuth();
+  const pathname = usePathname();
+  const fabRegistered = useIsFloatingFabRegistered();
+
+  if (!user) return null;
+  if (fabRegistered) return null;
+  if (pathname !== "/") return null;
+
+  return (
+    <FabPill
+      icon={<Plus size={17} color={t.color["text.on-light"]} strokeWidth={2.5} />}
+      label="Create post"
+      onPress={() => openComposePost()}
+      style={{ position: "absolute" as any, bottom: 28, right: 28 }}
+    />
+  );
+}
+
 export { ErrorBoundary } from "expo-router";
 
 SplashScreen.preventAutoHideAsync();
@@ -53,6 +94,13 @@ function GlobalPostModal() {
   const [data, setData] = useState<any>(null);
 
   useEffect(() => listen("crema:open-post", (detail) => setData(detail)), []);
+  // Sitewide "escape" hatch — chrome buttons (MobileHeader hamburger/
+  // bell, MobileFooter tabs) emit `crema:dismiss-modals` so any open
+  // modal yields focus back to the chrome destination the user just
+  // tapped. Without this, tapping Home while the post viewer is open
+  // is a visual no-op (the route is already `/`) and the user reads
+  // the chrome as broken. Reported in §2.40.24.
+  useEffect(() => listen("crema:dismiss-modals", () => setData(null)), []);
 
   return (
     <PostModal
@@ -74,6 +122,7 @@ function GlobalPostModal() {
 function GlobalPopularityModal() {
   const [data, setData] = useState<any>(null);
   useEffect(() => listen("crema:open-popularity", (detail) => setData(detail)), []);
+  useEffect(() => listen("crema:dismiss-modals", () => setData(null)), []);
   if (!data) return null;
   return (
     <PopularityModal
@@ -91,18 +140,30 @@ function GlobalPopularityModal() {
 
 /** Single sitewide ComposePost — the Home FAB + Profile post prompt
  *  + any other "open the composer" affordance all route through the
- *  `crema:open-compose` event. Mounted inside the relative wrapper
- *  so the mid-band positioning keeps MobileHeader + MobileFooter
- *  painted on mobile. */
+ *  `crema:open-compose` event.
+ *
+ *  Focus-mode mounting (§2.40.25): on mobile the composer renders
+ *  FULL-VIEWPORT — `top: 0, bottom: 0` with `zIndex: 100` — so
+ *  MobileHeader and MobileFooter are intentionally covered. The
+ *  user's directive: "the composer is a focus zone, no distractions
+ *  from anywhere is preferred." Internal `paddingTop: insets.top`
+ *  keeps the top bar clear of the iPhone notch / Dynamic Island.
+ *
+ *  This component is mounted OUTSIDE the relative wrapper (sibling
+ *  of MobileFooter) so its absolute positioning resolves against
+ *  the outer flex column = full viewport. From inside the wrapper
+ *  the composer would have been clipped above the footer.
+ *
+ *  Web wide keeps the centered floating card. */
 function GlobalComposePost() {
   const { user } = useAuth();
-  const { products: productMap } = useCoffeeData() as any;
   const { isMobile } = useBreakpoint();
   const insets = useSafeAreaInsets();
   const [data, setData] = useState<any>(null);
   const gStyles = useGStyles();
 
   useEffect(() => listen("crema:open-compose", (detail) => setData(detail || {})), []);
+  useEffect(() => listen("crema:dismiss-modals", () => setData(null)), []);
 
   const close = () => setData(null);
   const visible = data !== null;
@@ -145,17 +206,20 @@ function GlobalComposePost() {
       onCancel={close}
       loading={false}
       user={user}
-      products={productMap ? Array.from((productMap as any[])) : []}
       initialData={data.initialData}
     />
   );
 
-  // Mobile: absolute mid-band. Web wide: centered floating card.
-  const MOBILE_HEADER_HEIGHT = (t.size as any)["navbar.mobile.height"];
+  // Mobile: full-viewport overlay. Web wide: centered floating card.
   if (isMobile) {
     return (
-      <View style={[gStyles.mobileHost, { top: insets.top + MOBILE_HEADER_HEIGHT, bottom: 0 }]}>
-        <View style={gStyles.composeCardMobile}>{body}</View>
+      <View
+        style={[
+          gStyles.fullScreenHost,
+          { paddingTop: insets.top, paddingBottom: insets.bottom },
+        ]}
+      >
+        {body}
       </View>
     );
   }
@@ -177,6 +241,22 @@ const useGStyles = makeStyles((t) => ({
     // `elevation: 12` to avoid Android's Material-shadow hit-test
     // outline occasionally swallowing taps on sibling chrome (M2).
     zIndex: 40,
+  } as any,
+  // Full-viewport host for the focus-mode composer (§2.40.25).
+  // Mounted as a sibling of MobileFooter so absolute positioning
+  // resolves against the outer flex column = full viewport. The
+  // `zIndex: 100` paints above any wrapper-internal modal (40)
+  // and the MobileFooter (no zIndex, normal flow), so the
+  // composer covers the chrome zones the user asked us to hide
+  // for distraction-free focus.
+  fullScreenHost: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: t.color.bg,
+    zIndex: 100,
   } as any,
   composeCardMobile: { flex: 1, backgroundColor: t.color.bg, overflow: "hidden" } as any,
   overlayWrap: {
@@ -294,8 +374,15 @@ function ThemedRoot() {
           `MobileOverlays` absolute-positions inside it with
           safe-area + chrome offsets so the slide panels sit
           BETWEEN the (tabs) SiteHeader and the MobileFooter
-          below. */}
+          below.
+          The FloatingFabProvider (§2.40.18) wraps everything
+          inside the wrapper so any deeply-nested component
+          (admin ArticlesPanel's Refresh, roaster page's Create
+          post for owners) can register a FAB and have it render
+          here at the wrapper level — anchored to a stable bottom
+          edge (no chrome-scroll jitter). */}
       <View style={{ flex: 1, position: "relative" } as any}>
+        <FloatingFabProvider>
         <Stack
           screenOptions={{
             headerShown: false,
@@ -344,21 +431,12 @@ function ThemedRoot() {
               headerShown: false,
             }}
           />
-          {/* Mobile-only destinations behind the MobileHeader
-             search + bell icons. Native stack renders a back
-             button for free via headerShown:true. On web wide
-             these URLs exist but the Navbar's floating dropdowns
-             are preferred — nothing there navigates here. */}
-          <Stack.Screen
-            name="search"
-            options={{
-              headerShown: true,
-              title: "Search",
-              headerTintColor: t.color["accent.cta"],
-              headerStyle: { backgroundColor: t.color.bg },
-              headerShadowVisible: false,
-            }}
-          />
+          {/* Mobile-only destinations behind the MobileHeader bell
+             icon. Native stack renders a back button for free via
+             headerShown:true. On web wide these URLs exist but the
+             Navbar's floating dropdowns are preferred — nothing
+             there navigates here. (Search used to live here as a
+             Stack screen; it's now a peer (tabs)/search.tsx tab.) */}
           <Stack.Screen
             name="notifications"
             options={{
@@ -380,6 +458,13 @@ function ThemedRoot() {
             } as any}
           />
         </Stack>
+        {/* "Create post" pill on the home feed (§2.40.16). Anchored
+            to the relative wrapper's bottom-right (constant in
+            screen coords because the wrapper's bottom edge sits at
+            viewport-bottom-minus-footer-height = stable value).
+            Sits BEFORE the modals below so an open compose / post
+            modal renders on top and covers it. */}
+        <ConditionalCreatePostFab />
         {/* Sitewide modals — mounted inside the relative wrapper so
             on mobile their absolute-positioned mid-band layers
             resolve to the chrome-excluding parent. MobileFooter is
@@ -387,7 +472,6 @@ function ThemedRoot() {
             lands at the top of MobileFooter exactly. (§2.40.3) */}
         <GlobalPostModal />
         <GlobalPopularityModal />
-        <GlobalComposePost />
         {/* Sitewide floating auth modal — opened from ProfileDropdown's
             "Add another account" item via crema:open-auth-modal event. */}
         <AuthModal />
@@ -395,8 +479,15 @@ function ThemedRoot() {
             account). Last inside the wrapper so slide chrome
             paints above any open modal. */}
         <MobileOverlays />
+        </FloatingFabProvider>
       </View>
       <ConditionalMobileFooter />
+      {/* Focus-mode composer — mounted OUTSIDE the relative wrapper
+          (§2.40.25) so its full-viewport absolute positioning
+          (top:0 / bottom:0 / zIndex:100) covers MobileHeader and
+          MobileFooter. The user's directive: "the composer is a
+          focus zone, no distractions from anywhere is preferred." */}
+      <GlobalComposePost />
       {/* Sitewide status toast — sibling OUTSIDE the relative
           wrapper so its top offset is screen-absolute and it can
           paint above MobileHeader + the relative band.

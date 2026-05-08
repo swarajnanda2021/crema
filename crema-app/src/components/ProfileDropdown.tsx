@@ -8,7 +8,7 @@ import { useState, useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { Settings, PenLine, LogOut, UserPlus, Trash2, X, Moon, Sun, Smartphone } from "lucide-react-native";
+import { Settings, PenLine, LogOut, UserPlus, Trash2, X, Moon, Sun } from "lucide-react-native";
 import { t, makeStyles } from "../tokens/useTokens";
 import { useThemeOverride } from "../tokens/ThemeProvider";
 import { resolveUploadUrl } from "../api/client";
@@ -31,7 +31,7 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
   const [showBin, setShowBin] = useState(false);
   const cardRef = useRef<any>(null);
   const s = useStyles();
-  const { override, setOverride } = useThemeOverride();
+  const { mode: themeMode, setMode: setThemeMode } = useThemeOverride();
 
   // Outside-click dismissal on web — mirrors Messages + Notifications
   // so opening this dropdown no longer freezes the rest of the site.
@@ -120,19 +120,17 @@ export default function ProfileDropdown({ visible, onClose, fullScreen }: Props)
     }
   };
 
-  // Theme cycle: System (null) → Light → Dark → System. The icon and
-  // sublabel reflect the *user override*, not the resolved mode — when
-  // System is active, the icon is the phone and the sublabel reads
-  // "Auto" regardless of which scheme the OS is currently serving.
+  // Theme toggle: Light ↔ Dark (§2.40.23 retired the prior
+  // System / Light / Dark three-way cycle — the user found "Auto"
+  // unnecessary on top of the explicit choices).
   const cycleTheme = () => {
-    const next = override === null ? "light" : override === "light" ? "dark" : null;
-    setOverride(next);
+    setThemeMode(themeMode === "light" ? "dark" : "light");
   };
-  const themeLabel = override === "light" ? "Light" : override === "dark" ? "Dark" : "Auto";
+  const themeLabel = themeMode === "light" ? "Light" : "Dark";
   const themeIcon =
-    override === "light" ? <Sun size={18} color={t.color["text.secondary"]} strokeWidth={1.5} /> :
-    override === "dark"  ? <Moon size={18} color={t.color["text.secondary"]} strokeWidth={1.5} /> :
-                           <Smartphone size={18} color={t.color["text.secondary"]} strokeWidth={1.5} />;
+    themeMode === "light"
+      ? <Sun size={18} color={t.color["text.secondary"]} strokeWidth={1.5} />
+      : <Moon size={18} color={t.color["text.secondary"]} strokeWidth={1.5} />;
 
   const handleAddAccount = () => {
     onClose();

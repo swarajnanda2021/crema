@@ -58,6 +58,22 @@ UA = (
 )
 TIMEOUT = 12
 
+# Shopify's `sitemap_blogs_*.xml` enumerates EVERY blog handle on a
+# storefront — including ones that aren't articles in any meaningful
+# sense (founder/team bios, policy pages, contact, careers). The
+# discovery step walks each handle and asks Haiku to extract an
+# article from it; on a `team` handle, Haiku gets a Shopify product-
+# page (`<small class="tax-note">Taxes included…</small>`) and
+# either fabricates an "article" or returns is_article=false. The
+# filter below short-circuits the walk.
+_NON_ARTICLE_HANDLES = frozenset({
+    "team", "about", "about-us", "policies", "policy", "contact",
+    "contact-us", "legal", "pages", "careers", "press", "terms",
+    "privacy", "shipping", "returns", "faq", "faqs", "help",
+    "support", "wholesale-inquiry", "wholesale-application",
+    "stockists", "store-locator",
+})
+
 # WebP article-hero pipeline. Hero images downloaded by the scraper
 # get converted to WebP and stored under `/uploads/articles/` so the
 # consumer reader serves a local, already-resized asset (the same
@@ -239,7 +255,7 @@ def _shopify_blog_handles_from_sitemap(base: str) -> list[str]:
                     handles.add(m.group(1))
         except Exception:
             continue
-    return sorted(handles)
+    return sorted(h for h in handles if h not in _NON_ARTICLE_HANDLES)
 
 
 def _wordpress(base: str) -> Optional[dict]:
@@ -522,6 +538,14 @@ def _extract_html_article(html: str, *, base_url: str) -> dict:
             if p:
                 excerpt = p.get_text(" ", strip=True)[:280]
 
+    # When og:image is absent, scan the body for a hero candidate so
+    # roasters that omit OG metadata (G-Shot, Aromas-of-Coorg) still
+    # land a hero on the JOURNAL card. Haiku gets the same candidate
+    # via extract_for_enrichment so it doesn't have to re-scan the
+    # body for itself.
+    if not image_url and body_node is not None:
+        image_url = _first_body_image(body_node, base_url)
+
     return {
         "url": base_url,
         "title": title,
@@ -531,6 +555,61 @@ def _extract_html_article(html: str, *, base_url: str) -> dict:
         "body_html": body_html,
         "word_count": word_count or None,
     }
+
+
+# Substrings that disqualify a body `<img src>` from being the hero.
+# Order doesn't matter; substring-match is enough for the obvious
+# cases (logos, social icons, tracking pixels, share-button SVGs).
+_HERO_IMG_DISQUALIFIERS = (
+    "logo", "icon", "favicon", "twitter.com", "facebook.com",
+    "instagram.com", "x.com", "linkedin.com", "pixel", "1x1",
+    "spacer", "share", "social", "avatar", "emoji", "loader",
+    "loading", "sprite", "bg-", "/bg.", "background",
+)
+
+
+def _first_body_image(body_node, base_url: str) -> Optional[str]:
+    """Pick the first reasonable `<img>` inside `body_node` to use as
+    a hero. Returns an absolute URL or None.
+
+    Heuristic order:
+      1. Skip `data:` URIs (inline base64), tracking pixels, logos,
+         social icons, share-button graphics.
+      2. Prefer images that declare a width >= 600 (either via
+         `width=` attr or in the URL like `_1024x.jpg` shopify hint).
+      3. Failing that, return the first non-disqualified absolute
+         URL — Haiku gets the next pass and will reject if it isn't
+         article-like.
+    """
+    candidates: list[str] = []
+    for img in body_node.find_all("img"):
+        # Shopify lazy-loads via data-src; pick that over src when
+        # src points at a placeholder.
+        src = (
+            img.get("data-src")
+            or img.get("data-original")
+            or img.get("data-lazy-src")
+            or img.get("src")
+        )
+        if not src:
+            continue
+        src = src.strip()
+        if not src or src.startswith("data:"):
+            continue
+        lowered = src.lower()
+        if any(token in lowered for token in _HERO_IMG_DISQUALIFIERS):
+            continue
+        absolute = urljoin(base_url, src)
+        # Prefer images that look "big enough" via the width attr.
+        width_attr = img.get("width") or ""
+        try:
+            width_int = int(re.match(r"\d+", str(width_attr)).group(0))  # type: ignore[union-attr]
+        except (AttributeError, ValueError):
+            width_int = 0
+        if width_int >= 600:
+            return absolute
+        candidates.append(absolute)
+    return candidates[0] if candidates else None
 
 
 def _meta(soup: BeautifulSoup, name: str) -> Optional[str]:
@@ -610,13 +689,22 @@ def extract_for_enrichment(html: str, *, base_url: str) -> dict:
     # whitespace.
     page_text = re.sub(r"\n{3,}", "\n\n", page_text)
 
+    fallback = _extract_html_article(html, base_url=base_url)
+
+    # When og:image is missing, hand Haiku the body-img candidate
+    # found by the bs4 fallback so its hero pick has a real seed.
+    # Haiku still has the option to override with a different inline
+    # image — this just ensures it isn't seeing "(none)" when the
+    # page does carry a visible hero.
+    og_image_hint = og_image or fallback.get("image_url")
+
     return {
         "page_text": page_text,
         "og_title": og_title,
         "og_description": og_description,
-        "og_image": og_image,
+        "og_image": og_image_hint,
         "og_published_at": og_published_at,
-        "fallback": _extract_html_article(html, base_url=base_url),
+        "fallback": fallback,
     }
 
 
@@ -732,7 +820,11 @@ def _alt_image_urls(url: str) -> list[str]:
 
 def upsert_article(db, *, roaster_slug: str, article: dict,
                     now_iso: str,
-                    enrichment_status: str = "pending") -> str:
+                    enrichment_status: str = "pending",
+                    is_about_coffee: bool = True,
+                    topic_category: Optional[str] = None,
+                    tags: Optional[list[str]] = None,
+                    published_override: Optional[int] = None) -> str:
     """Insert or update one article row. Returns 'inserted' / 'updated'
     / 'skipped'. URL is the dedup key (UNIQUE constraint). Per-row
     commits keep the writer-lock window short — same DB-lock
@@ -741,6 +833,14 @@ def upsert_article(db, *, roaster_slug: str, article: dict,
     `enrichment_status` is stamped on every write — caller passes
     'enriched' when Haiku succeeded, 'failed' when Haiku errored, or
     leaves the default 'pending' for bs4-only fallback writes.
+
+    `is_about_coffee` / `topic_category` / `tags` come from Haiku's
+    Layer-A gate fields. Off-topic rows write with `published=0`
+    automatically (admin can override — they still see the row).
+    `published_override` lets the runner force `published=0` for
+    other reasons (admin-initiated hide); when None the publish
+    state is inferred from `is_about_coffee` on insert and left
+    untouched on update (so manual hides survive a re-scrape).
     """
     url = (article.get("url") or "").strip()
     if not url:
@@ -751,7 +851,8 @@ def upsert_article(db, *, roaster_slug: str, article: dict,
 
     existing = db.execute(
         "SELECT id, title, excerpt, image_url, body_html, "
-        "  word_count, published_at, enrichment_status "
+        "  word_count, published_at, enrichment_status, "
+        "  is_about_coffee, topic_category, tags "
         "FROM roaster_articles WHERE url = ?",
         (url,),
     ).fetchone()
@@ -761,21 +862,31 @@ def upsert_article(db, *, roaster_slug: str, article: dict,
     body_html = article.get("body_html")
     word_count = article.get("word_count")
     published_at = article.get("published_at")
+    coffee_int = 1 if is_about_coffee else 0
+    tags_json = json.dumps(tags) if tags else None
 
     if existing is None:
+        # Default insert: off-topic rows are hidden from consumers
+        # but kept visible to admin (the prompt's locked behavior).
+        if published_override is not None:
+            published_initial = 1 if published_override else 0
+        else:
+            published_initial = 1 if is_about_coffee else 0
         db.execute(
             "INSERT INTO roaster_articles "
             "(roaster_slug, url, title, excerpt, image_url, body_html, "
             " word_count, published_at, scraped_at, published, "
-            " enrichment_status) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)",
+            " enrichment_status, is_about_coffee, topic_category, tags) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (roaster_slug, url, title, excerpt, image_url, body_html,
-             word_count, published_at, now_iso, enrichment_status),
+             word_count, published_at, now_iso, published_initial,
+             enrichment_status, coffee_int, topic_category, tags_json),
         )
         db.commit()
         return "inserted"
 
     # Update only when something changed (avoid pointless writes).
+    existing_tags = existing["tags"] or None
     changed = (
         (existing["title"] or "") != (title or "") or
         (existing["excerpt"] or "") != (excerpt or "") or
@@ -783,7 +894,10 @@ def upsert_article(db, *, roaster_slug: str, article: dict,
         (existing["body_html"] or "") != (body_html or "") or
         (existing["word_count"] or 0) != (word_count or 0) or
         (existing["published_at"] or "") != (published_at or "") or
-        (existing["enrichment_status"] or "") != (enrichment_status or "")
+        (existing["enrichment_status"] or "") != (enrichment_status or "") or
+        ((existing["is_about_coffee"] or 0) != coffee_int) or
+        ((existing["topic_category"] or "") != (topic_category or "")) or
+        ((existing_tags or "") != (tags_json or ""))
     )
     if not changed:
         return "skipped"
@@ -791,10 +905,12 @@ def upsert_article(db, *, roaster_slug: str, article: dict,
         "UPDATE roaster_articles SET "
         "  title = ?, excerpt = ?, image_url = ?, body_html = ?, "
         "  word_count = ?, published_at = COALESCE(?, published_at), "
-        "  scraped_at = ?, enrichment_status = ? "
+        "  scraped_at = ?, enrichment_status = ?, "
+        "  is_about_coffee = ?, topic_category = ?, tags = ? "
         "WHERE id = ?",
         (title, excerpt, image_url, body_html, word_count,
-         published_at, now_iso, enrichment_status, existing["id"]),
+         published_at, now_iso, enrichment_status,
+         coffee_int, topic_category, tags_json, existing["id"]),
     )
     db.commit()
     return "updated"

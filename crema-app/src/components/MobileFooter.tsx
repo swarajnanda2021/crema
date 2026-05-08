@@ -1,19 +1,21 @@
 /**
  * MobileFooter — sticky bottom nav that persists across every
- * mobile screen.
+ * mobile screen and never animates away.
  *
- * Default tab set: Home / Discover / Messages / Profile.
+ * Default tab set: Home / Discover / Messages / Search / Profile.
  *
  * Lives at the root layout so it stays painted while the user
  * drills into detail screens (coffee, roaster, cafe, user, account,
- * search, notifications). Pathname drives the active state — no
- * reliance on Expo Router's Tabs mounted state, which disappears
- * the moment you navigate outside the `(tabs)` group.
+ * notifications). Pathname drives the active state — no reliance
+ * on Expo Router's Tabs mounted state, which disappears the moment
+ * you navigate outside the `(tabs)` group.
  *
- * Taps on the tabs use `router.replace` so successive tab switches
- * don't accumulate a back stack. Drill-downs (e.g., tap a user on
- * the Discover feed) still push normally via `router.push` because
- * the underlying screens call `router.push` themselves.
+ * Every tab is a peer member of the `(tabs)` group, so taps use
+ * `router.replace` and the tab switch is instant — no slide-from-
+ * side Stack-push transition. (Search lived briefly as a Stack
+ * screen above the group during Figma 864:3304 wiring; it was
+ * moved into `(tabs)/search.tsx` so it behaves like every other
+ * footer tab.)
  *
  * Per-screen tab sets (§2.40.7): `getTabsForPath(pathname, user)`
  * dispatches on the leading path segment so screens with a
@@ -23,25 +25,58 @@
  * (§2.39-adjacent), but the routes they'll use are reserved here
  * so their nav will "just work" when they arrive.
  *
- * Visual spec: Figma 66:6577 — 71px bar + iPhone home-indicator
- * inset, `nav.mobile.bar.bg`, `text.primary` active / `text.muted`
- * inactive, Inter Regular 10, -0.2 tracking, drop-shadow
- * 0/-4/20 @ 3%.
+ * Scroll-aware behaviour: MobileFooter is intentionally NOT scroll-
+ * aware. Only MobileHeader collapses on scroll-down (chromeScroll
+ * `hidden` Animated.Value). The footer must remain pinned at all
+ * times — users navigate via the footer, so it can't disappear.
+ *
+ * Visual spec: Figma 864:3304 — frame 71×389. The bar is exactly
+ * 71 px tall and its bottom edge sits flush with the viewport
+ * bottom: the Figma frame already accounts for the iPhone home-
+ * indicator curvature zone (the bottom ~34 px of the 71 sit inside
+ * iOS's safe-inset zone, painted in the same `nav.mobile.bar.bg`
+ * so the chrome reads as one continuous strip down to the screen
+ * edge). We deliberately do NOT add `insets.bottom` on top of the
+ * 71 — that would push the bar above the safe-inset zone and
+ * double-count.
+ *
+ * Labels-off variant: the original Figma frame had Inter-Regular
+ * 10-pt labels below each icon; the user requested they be removed
+ * after the geometry was correct. With labels gone, icons centre
+ * vertically inside the 71-px bar (`alignItems: "center"`) so they
+ * sit balanced rather than hanging at the top with a void below.
+ * `accessibilityLabel` on each Pressable preserves the route name
+ * for screen readers.
+ *
+ * 26-px icons, `text.primary` active / `text.muted` inactive,
+ * drop-shadow 0/-4/20 @ 3%.
  */
-import { View, Text, Pressable, StyleSheet, Platform, Animated } from "react-native";
+import { View, Pressable } from "react-native";
 import { useRouter, usePathname } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  Home, Compass, MessageCircle, User as UserIcon,
+  Home, Compass, MessageCircle, Search, User as UserIcon,
   QrCode, ClipboardList, Package, BarChart3, Settings, Users,
 } from "lucide-react-native";
 
 import { t, makeStyles } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
-import { getChromeHiddenAnim, showChromeNow } from "../utils/chromeScroll";
+import { showChromeNow } from "../utils/chromeScroll";
 import { emit } from "../utils/events";
 import { tap as hapticTap, select as hapticSelect } from "../utils/haptics";
 import { CroppedAvatar } from "./primitives";
+
+// Figma 864:3304 frame height. This is the TOTAL bar height
+// measured from the viewport bottom edge — it already includes the
+// iPhone home-indicator zone, no `+ insets.bottom` on top.
+const FOOTER_BAR_HEIGHT = 71;
+
+// Every footer icon renders inside a fixed-size box so the layout
+// footprint is identical across tabs — matters because lucide
+// glyphs have slightly different intrinsic heights at the same
+// `size` prop (e.g. Compass's circle is ~22 of a 24-unit viewBox
+// while Home's silhouette spans the full 24). The slot equalises
+// the box; the lucide glyph or avatar sits centred inside.
+const ICON_SLOT_SIZE = 26;
 
 interface TabDef {
   label: string;
@@ -50,28 +85,37 @@ interface TabDef {
   icon: (color: string) => React.ReactNode;
 }
 
-/** Default tab set — the 4 consumer tabs every signed-in user sees
+/** Default tab set — the 5 consumer tabs every signed-in user sees
  *  on the main surfaces. Profile icon flips to the user's avatar
- *  when one is set; otherwise the lucide UserIcon. */
+ *  when one is set; otherwise the lucide UserIcon. Search slots
+ *  between Messages and Profile and is a peer (tabs)/ route, same
+ *  as the others — switching to it is a tab change, not a Stack
+ *  push, so there's no slide-in animation. */
 function defaultTabs(user: any): TabDef[] {
   return [
     {
       label: "Home",
       path: "/",
       match: (p) => p === "/",
-      icon: (color) => <Home size={24} color={color} strokeWidth={2} />,
+      icon: (color) => <Home size={26} color={color} strokeWidth={2} />,
     },
     {
       label: "Discover",
       path: "/browse",
       match: (p) => p === "/browse",
-      icon: (color) => <Compass size={24} color={color} strokeWidth={2} />,
+      icon: (color) => <Compass size={26} color={color} strokeWidth={2} />,
     },
     {
       label: "Messages",
       path: "/messages",
       match: (p) => p === "/messages",
-      icon: (color) => <MessageCircle size={24} color={color} strokeWidth={2} />,
+      icon: (color) => <MessageCircle size={26} color={color} strokeWidth={2} />,
+    },
+    {
+      label: "Search",
+      path: "/search",
+      match: (p) => p === "/search",
+      icon: (color) => <Search size={26} color={color} strokeWidth={2} />,
     },
     {
       label: "Profile",
@@ -81,7 +125,7 @@ function defaultTabs(user: any): TabDef[] {
         user?.avatar_url ? (
           <View
             style={{
-              width: 26, height: 26, borderRadius: 13,
+              width: ICON_SLOT_SIZE, height: ICON_SLOT_SIZE, borderRadius: ICON_SLOT_SIZE / 2,
               borderWidth: 1.5, borderColor: color, overflow: "hidden",
             }}
           >
@@ -90,11 +134,11 @@ function defaultTabs(user: any): TabDef[] {
               cropX={user.avatar_crop_x}
               cropY={user.avatar_crop_y}
               zoom={user.avatar_zoom}
-              size={23}
+              size={ICON_SLOT_SIZE - 3}
             />
           </View>
         ) : (
-          <UserIcon size={24} color={color} strokeWidth={2} />
+          <UserIcon size={26} color={color} strokeWidth={2} />
         ),
     },
   ];
@@ -191,7 +235,6 @@ function getTabsForPath(pathname: string | null | undefined, user: any): TabDef[
 export default function MobileFooter() {
   const router = useRouter();
   const pathname = usePathname();
-  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const s = useStyles();
 
@@ -201,100 +244,97 @@ export default function MobileFooter() {
   // own footer.
   const tabs: TabDef[] = getTabsForPath(pathname, user);
 
-  const hidden = getChromeHiddenAnim();
-  const footerTotalH = 71 + insets.bottom;
-  // Two-layer collapse: the OUTER wrapper clips everything so the
-  // strip shrinks out of the flex column. Parallel opacity fade
-  // masks the last 2–6 px of residue caused by iOS shadows + Android
-  // elevation, which bypass the parent's overflow:hidden and would
-  // otherwise leave a faint cream stripe at full-hide.
-  const heightAnim = hidden.interpolate({
-    inputRange: [0, 1],
-    outputRange: [footerTotalH, 0],
-  });
-  // Fade hard in the last 20% of the collapse — stays crisp while
-  // visible, then drops to 0 right as the height pinches shut.
-  const opacityAnim = hidden.interpolate({
-    inputRange: [0, 0.8, 1],
-    outputRange: [1, 1, 0],
-  });
-
+  // Bar height is exactly FOOTER_BAR_HEIGHT (71) — no safe-inset
+  // addition. The bar's bottom edge sits at the viewport bottom and
+  // its bg paints into the iPhone home-indicator zone naturally.
+  // Icons anchor to the top of the 71 via alignItems:flex-start +
+  // paddingTop, well clear of the home-indicator pill at the bottom.
   return (
-    <Animated.View
-      style={{
-        height: heightAnim,
-        opacity: opacityAnim,
-        overflow: "hidden",
-      }}
-    >
-      <View
-        style={[
-          s.bar,
-          {
-            paddingBottom: insets.bottom + t.spacing.sm,
-            height: footerTotalH,
-          },
-        ]}
-      >
-        {tabs.map((tab) => {
-          const active = tab.match(pathname);
-          const color = active ? t.color["text.primary"] : t.color["text.muted"];
-          // X-style re-tap behaviour: tapping the active tab scrolls
-          // its primary scroll surface to the top + reveals chrome.
-          // Home → feed scroll-to-top. Discover / Messages / Profile
-          // fall through to the same pattern; each screen can listen
-          // for its own event. Inactive taps navigate.
-          const onPress = () => {
-            if (active) {
-              hapticSelect();
-              emit(`crema:rescroll-${tab.label.toLowerCase()}`);
-              showChromeNow();
-            } else {
-              hapticTap();
-              // NavigationLoader keys off pathname change to paint the
-              // sitewide cream curtain + crema wordmark, but on bottom-
-              // tab `router.replace` switches the destination tab can
-              // commit its first paint before the loader's min-display
-              // overlay actually renders — the curtain "doesn't show".
-              // Emit the explicit start/end pair so the loader is up
-              // for the full hold regardless of how fast the
-              // destination tab hydrates.
-              emit("crema:loading-start");
-              router.replace(tab.path as any);
-              setTimeout(() => emit("crema:loading-end"), 350);
-            }
-          };
-          return (
-            <Pressable
-              key={tab.path}
-              onPress={onPress}
-              style={s.tab}
-              hitSlop={4}
-              accessibilityLabel={tab.label}
-              accessibilityRole="button"
-            >
-              {tab.icon(color)}
-              <Text style={[s.label, { color }]}>{tab.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </Animated.View>
+    <View style={s.bar}>
+      {tabs.map((tab) => {
+        const active = tab.match(pathname);
+        const color = active ? t.color["text.primary"] : t.color["text.muted"];
+        // X-style re-tap behaviour: tapping the active tab scrolls
+        // its primary scroll surface to the top + reveals chrome.
+        // Home → feed scroll-to-top. Discover / Messages / Search /
+        // Profile fall through to the same pattern; each screen can
+        // listen for its own event. Inactive taps navigate.
+        //
+        // ALWAYS dismiss any open sitewide modal first. When the
+        // post viewer is open and the user taps Home (with home as
+        // the active tab) we used to emit only `rescroll-home` —
+        // the route stayed `/` and the modal stayed mounted above
+        // the feed, so the tap looked like a no-op. Closing
+        // modals first guarantees the user actually reaches the
+        // tab destination they tapped (§2.40.24).
+        const onPress = () => {
+          emit("crema:dismiss-modals");
+          if (active) {
+            hapticSelect();
+            emit(`crema:rescroll-${tab.label.toLowerCase()}`);
+            showChromeNow();
+          } else {
+            hapticTap();
+            // NavigationLoader keys off pathname change to paint the
+            // sitewide cream curtain + crema wordmark, but on bottom-
+            // tab `router.replace` switches the destination tab can
+            // commit its first paint before the loader's min-display
+            // overlay actually renders — the curtain "doesn't show".
+            // Emit the explicit start/end pair so the loader is up
+            // for the full hold regardless of how fast the
+            // destination tab hydrates.
+            emit("crema:loading-start");
+            router.replace(tab.path as any);
+            setTimeout(() => emit("crema:loading-end"), 350);
+          }
+        };
+        return (
+          <Pressable
+            key={tab.path}
+            onPress={onPress}
+            style={s.tab}
+            hitSlop={4}
+            accessibilityLabel={tab.label}
+            accessibilityRole="button"
+          >
+            <View style={s.iconSlot}>{tab.icon(color)}</View>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
 const useStyles = makeStyles((t) => ({
-  // Flex-sized bar at the bottom of the root layout's flex column —
-  // reserves its own height so the Stack content above never gets
-  // covered. Sticky behaviour comes from the parent `<View flex:1>`
-  // wrapping it above the Stack.
+  // Sticky bar — sits at the bottom of the root layout's flex
+  // column (native + web; web requires `html, body, #root { height:
+  // 100% }` in `global.css` so the outer flex chain reaches the
+  // viewport bottom). Total height is exactly FOOTER_BAR_HEIGHT
+  // (71 px) — measured from the viewport bottom edge, not from the
+  // top of the iPhone home-indicator safe-inset zone. The Figma
+  // 864:3304 frame already accounts for that curvature.
+  //
+  // Labels-off variant: with the Figma's 10-pt labels removed, each
+  // tab is just an icon — `alignItems: "center"` centres icons
+  // vertically inside the 71-px bar so they sit balanced rather
+  // than hanging at the top with a label-shaped void below. On
+  // iPhones the icon's centre lands a few pixels above the safe-
+  // inset zone, well clear of the home-indicator pill.
+  //
+  // `paddingHorizontal: t.spacing.md` (12 px each side, ~6% of a
+  // 390-pt viewport) pulls the outermost tabs (Home + Profile)
+  // toward the centred Messages tab — the user's "5% center-aligned
+  // to the comment button" tweak. Closest ladder value to the
+  // requested 5% (t.spacing.sm at 8 would be 4%; t.spacing.md at
+  // 12 is the better visual match).
   bar: {
+    height: FOOTER_BAR_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
+    paddingHorizontal: t.spacing.md,
     backgroundColor: (t.color as any)["nav.mobile.bar.bg"],
-    paddingTop: t.spacing.md,
-    // Drop-shadow from Figma 66:6577.
+    // Drop-shadow from Figma 864:3304.
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.03,
@@ -305,12 +345,16 @@ const useStyles = makeStyles((t) => ({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: t.spacing.xs,
-    paddingVertical: t.spacing.xs,
   },
-  label: {
-    fontFamily: t.font["body.regular"],
-    fontSize: t.size["font.xs"],
-    letterSpacing: -0.2,
+  // Fixed slot so every tab's icon footprint is identical regardless
+  // of the lucide glyph's intrinsic dimensions or whether the
+  // Profile tab is rendering an avatar (with border ring) or the
+  // fallback UserIcon. Lucide icon at size:26 fills exactly; the
+  // 26-px Profile avatar wrapper fills exactly.
+  iconSlot: {
+    width: ICON_SLOT_SIZE,
+    height: ICON_SLOT_SIZE,
+    alignItems: "center",
+    justifyContent: "center",
   },
 }));

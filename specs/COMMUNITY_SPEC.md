@@ -720,17 +720,28 @@ CREATE TABLE roaster_articles (
     url TEXT UNIQUE NOT NULL,                    -- dedup key
     title TEXT NOT NULL,
     excerpt TEXT,
-    image_url TEXT,
+    image_url TEXT,                              -- og:image, body-img fallback
     body_html TEXT,                              -- cleaned HTML
     word_count INTEGER,
     published_at TEXT,                           -- ISO from feed/og/<time>
     scraped_at TEXT NOT NULL,
     published INTEGER NOT NULL DEFAULT 1,        -- admin curation flag
-    enrichment_status TEXT NOT NULL DEFAULT 'pending'
+    enrichment_status TEXT NOT NULL DEFAULT 'pending',
+    -- Layer-A gate output: founder bios + spirituality essays + café
+    -- event recaps without coffee content land with is_about_coffee=0
+    -- and published=0 (admin can override).
+    is_about_coffee INTEGER NOT NULL DEFAULT 1,
+    -- One of TOPIC_CATEGORIES (see SCRAPER_SPEC §13). Drives admin
+    -- badges + future filterability on the consumer JOURNAL feed.
+    topic_category TEXT,
+    -- 3-7 lowercase keyword tags, JSON-encoded. Drives sitewide search
+    -- via LIKE on the JSON-as-string (FTS5 deferred).
+    tags TEXT
 );
 CREATE INDEX idx_roaster_articles_roaster ON roaster_articles(roaster_slug);
 CREATE INDEX idx_roaster_articles_published_at ON roaster_articles(published_at DESC);
 CREATE INDEX idx_roaster_articles_published ON roaster_articles(published);
+CREATE INDEX idx_roaster_articles_is_about_coffee ON roaster_articles(is_about_coffee);
 ```
 
 `roaster_sources` gains five discovery-state cache columns so
@@ -743,6 +754,21 @@ subsequent scrapes skip enumeration:
 - `articles_count INTEGER NOT NULL DEFAULT 0` — denormalized so the
   admin Roasters & Beans list doesn't `JOIN+COUNT` per row.
 
+`roaster_profiles` gains the per-roaster article-extraction site-quirk
+hint columns (Layer B):
+- `article_enrichment_prompt_hint TEXT` — Sonnet-generated addendum
+  threaded into every Haiku call for this roaster.
+- `article_enrichment_prompt_hint_updated_at TEXT` — relative-time
+  display in the admin Journals expand row.
+- `article_hint_force_regenerate INTEGER NOT NULL DEFAULT 0` —
+  perpetual server-side flag (shared across all admins). While set
+  to 1, every `article_scrape` pass for this roaster regenerates
+  the hint via the Sonnet meta-call. Never auto-clears; admin
+  toggles back to 0 from the Journals expand row when satisfied.
+  Same column is exposed on the public `roaster_profiles` registry
+  so the admin filter drawer's "Has site hint" / "No site hint"
+  axis can read it client-side without a second round-trip.
+
 ### Public endpoints
 
 | Endpoint | Purpose |
@@ -750,18 +776,23 @@ subsequent scrapes skip enumeration:
 | `GET /api/articles?limit=&before=&roaster_slug=` | Chronological feed. Newest first by `COALESCE(published_at, scraped_at)`. Excludes `body_html` for payload size. Capped at 500 per call (the sitewide `RoasterArticlesProvider` fetches the full set in one request). |
 | `GET /api/articles/{id}` | Single article including `body_html` — what the in-app reader fetches. |
 | `GET /api/roasters/{slug}/articles?limit=` | Per-roaster article list, same shape as the feed but filtered server-side. |
+| `GET /api/articles/search?q=&limit=` | Sitewide search across `title`, `excerpt`, and `tags` (LIKE on the JSON-as-string). Powers the `<SearchDropdown />` "Journal" section between Beans and Roasters. Capped at 8 hits like the other dropdown sections. |
 
-All three gate on `roaster_articles.published = 1 AND
+All four gate on `roaster_articles.published = 1 AND
 roaster_profiles.published = 1` so unreviewed roasters' articles
-never leak even via deep link.
+never leak even via deep link. Off-topic rows (Layer-A
+`is_about_coffee=0`) write with `published=0` and are excluded by
+the same gate.
 
 ### Admin endpoints
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /api/admin/articles/scrape-all` | Bulk article scrape across every enabled `roaster_sources` row. Body `{ force_enrich?: bool }` — when true, re-runs Haiku for every URL even if it's already `enrichment_status='enriched'`. Same conflict + `BackgroundTasks` shape as `/admin/scrape/run`; only one `article_scrape` may be live at a time. |
-| `POST /api/admin/roasters/{slug}/scrape-articles` | Per-roaster article scrape. Per-row Refresh button on the Articles sub-tab posts here. Same `force_enrich` body field as the bulk endpoint. |
-| `GET /api/admin/articles?roaster_slug=&include_hidden=` | Admin list. `include_hidden=1` (default) returns `published=0` rows so the admin sees what they hid. |
+| `POST /api/admin/articles/scrape-all` | Bulk article scrape. Body `{ force_enrich?: bool, roaster_slugs?: string[], regenerate_article_hint?: bool }`. Empty / absent `roaster_slugs` = every published roaster (the hero "Refresh ALL" CTA). A non-empty array scopes the run to that subset (the Layer-C2 multi-select sticky CTA). `regenerate_article_hint` forces per-roaster site-quirk hint regeneration even if a cached hint exists. Same conflict + `BackgroundTasks` shape as `/admin/scrape/run`; only one `article_scrape` may be live at a time. |
+| `POST /api/admin/roasters/{slug}/scrape-articles` | Per-roaster article scrape. Per-row Refresh button on the Journals sub-tab posts here. Body `{ force_enrich?: bool, regenerate_article_hint?: bool }`. |
+| `GET /api/admin/articles?roaster_slug=&include_hidden=` | Admin list. `include_hidden=1` (default) returns `published=0` rows so the admin sees off-topic + manually-hidden articles. Response includes `enrichment_status`, `is_about_coffee`, `topic_category`, and `tags` (decoded into a JSON list, never null). |
+| `GET /api/admin/roasters/{slug}/article-hint` | Returns `{ roaster_slug, roaster_name, article_enrichment_prompt_hint, article_enrichment_prompt_hint_updated_at, article_hint_force_regenerate }` for the per-roaster hint card. The flag drives the perpetual "Regenerate hint on every scrape" toggle. |
+| `POST /api/admin/roasters/{slug}/article-hint/regenerate-flag` | Flip the perpetual `article_hint_force_regenerate` flag. Body `{ enabled: 0 \| 1 }`. While 1, every `article_scrape` pass regenerates the hint via the Sonnet meta-call (~$0.03 each). The flag never auto-clears — admin flips back to 0 from the Journals expand row when satisfied. |
 | `POST /api/admin/articles/{id}/publish` | Toggle visibility. Body `{ published: 0 \| 1 }`. |
 | `DELETE /api/admin/articles/{id}` | Hard-delete. Re-scrape will re-insert if the URL still resolves; use this for truly stale entries, not for hiding. |
 
@@ -784,6 +815,20 @@ lifecycle as the catalog scrape. `result_summary` carries:
 - `not_article_skipped: int` — articles where Haiku returned
   `is_article=false` (mis-classified URLs — category landings,
   404s, product listings)
+- `off_topic_skipped: int` — articles where Haiku returned
+  `is_about_coffee=false` (founder bios, spirituality essays,
+  café-event recaps without coffee content). Row IS written but
+  goes in with `published=0`; this counter complements
+  `articles_inserted` rather than replacing it.
+- `empty_skipped: int` — Haiku failed AND bs4 fallback came back
+  with neither body_html nor image_url; nothing renderable to
+  write.
+- `hints_generated: int` — Layer-B per-roaster site-quirk hint
+  generated for the first time this run.
+- `hints_regenerated: int` — hint regenerated under
+  `regenerate_article_hint=true`.
+- `hints_failed: int` — Sonnet meta-call returned None / errored;
+  the existing hint (if any) is left unchanged for the next run.
 - `errors: list[{slug, url?, message}]`
 
 ### Enrichment status flow

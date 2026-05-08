@@ -69,6 +69,12 @@ RESOURCES = {
             "repost_of_id": {"type": "int"},
             "repost_comment": {"type": "str"},
             "tasting_note_id": {"type": "int"},
+            # Tagged coffee — the composer's "Tag a coffee" sub-flow
+            # writes the picked coffee's `product_id` here. Renders
+            # as the in-feed coffee chip below the body image
+            # (Figma 825:2657) and drives the "Posted about a coffee"
+            # subtitle copy.
+            "product_id": {"type": "str"},
             # Phase 1 §2.3 — long-form body for sourcing stories. Null
             # for every other post_type.
             "body_full": {"type": "str"},
@@ -446,6 +452,18 @@ RESOURCES = {
             # ago" inside the hint card so freshness is visible without
             # diving into a job log.
             "enrichment_prompt_hint_updated_at": {"type": "str"},
+            # Article-extraction site-quirk hint (Layer B follow-up to
+            # the bean enricher hint above). Mirrors the precedent
+            # exactly: same type, same auth treatment, same admin
+            # surface (the Journals expand row's hint card). The
+            # `_force_regenerate` flag is a perpetual server-side
+            # toggle — while 1, every article_scrape pass regenerates
+            # the hint via a Sonnet meta-call. Never auto-clears;
+            # admin flips back to 0 from the Journals expand row when
+            # satisfied.
+            "article_enrichment_prompt_hint": {"type": "str"},
+            "article_enrichment_prompt_hint_updated_at": {"type": "str"},
+            "article_hint_force_regenerate": {"type": "int", "default": 0},
             "updated_at": {"type": "str"},
         },
         "auth": {"list": None, "read": None, "update": "required"},
@@ -461,6 +479,23 @@ RESOURCES = {
             {"name": "scrape_ready",
              "sql": "(SELECT CASE WHEN rs.shop_url IS NOT NULL AND rs.platform IS NOT NULL "
                     "THEN 1 ELSE 0 END FROM roaster_sources rs WHERE rs.website = t.website)"},
+            # Live article-count + most-recent-scrape time keyed by
+            # `roaster_slug` (NOT by website) — the panel display reads
+            # these as the source of truth, so the row never disagrees
+            # with the underlying `roaster_articles` table. The
+            # denormalized `roaster_sources.articles_count` cache used
+            # to drive the row, but it's stamped only at the end of
+            # `run_article_scrape_job`'s per-source loop — articles
+            # written by other paths (sample scripts, partial runs that
+            # errored before the stamp) leave the cache at 0 even
+            # though the article rows exist. Subfields below bypass
+            # that cache mismatch entirely.
+            {"name": "articles_count_live",
+             "sql": "(SELECT COUNT(*) FROM roaster_articles ra "
+                    "WHERE ra.roaster_slug = t.roaster_slug)"},
+            {"name": "last_article_scraped_at",
+             "sql": "(SELECT MAX(ra.scraped_at) FROM roaster_articles ra "
+                    "WHERE ra.roaster_slug = t.roaster_slug)"},
         ],
         # When admin edits the roaster's display name via the inline
         # Name field on the admin page (PUT /api/roaster_profiles/{slug}),

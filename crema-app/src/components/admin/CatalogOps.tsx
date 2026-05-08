@@ -40,19 +40,19 @@ const SECTIONS: CatalogOpsSection[] = [
 const SECTION_LABEL: Record<CatalogOpsSection, string> = {
   roasters: "ROASTERS & BEANS",
   standardization: "STANDARDIZATION",
-  articles: "ARTICLES",
+  articles: "JOURNALS OPS",
 };
 
 const SECTION_TITLE: Record<CatalogOpsSection, string> = {
   roasters: "Roasters & Beans",
   standardization: "Catalog Standardization",
-  articles: "Roaster Journal",
+  articles: "Roaster Journals",
 };
 
 const SECTION_BLURB: Record<CatalogOpsSection, string> = {
   roasters: "Manage roaster identities + run per-roaster bean enrichment from the same surface.",
   standardization: "Five sequential Haiku passes that map tasting notes, origins, varietals, roast levels, and processes onto Crema canonical references.",
-  articles: "Discover and refresh the blog/journal articles each roaster publishes on their site. Articles surface in Discover JOURNAL.",
+  articles: "Discover, refresh, and curate the blog articles each roaster publishes. Tap a row to expand its site-quirk hint and per-article controls. Multi-select rows to scope a refresh.",
 };
 
 export default function CatalogOps() {

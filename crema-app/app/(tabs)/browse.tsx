@@ -623,13 +623,13 @@ export default function BrowsePage() {
               setActiveTab("roasters");
               setTimeout(() => emit("crema:loading-end"), 350);
             }} />
-            <TabButton label="JOURNAL" active={activeTab === "journal"} onPress={() => {
+            <TabButton label="JOURNALS" active={activeTab === "journal"} onPress={() => {
               if (activeTab === "journal") return;
               emit("crema:loading-start");
               setActiveTab("journal");
               setTimeout(() => emit("crema:loading-end"), 350);
             }} />
-            {/* Filter icon hides on JOURNAL — no filter dimensions in
+            {/* Filter icon hides on JOURNALS — no filter dimensions in
                v1; the tab is a chronological feed only. The roaster +
                topic filters land in a follow-up once the feed is live
                and we can pick the dimensions that pull weight. */}
@@ -1915,9 +1915,14 @@ const useStyles = makeStyles((t) => ({
     justifyContent: "center",
     backgroundColor: "transparent",
   } as any,
+  // Active state: Crema-pink fill with Espresso text (per
+  // §2.40.19 — every actionable pill in the app reads as
+  // "selected" via the brand-pink fill, not the mode-flipping
+  // text.primary). text.on-cta is constant Espresso post-§2.40.19
+  // so it pairs correctly with the pink bg.
   roasterStripAllPillActive: {
-    borderColor: t.color["text.primary"],
-    backgroundColor: t.color["text.primary"],
+    borderColor: t.color.accent,
+    backgroundColor: t.color.accent,
   } as any,
   roasterStripAllText: {
     fontFamily: t.font["body.semibold"],

@@ -456,13 +456,22 @@ It is intentionally NOT part of the `Scraper/scraper/` directory:
 
 | Platform | Strategy | Verified on |
 |---|---|---|
-| **Shopify** | `/sitemap.xml` → enumerate `sitemap_blogs_*.xml` → harvest blog handles → fetch `/blogs/<handle>.atom` for each | Black Poetry, Black Baza, Blue Tokai, Subko, Caffinary |
+| **Shopify** | `/sitemap.xml` → enumerate `sitemap_blogs_*.xml` → harvest blog handles → filter against `_NON_ARTICLE_HANDLES` → fetch `/blogs/<handle>.atom` for each | Black Poetry, Black Baza, Blue Tokai, Subko, Caffinary |
 | **WordPress / WooCommerce** | `/feed/` (NOT `/blog/feed/` — that's the comments-feed trap). RSS items typically carry inline HTML in `<content:encoded>` so a second per-URL fetch isn't needed except for `og:image` | Naivo |
 | **Custom / unknown** | `/feed`, `/rss`, `/atom.xml` (generic), then HTML index probes at `/blog`, `/journal`, `/articles`, `/stories`, `/blogs/news` | — |
 
 The successful strategy is cached on `roaster_sources.articles_index_url`
 + `articles_feed_kind` + `articles_handles` (JSON array for Shopify
 multi-handle) so subsequent runs skip enumeration.
+
+**Shopify handle filter.** Shopify's `sitemap_blogs_*.xml` enumerates
+every blog handle on a storefront, including handles that aren't
+articles in any meaningful sense — `team`, `policies`, `about`,
+`careers`, `pages`, `terms`, `privacy`, etc. The discovery walk
+drops these via the `_NON_ARTICLE_HANDLES` set in
+`article_scraper.py` before they reach Haiku. This is the fix for
+the Black Baza founder-bio rows that surfaced on the bulk run —
+discovery was enumerating `team` as if it were a real blog handle.
 
 ### Extraction
 
@@ -483,6 +492,9 @@ For each article URL:
 
        {
          is_article: bool,                  # gate — false rejects URL
+         is_about_coffee: bool,             # gate — false → published=0
+         topic_category: str,               # one of TOPIC_CATEGORIES
+         tags: list[str],                   # 3-7 lowercase keyword tags
          title: str,
          summary: str,                      # 1-2 sentences (excerpt)
          body_html: str,                    # h2/h3, p, ul/ol/li,
@@ -500,7 +512,53 @@ For each article URL:
    listings the discovery step mis-classified. Cost ~$0.01 per
    article, latency ~3-5 s. Falls back to bs4 extraction with
    `enrichment_status='failed'` when the call errors.
-4. **WebP hero pipeline** (`download_hero_image()`): fetch the
+
+   **Coffee-relevance gate.** `is_about_coffee=false` is the
+   second gate — for pages that ARE articles but aren't about
+   coffee. Triggered by founder/team biographies (even on a
+   coffee site), wellness / spirituality / lifestyle essays,
+   café-event recaps with no coffee content, generic motivation
+   posts, and Shopify product-page boilerplate that bled into a
+   blog handle. The runner still writes the row but with
+   `published=0` so admin can override. Off-topic rows land in
+   the admin Articles list with an "Off-topic" badge.
+
+   **Topic categorisation.** `topic_category` is one of eight
+   fixed buckets (locked in `services/article_enricher
+   .TOPIC_CATEGORIES`): `sourcing_story`, `brew_guide`,
+   `origin_profile`, `industry_news`, `harvest_report`,
+   `tasting_notes`, `company_update`, `other`. Required when
+   `is_about_coffee=true`. New buckets need a schema migration
+   AND a system-prompt update — don't extend ad-hoc.
+
+   **Tags.** `tags` is 3-7 lowercase keyword tags drawn from the
+   article — origin regions, varietals, processing methods, brew
+   gear, café names — never generic terms like `coffee`, `india`,
+   `specialty`. Stored as a JSON array in `roaster_articles.tags`
+   for sitewide search via `LIKE '%tag%'` on the JSON-as-string
+   (FTS5 deferred until performance demands it).
+
+   **Per-roaster site-quirk hint** (Layer B). `enrich_article`
+   accepts a `system_addendum` string prepended as a separate
+   cacheable system block ahead of `_ARTICLE_SYSTEM`. Generated
+   by `services/article_site_prompt_generator.py` after the first
+   per-roaster run that lands ≥1 enriched article. The addendum
+   captures footer noise that bs4 missed, infographic-driven body
+   conventions, stale `<img src>` URL forms, recurring section
+   delimiters, date-format quirks. ONE Sonnet meta-call per
+   roaster (~$0.03), prompt-cached system block. Stored in
+   `roaster_profiles.article_enrichment_prompt_hint` with
+   `_updated_at`. Failure mode: any meta-call hiccup leaves the
+   hint untouched; the next run retries.
+4. **Body-img hero fallback.** When `og:image` is absent,
+   `_first_body_image()` scans the article body for the first
+   reasonable `<img>` (skips logos, social icons, tracking
+   pixels, share-button graphics; prefers images that declare
+   width ≥600 px). The candidate is threaded into both the bs4
+   fallback's `image_url` and `extract_for_enrichment`'s og:image
+   hint, so Haiku sees something concrete instead of `(none)` on
+   pages without OG metadata (G-Shot, Aromas-of-Coorg).
+5. **WebP hero pipeline** (`download_hero_image()`): fetch the
    chosen hero URL, run through Pillow → WebP @ q=82, persist
    under `Community/coffee-community-api/uploads/articles/<uuid>.webp`
    (mounted at `/uploads/articles/`). URL-form retry on first
@@ -509,7 +567,14 @@ For each article URL:
    from in-body `<img>` tags. 8 MiB input cap. Same WebP pipeline
    as user-uploaded photos in `routes/uploads.py`. Falls back to
    the original external URL when the download / convert fails.
-5. **Dedup by URL.** `roaster_articles.url UNIQUE` makes re-runs
+6. **Empty-shell guard.** Rows where Haiku failed AND the bs4
+   fallback came back with neither `body_html` nor `image_url`
+   are skipped without writing — nothing for the reader or card
+   to render. Crucially we don't gate on `word_count` alone:
+   Devans-style infographic articles have short body text but a
+   real hero JPG that IS the content, and the site-quirk hint
+   tells Haiku to preserve those.
+7. **Dedup by URL.** `roaster_articles.url UNIQUE` makes re-runs
    idempotent. Skip-cheap path: already-enriched URLs (`enrichment_status='enriched'`)
    don't trigger HTTP, Haiku, or WebP — pass `force_enrich=true`
    on the admin scrape endpoints to re-process every URL.
@@ -527,13 +592,16 @@ For each article URL:
 | `url` | TEXT UNIQUE NOT NULL | Dedup key |
 | `title` | TEXT NOT NULL | From og:title or `<title>` |
 | `excerpt` | TEXT | og:description or first `<p>` |
-| `image_url` | TEXT | og:image |
+| `image_url` | TEXT | og:image, with body-img fallback |
 | `body_html` | TEXT | Cleaned HTML (from extraction) |
 | `word_count` | INTEGER | Derived from text length |
 | `published_at` | TEXT | ISO from feed / og / `<time>` |
 | `scraped_at` | TEXT NOT NULL | ISO at write time |
-| `published` | INTEGER NOT NULL DEFAULT 1 | Admin curation flag |
-| `enrichment_status` | TEXT NOT NULL DEFAULT 'pending' | Reserved for future Haiku enrichment |
+| `published` | INTEGER NOT NULL DEFAULT 1 | Admin curation flag; off-topic rows insert with 0 |
+| `enrichment_status` | TEXT NOT NULL DEFAULT 'pending' | `pending` / `enriched` / `failed` |
+| `is_about_coffee` | INTEGER NOT NULL DEFAULT 1 | Layer-A coffee-relevance gate output |
+| `topic_category` | TEXT | One of `TOPIC_CATEGORIES` (`sourcing_story` / `brew_guide` / `origin_profile` / `industry_news` / `harvest_report` / `tasting_notes` / `company_update` / `other`) |
+| `tags` | TEXT | JSON array of 3-7 lowercase keyword tags powering sitewide search |
 
 Discovery cache columns on `roaster_sources`:
 
@@ -542,6 +610,25 @@ Discovery cache columns on `roaster_sources`:
 - `articles_handles TEXT` — JSON array (Shopify only)
 - `last_articles_scraped_at TEXT`
 - `articles_count INTEGER NOT NULL DEFAULT 0`
+
+Per-roaster article-extraction hint columns on `roaster_profiles`
+(Layer B):
+
+- `article_enrichment_prompt_hint TEXT` — Sonnet-generated addendum
+  prepended to `_ARTICLE_SYSTEM` for every Haiku call on this
+  roaster. Captures footer noise / infographic conventions / stale
+  CDN URL forms / date-format quirks unique to this roaster.
+- `article_enrichment_prompt_hint_updated_at TEXT` — relative-time
+  display in the admin Journals expand row.
+- `article_hint_force_regenerate INTEGER NOT NULL DEFAULT 0` —
+  perpetual server-side flag. While set to 1, every
+  `article_scrape` pass for this roaster regenerates the hint via
+  the Sonnet meta-call (~$0.03 each). Never auto-clears; admin
+  flips back to 0 from the Journals expand row when satisfied.
+  Toggled via `POST /admin/roasters/{slug}/article-hint/regenerate-flag`
+  (body `{ enabled: 0 | 1 }`). The runner ORs this with the per-job
+  `regenerate_article_hint` body param so admins can also force a
+  one-off regen without flipping the persistent flag.
 
 ### Surfaces
 

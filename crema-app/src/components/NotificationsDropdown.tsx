@@ -283,9 +283,13 @@ const useStyles = makeStyles((t) => ({
   itemTime: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"], marginTop: 2 },
   itemDivider: { height: 1, backgroundColor: t.color["border.light"], marginHorizontal: 16, opacity: 0.5 },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.color.accent },
+  // Identity surface — `text.primary` (Espresso/Crema White) bg
+  // with `text.on-dark` (constant Crema White) initial. Stays
+  // Espresso in light mode rather than following the §2.40.19
+  // accent.cta → pink rule (avatars are identity, not buttons).
   avatarFallback: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: t.color["accent.cta"], alignItems: "center", justifyContent: "center",
+    backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center",
   } as any,
-  avatarInitial: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.on-cta"] },
+  avatarInitial: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.on-dark"] },
 }));

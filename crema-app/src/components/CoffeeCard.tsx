@@ -627,11 +627,16 @@ const useStyles = makeStyles(() => {
     alignItems: "center",
     transform: [{ translateY: -12 }],
   } as any,
+  // Sold-out pill — informational badge (NOT a button), so it
+  // stays on `text.primary` (Espresso in light, Crema White in
+  // dark) rather than following the §2.40.19 accent.cta → pink
+  // rule. Pink would imply "available / branded" rather than
+  // "unavailable / blocked," which is the wrong signal here.
   soldOutPillText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.xs"],
     color: t.color["text.on-dark"],
-    backgroundColor: t.color["accent.cta"],
+    backgroundColor: t.color["text.primary"],
     paddingHorizontal: t.spacing.sm,
     paddingVertical: 4,
     borderRadius: t.radius.full,

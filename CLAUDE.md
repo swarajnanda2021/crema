@@ -80,6 +80,44 @@ If a request seems to require a fourth color (alert red, success green,
 gold accent, neutral grey), surface the conflict back to the user
 before introducing it. Do not silently invent.
 
+## Hard rule — Figma is literal
+
+**When a Figma node specifies an exact value, use that value
+EXACTLY in the code. Don't substitute the closest token-ladder
+value, don't round to a "consistent" alternative, don't reach for
+`t.radius.full` / `t.spacing.lg` / etc. because the literal number
+"isn't on the ladder." Figma is the source of truth — when the
+user gives you a Figma node URL, every dimension in that node's
+metadata is a directive, not a suggestion.**
+
+This applies to: `borderRadius`, `padding*`, `margin*`, `gap`,
+`width`, `height`, `top`/`left`/`right`/`bottom`, font size, line
+height, letter spacing — any numeric style value the Figma node
+exposes.
+
+Examples:
+- Figma says `radius: 30.269` → write `borderRadius: 30.269`,
+  NOT `borderRadius: t.radius.full` (9999) and NOT `t.radius.2xl`
+  (20). Even if 30.269 ≥ height/2 makes both render as a pill in
+  theory, RN's handling of very large radius values can produce
+  sharp-edge artifacts that the literal Figma value avoids.
+- Figma says `padding-left: 9` → write `paddingLeft: 9`, NOT
+  `t.spacing.sm` (8) or `t.spacing.md` (12). The 1-px difference
+  is what makes the pill come out to the Figma's exact 119-px
+  width.
+- Figma says `gap: 2.79` → round to a sensible integer (3) and
+  use that literally, NOT `t.spacing.xs` (4).
+
+The token ladder is the DEFAULT for screens without a Figma
+source — keep using it for new components built from scratch.
+When the user provides a Figma node, that node overrides the
+ladder for every value it specifies.
+
+If a Figma node value seems wrong (e.g. designer typo, value
+larger than the visual evidence supports), surface the conflict
+back to the user before substituting — do not silently "correct"
+to a ladder value.
+
 ## Before any dev / implementation work — read these
 
 The moment a request is about writing, modifying, debugging, reviewing,

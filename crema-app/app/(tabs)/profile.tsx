@@ -28,8 +28,6 @@ import { t, SHELF_LABELS, makeStyles } from "../../src/tokens/useTokens";
 type ShelfKey = "open_bags" | "on_the_list";
 
 import PostCard from "../../src/components/domain/PostCard";
-import SwipeToCommit from "../../src/components/mobile/SwipeToCommit";
-import { showToast } from "../../src/components/shell/Toast";
 import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
 import CropGestureWrap from "../../src/components/shell/CropGestureWrap";
 import CoffeeCard from "../../src/components/CoffeeCard";
@@ -39,6 +37,8 @@ import Navbar from "../../src/components/Navbar";
 import CremaLogo from "../../src/components/CremaLogo";
 import TractionDashboard from "../../src/components/admin/TractionDashboard";
 import CatalogOps from "../../src/components/admin/CatalogOps";
+import { useFloatingFab } from "../../src/contexts/FloatingFabContext";
+import FabPill from "../../src/components/primitives/FabPill";
 
 type ProfileTab = "posts" | "shelf" | "following" | "analytics" | "catalog";
 
@@ -217,13 +217,11 @@ export default function ProfilePage() {
   const POSTS_PER_PAGE = 5;
   const [posts, setPosts] = useState<any[]>([]);
   const [visiblePostCount, setVisiblePostCount] = useState(POSTS_PER_PAGE);
-  // Track scroll depth so we can hide the bottom-right FAB when the
-  // hero is fully visible — the avatar tile pushes the tab strip
-  // (`POSTS / COFFEE SHELF / FOLLOWING`) down to the FAB's natural
-  // y-position, and we'd otherwise see the pink "+" sitting on top of
-  // the tab labels until the user scrolls. The FAB reappears as soon
-  // as the user begins scrolling into the post content.
-  const [fabVisible, setFabVisible] = useState(false);
+  // (The previous `fabVisible` scroll-depth gate was removed in
+  // §2.40.18 — the FAB now lives at root layout via
+  // `useFloatingFab` and anchors to the relative wrapper's stable
+  // bottom edge, so it can't collide with the in-page tab strip
+  // anyway.)
   const [followingList, setFollowingList] = useState<any[]>([]);
   const [followerCount, setFollowerCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -245,6 +243,32 @@ export default function ProfilePage() {
   // Listen for edit trigger from ProfileDropdown (works even on same-route,
   // cross-platform via the events helper).
   useEffect(() => listen("crema:edit-profile", () => setIsEditing(true)), []);
+
+  // Register the "Create post" FabPill at root layout via
+  // FloatingFabContext (§2.40.18). Renders ONLY on the personal
+  // Posts tab and not while editing the profile — same conditions
+  // as the prior inline circular FAB. Anchored to the relative
+  // wrapper's stable bottom edge so it doesn't jitter on
+  // chrome-scroll. The composer config still posts to
+  // `/roaster-posts` with the legacy `user_<id>` slug — every
+  // post-type owned by a user historically routes through that
+  // table.
+  useFloatingFab(
+    user && activeTab === "posts" && !isEditing ? (
+      <FabPill
+        icon={<Plus size={17} color={t.color["text.on-light"]} strokeWidth={2.5} />}
+        label="Create post"
+        onPress={() =>
+          openComposePost({
+            endpoint: "/roaster-posts",
+            extraData: { roaster_slug: `user_${user.id}` },
+            refetchEventName: "crema:profile-posts-updated",
+          })
+        }
+        style={{ position: "absolute" as any, bottom: 28, right: 28 }}
+      />
+    ) : null,
+  );
   const [saving, setSaving] = useState(false);
   const [editName, setEditName] = useState("");
   const [editBio, setEditBio] = useState("");
@@ -818,7 +842,6 @@ export default function ProfilePage() {
           posts.slice(0, visiblePostCount).map((post: any, idx: number) => {
             const card = (
               <PostCard post={post} user={user}
-                hideActionBar={isMobile}
                 onOpen={(p) => openPostModal({ post: p, mode: "view" })}
                 onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
@@ -841,21 +864,9 @@ export default function ProfilePage() {
             );
             return (
               <View key={`post-${post.id}-${idx}`}>
-                {isMobile ? (
-                  <SwipeToCommit
-                    onSwipeLike={async () => {
-                      try {
-                        const res: any = await apiFetchRaw(`/post_likes/${post.id}/toggle`, { method: "POST" });
-                        const nowLiked = !!(res?.data?.toggled ?? res?.toggled);
-                        showToast(nowLiked ? "Liked" : "Unliked");
-                        loadData();
-                      } catch { /* swipe is best-effort */ }
-                    }}
-                    onSwipeComment={() => openPostModal({ post, mode: "comment" })}
-                  >
-                    {card}
-                  </SwipeToCommit>
-                ) : card}
+                {/* SwipeToCommit retired in §2.40.22 — visible
+                    action bar under each post is the affordance. */}
+                {card}
                 {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
               </View>
             );
@@ -928,6 +939,14 @@ export default function ProfilePage() {
 
   return (
     <View style={s.container}>
+      {/* The FloatingFabProvider used to be mounted here so the admin
+          Catalog Ops Journals panel could register its Refresh FAB at
+          this flex:1 container's level. It now lives at root layout
+          (§2.40.18) so registered FABs anchor to the relative
+          wrapper's stable bottom edge instead of `s.container` (which
+          re-layouts on every chrome-scroll frame, producing the FAB
+          jitter the user reported). ArticlesPanel's `useFloatingFab`
+          call works unchanged — context propagates from root. */}
       {editBanner}
       <ScrollView
         style={s.scroll}
@@ -969,15 +988,6 @@ export default function ProfilePage() {
               setVisiblePostCount((c) => Math.min(c + POSTS_PER_PAGE, posts.length));
             }
           }
-          // FAB visibility: hide while the hero is mostly in view (the
-          // tab strip's natural position lands at the FAB's y-axis on
-          // mobile). Reveal once the user has scrolled enough that
-          // the tab strip is comfortably above the FAB. 200px is a
-          // pragmatic threshold — beyond it the tab strip has either
-          // stuck to the top (via `stickyHeaderIndices`) or scrolled
-          // away, neither of which collides with the FAB.
-          const shouldShow = contentOffset.y > 200;
-          if (shouldShow !== fabVisible) setFabVisible(shouldShow);
         }}
         scrollEventThrottle={16}
       >
@@ -986,23 +996,16 @@ export default function ProfilePage() {
         {tabContent}
       </ScrollView>
 
-      {/* FAB — only on posts tab, not in edit mode. Routes to the
-          sitewide composer so the mid-band layout is consistent
-          with the Home feed. Posts on a user's own profile go to
-          `/roaster-posts` with a `user_<id>` slug — legacy shared
-          table for every owned post type. (§2.40.3 / §2.40.6) */}
-      {activeTab === "posts" && !isEditing && fabVisible && (
-        <Pressable
-          onPress={() => openComposePost({
-            endpoint: "/roaster-posts",
-            extraData: { roaster_slug: `user_${user?.id}` },
-            refetchEventName: "crema:profile-posts-updated",
-          })}
-          style={s.fab}
-        >
-          <Plus size={22} color={t.color["text.on-cta"]} strokeWidth={2.5} />
-        </Pressable>
-      )}
+      {/* The "Create post" pill that used to render here as an
+          inline circular FAB (Plus icon, Espresso bg) is now
+          registered via `useFloatingFab` higher in this component
+          (§2.40.18). It renders at the root-layout
+          `FloatingFabProvider`'s level, anchored to the relative
+          wrapper's stable bottom edge — no chrome-scroll jitter.
+          Visual is the Crema-pink Figma 864:3286 pill, matching
+          the home feed exactly. The conditions (activeTab=posts,
+          !isEditing) and composer config (endpoint, extraData,
+          refetchEventName) live in the useFloatingFab call. */}
 
       {/* Avatar upload modal */}
       <ImageUploadModal
@@ -1416,11 +1419,6 @@ const useStyles = makeStyles((t) => ({
   followingBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, width: 88, height: 27, borderRadius: 2, backgroundColor: t.color.accent, borderWidth: 1.5, borderColor: t.color.accent },
   followingBtnText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.primary"] },
 
-  // FAB — matches the sitewide feed FAB (`app/(tabs)/index.tsx`
-  // `s.fab`) so every "create" CTA reads as the same affordance.
-  // Bg flips with theme via `text.primary`; the Plus glyph uses
-  // `text.on-cta` (handled inline at the JSX site).
-  fab: { position: "absolute", bottom: 28, right: 28, width: t.size["fab.size"], height: t.size["fab.size"], borderRadius: t.size["fab.size"] / 2, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center", shadowColor: t.color.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8 } as any,
 
 
   // Drink dot (in drink picker modal)

@@ -264,8 +264,10 @@ const useStyles = makeStyles((t) => ({
     paddingHorizontal: 18, paddingVertical: 9,
     borderRadius: 999,
   } as any,
+  // Both modes resolve to `accent` per §2.40.19 — kept as separate
+  // keys to minimise call-site churn but functionally equivalent.
   trackTabActiveLight: {
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
   } as any,
   trackTabActiveDark: {
     backgroundColor: t.color.accent,
@@ -328,7 +330,7 @@ const useStyles = makeStyles((t) => ({
   },
 
   submitBtn: {
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
     borderRadius: 10,
     paddingVertical: 15,
     alignItems: "center",

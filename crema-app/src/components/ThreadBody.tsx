@@ -251,13 +251,13 @@ const useStyles = makeStyles((t) => ({
     backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
   } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-cta"] },
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"] },
   avatarFbSmall: {
     width: 20, height: 20, borderRadius: 10,
     backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
   } as any,
-  avatarLetterSmall: { fontFamily: t.font["body.semibold"], fontSize: 9, color: t.color["text.on-cta"] },
+  avatarLetterSmall: { fontFamily: t.font["body.semibold"], fontSize: 9, color: t.color["text.on-dark"] },
   messages: { flex: 1 } as any,
   emptyText: {
     fontFamily: t.font["body.regular"], fontSize: 12,
@@ -283,7 +283,7 @@ const useStyles = makeStyles((t) => ({
     fontFamily: t.font["body.regular"], fontSize: 12,
     color: t.color["text.primary"], lineHeight: 17,
   },
-  bubbleTextSelf: { color: t.color["text.on-cta"] } as any,
+  bubbleTextSelf: { color: t.color["text.on-dark"] } as any,
   bubbleTime: { fontFamily: t.font["body.regular"], fontSize: 8, color: t.color["text.muted"] } as any,
   bubbleTimeSelf: { color: "rgba(250,248,240,0.55)" } as any,
   error: {
@@ -310,7 +310,7 @@ const useStyles = makeStyles((t) => ({
   } as any,
   sendBtn: {
     width: 30, height: 30, borderRadius: 15,
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
     alignItems: "center", justifyContent: "center",
   } as any,
   sendBtnDisabled: { opacity: 0.4 } as any,

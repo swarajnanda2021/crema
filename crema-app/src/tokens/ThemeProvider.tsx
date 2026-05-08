@@ -1,89 +1,77 @@
 /**
- * ThemeProvider — owns the active theme mode and broadcasts overrides
+ * ThemeProvider — owns the active theme mode and broadcasts it
  * down to the user-toggle UI.
  *
- * Resolution order on every render:
- *   1. User override stored in SecureStore (`crema.theme.override`),
- *      values: "light" | "dark" | absent (= follow system).
- *   2. System preference from `useColorScheme()`.
- *   3. Fallback to "light".
+ * Two modes only: "light" and "dark" (§2.40.23 retired the prior
+ * three-way System / Light / Dark cycle — the user found "Auto"
+ * unnecessary on top of the explicit choices). The active mode is
+ * persisted in SecureStore (`crema.theme.override`) and defaults
+ * to "light" if nothing is stored.
  *
- * The resolved mode is pushed into the token module via `setMode()` —
- * see useTokens.ts for how that propagates to inline styles and
- * makeStyles factories.
+ * The resolved mode is pushed into the token module via
+ * `setMode()` — see useTokens.ts for how that propagates to inline
+ * styles and makeStyles factories.
  *
  * Mount once at the top of the layout tree (above any consumer of
  * `useTheme()`).
  */
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
-import { useColorScheme } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { setMode, getMode, ThemeMode } from "./useTokens";
 
-type Override = ThemeMode | null;
-
 interface ThemeContextValue {
-  /** Currently-applied mode (after override + system resolution). */
+  /** Currently-applied mode. Always "light" or "dark" — there's no
+   *  "follow system" option anymore. */
   mode: ThemeMode;
-  /** User override; null = follow system. */
-  override: Override;
-  /** Update the override and persist it. Pass null to clear (follow system again). */
-  setOverride: (next: Override) => void;
+  /** Update the mode and persist it. */
+  setMode: (next: ThemeMode) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
   mode: "light",
-  override: null,
-  setOverride: () => {},
+  setMode: () => {},
 });
 
 const STORE_KEY = "crema.theme.override";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const systemScheme = useColorScheme(); // "light" | "dark" | null
-  const [override, setOverrideState] = useState<Override>(null);
-  const [hydrated, setHydrated] = useState(false);
+  // Initial state mirrors useTokens' module-load OS detection so the
+  // very first paint already matches the device scheme. SecureStore
+  // hydration below may flip it once the user's persisted choice
+  // loads.
+  const [mode, setModeState] = useState<ThemeMode>(() => getMode());
 
-  // Hydrate the override from storage on mount. SecureStore is async, so
-  // there's a brief window where we render in light mode before the
-  // user's preference loads — acceptable for a one-frame flash.
+  // Hydrate the persisted mode on mount. SecureStore is async, so
+  // there's a brief window where we render in the OS-detected mode
+  // before the user's preference loads — acceptable for a
+  // one-frame flash if the user has explicitly stored a different
+  // mode.
   useEffect(() => {
     SecureStore.getItemAsync(STORE_KEY)
       .then((v) => {
-        if (v === "light" || v === "dark") setOverrideState(v);
+        if (v === "light" || v === "dark") setModeState(v);
       })
-      .finally(() => setHydrated(true));
+      .catch(() => {});
   }, []);
 
-  // Apply the resolved mode whenever override or system scheme changes.
-  const resolved: ThemeMode = override ?? (systemScheme === "dark" ? "dark" : "light");
-
-  // useLayoutEffect (not useEffect) so the swap lands BEFORE the next
-  // commit paints — avoids the one-frame flash of stale tokens on
-  // dark-mode launches. Doing it during render is tempting but trips
-  // React's "setState in render" guard because setMode notifies
-  // subscribers (which schedule updates).
+  // Apply the resolved mode whenever it changes.
   useEffect(() => {
-    setMode(resolved);
-  }, [resolved]);
+    setMode(mode);
+  }, [mode]);
 
-  const setOverride = useCallback((next: Override) => {
-    setOverrideState(next);
-    if (next === null) {
-      SecureStore.deleteItemAsync(STORE_KEY).catch(() => {});
-    } else {
-      SecureStore.setItemAsync(STORE_KEY, next).catch(() => {});
-    }
+  const setModePersisted = useCallback((next: ThemeMode) => {
+    setModeState(next);
+    SecureStore.setItemAsync(STORE_KEY, next).catch(() => {});
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ mode: resolved, override, setOverride }}>
+    <ThemeContext.Provider value={{ mode, setMode: setModePersisted }}>
       {children}
     </ThemeContext.Provider>
   );
 }
 
-/** Read + mutate the user's theme override. For toggle UI. */
+/** Read + mutate the user's theme. For toggle UI. */
 export function useThemeOverride() {
   return useContext(ThemeContext);
 }

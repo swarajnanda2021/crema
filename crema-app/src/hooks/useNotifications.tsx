@@ -94,22 +94,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   // `fetchNotifications` immediately fires `Image.prefetch` for
   // every actor avatar — so opening the panel paints from cache.
   const lastSeenCountRef = useRef<number>(-1);
-  const fetchUnreadCount = useCallback(async () => {
-    if (!enabled) return;
-    try {
-      const raw = await apiFetchRaw<any>("/notification-count");
-      const data = raw?.data ?? raw;
-      const newCount = data.count ?? 0;
-      setUnreadCount(newCount);
-      // Trigger a list fetch when the count actually changes (first
-      // poll's `-1 → N` transition included). Stable counts skip the
-      // fetch so the polling loop doesn't beat on /notifications.
-      if (newCount !== lastSeenCountRef.current) {
-        lastSeenCountRef.current = newCount;
-        if (newCount > 0) fetchNotifications();
-      }
-    } catch {}
-  }, [enabled, fetchNotifications]);
 
   const fetchNotifications = useCallback(async () => {
     if (!enabled) return;
@@ -142,6 +126,23 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   }, [enabled]);
+
+  const fetchUnreadCount = useCallback(async () => {
+    if (!enabled) return;
+    try {
+      const raw = await apiFetchRaw<any>("/notification-count");
+      const data = raw?.data ?? raw;
+      const newCount = data.count ?? 0;
+      setUnreadCount(newCount);
+      // Trigger a list fetch when the count actually changes (first
+      // poll's `-1 → N` transition included). Stable counts skip the
+      // fetch so the polling loop doesn't beat on /notifications.
+      if (newCount !== lastSeenCountRef.current) {
+        lastSeenCountRef.current = newCount;
+        if (newCount > 0) fetchNotifications();
+      }
+    } catch {}
+  }, [enabled, fetchNotifications]);
 
   const markAllRead = useCallback(async () => {
     try {

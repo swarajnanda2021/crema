@@ -25,8 +25,6 @@ import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t, SHELF_LABELS, makeStyles } from "../../src/tokens/useTokens";
 
 import PostCard from "../../src/components/domain/PostCard";
-import SwipeToCommit from "../../src/components/mobile/SwipeToCommit";
-import { showToast } from "../../src/components/shell/Toast";
 import { openPostModal } from "../../src/components/primitives";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import SiteHeader from "../../src/components/SiteHeader";
@@ -431,7 +429,6 @@ export default function UserProfilePage() {
           posts.slice(0, visiblePostCount).map((post: any, idx: number) => {
             const card = (
               <PostCard post={post} user={authUser}
-                hideActionBar={isMobile}
                 onOpen={(p) => openPostModal({ post: p, mode: "view" })}
                 onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
@@ -443,21 +440,8 @@ export default function UserProfilePage() {
             );
             return (
               <View key={`post-${post.id}-${idx}`}>
-                {isMobile ? (
-                  <SwipeToCommit
-                    onSwipeLike={async () => {
-                      try {
-                        const res: any = await apiFetchRaw(`/post_likes/${post.id}/toggle`, { method: "POST" });
-                        const nowLiked = !!(res?.data?.toggled ?? res?.toggled);
-                        showToast(nowLiked ? "Liked" : "Unliked");
-                        loadData();
-                      } catch { /* swipe is best-effort */ }
-                    }}
-                    onSwipeComment={() => openPostModal({ post, mode: "comment" })}
-                  >
-                    {card}
-                  </SwipeToCommit>
-                ) : card}
+                {/* SwipeToCommit retired in §2.40.22. */}
+                {card}
                 {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
               </View>
             );

@@ -17,9 +17,21 @@ neutral or derived alpha.
 
 | Name | Hex | Token | Used as |
 |---|---|---|---|
-| **Espresso** | `#351101` | `t.color["text.primary"]`, `t.color["accent.cta"]`, `t.color["navbar.bg"]`, `t.color.shadow` | Body text, headings, primary CTA fill, navbar background, sold-out pill, error / destructive emphasis, negative deltas |
-| **Crema** | `#D798DA` | `t.color.accent`, `t.color["accent.positive"]`, `t.color["accent.gold"]`, `t.color["shelf.open_bags"]`, `t.color["shelf.on_the_list"]` | Brand accent, "looking-for" pink, active-tab dot, like-pulse, save-as-draft hint, positive deltas |
-| **Crema White** | `#FAF8F0` | `t.color.bg`, `t.color["text.on-dark"]`, `t.color["navbar.text"]` (close cousin), `RoasterLogo` background | Page bg, on-dark text, card-front variants |
+| **Espresso** | `#351101` | `t.color["text.primary"]`, `t.color["text.on-light"]`, `t.color["navbar.bg"]`, `t.color.shadow` | Body text, headings, navbar background, sold-out pill, error / destructive emphasis, negative deltas, avatar fallback bg |
+| **Crema** | `#D798DA` | `t.color.accent`, `t.color["accent.cta"]`, `t.color["accent.positive"]`, `t.color["accent.gold"]`, `t.color["shelf.open_bags"]`, `t.color["shelf.on_the_list"]` | Brand accent, **every primary button + CTA fill** (Crema-pink in both modes — see refinement note below), "looking-for" pink, active-tab dot, like-pulse, save-as-draft hint, positive deltas |
+| **Crema White** | `#FAF8F0` | `t.color.bg`, `t.color["text.on-dark"]`, `t.color["navbar.text"]` (close cousin), `RoasterLogo` background | Page bg, on-dark text, card-front variants, avatar-fallback letter |
+
+**Refinement (2026-05-08, §2.40.19):** `accent.cta` previously
+flipped between Espresso (light) and Crema pink (dark). It now
+resolves to **Crema pink in both modes** — buttons read identically
+regardless of the active mode. `text.on-cta` flipped along with it
+and is now constant Espresso. The mode-flipping behaviour was
+retired because the user's "every button is pink" directive
+required mode-agnostic CTA fills. The `text.primary` token still
+flips (Espresso light / Crema White dark) for body text, navbar
+chrome, avatar fallbacks, sold-out pills, and other identity /
+non-button surfaces — only `accent.cta` was unified to constant
+pink.
 
 **These three are non-negotiable.** No new vivid colors get
 introduced. If a UI needs "alert / warning" emphasis, use Espresso
@@ -134,16 +146,26 @@ so no per-component override drifts:
 | **Active underline** | `#351101` | `#FAF8F0` | `text.primary` |
 | **Inactive label** | `#A09580` | `#C7BAA5` | `text.muted` |
 
-**No tab underline uses `accent.cta`** — that token flips to Crema
-pink in dark mode, which doesn't read as "this tab is active." The
-active underline is always `text.primary`.
+**No tab underline uses `accent.cta` or `accent`.** Both resolve to
+constant Crema pink (post-§2.40.19), and a pink underline doesn't
+read as "this tab is active" against the brand-pink CTAs scattered
+across the same surface. The active underline is always
+`text.primary`.
 
-### Reserved — Crema pink for post action icons
+### Crema pink — primary buttons + post action icons
 
-`accent` (`#D798DA`) is the post-action icon color: like, comment,
-share, save, the active tasting-note score chip, the post FAB. Don't
-repurpose it for line elements, tab underlines, or general accents
-elsewhere — the pink is the *post engagement* signal.
+`accent` and `accent.cta` (both `#D798DA`, identical in light and
+dark — see the §2.40.19 refinement) are the **primary button fill**
+sitewide AND the post-action icon color (like, comment, share, save,
+the active tasting-note score chip). Same pink, two semantic uses:
+the button fill *invites the action*, and the icon *records the
+action that just happened*.
+
+Don't repurpose pink for line elements, tab underlines, dot
+indicators, or general accents elsewhere — those uses dilute the
+pink's "actionable / engagement" semantic. Identity surfaces
+(avatar fallbacks, message bubbles, sold-out pills, tab underlines)
+stay on `text.primary` (Espresso/Crema White, mode-flipping).
 
 ### Forbidden
 
@@ -159,9 +181,12 @@ elsewhere — the pink is the *post engagement* signal.
   code is a leftover regression.
 - Off-brand reds (`#C8553D`, `#B5393C`), greens (`#2F7A48`,
   `#5A8F5A`), golds (`#E8C07A`). Retired in `9c20f43`.
-- **`accent.cta` as a tab underline.** It flips to Crema pink in
-  dark mode, which mis-reads. Use `text.primary` for active-tab
-  underlines.
+- **`accent.cta` (or `accent`) as a tab underline / dot indicator
+  / progress bar fill / message bubble bg.** Both tokens are
+  constant Crema pink (post-§2.40.19) and pink reads as
+  "actionable" — using it for non-button states mis-signals.
+  Use `text.primary` for active-tab underlines, dot indicators,
+  and identity-surface fills.
 - **Inventing a new dark-mode hex.** Beyond the three brand colors
   and the explicitly-named opaque tokens (`#684F44` for lines,
   `#C7BAA5` for `text.muted`, `#2a0d00` for the page body +

@@ -845,7 +845,7 @@ const useStyles = makeStyles((t) => ({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: t.color.shadow,

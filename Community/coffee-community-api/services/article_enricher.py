@@ -1,5 +1,5 @@
 """
-Per-article Haiku enrichment for Discover JOURNAL.
+Per-article Haiku enrichment for Discover JOURNALS.
 
 Wraps a single Haiku tool-use call that takes the bs4-cleaned page
 text + og: hints + the article URL and returns a structured payload:
@@ -7,12 +7,19 @@ text + og: hints + the article URL and returns a structured payload:
     {
       "is_article":     bool,           # gate — false rejects the URL
       "title":          str,
-      "summary":        str,            # 1-2 sentences for the feed card
       "body_html":      str,            # clean structured HTML
       "image_url":      Optional[str],  # hero (preferred over og:image)
       "published_at":   Optional[str],  # ISO 8601 if extractable
       "word_count":     int,
     }
+
+The Figma 801:155 article-card design (title + parent-domain + hero
+image only) doesn't render any per-article excerpt, so the prior
+`summary` field was dropped from this schema — Haiku doesn't spend
+output tokens on a 1-2 sentence summary the UI never shows. The
+scraper's stub/og:description excerpt still lands in
+`roaster_articles.excerpt` as a robustness fallback for the
+article reader when body_html parsing failed.
 
 Why Haiku instead of the bs4 body extraction:
 
@@ -62,6 +69,15 @@ class ArticleEnricherError(RuntimeError):
 # ── Tool schema ────────────────────────────────────────────────────────────
 
 
+# Topic taxonomy — locked. New buckets require a schema migration AND
+# a system-prompt update. Don't extend ad-hoc; the consumer JOURNALS
+# tab and admin badges both group by these values.
+TOPIC_CATEGORIES = (
+    "sourcing_story", "brew_guide", "origin_profile", "industry_news",
+    "harvest_report", "tasting_notes", "company_update", "other",
+)
+
+
 _ARTICLE_TOOL = {
     "name": "extract_roaster_article",
     "description": (
@@ -70,7 +86,12 @@ _ARTICLE_TOOL = {
         "Return clean structured HTML that strips navigation, footers, "
         "subscribe widgets, recommended-article rails, comment forms, "
         "and any other non-article chrome. Only include content "
-        "actually present in the source — never fabricate."
+        "actually present in the source — never fabricate. Also gate "
+        "the page on whether it's actually about coffee (sourcing, "
+        "brewing, origins, processing, café culture, roasting, "
+        "tasting) — coffee-roaster sites also host founder bios, "
+        "lifestyle/spirituality essays, and team pages, which we "
+        "don't want surfacing in a coffee-discovery feed."
     ),
     "input_schema": {
         "type": "object",
@@ -86,6 +107,67 @@ _ARTICLE_TOOL = {
                     "omitted; the scraper will skip the URL."
                 ),
             },
+            "is_about_coffee": {
+                "type": "boolean",
+                "description": (
+                    "True only if the article's primary subject is "
+                    "coffee — sourcing trips, brewing techniques, "
+                    "origin profiles, harvest reports, processing, "
+                    "café culture, roasting, tasting notes, or "
+                    "company updates that mention beans/equipment/"
+                    "roastery operations. False for: founder/team "
+                    "biographies (even on a coffee site), wellness/"
+                    "spirituality/lifestyle essays, café-event recaps "
+                    "with no coffee content, generic motivation/"
+                    "philosophy posts, product-page boilerplate that "
+                    "leaked into a blog handle. When false, the "
+                    "scraper still writes the row but hides it from "
+                    "consumers — admin can override if Haiku is wrong. "
+                    "Default to True only when the article clearly "
+                    "talks about coffee; when in doubt, return False."
+                ),
+            },
+            "topic_category": {
+                "type": "string",
+                "enum": list(TOPIC_CATEGORIES),
+                "description": (
+                    "One of the eight fixed categories. Pick the "
+                    "best-fit single label; use 'other' only when "
+                    "none of the seven specific buckets fit. "
+                    "'sourcing_story' = trips to origins / farmer "
+                    "profiles / supply-chain stories. 'brew_guide' = "
+                    "how-to-brew / equipment guides / extraction "
+                    "tutorials. 'origin_profile' = country/region/"
+                    "varietal deep-dives. 'industry_news' = market "
+                    "shifts, certifications, regulation, climate. "
+                    "'harvest_report' = year-specific crop / season "
+                    "summaries. 'tasting_notes' = cupping notes, "
+                    "flavor breakdowns. 'company_update' = launches, "
+                    "milestones, store openings, team news that's "
+                    "tied to coffee. Required when is_about_coffee=true; "
+                    "may be omitted otherwise."
+                ),
+            },
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "3-7 lowercase keyword tags drawn from THIS "
+                    "article's content. Used for sitewide search. "
+                    "Examples: ['ethiopia','natural-process','pour-over',"
+                    "'single-origin'], ['arabica','robusta','blends',"
+                    "'estate'], ['western-ghats','smallholder',"
+                    "'shade-grown']. Style: lowercase, hyphenated "
+                    "multi-word terms, no leading '#'. Avoid generic "
+                    "tags like 'coffee', 'specialty', 'india' — every "
+                    "article on this platform is about Indian "
+                    "specialty coffee, so they're noise. Prefer "
+                    "concrete proper nouns (origin regions, varietals, "
+                    "processing methods, brew gear, café names) over "
+                    "abstract themes. Required when is_about_coffee="
+                    "true; may be empty when is_about_coffee=false."
+                ),
+            },
             "title": {
                 "type": "string",
                 "description": (
@@ -94,15 +176,6 @@ _ARTICLE_TOOL = {
                     "→ 'Article Title'). Prefer the og:title hint when "
                     "it's clearly the article title; fall back to the "
                     "first <h1> in the body."
-                ),
-            },
-            "summary": {
-                "type": "string",
-                "description": (
-                    "1-2 sentence excerpt for the JOURNAL feed card. "
-                    "Maximum 280 characters. Pull the opening paragraph "
-                    "if the page has a clear lede; otherwise summarise "
-                    "the article in the roaster's own voice."
                 ),
             },
             "body_html": {
@@ -155,11 +228,44 @@ _ARTICLE_TOOL = {
 
 _ARTICLE_SYSTEM = (
     "You extract roaster blog/journal articles from raw page text. "
-    "These are stories about coffee — sourcing trips, processing "
-    "techniques, brew guides, harvest reports, café event recaps, "
-    "long-form essays. They are NOT product listings, not category "
-    "indexes, not contact forms.\n\n"
-    "Your output goes into a consumer-facing 'Journal' feed and an "
+    "These articles surface in a coffee-discovery app called Crema "
+    "for specialty-coffee drinkers. Acceptable subjects: sourcing "
+    "trips, processing techniques, brew guides, harvest reports, "
+    "origin profiles, café culture, roasting, tasting notes, "
+    "industry news, and company updates that mention beans / "
+    "equipment / roastery operations.\n\n"
+    "REJECT pages that aren't ABOUT coffee, even when they're hosted "
+    "on a coffee-roaster's site:\n"
+    "  • Founder / team / staff biographies (look for /blogs/team/ "
+    "    or 'Meet the founder' framing).\n"
+    "  • Philosophical, spiritual, or wellness essays (commune "
+    "    explanations, meditation guides, Tibetan Pulsing, Osho "
+    "    references — these turn up on roaster sites whose owners "
+    "    blog broadly).\n"
+    "  • General lifestyle posts with no coffee subject.\n"
+    "  • Café-event recaps that focus on attendees rather than "
+    "    coffee.\n"
+    "  • Shopify product-page boilerplate that bled into a blog "
+    "    handle (page text dominated by 'Taxes included', 'Add to "
+    "    cart', shipping disclaimers — these are misclassified "
+    "    discovery hits).\n\n"
+    "For every page set both gates:\n"
+    "  • `is_article` = whether the URL is a real article at all "
+    "    (false = category landing, 404, product listing, empty "
+    "    placeholder; the scraper skips these without writing a row).\n"
+    "  • `is_about_coffee` = whether the article is on-topic for a "
+    "    coffee app (false = founder bio, wellness essay, etc.; the "
+    "    scraper writes the row hidden from consumers, admin can "
+    "    override). When in doubt, return False — the consumer feed "
+    "    is the cost of a false positive.\n\n"
+    "Also classify the topic and emit search tags. `topic_category` "
+    "is one of the eight fixed buckets (sourcing_story, brew_guide, "
+    "origin_profile, industry_news, harvest_report, tasting_notes, "
+    "company_update, other). `tags` is 3-7 concrete keyword tags "
+    "drawn from the article — origin regions, varietals, processing "
+    "methods, brew gear, café names — never generic terms like "
+    "'coffee' or 'india'.\n\n"
+    "Your output goes into a consumer-facing 'Journals' feed and an "
     "in-app reader, so cleanliness matters: strip every chrome "
     "element (nav, footer, sidebar, recommended-article rails, "
     "subscribe boxes, comment forms, share buttons, breadcrumbs, "
@@ -188,11 +294,19 @@ def enrich_article(
     og_description: Optional[str] = None,
     og_image: Optional[str] = None,
     og_published_at: Optional[str] = None,
+    system_addendum: Optional[str] = None,
 ) -> Optional[dict]:
     """Run Haiku over a single fetched article page, return the
     structured payload. Returns None on any caller-tolerable failure
     (transient API error, missing key, parse failure) so the runner
     can fall back to bs4 extraction.
+
+    `system_addendum` (Layer B) is a per-roaster site-quirk hint — a
+    short addendum prepended to the static system prompt that tells
+    Haiku about THIS roaster's conventions (footer noise the bs4
+    strip missed, infographic-driven bodies, stale `<img src>` URL
+    forms, etc.). The runner threads `roaster_profiles
+    .article_enrichment_prompt_hint` through here.
 
     Raises `ArticleEnricherError` only for setup failures we want to
     surface upstream (no SDK installed) — the runner short-circuits
@@ -230,12 +344,34 @@ def enrich_article(
         f"---\n{truncated}\n---"
     )
 
+    # Site-quirk addendum prepended to the static system prompt as a
+    # SECOND cacheable block — keeps the static base block hot across
+    # all roasters and lets the per-roaster addendum land separately.
+    if system_addendum and system_addendum.strip():
+        system_param = [
+            {
+                "type": "text",
+                "text": _ARTICLE_SYSTEM,
+                "cache_control": {"type": "ephemeral"},
+            },
+            {
+                "type": "text",
+                "text": (
+                    "SITE-SPECIFIC NOTES for this roaster (overrides "
+                    "where they conflict with the base prompt):\n"
+                    + system_addendum.strip()
+                ),
+            },
+        ]
+    else:
+        system_param = _ARTICLE_SYSTEM
+
     client = anthropic.Anthropic(max_retries=2)
     try:
         resp = client.messages.create(
             model=MODEL,
             max_tokens=MAX_TOKENS,
-            system=_ARTICLE_SYSTEM,
+            system=system_param,
             tools=[_ARTICLE_TOOL],
             tool_choice={"type": "tool", "name": "extract_roaster_article"},
             messages=[{"role": "user", "content": user_content}],
@@ -257,8 +393,13 @@ def _normalise(raw: dict) -> dict:
     """Coerce nullable string fields and clamp word_count."""
     out = {
         "is_article": bool(raw.get("is_article", True)),
+        # is_about_coffee defaults to True so legacy callers that
+        # haven't been updated still get a no-op gate. New runners
+        # treat the field as authoritative.
+        "is_about_coffee": bool(raw.get("is_about_coffee", True)),
+        "topic_category": _clean_topic(raw.get("topic_category")),
+        "tags": _clean_tags(raw.get("tags")),
         "title": _clean_str(raw.get("title")),
-        "summary": _clean_str(raw.get("summary")),
         "body_html": _clean_str(raw.get("body_html")),
         "image_url": _clean_str(raw.get("image_url")),
         "published_at": _clean_str(raw.get("published_at")),
@@ -267,6 +408,39 @@ def _normalise(raw: dict) -> dict:
     out["word_count"] = (
         max(0, int(wc)) if isinstance(wc, (int, float)) else None
     )
+    return out
+
+
+def _clean_topic(value) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    v = value.strip().lower()
+    return v if v in TOPIC_CATEGORIES else None
+
+
+def _clean_tags(value) -> list[str]:
+    """Normalise the `tags` list — lowercase, strip leading '#',
+    drop empties + the obvious noise tags, dedupe while preserving
+    order, cap at 7. Always returns a list (possibly empty); never
+    None — the caller stores it as a JSON array."""
+    if not isinstance(value, list):
+        return []
+    seen: set[str] = set()
+    out: list[str] = []
+    noise = {"coffee", "specialty", "specialty-coffee", "india", "indian",
+             "blog", "article", "post", "news"}
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        v = item.strip().lstrip("#").lower()
+        # Replace whitespace with hyphens for two-word tags.
+        v = "-".join(v.split())
+        if not v or v in seen or v in noise:
+            continue
+        seen.add(v)
+        out.append(v)
+        if len(out) >= 7:
+            break
     return out
 
 

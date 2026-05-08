@@ -306,7 +306,7 @@ const useStyles = makeStyles((t) => ({
   rowActions: { flexDirection: "row", alignItems: "center", gap: 6 } as any,
   restoreBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14,
   } as any,
   restoreText: {

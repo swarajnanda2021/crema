@@ -41,6 +41,17 @@ interface UserHit {
   location?: string | null;
 }
 
+interface ArticleHit {
+  id: number;
+  roaster_slug: string;
+  title: string;
+  image_url: string | null;
+  word_count: number | null;
+  published_at: string | null;
+  roaster_name: string | null;
+  roaster_logo_url: string | null;
+}
+
 // Bumped from 5 to 8 per section once the dropdown turned into a
 // real floating modal — the extra vertical space made 5 feel tight.
 const SECTION_LIMIT = 8;
@@ -50,9 +61,11 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
   const [query, setQuery] = useState("");
   const [ready, setReady] = useState(false);
   const [userHits, setUserHits] = useState<UserHit[]>([]);
+  const [articleHits, setArticleHits] = useState<ArticleHit[]>([]);
   const cardRef = useRef<any>(null);
   const inputRef = useRef<any>(null);
   const debounceRef = useRef<any>(null);
+  const articlesDebounceRef = useRef<any>(null);
   const s = useStyles();
 
   const { products, roasters } = useCoffeeData();
@@ -95,6 +108,31 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [q]);
 
+  // Articles hit the backend too — title / excerpt / tags search.
+  // Same 200 ms debounce so a fast typer doesn't fire one request
+  // per keystroke. Resets to [] on empty query so old hits don't
+  // ghost into a fresh search.
+  useEffect(() => {
+    if (articlesDebounceRef.current) clearTimeout(articlesDebounceRef.current);
+    if (!q) { setArticleHits([]); return; }
+    articlesDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await apiFetchRaw<any>(
+          `/articles/search?q=${encodeURIComponent(q)}&limit=${SECTION_LIMIT}`,
+        );
+        const data = res?.data ?? res;
+        setArticleHits(Array.isArray(data) ? data : []);
+      } catch {
+        setArticleHits([]);
+      }
+    }, 200);
+    return () => {
+      if (articlesDebounceRef.current) {
+        clearTimeout(articlesDebounceRef.current);
+      }
+    };
+  }, [q]);
+
   // Focus + fade-in on open; reset on close.
   useEffect(() => {
     if (visible) {
@@ -104,7 +142,11 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
       }, 50);
       return () => { clearTimeout(h); setReady(false); };
     } else {
-      const h = setTimeout(() => { setQuery(""); setUserHits([]); }, 180);
+      const h = setTimeout(() => {
+        setQuery("");
+        setUserHits([]);
+        setArticleHits([]);
+      }, 180);
       return () => clearTimeout(h);
     }
   }, [visible]);
@@ -147,7 +189,8 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
     setTimeout(() => router.push(path as any), 40);
   };
 
-  const anyResults = userHits.length + beanHits.length + roasterHits.length > 0;
+  const anyResults =
+    userHits.length + beanHits.length + articleHits.length + roasterHits.length > 0;
 
   // §2.11 — navbar-pinned dropdown. Matches the messages /
   // notifications / profile pattern exactly: no backdrop, no
@@ -200,7 +243,7 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
           ref={inputRef}
           value={query}
           onChangeText={setQuery}
-          placeholder="Search users, beans, roasters"
+          placeholder="Search users, beans, articles, roasters"
           placeholderTextColor={t.color["text.muted"]}
           style={s.input}
           autoCapitalize="none"
@@ -216,7 +259,7 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
 
       <ScrollView style={s.results} showsVerticalScrollIndicator={false}>
         {!q ? (
-          <Text style={s.hint}>Start typing to find users, beans, and roasters.</Text>
+          <Text style={s.hint}>Start typing to find users, beans, articles, and roasters.</Text>
         ) : !anyResults ? (
           <Text style={s.hint}>No matches for "{q}".</Text>
         ) : (
@@ -267,6 +310,39 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
                       <Text style={s.rowMeta} numberOfLines={1}>
                         {b.roaster_name}{b.roast_level ? ` \u00B7 ${b.roast_level}` : ""}
                       </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </Section>
+            )}
+
+            {articleHits.length > 0 && (
+              <Section label="Journal">
+                {articleHits.map((a) => (
+                  <Pressable
+                    key={`a-${a.id}`}
+                    onPress={() => goto(`/article/${a.id}`)}
+                    style={({ pressed }: any) => [s.row, pressed && s.rowPressed]}
+                  >
+                    {a.image_url ? (
+                      <Image
+                        source={{ uri: resolveUploadUrl(a.image_url) }}
+                        style={s.thumb}
+                        contentFit="cover"
+                        transition={120}
+                      />
+                    ) : (
+                      <View style={s.thumbFb}>
+                        <Text style={s.avatarLetter}>
+                          {(a.title || "?")[0].toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={s.rowText}>
+                      <Text style={s.rowTitle} numberOfLines={1}>{a.title}</Text>
+                      {a.roaster_name ? (
+                        <Text style={s.rowMeta} numberOfLines={1}>{a.roaster_name}</Text>
+                      ) : null}
                     </View>
                   </Pressable>
                 ))}
@@ -397,13 +473,18 @@ const useStyles = makeStyles((t) => ({
     backgroundColor: t.color["card.info"],
     alignItems: "center", justifyContent: "center",
   } as any,
+  // Identity surface — avatar fallback. Stays `text.primary`
+  // (Espresso/Crema White) bg with `text.on-dark` (constant
+  // Crema White) initial. text.on-cta was retired here when it
+  // flipped to constant Espresso in §2.40.19 — Espresso letter on
+  // Espresso bg in light mode is invisible.
   avatarFb: {
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
   } as any,
   avatarLetter: {
-    fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-cta"],
+    fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-dark"],
   },
   beanDot: {
     width: 6, height: 6, borderRadius: 3,

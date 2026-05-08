@@ -6,4 +6,13 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* Anchor the root flex chain to the viewport so the MobileFooter,
+     mounted as a sibling-of-Stack in app/_layout.tsx's flex column,
+     stays pinned to the bottom on narrow web. Without these heights,
+     Tailwind preflight + RN Web defaults leave html/body sized to
+     content — the column has no anchor and the footer scrolls along
+     with the page. iOS Safari needs `100%` rather than `100vh` for
+     mobile-toolbar dynamic-viewport behaviour. */
+  height: 100%;
+  margin: 0;
 }

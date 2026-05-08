@@ -177,6 +177,36 @@ def followers_list(slug: str, authorization: str = Header(None)):
         db.close()
 
 
+@router.get("/my-recent-clicks")
+def my_recent_clicks(limit: int = 12, user=Depends(get_current_user)):
+    """Return the current user's most-recently-clicked products,
+    deduplicated by product_id (most-recent click wins). Used by
+    the composer's Tag-a-coffee slider's "Recent coffees" rail.
+
+    `click_events` is `write_only: True` in the registry — clients
+    can POST clicks but cannot LIST them. This endpoint is the
+    /me-scoped read path, returning only the current user's own
+    click history so private click data isn't exposed across users.
+    """
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT product_id, MAX(clicked_at) AS last_clicked "
+            "FROM click_events "
+            "WHERE user_id = ? AND product_id IS NOT NULL "
+            "GROUP BY product_id "
+            "ORDER BY last_clicked DESC "
+            "LIMIT ?",
+            (user["id"], int(limit) if limit else 12),
+        ).fetchall()
+        return ok(
+            [{"product_id": r["product_id"], "clicked_at": r["last_clicked"]} for r in rows],
+            resource="click_events",
+        )
+    finally:
+        db.close()
+
+
 @router.get("/my-following")
 def my_following(user=Depends(get_current_user)):
     db = get_db()
@@ -940,6 +970,58 @@ def feed_timeline(limit: int = 30, offset: int = 0, authorization: str = Header(
     finally:
         db.close()
 
+
+
+@router.get("/articles/search")
+def articles_search(q: str = "", limit: int = 8):
+    """Sitewide search across published articles from published
+    roasters. Matches title, excerpt, and the JSON-encoded `tags`
+    column (a substring match on the JSON-as-string suffices for
+    the corpus size — small enough that LIKE is comfortable; if
+    tag-search becomes hot, swap in FTS5).
+
+    Off-topic articles (`is_about_coffee=0`, `published=0`) and
+    articles from unreviewed roasters (`rp.published=0`) are
+    excluded — same gating as the consumer JOURNAL feed.
+
+    No auth — articles are public. Capped at 8 hits like the other
+    SearchDropdown sections."""
+    q = (q or "").strip()
+    if len(q) < 1:
+        return ok([], resource="roaster_articles")
+    db = get_db()
+    try:
+        like = f"%{q.lower()}%"
+        rows = db.execute(
+            """
+            SELECT a.id, a.roaster_slug, a.title, a.image_url,
+                   a.word_count, a.published_at,
+                   rp.name AS roaster_name,
+                   rp.logo_url AS roaster_logo_url
+              FROM roaster_articles a
+              JOIN roaster_profiles rp ON rp.roaster_slug = a.roaster_slug
+             WHERE a.published = 1
+               AND rp.published = 1
+               AND (
+                    LOWER(a.title) LIKE ?
+                 OR LOWER(a.excerpt) LIKE ?
+                 OR LOWER(a.tags) LIKE ?
+               )
+             ORDER BY
+                CASE WHEN LOWER(a.title) LIKE ? THEN 0
+                     WHEN LOWER(a.tags)  LIKE ? THEN 1
+                     ELSE 2 END,
+                COALESCE(a.published_at, a.scraped_at) DESC,
+                a.id DESC
+             LIMIT ?
+            """,
+            (like, like, like, like, like,
+             max(1, min(50, int(limit)))),
+        ).fetchall()
+        return ok([dict(r) for r in rows], resource="roaster_articles",
+                  total=len(rows))
+    finally:
+        db.close()
 
 
 @router.get("/users/search")
@@ -1893,6 +1975,52 @@ def admin_standardize_exemplars_regen(body: Optional[dict] = None,
         db.close()
 
 
+@router.post("/admin/jobs/{job_id}/cancel")
+def admin_cancel_job(job_id: int, user=Depends(get_current_user)):
+    """Sticky-flag cancel. Sets `jobs.cancel_requested = 1`; the runner
+    polls this at the top of every per-source iteration and exits
+    cleanly with whatever it has already committed (`mark_finished`
+    with `status='succeeded'` + `result_summary.cancelled = true`).
+
+    Per-row commits in `upsert_article` mean every article persisted
+    so far is a complete article — no half-scraped rows. The cancel is
+    a clean checkpoint, not an abort.
+
+    Idempotent: setting the flag on an already-finished job is a no-op
+    (the runner doesn't re-read it once `mark_finished` has fired).
+    Setting on a queued/running job that's already cancel-requested is
+    also a no-op.
+    """
+    _require_admin(user)
+    db = get_db()
+    try:
+        cur = db.execute(
+            "UPDATE jobs SET cancel_requested = 1 "
+            "WHERE id = ? AND status IN ('queued', 'running')",
+            (job_id,),
+        )
+        if cur.rowcount == 0:
+            row = db.execute(
+                "SELECT status FROM jobs WHERE id = ?", (job_id,),
+            ).fetchone()
+            if row is None:
+                from fastapi import HTTPException
+                raise HTTPException(404, f"Job {job_id} not found")
+            # Job already in a terminal state — return 200 with a
+            # noop body so the UI can refresh + collapse the banner
+            # without thinking it failed.
+            return ok({
+                "job_id": job_id,
+                "cancel_requested": 0,
+                "noop": True,
+                "current_status": row["status"],
+            }, resource="jobs")
+        db.commit()
+        return ok({"job_id": job_id, "cancel_requested": 1}, resource="jobs")
+    finally:
+        db.close()
+
+
 @router.get("/admin/jobs/{job_id}/log")
 def admin_job_log(job_id: int, user=Depends(get_current_user)):
     """Return the captured log tail for a single job. The full row is
@@ -2623,7 +2751,8 @@ def admin_delete_roaster(slug: str, user=Depends(get_current_user)):
 def admin_scrape_articles_all(body: dict = None,
                                 background_tasks: BackgroundTasks = None,
                                 user=Depends(get_current_user)):
-    """Bulk article scrape across every enabled `roaster_sources` row.
+    """Bulk article scrape across every published roaster, or a
+    multi-select subset.
     Same conflict + BackgroundTasks pattern as /admin/scrape/run.
 
     Body:
@@ -2631,10 +2760,22 @@ def admin_scrape_articles_all(body: dict = None,
         enrichment for every article, even ones already marked
         enrichment_status='enriched'. Use after a prompt change or
         when the admin notices systemic body-extraction issues.
+      `roaster_slugs` (optional, list[str]): scope the scrape to
+        these slugs only. Empty/absent = every published roaster.
+        The Layer-C2 multi-select sticky CTA posts this.
+      `regenerate_article_hint` (optional, default false): force
+        per-roaster site-quirk hint regeneration for every roaster
+        touched in this run, even if a cached hint exists.
     """
     _require_admin(user)
     body = body or {}
     force_enrich = bool(body.get("force_enrich"))
+    raw_slugs = body.get("roaster_slugs") or []
+    if not isinstance(raw_slugs, list):
+        from fastapi import HTTPException
+        raise HTTPException(422, "roaster_slugs must be a list of strings")
+    roaster_slugs = [str(s).strip() for s in raw_slugs if str(s).strip()] or None
+    regenerate_hint = bool(body.get("regenerate_article_hint"))
     db = get_db()
     try:
         try:
@@ -2648,7 +2789,9 @@ def admin_scrape_articles_all(body: dict = None,
             )
         background_tasks.add_task(
             catalog_ops.run_article_scrape_job, job_id,
-            roaster_slug=None, force_enrich=force_enrich,
+            roaster_slug=None, roaster_slugs=roaster_slugs,
+            force_enrich=force_enrich,
+            regenerate_article_hint=regenerate_hint,
         )
         return ok(_job_to_response(db, job_id), resource="jobs")
     finally:
@@ -2667,10 +2810,14 @@ def admin_scrape_articles_one(slug: str, body: dict = None,
     Body:
       `force_enrich` (optional, default false): re-run Haiku for every
         article, even already-enriched ones.
+      `regenerate_article_hint` (optional, default false): force
+        site-quirk hint regeneration for this roaster, even if a
+        cached hint exists.
     """
     _require_admin(user)
     body = body or {}
     force_enrich = bool(body.get("force_enrich"))
+    regenerate_hint = bool(body.get("regenerate_article_hint"))
     db = get_db()
     try:
         prof = db.execute(
@@ -2693,8 +2840,81 @@ def admin_scrape_articles_one(slug: str, body: dict = None,
         background_tasks.add_task(
             catalog_ops.run_article_scrape_job, job_id,
             roaster_slug=slug, force_enrich=force_enrich,
+            regenerate_article_hint=regenerate_hint,
         )
         return ok(_job_to_response(db, job_id), resource="jobs")
+    finally:
+        db.close()
+
+
+@router.get("/admin/roasters/{slug}/article-hint")
+def admin_get_article_hint(slug: str, user=Depends(get_current_user)):
+    """Return the per-roaster article-extraction site-quirk hint +
+    its updated_at stamp + the perpetual force-regenerate flag. Used
+    by the admin Journals inline-expand row's hint card. Returns 404
+    if the roaster doesn't exist; the hint text being null is a
+    normal response shape (no hint generated yet — first scrape will
+    create one)."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT roaster_slug, name, "
+            "  article_enrichment_prompt_hint, "
+            "  article_enrichment_prompt_hint_updated_at, "
+            "  article_hint_force_regenerate "
+            "FROM roaster_profiles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Roaster {slug} not found")
+        return ok({
+            "roaster_slug": row["roaster_slug"],
+            "roaster_name": row["name"],
+            "article_enrichment_prompt_hint":
+                row["article_enrichment_prompt_hint"],
+            "article_enrichment_prompt_hint_updated_at":
+                row["article_enrichment_prompt_hint_updated_at"],
+            "article_hint_force_regenerate":
+                int(row["article_hint_force_regenerate"] or 0),
+        }, resource="roaster_profiles")
+    finally:
+        db.close()
+
+
+@router.post("/admin/roasters/{slug}/article-hint/regenerate-flag")
+def admin_set_article_hint_regen_flag(slug: str, body: dict = None,
+                                         user=Depends(get_current_user)):
+    """Toggle the perpetual `article_hint_force_regenerate` flag on a
+    roaster. While set to 1, every `article_scrape` pass for this
+    roaster regenerates the site-quirk hint via the Sonnet meta-call
+    (~$0.03 per regen). The flag never auto-clears — admins flip it
+    back off when satisfied with the hint.
+
+    Body: `{ "enabled": 0 | 1 | true | false }`.
+    """
+    _require_admin(user)
+    body = body or {}
+    raw = body.get("enabled")
+    enabled = 1 if raw in (1, True, "1", "true") else 0
+    db = get_db()
+    try:
+        cur = db.execute(
+            "UPDATE roaster_profiles "
+            "SET article_hint_force_regenerate = ? "
+            "WHERE roaster_slug = ?",
+            (enabled, slug),
+        )
+        if cur.rowcount == 0:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Roaster {slug} not found")
+        db.commit()
+        return ok(
+            {"roaster_slug": slug,
+             "article_hint_force_regenerate": enabled},
+            resource="roaster_profiles",
+        )
     finally:
         db.close()
 
@@ -2725,7 +2945,8 @@ def admin_list_articles(roaster_slug: Optional[str] = None,
         rows = db.execute(
             f"SELECT a.id, a.roaster_slug, a.url, a.title, a.excerpt, "
             "a.image_url, a.word_count, a.published_at, a.scraped_at, "
-            "a.published, rp.name AS roaster_name, "
+            "a.published, a.enrichment_status, a.is_about_coffee, "
+            "a.topic_category, a.tags, rp.name AS roaster_name, "
             "rp.logo_url AS roaster_logo_url "
             "FROM roaster_articles a "
             "LEFT JOIN roaster_profiles rp ON rp.roaster_slug = a.roaster_slug "
@@ -2738,10 +2959,33 @@ def admin_list_articles(roaster_slug: Optional[str] = None,
             f"SELECT COUNT(*) AS c FROM roaster_articles a WHERE {where_sql}",
             args,
         ).fetchone()["c"]
-        return ok([dict(r) for r in rows], resource="roaster_articles",
+        return ok([_hydrate_article_row(dict(r)) for r in rows],
+                  resource="roaster_articles",
                   meta={"total": total, "limit": limit, "offset": offset})
     finally:
         db.close()
+
+
+def _hydrate_article_row(row: dict) -> dict:
+    """Decode the JSON `tags` column into a real list so the admin
+    UI doesn't have to JSON.parse on each row. Empty / unparseable
+    tags become an empty array — never null — so the frontend can
+    render `tags.map(...)` without an undefined check."""
+    raw = row.get("tags")
+    if raw:
+        try:
+            decoded = json.loads(raw)
+            if isinstance(decoded, list):
+                row["tags"] = [
+                    str(t) for t in decoded if isinstance(t, str)
+                ]
+            else:
+                row["tags"] = []
+        except (TypeError, ValueError):
+            row["tags"] = []
+    else:
+        row["tags"] = []
+    return row
 
 
 @router.post("/admin/articles/{article_id}/publish")

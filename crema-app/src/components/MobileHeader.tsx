@@ -1,7 +1,11 @@
 /**
  * MobileHeader — native + narrow-web top chrome.
  *
- * Matches Figma 63:4710 exactly:
+ * Matches Figma 63:4710 with one structural revision: the search
+ * glass that sat on the right has moved to MobileFooter (right
+ * before Profile) so the header reads as exactly two flanking
+ * controls around the centered logo.
+ *
  *   - 63 px navbar height (burnt brown `navbar.bg`, plus iPhone top
  *     safe inset painted in the same colour so the notch / Dynamic
  *     Island reads as an extension of the navbar).
@@ -10,21 +14,18 @@
  *     cramped).
  *   - Crema wordmark centered (131×27, large enough that the
  *     lowercase "a" bowls render cleanly at retina density).
- *   - Search glass + bell pinned to the right, icon centers at
- *     y=31.5 (navbar midpoint). x=337 for the glass per the design;
- *     the bell (notifications affordance, not shown in the static
- *     Figma but required for the app's notification feature) sits
- *     left of the glass.
+ *   - Bell on the right (notifications affordance), centered at
+ *     y=31.5 (navbar midpoint).
  *
- * Icons TOGGLE slide-in panels hosted by the root-level
- * `MobileOverlays` component (§2.40.1-2). The panels sit between
- * this header and the `MobileFooter` so the Crema chrome stays
- * painted while a panel is open; re-tapping the icon closes.
+ * The hamburger and bell still TOGGLE slide-in panels hosted by the
+ * root-level `MobileOverlays` component (§2.40.1-2). Search is now
+ * a full Stack screen (`app/search.tsx`) reached from the footer's
+ * Search tab — the slide-panel variant has been retired.
  */
 import { View, Pressable, StyleSheet, Animated, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Search, Bell } from "lucide-react-native";
+import { Bell } from "lucide-react-native";
 
 import { t, makeStyles } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
@@ -82,11 +83,20 @@ export default function MobileHeader() {
     >
       <SafeAreaView edges={["top"]} style={s.safe}>
       <View style={s.header}>
-        {/* Left: hamburger — toggles the Account slide panel. */}
+        {/* Left: hamburger — toggles the Account slide panel. Also
+           emits `crema:dismiss-modals` first so any open post viewer
+           / compose / popularity / auth modal closes BEFORE the
+           panel slides in. Without this, tapping the hamburger while
+           the post viewer is open layered the panel above the modal
+           but the modal stayed underneath; the user read the chrome
+           as broken (§2.40.24). */}
         <View style={s.flankLeft}>
           {user && (
             <Pressable
-              onPress={() => emit("crema:toggle-account-panel")}
+              onPress={() => {
+                emit("crema:dismiss-modals");
+                emit("crema:toggle-account-panel");
+              }}
               hitSlop={10}
               accessibilityLabel="Account menu"
               accessibilityRole="button"
@@ -96,9 +106,13 @@ export default function MobileHeader() {
           )}
         </View>
 
-        {/* Center: Crema wordmark (tap routes to the feed). */}
+        {/* Center: Crema wordmark (tap routes to the feed). Dismisses
+           any open modal first so the user lands on a clean feed. */}
         <Pressable
-          onPress={() => router.push("/")}
+          onPress={() => {
+            emit("crema:dismiss-modals");
+            router.push("/");
+          }}
           style={s.logoArea}
           hitSlop={8}
           accessibilityLabel="Feed"
@@ -107,35 +121,32 @@ export default function MobileHeader() {
           <CremaLogo width={131} height={27} />
         </Pressable>
 
-        {/* Right: bell + search glass. Both TOGGLE slide-in panels;
-           re-tapping closes the same panel. */}
+        {/* Right: bell only. Toggles the notifications slide panel;
+           re-tapping closes it. The search glass that used to live
+           here moved to the MobileFooter (Search tab → /search).
+           Dismisses any open modal first — see the hamburger
+           comment above. */}
         <View style={s.flankRight}>
           {user && (
             <Pressable
-              onPress={() => emit("crema:toggle-notifications-panel")}
+              onPress={() => {
+                emit("crema:dismiss-modals");
+                emit("crema:toggle-notifications-panel");
+              }}
               style={s.iconBtn}
               hitSlop={10}
               accessibilityLabel="Notifications"
               accessibilityRole="button"
             >
-              {/* Bell + Search sized to visually match the hamburger:
-                 24-pt glyph with a 2-px stroke reads as a landscape
-                 25×16 stack (the hamburger is 3 bars of the same
-                 2-px weight). Prior 1.5/1.75 stroke + 22-pt bell
-                 was optically lighter. */}
+              {/* Bell sized to visually match the hamburger: 24-pt
+                 glyph with a 2-px stroke reads as a landscape 25×16
+                 stack (the hamburger is 3 bars of the same 2-px
+                 weight). Prior 1.5/1.75 stroke + 22-pt bell was
+                 optically lighter. */}
               <Bell size={24} color={t.color["navbar.text"]} strokeWidth={2} />
               {unreadCount > 0 && <View style={s.badge} />}
             </Pressable>
           )}
-          <Pressable
-            onPress={() => emit("crema:toggle-search-panel")}
-            style={s.iconBtn}
-            hitSlop={10}
-            accessibilityLabel="Search"
-            accessibilityRole="button"
-          >
-            <Search size={24} color={t.color["navbar.text"]} strokeWidth={2} />
-          </Pressable>
         </View>
       </View>
       </SafeAreaView>

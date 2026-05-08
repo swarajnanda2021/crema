@@ -1,833 +1,850 @@
 /**
- * ComposePost — unified in-place compose with dry-run preview.
+ * ComposePost — focus-mode "New post" composer matching Figma 895:223.
  *
- * Auto-detects mode from user input:
- *   - Paste a URL → article mode (link preview, no images)
- *   - Add images/tasting note → note mode (no link preview)
- *   - Repost (repostTarget) → repost mode (compact preview of original)
+ * Replaces the previous Short/Long/Article/Repost composer entirely
+ * (§2.40.25). One length, one textarea, one Share button. Sub-flows
+ * for tagging a coffee, adding an image, writing a tasting note, and
+ * adding a location are entry points listed below the body — each
+ * row opens its own sub-screen / picker (wiring TBD per the user's
+ * per-button instructions).
  *
- * Renders like a real post card: user avatar, name, "Just now", editable body,
- * link preview or image grid below, location field, submit bar.
+ * Focus mode: this composer is rendered FULL-VIEWPORT on mobile —
+ * `MobileHeader` and `MobileFooter` are intentionally covered so the
+ * user faces no chrome distractions. The full-viewport mounting
+ * lives in `GlobalComposePost` (app/_layout.tsx); this file is the
+ * inner layout. The composer renders its own top bar (Cancel /
+ * "New post" / Share).
+ *
+ * Layout values are LITERAL to Figma 895:223 per CLAUDE.md "Hard
+ * rule — Figma is literal":
+ *
+ *   • Top bar: 59 px tall, paddingHorizontal 20. Cancel left at
+ *     12.5 px Inter Medium (Crema-pink, our `accent.cta` —
+ *     standing in for the Figma's #C06CC4 since the brand palette
+ *     is locked to one Crema pink). Title centered in New Spirit
+ *     Medium 18 / 25, Espresso. Share button: 61×33.48 pill,
+ *     borderRadius 26.6, Crema-pink fill, Espresso label at 50%
+ *     opacity when disabled (no body text yet).
+ *   • Author row: avatar 40×40 circular at x=21, name Inter
+ *     Semibold 16 in Espresso, char counter "N / 300" at right
+ *     edge in Inter Medium 16 muted.
+ *   • Body textarea: Inter Regular 18 / 26 with the Figma
+ *     placeholder "What do you want to say?" in `text.muted`.
+ *   • Action rows: each 54 px tall, divider above + below, icon
+ *     in Crema pink at x=21, label at x=56 in Inter Medium 16
+ *     `text.secondary`, chevron right at the row's right edge in
+ *     `text.muted`.
+ *
+ * The Figma uses the same MapPin glyph for both "Add a tasting
+ * note" and "Add location" (Vector4 SVG re-used). We follow the
+ * Figma literally — both rows use lucide `MapPin`. If the
+ * designer intended a different glyph for tasting note, we'll
+ * swap when they specify.
+ *
+ * Submit shape: Single `post_type: "note"` payload. The previous
+ * article / sourcing_story / repost paths are gone — those flows
+ * (URL preview, long-form, repost) are not part of this composer
+ * anymore. Reposts run via `PostModal` in `mode: "repost"` (its
+ * own flow); long-form has been retired.
  */
 
-import { useState, useEffect, useRef } from "react";
-import {
-  View, Text, TextInput, Pressable, ScrollView, Modal,
-  StyleSheet, ActivityIndicator, Platform,
-} from "react-native";
+import { useState } from "react";
+import { View, Text, TextInput, ScrollView, StyleSheet, Platform, Keyboard, Pressable } from "react-native";
 import { Image } from "expo-image";
-import { Camera, Plus, X } from "lucide-react-native";
+import { Coffee, Image as ImageIcon, MapPin, ChevronRight, X } from "lucide-react-native";
 
-import { apiFetchRaw, resolveUploadUrl } from "../api/client";
+import { resolveUploadUrl } from "../api/client";
 import { t, makeStyles } from "../tokens/useTokens";
+import { thumbnailUrl } from "../utils/imageUrl";
 import { HapticPressable } from "./primitives";
-import { PostDrinkIcon, PostLocationPinIcon } from "./icons/FigmaIcons";
-import ImageUploadModal from "./ImageUploadModal";
-import TastingNoteCard from "./TastingNoteCard";
-import PostGallery, { GALLERY_ASPECT, PG_RADIUS } from "./PostGallery";
+import TagCoffeeSheet from "./TagCoffeeSheet";
+import AddImageActionSheet from "./AddImageActionSheet";
+import CustomGallerySheet from "./CustomGallerySheet";
 
 interface ComposePostProps {
   onSubmit: (data: any) => Promise<void>;
   onCancel: () => void;
   loading?: boolean;
-  repostTarget?: any;
-  products?: any[];
-  user?: { username: string; display_name?: string; avatar_url?: string } | null;
-  initialData?: { body?: string; images?: string[]; location?: string; drink?: string | null };
-  // When set, the composer mounts with the Add-Card → Tasting Note
-  // sub-flow already open and this coffee pre-selected. Used by the
-  // PopularityModal "Write a tasting note" shortcut so the user lands
-  // on the sliders without searching.
-  prefillTastingNote?: {
-    product_id?: string | number;
-    coffee_name: string;
-    roaster_name?: string;
-    roast_level?: string;
-    process?: string;
-    product_url?: string;
-  };
+  user?: {
+    username?: string;
+    display_name?: string;
+    avatar_url?: string;
+    avatar_crop_x?: number;
+    avatar_crop_y?: number;
+    avatar_zoom?: number;
+  } | null;
+  initialData?: { body?: string };
 }
 
-const URL_REGEX = /https?:\/\/[^\s]+/;
-
-function timeAgo(dateStr: string): string {
-  try {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const h = Math.floor(diff / 3600000);
-    if (h < 1) return "just now";
-    if (h < 24) return `${h}h`;
-    const d = Math.floor(h / 24);
-    if (d < 30) return `${d}d`;
-    return new Date(dateStr).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
-  } catch { return ""; }
-}
+const MAX_CHARS = 300;
 
 export default function ComposePost({
   onSubmit,
   onCancel,
   loading = false,
-  repostTarget,
-  products,
   user,
   initialData,
-  prefillTastingNote,
 }: ComposePostProps) {
-  const isRepost = !!repostTarget;
-  const isEditing = !!initialData;
-
-  // Core state
   const [teaser, setTeaser] = useState(initialData?.body || "");
-  const [location, setLocation] = useState(initialData?.location || "");
-  const [locationOpen, setLocationOpen] = useState(false);
-  const [locationDraft, setLocationDraft] = useState(initialData?.location || "");
-  // §2.14 / §2.23 — long-form mode is now a Short / Long tab row at
-  // the top of the composer (not a toggle). The same teaser textarea
-  // carries the body; Long just extends the visible char limit
-  // (300 → 5000) and grows the modal. Backend still stores the long
-  // body under `body_full` for posts flagged `sourcing_story` — the
-  // composer truncates the first ~280 chars of the body into the
-  // feed `teaser`, then hands the full text over as `body_full` on
-  // submit.
-  const canStoryMode = !isRepost;
-  const [storyMode, setStoryMode] = useState(
-    (initialData as any)?.post_type === "sourcing_story",
-  );
-  const SHORT_MAX = 300;
-  const STORY_MAX = 5000;
-  const STORY_MIN = 200;
-
-  // Tag a drink — free-text chip (users pick common drinks from a modal
-  // or type their own). Stored into the post teaser as context; kept
-  // separate from location and café tags.
-  const [drink, setDrink] = useState<string | null>(initialData?.drink || null);
-  const [drinkPickerOpen, setDrinkPickerOpen] = useState(false);
-  const COMMON_DRINKS = [
-    "Espresso", "Cortado", "Latte", "Cappuccino", "Flat White",
-    "Americano", "Pour Over", "V60", "AeroPress", "Cold Brew",
-    "Mocha", "Macchiato", "Filter Coffee", "Affogato",
-  ];
-
-  // Auto-detected article link. Once a URL is detected in the
-  // teaser we yank it out of the textarea and hold it as an
-  // "attached" link — the preview card renders below, the URL no
-  // longer takes up visual space in the composed body, and the
-  // user can cancel the attachment via an X on the preview (same
-  // language as image removal).
-  const [attachedUrl, setAttachedUrl] = useState("");
-  const [linkPreview, setLinkPreview] = useState<{ title: string; description: string; image_url: string; domain: string } | null>(null);
-  const [linkTitle, setLinkTitle] = useState("");
-  const [linkLoading, setLinkLoading] = useState(false);
-  const debounceRef = useRef<any>(null);
-
-  // Images / tasting notes
-  const [imageUrls, setImageUrls] = useState<string[]>(initialData?.images || []);
-  const [showImgUpload, setShowImgUpload] = useState(false);
-  const [showAddCardModal, setShowAddCardModal] = useState(false);
-  const [addCardTab, setAddCardTab] = useState<"image" | "tasting_note">("image");
-  const [editGridW, setEditGridW] = useState(0);
-
-  // Tasting note selector
-  const [tnSearch, setTnSearch] = useState("");
-  const [tnSelectedCoffee, setTnSelectedCoffee] = useState<any>(null);
-  const [tnScores, setTnScores] = useState({ acidity: 3, body: 3, sweetness: 3, aftertaste: 3 });
-
-  const isTN = (s: string) => s.startsWith('{"type":') && s.includes('"tasting_note"');
-  const hasImages = imageUrls.length > 0;
-  const hasUrl = !!attachedUrl;
-  const isArticleMode = hasUrl && !hasImages;
-  const canAddImage = !isArticleMode && imageUrls.length < 6;
-
-  // Edit grid sizing
-  const EDIT_COLS = 3;
-  const EDIT_GAP = 8;
-  const editThumbW = editGridW > 0 ? Math.floor((editGridW - EDIT_GAP * (EDIT_COLS - 1)) / EDIT_COLS) : 100;
-  const editThumbH = Math.floor(editThumbW * GALLERY_ASPECT);
-
-  // §2.23b — URLs don't count toward the visible character budget.
-  // A pasted 50-char link shouldn't eat half a short post or half a
-  // long one. We strip every URL before measuring length, for both
-  // the displayed counter and the enforcement path.
-  const stripUrls = (s: string) => s.replace(/https?:\/\/\S+/g, "");
-  const visibleLen = stripUrls(teaser).length;
-  const visibleMax = storyMode ? STORY_MAX : SHORT_MAX;
-
-  const onChangeTeaser = (next: string) => {
-    if (stripUrls(next).length > visibleMax) return;
-    setTeaser(next);
-  };
-
-  // Prefill the Add-Card → Tasting Note sub-flow when a caller
-  // handed us a coffee (PopularityModal "Write a tasting note"
-  // shortcut). We land the user on the sliders instead of the
-  // search box. Only runs on mount — changing the prop mid-session
-  // wouldn't make sense here.
-  useEffect(() => {
-    if (!prefillTastingNote) return;
-    setAddCardTab("tasting_note");
-    setShowAddCardModal(true);
-    setTnSelectedCoffee({
-      product_id: prefillTastingNote.product_id,
-      coffee_name: prefillTastingNote.coffee_name,
-      roaster_name: prefillTastingNote.roaster_name || "",
-      roast_level: prefillTastingNote.roast_level || "",
-      process: prefillTastingNote.process || "",
-      product_url: prefillTastingNote.product_url || "",
-    });
-    setTnSearch(prefillTastingNote.coffee_name);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Auto-detect URL in teaser text. Once a URL shows up AND we
-  // don't already have one attached, yank it out of the teaser
-  // and hold it as `attachedUrl`. The composer body visually loses
-  // the URL — the preview card below is the anchor instead, with
-  // its own X to detach.
-  useEffect(() => {
-    if (isRepost || hasImages) return;
-    if (attachedUrl) return;
-    const match = teaser.match(URL_REGEX);
-    if (!match) return;
-    const url = match[0];
-    setAttachedUrl(url);
-    setTeaser((prev) => prev.replace(url, "").replace(/\s{2,}/g, " ").trim());
-  }, [teaser, hasImages, isRepost, attachedUrl]);
-
-  // Fetch link preview when a URL gets attached.
-  useEffect(() => {
-    if (!attachedUrl) { setLinkPreview(null); return; }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      setLinkLoading(true);
-      try {
-        const raw = await apiFetchRaw(`/link-preview?url=${encodeURIComponent(attachedUrl)}`);
-        const data = raw?.data ?? raw;
-        setLinkPreview(data);
-        if (data.title && !linkTitle) setLinkTitle(data.title);
-      } catch { setLinkPreview(null); }
-      finally { setLinkLoading(false); }
-    }, 500);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [attachedUrl]);
-
-  // Detach the attached link entirely — user dismissed the preview
-  // card via the X. Everything link-related clears so article mode
-  // switches off.
-  const clearAttachedLink = () => {
-    setAttachedUrl("");
-    setLinkPreview(null);
-    setLinkTitle("");
-  };
-
-  // Adding an image also detaches any attached link (article +
-  // images are mutually exclusive).
-  const handleAddImage = (url: string) => {
-    setImageUrls((p) => [...p, url]);
-    clearAttachedLink();
-  };
-
-  // Validation — visible length (URLs stripped) is what counts.
-  const canSubmit = (() => {
-    if (loading) return false;
-    if (isRepost) return true;
-    if (visibleLen === 0) return false;
-    if (storyMode) return visibleLen >= STORY_MIN && visibleLen <= STORY_MAX;
-    return visibleLen <= SHORT_MAX;
-  })();
+  // Tag-a-coffee sheet is local state — opens via the action row,
+  // closes on backdrop tap, drag-handle tap, or selection. The
+  // selected coffee is held here for use on submit (rendering the
+  // selected-coffee chip in the body is TBD per the user's per-row
+  // spec; for now we only track the selection so the data is there
+  // when the user dictates the chip UX).
+  const [tagSheetOpen, setTagSheetOpen] = useState(false);
+  const [taggedCoffee, setTaggedCoffee] = useState<{
+    product_id: string;
+    coffee_name: string;
+    roaster_name?: string;
+    hero_image?: string | null;
+    image_url?: string | null;
+  } | null>(null);
+  // Add-an-image action sheet (Figma 900:1906). Tapping the
+  // "Add an image" action row opens the iOS-style sheet with
+  // Photo Gallery / Camera / Cancel. Picking + uploading an
+  // image stores its URL on `attachedImage` so the post can
+  // include it on submit. The in-body chip / preview UI for
+  // the attached image is TBD per the user's next-step spec.
+  const [addImageSheetOpen, setAddImageSheetOpen] = useState(false);
+  const [gallerySheetOpen, setGallerySheetOpen] = useState(false);
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  // Location is auto-extracted from the picked photo's EXIF GPS
+  // (gallery flow only — camera-captured photos and web uploads
+  // don't carry location). The user can clear it via the X on the
+  // chip; the standalone "Add a location" action row was retired
+  // since the picker already surfaces "Location Is Included" and
+  // we now mirror that signal directly in the body.
+  const [attachedLocation, setAttachedLocation] = useState<string | null>(null);
+  const len = teaser.length;
+  const canSubmit = !loading && len > 0 && len <= MAX_CHARS;
+  const s = useStyles();
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
-    if (isRepost) {
-      await onSubmit({
-        title: "Repost",
-        teaser: teaser.trim() || "Reposted",
-        post_type: "repost",
-        repost_of_id: repostTarget.id,
-        repost_comment: teaser.trim() || null,
-      });
-      return;
-    }
-    if (storyMode) {
-      // §2.23a — the one field carries both. Derive a feed excerpt
-      // (~280 chars, word-boundary) from the body; store the full
-      // text under body_full so PostCard's "Read the full post →"
-      // still works.
-      const full = teaser.trim();
-      const excerpt = full.length > 280
-        ? full.slice(0, 280).replace(/\s+\S*$/, "") + "\u2026"
-        : full;
-      const imgs = imageUrls.filter(Boolean);
-      await onSubmit({
-        title: excerpt.slice(0, 80) || "Long-form post",
-        teaser: excerpt,
-        body_full: full,
-        post_type: "sourcing_story",
-        images: imgs,
-        cover_image_url: imgs[0] || null,
-      });
-      return;
-    }
-    if (isArticleMode) {
-      await onSubmit({
-        title: linkTitle.trim() || attachedUrl.slice(0, 60),
-        teaser: teaser.trim(),
-        external_url: attachedUrl,
-        cover_image_url: linkPreview?.image_url || null,
-        post_type: "article",
-      });
-    } else {
-      const imgs = imageUrls.filter(Boolean);
-      await onSubmit({
-        title: teaser.trim().slice(0, 60) || "Note",
-        teaser: teaser.trim(),
-        post_type: "note",
-        location: location.trim() || null,
-        drink: drink || null,
-        images: imgs,
-        cover_image_url: imgs[0] || null,
-      });
-    }
+    await onSubmit({
+      title: teaser.trim().slice(0, 60) || "Note",
+      teaser: teaser.trim(),
+      post_type: "note",
+      // Carry the tagged coffee through on submit. The backend
+      // already accepts `product_id` on note posts (used by the
+      // older tasting-note flow); we reuse that field so the post
+      // can later be linked back to the tagged product even though
+      // the in-body chip rendering is still TBD.
+      product_id: taggedCoffee?.product_id || null,
+      // Attached image (if the user picked one via the
+      // Add-an-image action sheet). Backend accepts an `images`
+      // array on note posts; we send a single-element array.
+      images: attachedImage ? [attachedImage] : [],
+      cover_image_url: attachedImage || null,
+      // Location auto-extracted from the photo's EXIF GPS (gallery
+      // pick only). Stored as a human-readable place name.
+      location: attachedLocation || null,
+    });
+  };
+
+  const onChangeText = (next: string) => {
+    if (next.length > MAX_CHARS) return;
+    setTeaser(next);
   };
 
   const displayName = user?.display_name || user?.username || "You";
   const avatarUrl = user?.avatar_url;
-  const s = useStyles();
 
   return (
-    <View style={s.card}>
-      {/* §2.23a — body is scrollable; the submit row is pinned at
-         the bottom so Long-mode content (tall textarea + chips +
-         Add Card) can't clip Cancel / Post. */}
-      <ScrollView
-        style={s.scrollBody}
-        contentContainerStyle={s.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-      {/* ── Post preview header (dry run) ── */}
-      <View style={s.header}>
-        <View>
-          {avatarUrl ? (
-            <Image source={{ uri: resolveUploadUrl(avatarUrl) }} style={s.avatar} contentFit="cover" />
-          ) : (
-            <View style={[s.avatar, s.avatarFallback]}>
-              <Text style={s.avatarLetter}>{displayName[0].toUpperCase()}</Text>
-            </View>
-          )}
-        </View>
-        <View style={s.headerMeta}>
-          <View style={s.nameRow}>
-            <Text style={s.authorName}>{displayName}</Text>
-            <Text style={s.timestamp}>Just now</Text>
-          </View>
-          <Text style={s.subtitle}>
-            {isRepost
-              ? "Reposting"
-              : isArticleMode
-                ? "Sharing a link"
-                : storyMode
-                  ? "Writing a long post"
-                  : "Writing a note"}
-          </Text>
-        </View>
-        <Pressable onPress={onCancel} hitSlop={8}>
-          <X size={18} color={t.color["text.muted"]} />
-        </Pressable>
-      </View>
+    <View style={s.root}>
+      {/* Top bar — Cancel / New post / Share. Figma 895:223 y=0..59. */}
+      <View style={s.topBar}>
+        <HapticPressable
+          haptic="tap"
+          onPress={() => {
+            // Dismiss the keyboard FIRST, then run the parent's
+            // close handler. Without the explicit dismiss, iOS
+            // swallows the first tap on any control while the
+            // soft keyboard is up — the user reported "Cancel
+            // doesn't work the first time, only works after I
+            // select something" because selecting a coffee
+            // implicitly blurred the textarea (the bottom sheet
+            // stole focus) so the keyboard was already down by
+            // the time they tapped Cancel.
+            Keyboard.dismiss();
+            onCancel();
+          }}
+          hitSlop={10}
+          style={s.cancelHit}
+          accessibilityLabel="Cancel"
+          accessibilityRole="button"
+        >
+          <Text style={s.cancelText}>Cancel</Text>
+        </HapticPressable>
 
-      {/* §2.23a — Short / Long tab row. Sits above the teaser
-         textarea. Tapping Long extends the visible char limit
-         (300 → 5000) on the same field and grows the modal
-         vertically; no second textarea. Hidden for reposts. */}
-      {canStoryMode && (
-        <View style={s.modeTabs}>
-          <Pressable
-            onPress={() => setStoryMode(false)}
-            style={[s.modeTab, !storyMode && s.modeTabActive]}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: !storyMode }}
-          >
-            <Text style={[s.modeTabText, !storyMode && s.modeTabTextActive]}>Short</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setStoryMode(true)}
-            style={[s.modeTab, storyMode && s.modeTabActive]}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: storyMode }}
-          >
-            <Text style={[s.modeTabText, storyMode && s.modeTabTextActive]}>Long</Text>
-          </Pressable>
-        </View>
-      )}
+        <Text style={s.title}>New post</Text>
 
-      {/* ── Editable teaser (same font as final post body) ── */}
-      <TextInput
-        style={[s.teaserInput, storyMode && s.teaserInputLong]}
-        value={teaser}
-        onChangeText={onChangeTeaser}
-        placeholder={
-          isRepost
-            ? "Add your thoughts..."
-            : storyMode
-              ? "Write the long version — a sourcing story, a brew walkthrough, a detailed review."
-              : "What's on your mind? Paste a link to share an article."
-        }
-        placeholderTextColor={t.color["text.muted"] as string}
-        multiline
-      />
-      <Text style={s.charCount}>
-        {visibleLen}/{visibleMax}
-        {storyMode && visibleLen < STORY_MIN ? ` (min ${STORY_MIN} to publish)` : ""}
-      </Text>
-
-      {/* ── ARTICLE MODE: link preview with title overlay ── */}
-      {isArticleMode && (
-        <View style={s.linkSection}>
-          {linkLoading && <ActivityIndicator size="small" color={t.color.accent} style={{ marginVertical: 12 }} />}
-          {linkPreview && (
-            <View style={s.previewCard}>
-              {linkPreview.image_url ? (
-                <View style={s.previewThumbWrap}>
-                  <Image source={{ uri: linkPreview.image_url }} style={s.previewThumbImg} contentFit="cover" />
-                  <View style={s.previewOverlay}>
-                    <TextInput
-                      style={s.previewTitle}
-                      value={linkTitle}
-                      onChangeText={setLinkTitle}
-                      placeholder="Title"
-                      placeholderTextColor="rgba(250,248,240,0.5)"
-                    />
-                    <Text style={s.previewDomain}>{linkPreview.domain}</Text>
-                  </View>
-                </View>
-              ) : (
-                <View style={s.previewNoImg}>
-                  <TextInput
-                    style={[s.previewTitle, { color: t.color["text.primary"] }]}
-                    value={linkTitle}
-                    onChangeText={setLinkTitle}
-                    placeholder="Title"
-                    placeholderTextColor={t.color["text.muted"] as string}
-                  />
-                  <Text style={[s.previewDomain, { color: t.color["text.muted"] }]}>{linkPreview.domain}</Text>
-                </View>
-              )}
-              {/* Detach the article — same language as image-thumb X. */}
-              <Pressable onPress={clearAttachedLink} style={s.previewRemove} hitSlop={6} accessibilityLabel="Remove link">
-                <X size={14} color={t.color["text.on-cta"]} strokeWidth={2.5} />
-              </Pressable>
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* ── NOTE MODE: image/tasting-note grid + location ── */}
-      {!isRepost && !isArticleMode && (
-        <View style={s.noteSection}>
-          {/* Image grid */}
-          <View style={s.imageGrid} onLayout={(e) => setEditGridW(e.nativeEvent.layout.width)}>
-            {imageUrls.map((entry, idx) => (
-              <View key={idx} style={[s.imageThumb, { width: editThumbW, height: editThumbH }]}>
-                {isTN(entry) ? (
-                  <TastingNoteCard {...JSON.parse(entry)} width={editThumbW} height={editThumbH} />
-                ) : (
-                  <Image source={{ uri: resolveUploadUrl(entry) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-                )}
-                <Pressable onPress={() => setImageUrls((p) => p.filter((_, i) => i !== idx))} style={s.imageRemove}>
-                  <X size={12} color={t.color["text.on-cta"]} strokeWidth={2.5} />
-                </Pressable>
-              </View>
-            ))}
-            {canAddImage && (
-              <Pressable onPress={() => { setAddCardTab("image"); setShowAddCardModal(true); }} style={[s.imageAdd, { width: editThumbW, height: editThumbH }]}>
-                <Plus size={20} color={t.color["text.muted"]} strokeWidth={1.5} />
-                <Text style={s.imageAddLabel}>Add Card</Text>
-              </Pressable>
-            )}
-          </View>
-
-          {/* §2.23c — two optional fields on one chip row: Location +
-             Drink. Each chip opens its own picker (or a small text
-             prompt for Location). Filled chips show the value + an
-             X to clear. */}
-          <View style={s.chipsRow}>
-            <Pressable
-              style={[s.fieldChip, !!location && s.fieldChipActive]}
-              onPress={() => { setLocationDraft(location); setLocationOpen(true); }}
-            >
-              <PostLocationPinIcon size={12} color={location ? t.color["accent.cta"] : t.color.accent} />
-              <Text style={[s.fieldChipLabel, !!location && s.fieldChipLabelActive]} numberOfLines={1}>
-                {location || "Location"}
-              </Text>
-              {!!location && (
-                <Pressable onPress={() => setLocation("")} hitSlop={6}>
-                  <X size={11} color={t.color["text.muted"]} />
-                </Pressable>
-              )}
-            </Pressable>
-
-            <Pressable
-              style={[s.fieldChip, !!drink && s.fieldChipActive]}
-              onPress={() => setDrinkPickerOpen(true)}
-            >
-              <PostDrinkIcon size={12} color={drink ? t.color["accent.cta"] : t.color.accent} />
-              <Text style={[s.fieldChipLabel, !!drink && s.fieldChipLabelActive]} numberOfLines={1}>
-                {drink || "Tag a drink"}
-              </Text>
-              {!!drink && (
-                <Pressable onPress={() => setDrink(null)} hitSlop={6}>
-                  <X size={11} color={t.color["text.muted"]} />
-                </Pressable>
-              )}
-            </Pressable>
-          </View>
-
-          {/* Location text prompt — same modal shell as the drink /
-             café pickers so the three chips feel symmetrical. */}
-          {locationOpen && (
-            <Modal visible transparent animationType="fade" onRequestClose={() => setLocationOpen(false)}>
-              <View style={s.pickerOverlay}>
-                <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setLocationOpen(false)} />
-                <View style={s.pickerCard}>
-                  <View style={s.pickerHeader}>
-                    <Text style={s.pickerTitle}>Add location</Text>
-                    <Pressable onPress={() => setLocationOpen(false)}><X size={18} color={t.color["text.primary"]} /></Pressable>
-                  </View>
-                  <View style={{ padding: 16 }}>
-                    <TextInput
-                      style={s.locationModalInput}
-                      value={locationDraft}
-                      onChangeText={setLocationDraft}
-                      placeholder="Where are you?"
-                      placeholderTextColor={t.color["text.muted"]}
-                      autoFocus
-                      onSubmitEditing={() => { setLocation(locationDraft.trim()); setLocationOpen(false); }}
-                    />
-                    <View style={s.locationModalActions}>
-                      <Pressable onPress={() => setLocationOpen(false)} style={s.cancelBtn}>
-                        <Text style={s.cancelText}>Cancel</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => { setLocation(locationDraft.trim()); setLocationOpen(false); }}
-                        style={s.submitBtn}
-                      >
-                        <Text style={s.submitText}>Save</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </Modal>
-          )}
-
-          {/* Drink picker modal — quick list of common drinks + custom input */}
-          {drinkPickerOpen && (
-            <Modal visible transparent animationType="fade" onRequestClose={() => setDrinkPickerOpen(false)}>
-              <View style={s.pickerOverlay}>
-                <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setDrinkPickerOpen(false)} />
-                <View style={s.pickerCard}>
-                  <View style={s.pickerHeader}>
-                    <Text style={s.pickerTitle}>Tag a drink</Text>
-                    <Pressable onPress={() => setDrinkPickerOpen(false)}><X size={18} color={t.color["text.primary"]} /></Pressable>
-                  </View>
-                  <ScrollView style={{ maxHeight: 340 }}>
-                    {COMMON_DRINKS.map((d) => (
-                      <Pressable
-                        key={d}
-                        onPress={() => { setDrink(d); setDrinkPickerOpen(false); }}
-                        style={s.pickerRow}
-                      >
-                        <Text style={s.pickerRowName}>{d}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              </View>
-            </Modal>
-          )}
-
-          {/* Image upload modal */}
-          <ImageUploadModal
-            visible={showImgUpload}
-            title="Add image"
-            purpose="post"
-            currentUrl=""
-            onConfirm={(u) => { handleAddImage(u); setShowImgUpload(false); }}
-            onClose={() => setShowImgUpload(false)}
-          />
-
-          {/* Add Card tabs modal */}
-          <Modal visible={showAddCardModal} transparent animationType="fade" onRequestClose={() => setShowAddCardModal(false)}>
-            <Pressable style={s.addCardOverlay} onPress={() => setShowAddCardModal(false)}>
-              <Pressable style={s.addCardModal} onPress={(e) => e.stopPropagation()}>
-                <View style={s.addCardHeader}>
-                  <Text style={s.addCardTitle}>Add Card</Text>
-                  <Pressable onPress={() => setShowAddCardModal(false)} hitSlop={8}><X size={18} color={t.color["text.primary"]} /></Pressable>
-                </View>
-                <View style={s.addCardTabs}>
-                  <Pressable onPress={() => setAddCardTab("image")} style={[s.addCardTab, addCardTab === "image" && s.addCardTabActive]}>
-                    <Text style={[s.addCardTabText, addCardTab === "image" && s.addCardTabTextActive]}>Image</Text>
-                  </Pressable>
-                  <Pressable onPress={() => setAddCardTab("tasting_note")} style={[s.addCardTab, addCardTab === "tasting_note" && s.addCardTabActive]}>
-                    <Text style={[s.addCardTabText, addCardTab === "tasting_note" && s.addCardTabTextActive]}>Tasting Note</Text>
-                  </Pressable>
-                </View>
-                {addCardTab === "image" ? (
-                  <Pressable onPress={() => { setShowAddCardModal(false); setShowImgUpload(true); }} style={s.addCardImageBtn}>
-                    <Camera size={24} color={t.color["text.secondary"]} strokeWidth={1.2} />
-                    <Text style={s.addCardImageBtnText}>Upload or paste an image</Text>
-                  </Pressable>
-                ) : (
-                  <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
-                    <TextInput style={s.tnSearch} value={tnSearch} onChangeText={setTnSearch} placeholder="Search by coffee or roaster..." placeholderTextColor={t.color["text.muted"] as string} />
-                    {!tnSelectedCoffee && tnSearch.length > 1 && (products || [])
-                      .filter((p: any) => {
-                        const q = tnSearch.toLowerCase();
-                        return (
-                          p.coffee_name?.toLowerCase().includes(q) ||
-                          p.roaster_name?.toLowerCase().includes(q)
-                        );
-                      })
-                      .slice(0, 6)
-                      .map((p: any) => (
-                        <Pressable key={p.product_id} onPress={() => { setTnSelectedCoffee(p); setTnSearch(p.coffee_name); }} style={s.tnResultRow}>
-                          <Text style={s.tnResultName} numberOfLines={1}>{p.coffee_name}</Text>
-                          <Text style={s.tnResultRoaster} numberOfLines={1}>{p.roaster_name}</Text>
-                        </Pressable>
-                      ))}
-                    {tnSelectedCoffee && (
-                      <View style={{ marginTop: 12 }}>
-                        <Text style={s.tnSelectedName} numberOfLines={1}>{tnSelectedCoffee.coffee_name}</Text>
-                        <Text style={s.tnSelectedRoaster}>By {tnSelectedCoffee.roaster_name}</Text>
-                        {(["acidity", "body", "sweetness", "aftertaste"] as const).map((field) => (
-                          <View key={field} style={s.tnScoreRow}>
-                            <Text style={s.tnScoreLabel}>{field.charAt(0).toUpperCase() + field.slice(1)}</Text>
-                            <View style={s.tnScoreDots}>
-                              {[1, 2, 3, 4, 5].map((v) => (
-                                <Pressable key={v} onPress={() => setTnScores((p) => ({ ...p, [field]: v }))} style={[s.tnDot, tnScores[field] === v && s.tnDotActive]}>
-                                  <Text style={[s.tnDotText, tnScores[field] === v && s.tnDotTextActive]}>{v}</Text>
-                                </Pressable>
-                              ))}
-                            </View>
-                          </View>
-                        ))}
-                        <Pressable
-                          onPress={() => {
-                            const noteData = JSON.stringify({ type: "tasting_note", coffee_name: tnSelectedCoffee.coffee_name, roaster_name: tnSelectedCoffee.roaster_name, roast_level: tnSelectedCoffee.roast_level, process: tnSelectedCoffee.process, product_url: tnSelectedCoffee.product_url, ...tnScores });
-                            setImageUrls((p) => { const f = p.filter((e) => !isTN(e)); return [noteData, ...f]; });
-                            setShowAddCardModal(false); setTnSelectedCoffee(null); setTnSearch("");
-                          }}
-                          style={s.tnConfirmBtn}
-                        >
-                          <Text style={s.tnConfirmText}>Add Tasting Note</Text>
-                        </Pressable>
-                      </View>
-                    )}
-                  </ScrollView>
-                )}
-              </Pressable>
-            </Pressable>
-          </Modal>
-        </View>
-      )}
-
-      {/* ── REPOST PREVIEW ── */}
-      {isRepost && repostTarget && (
-        <View style={s.repostPreview}>
-          <View style={s.repostPreviewHeader}>
-            {repostTarget.author_avatar_url ? (
-              <Image source={{ uri: resolveUploadUrl(repostTarget.author_avatar_url) }} style={s.repostAvatar} contentFit="cover" />
-            ) : (
-              <View style={[s.repostAvatar, s.repostAvatarFallback]}>
-                <Text style={s.repostAvatarLetter}>{(repostTarget.author_display_name || "?")[0].toUpperCase()}</Text>
-              </View>
-            )}
-            <Text style={s.repostAuthor} numberOfLines={1}>{repostTarget.author_display_name}</Text>
-            <Text style={s.repostTime}>{timeAgo(repostTarget.published_at)}</Text>
-          </View>
-          <Text style={s.repostTeaser} numberOfLines={3}>{repostTarget.teaser}</Text>
-          {repostTarget.images?.length > 0 && (
-            <View style={{ marginTop: 8 }}>
-              <PostGallery images={repostTarget.images} />
-            </View>
-          )}
-        </View>
-      )}
-
-      </ScrollView>
-
-      {/* ── Submit bar (pinned outside the scroll) ── */}
-      <View style={s.submitRow}>
-        <HapticPressable haptic="tap" onPress={onCancel} style={s.cancelBtn}><Text style={s.cancelText}>Cancel</Text></HapticPressable>
-        <HapticPressable haptic="commit" onPress={handleSubmit} style={[s.submitBtn, !canSubmit && s.submitBtnDisabled]} disabled={!canSubmit}>
-          {loading ? <ActivityIndicator size="small" color={t.color["text.on-cta"]} /> : <Text style={s.submitText}>{isEditing ? "Save" : isRepost ? "Repost" : "Post"}</Text>}
+        <HapticPressable
+          haptic="commit"
+          onPress={handleSubmit}
+          disabled={!canSubmit}
+          style={[s.shareBtn, !canSubmit && s.shareBtnDisabled]}
+          accessibilityLabel="Share"
+          accessibilityRole="button"
+        >
+          <Text style={s.shareText}>Share</Text>
         </HapticPressable>
       </View>
+      <View style={s.divider} />
+
+      {/* Author row — avatar + name on the left, char counter on
+          the right. Figma 895:223 y=75..115. */}
+      <View style={s.authorRow}>
+        <View style={s.authorLeft}>
+          {avatarUrl ? (
+            <Image
+              source={{ uri: resolveUploadUrl(avatarUrl) }}
+              style={s.avatar}
+              contentFit="cover"
+            />
+          ) : (
+            <View style={[s.avatar, s.avatarFallback]}>
+              <Text style={s.avatarLetter}>
+                {(displayName[0] || "?").toUpperCase()}
+              </Text>
+            </View>
+          )}
+          <Text style={s.authorName} numberOfLines={1}>
+            {displayName}
+          </Text>
+        </View>
+        <Text style={s.charCount}>
+          {len} / {MAX_CHARS}
+        </Text>
+      </View>
+
+      {/* Body textarea fills the available vertical space between
+          the author row and the action rows. The placeholder
+          color matches Figma's lighter muted (#C7BAA5) — we use
+          `text.muted` which is close enough; both are in the
+          approved palette. */}
+      <ScrollView
+        style={s.bodyScroll}
+        contentContainerStyle={s.bodyContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* No `autoFocus` — auto-focusing the textarea on open
+            pops the iOS soft keyboard immediately, and iOS then
+            swallows the first tap on Cancel / Share / any action
+            row as a keyboard-dismiss instead of a button press
+            (the well-known "double-tap" problem). The user has to
+            tap a textarea explicitly to start typing — fewer
+            surprises that way, and Cancel works first try. */}
+        <TextInput
+          style={s.body}
+          value={teaser}
+          onChangeText={onChangeText}
+          placeholder="What do you want to say?"
+          placeholderTextColor={t.color["text.muted"] as string}
+          multiline
+          textAlignVertical="top"
+        />
+
+        {/* Body order — Figma 900:1915:
+              1. Image preview (if attached)  ← above the coffee chip
+              2. Selected-coffee chip (if tagged)
+            The image renders first because Figma 900:1915 shows the
+            picked photo dominating the body region; the coffee chip
+            sits beneath it. Location no longer renders as a chip in
+            the body — it's surfaced as the LAST action row below
+            (Figma 900:1915 shows "Goa, India" rendered like a
+            tap row with the location pin icon). */}
+        {attachedImage ? (
+          <AttachedImageChip
+            url={attachedImage}
+            onRemove={() => {
+              setAttachedImage(null);
+              setAttachedLocation(null);
+            }}
+          />
+        ) : null}
+
+        {taggedCoffee && (
+          <SelectedCoffeeChip
+            coffee={taggedCoffee}
+            onRemove={() => setTaggedCoffee(null)}
+          />
+        )}
+
+        {/* Location label — Figma 942:343 / 942:344. Sits at the
+            very bottom of the body content, AFTER the image and
+            coffee chips. Pin icon in Crema pink, text in Inter
+            Medium 16 / Dull Brown. Tap to clear. The action-row
+            placement was retired — Figma puts the location inline
+            with the other body content, not as a tap row. */}
+        {attachedLocation ? (
+          <AttachedLocationLabel
+            label={attachedLocation}
+            onRemove={() => setAttachedLocation(null)}
+          />
+        ) : null}
+      </ScrollView>
+
+      {/* Action rows. Each row is 54 px tall (Figma divider-to-
+          divider spacing). The Tag-a-coffee row opens the search
+          slider (Figma 895:415); when a coffee is tagged the row
+          vanishes (chip card above takes over), per Figma 895:290.
+          The rest are stubs awaiting the user's per-row spec. */}
+      {!taggedCoffee && <View style={s.divider} />}
+      {!taggedCoffee && (
+        <ActionRow
+          icon={Coffee}
+          label="Tag a coffee"
+          onPress={() => setTagSheetOpen(true)}
+        />
+      )}
+      {/* "Add an image" row — hidden when an image is already
+          attached (the image-preview chip in the body takes its
+          place, mirroring how "Tag a coffee" hides when the
+          coffee chip is up). Per Figma 900:1915. */}
+      {!attachedImage && <View style={s.divider} />}
+      {!attachedImage && (
+        <ActionRow
+          icon={ImageIcon}
+          label="Add an image"
+          onPress={() => setAddImageSheetOpen(true)}
+        />
+      )}
+      <View style={s.divider} />
+      <ActionRow icon={MapPin} label="Add a tasting note" onPress={() => {}} />
+      {/* Location is now rendered inside the body content (see
+          `AttachedLocationLabel` above) per Figma 942:343 / 944:344,
+          not as an action row. Action rows are reserved for "add"
+          affordances; the location is a value, not an entry point. */}
+
+      {/* Tag-a-coffee bottom sheet. Renders into RN's <Modal>, so
+          it sits above the composer's full-viewport host without
+          any z-index gymnastics here. */}
+      <TagCoffeeSheet
+        visible={tagSheetOpen}
+        onClose={() => setTagSheetOpen(false)}
+        onSelect={(c) => setTaggedCoffee(c as any)}
+      />
+
+      {/* Add-an-image action sheet. Opens on the "Add an image"
+          row press. Camera path uploads + closes inline; Photo
+          Gallery hands off to the custom in-app gallery so the
+          user gets our chrome instead of the system picker. */}
+      <AddImageActionSheet
+        visible={addImageSheetOpen}
+        onClose={() => setAddImageSheetOpen(false)}
+        onImagePicked={(url) => setAttachedImage(url)}
+        onOpenGallery={() => {
+          // Close the action sheet, then hand off to the custom
+          // gallery. We do these in one render via two state
+          // updates so the action sheet's slide-down animation
+          // doesn't compete with the gallery's slide-up.
+          setAddImageSheetOpen(false);
+          setGallerySheetOpen(true);
+        }}
+      />
+
+      {/* Custom in-app photo gallery (Figma 900:1908). Opens when
+          the user taps "Photo Gallery" in the action sheet. On
+          native, populates from `expo-media-library`; on web, falls
+          back to the file dialog. */}
+      <CustomGallerySheet
+        visible={gallerySheetOpen}
+        onClose={() => setGallerySheetOpen(false)}
+        onImagePicked={(url, location) => {
+          setAttachedImage(url);
+          // Only set the location if the picker handed one back —
+          // we don't want a fresh pick to wipe out a location the
+          // user already had on a previous attached photo.
+          if (location) setAttachedLocation(location);
+        }}
+      />
     </View>
   );
 }
 
-const useStyles = makeStyles((t) => ({
-  // Outer shell — flex column so the scroll body expands and the
-  // submit row sits pinned at the bottom. Padding lives on the
-  // scroll contents + submit row individually.
-  card: { backgroundColor: t.color.bg, flexShrink: 1 } as any,
-  scrollBody: { flexGrow: 0, flexShrink: 1 } as any,
-  scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 } as any,
-  // Dry-run post header
-  header: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 14 } as any,
-  avatar: { width: 30, height: 30, borderRadius: 15, overflow: "hidden" } as any,
-  avatarFallback: { backgroundColor: t.color["accent.cta"], alignItems: "center", justifyContent: "center" } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-cta"] },
-  headerMeta: { flex: 1 },
-  nameRow: { flexDirection: "row", alignItems: "baseline", gap: 5 } as any,
-  authorName: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
-  timestamp: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.muted"] },
-  subtitle: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.secondary"], marginTop: 2 },
-  // §2.23a — Short / Long mode tabs above the teaser.
-  modeTabs: {
-    flexDirection: "row", gap: 6, marginBottom: 10,
-  } as any,
-  modeTab: {
-    paddingHorizontal: 12, paddingVertical: 5,
-    borderRadius: 14, borderWidth: 1, borderColor: t.color.border,
-    backgroundColor: "transparent",
-  } as any,
-  modeTabActive: {
-    backgroundColor: t.color["accent.cta"], borderColor: t.color["accent.cta"],
-  } as any,
-  modeTabText: {
-    fontFamily: t.font["body.medium"], fontSize: 11,
-    color: t.color["text.secondary"], letterSpacing: 0.3,
-  } as any,
-  modeTabTextActive: {
-    color: t.color["text.on-cta"], fontFamily: t.font["body.semibold"],
-  } as any,
-  // Teaser
-  teaserInput: { fontFamily: t.font["body.regular"], fontSize: 16.8, color: t.color["text.primary"], lineHeight: 23.5, minHeight: 48, textAlignVertical: "top" } as any,
-  // Long-form grows the textarea (modal expands with it).
-  teaserInputLong: { minHeight: 220 } as any,
-  charCount: { fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["text.muted"], textAlign: "right", marginTop: 2, marginBottom: 8 } as any,
-  // Link preview (article mode)
-  linkSection: { marginBottom: 8 },
-  previewCard: { borderRadius: 8, overflow: "hidden", backgroundColor: t.color["card.info"], position: "relative" } as any,
-  // Detach-article X — same visual language as the image-thumb X
-  // (semi-opaque dark disc, cream glyph). Top-right so it doesn't
-  // clash with the title overlay anchored bottom-left.
-  previewRemove: {
-    position: "absolute", top: 8, right: 8,
-    width: 26, height: 26, borderRadius: 13,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center", justifyContent: "center",
-    zIndex: 2,
-  } as any,
-  previewThumbWrap: { position: "relative", height: 200 } as any,
-  previewThumbImg: { width: "100%" as any, height: "100%" as any },
-  previewOverlay: { position: "absolute", bottom: 10, left: 10, backgroundColor: t.color["card.subtle"], borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10, maxWidth: "80%" } as any,
-  previewTitle: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"], lineHeight: 19, marginBottom: 2 },
-  previewDomain: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"] },
-  previewNoImg: { padding: 14 },
-  // Note mode
-  noteSection: { marginBottom: 8 },
+interface SelectedChipProps {
+  coffee: {
+    product_id: string;
+    coffee_name: string;
+    roaster_name?: string;
+    hero_image?: string | null;
+    image_url?: string | null;
+  };
+  onRemove: () => void;
+}
 
-  // §2.23c — one horizontal row of three optional-field chips.
-  chipsRow: {
-    flexDirection: "row", flexWrap: "wrap", gap: 8,
-    marginTop: 12, marginBottom: 4,
+/**
+ * SelectedCoffeeChip — Figma 895:328 / 895:290 layout.
+ *
+ * Horizontal card sitting in the composer body when the user has
+ * tagged a coffee via the Tag-a-coffee sheet. Replaces the original
+ * "Tag a coffee" action row (which is hidden while this card is
+ * shown — see the conditional rendering above).
+ *
+ * Geometry is LITERAL to Figma 895:290:
+ *   • Card 350 × 94, bg white, borderRadius 5.
+ *   • Image 68 × 75 at (9, 9) inside the card, borderRadius 5.
+ *   • Title at (91, 17), Inter Semibold 16 / 20, Espresso. Allows
+ *     2 lines (height 40 in Figma frame).
+ *   • Roaster line at (91, 61), Inter Medium 12, Dull Brown
+ *     (`text.secondary` light).
+ *   • Close button: 37 × 37 circle at (295, 27), bg `card.info`
+ *     (Beige #EFE9DB), 8 × 8 X icon centred inside.
+ *
+ * Marginal extra: the card sits at viewport x=20 / y=187. The y is
+ * relative to the parent frame in Figma; in our code we use a
+ * marginTop on the chip so it floats below the placeholder text
+ * without hardcoding viewport offsets.
+ */
+function SelectedCoffeeChip({ coffee, onRemove }: SelectedChipProps) {
+  const s = useStyles();
+  const heroSrc =
+    coffee.hero_image || coffee.image_url
+      ? (() => {
+          const raw = (coffee.hero_image || coffee.image_url) as string;
+          const resolved = resolveUploadUrl(raw) || raw;
+          return thumbnailUrl(resolved, 200) || resolved;
+        })()
+      : null;
+  return (
+    <View style={s.chipCard}>
+      <View style={s.chipImage}>
+        {heroSrc ? (
+          <Image
+            source={{ uri: heroSrc }}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+            transition={200}
+          />
+        ) : null}
+      </View>
+      <Text style={s.chipTitle} numberOfLines={2} ellipsizeMode="tail">
+        {coffee.coffee_name}
+      </Text>
+      <Text style={s.chipRoaster} numberOfLines={1} ellipsizeMode="tail">
+        By {coffee.roaster_name || "—"}
+      </Text>
+      <Pressable
+        onPress={onRemove}
+        style={s.chipCloseHit}
+        hitSlop={8}
+        accessibilityLabel="Remove tagged coffee"
+        accessibilityRole="button"
+      >
+        <View style={s.chipCloseCircle}>
+          {/* X colour from Figma 895:333 — `#A09580` Gray Brown.
+              Hard-coded literal because the chip surface is
+              always-light (`card.product.bg`) so any mode-flipping
+              token would be wrong on the constant cream chip. The
+              hex IS in the approved palette (= `text.muted` in
+              light mode).
+              Size 16: Figma's metadata reports the X at 8×8 inside
+              a 37-px circle, but the exported SVG draws the cross
+              well outside that 8-px box (the path extends with a
+              thick stroke that reads ~14-16 px on the canvas). The
+              user flagged a 10-px lucide X as too tiny — bumping
+              to 16 with `strokeWidth: 1.5` matches the visual
+              weight of the Figma asset. */}
+          <X
+            size={16}
+            color="#A09580"
+            strokeWidth={1.5}
+          />
+        </View>
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * AttachedImageChip — preview of the photo the user picked from
+ * the gallery / camera. Rendered between the coffee chip and the
+ * location chip in the composer body.
+ */
+function AttachedImageChip({
+  url,
+  onRemove,
+}: {
+  url: string;
+  onRemove: () => void;
+}) {
+  const s = useStyles();
+  const src = (() => {
+    const resolved = resolveUploadUrl(url) || url;
+    return thumbnailUrl(resolved, 800) || resolved;
+  })();
+  return (
+    <View style={s.imageChip}>
+      <Image
+        source={{ uri: src }}
+        style={s.imageChipPreview}
+        contentFit="cover"
+        transition={150}
+      />
+      <Pressable
+        onPress={onRemove}
+        style={s.imageChipCloseHit}
+        hitSlop={8}
+        accessibilityLabel="Remove attached image"
+        accessibilityRole="button"
+      >
+        <View style={s.imageChipCloseCircle}>
+          <X size={16} color="#A09580" strokeWidth={1.5} />
+        </View>
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * AttachedLocationLabel — inline location row that lives inside
+ * the composer body, AFTER all cards (image + coffee). Matches
+ * Figma 942:343 (text) + 942:344 (pin glyph):
+ *   • Pin icon in Crema pink (`accent.cta`).
+ *   • Place name in Inter Medium 16, `text.secondary` (Dull Brown
+ *     #684F44 — the constant warm-brown for body labels).
+ *
+ * No background fill, no chevron — it reads as a label, not as
+ * an action row. Tap anywhere on the row to clear the location
+ * (the photo stays attached).
+ */
+function AttachedLocationLabel({
+  label,
+  onRemove,
+}: {
+  label: string;
+  onRemove: () => void;
+}) {
+  const s = useStyles();
+  return (
+    <Pressable
+      onPress={onRemove}
+      style={s.locationLabel}
+      hitSlop={8}
+      accessibilityLabel={`Remove location ${label}`}
+      accessibilityRole="button"
+    >
+      <MapPin
+        size={20}
+        color={t.color["accent.cta"] as string}
+        strokeWidth={1.75}
+      />
+      <Text style={s.locationLabelText} numberOfLines={1} ellipsizeMode="tail">
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+interface ActionRowProps {
+  icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+  label: string;
+  onPress: () => void;
+}
+
+function ActionRow({ icon: Icon, label, onPress }: ActionRowProps) {
+  const s = useStyles();
+  return (
+    <HapticPressable
+      haptic="tap"
+      onPress={onPress}
+      style={s.row}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Icon size={20} color={t.color["accent.cta"] as string} strokeWidth={1.5} />
+      <Text style={s.rowLabel}>{label}</Text>
+      <ChevronRight size={24} color={t.color["text.muted"] as string} strokeWidth={1.5} />
+    </HapticPressable>
+  );
+}
+
+const useStyles = makeStyles((t) => ({
+  root: { flex: 1, backgroundColor: t.color.bg } as any,
+
+  // ── Top bar ─────────────────────────────────────────────────
+  // Figma 895:223 y=0..59. Cancel left, title centered, Share
+  // button right at 20-px padding. We use justify-content:
+  // space-between to anchor Cancel + Share to the edges; the
+  // title is centred in absolute coords so a wider/narrower
+  // Cancel doesn't shove it off-center.
+  topBar: {
+    height: 59,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    backgroundColor: t.color.bg,
+    position: "relative",
   } as any,
-  fieldChip: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 14, borderWidth: 1, borderColor: t.color.border,
-    backgroundColor: "transparent", maxWidth: "100%",
-  } as any,
-  fieldChipActive: {
-    backgroundColor: t.color["accent.soft"],
-    borderColor: t.color["accent.soft"],
-  } as any,
-  fieldChipLabel: {
-    fontFamily: t.font["body.medium"], fontSize: 12,
-    color: t.color["text.muted"], letterSpacing: 0.2,
-  } as any,
-  fieldChipLabelActive: {
+  cancelHit: { paddingVertical: 8 } as any,
+  cancelText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: 12.5,
     color: t.color["accent.cta"],
   } as any,
-
-  // Location prompt modal
-  locationModalInput: {
-    fontFamily: t.font["body.regular"], fontSize: 14,
+  // Absolute-positioned + `left: 0, right: 0` makes the title's
+  // UIView span the FULL top-bar width on iOS — its hitbox sat
+  // over Cancel and Share, swallowing taps even though only the
+  // centered text was visible. `pointerEvents: "none"` makes the
+  // Text purely visual so taps fall through to the Cancel /
+  // Share Pressables underneath. (User reported repeatedly that
+  // "the cancel button does not work" on iOS — this was the
+  // root cause.)
+  title: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    textAlign: "center",
+    fontFamily: t.font.display,
+    fontWeight: "500",
+    fontSize: 18,
+    lineHeight: 25,
     color: t.color["text.primary"],
-    borderRadius: 6, borderWidth: 1, borderColor: t.color.border,
-    paddingHorizontal: 12, paddingVertical: 10,
-    backgroundColor: t.color["card.subtle"],
+    pointerEvents: "none",
+  } as any,
+  // Share pill — Figma's literal 61×33.48 / borderRadius 26.6.
+  // Disabled state mirrors Figma's 50% opacity Share label:
+  // the pill itself stays Crema pink, the text drops to 50%
+  // alpha via `shareBtnDisabled`'s opacity.
+  shareBtn: {
+    width: 61,
+    height: 33.48,
+    borderRadius: 26.6,
+    backgroundColor: t.color.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+  shareBtnDisabled: { opacity: 0.5 } as any,
+  // Figma 895:223 measured the Share label at fontSize 12.5 /
+  // lineHeight 12.073. Setting lineHeight smaller than fontSize on
+  // iOS shrinks the text's line box below the glyph height — the
+  // baseline shifts up and the label sits visibly above the pill's
+  // vertical centre. The Figma's intent is "label centred in pill,"
+  // so we drop the explicit lineHeight here and let the parent's
+  // `alignItems: "center"` + `justifyContent: "center"` do the
+  // centring with the font's natural line height.
+  shareText: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: 12.5,
+    color: t.color["text.on-cta"],
+    textAlign: "center",
+    includeFontPadding: false,
+  } as any,
+
+  divider: { height: 1, backgroundColor: t.color.divider } as any,
+
+  // ── Author row ──────────────────────────────────────────────
+  // Figma y=75..115. Avatar 40px circular + name + counter on
+  // one row; pad-top 16 lifts the row off the top divider.
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 21,
+    paddingTop: 16,
+  } as any,
+  authorLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 1,
+  } as any,
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: "hidden",
+  } as any,
+  avatarFallback: {
+    backgroundColor: t.color["text.primary"],
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+  avatarLetter: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: 14,
+    color: t.color["text.on-dark"],
+  } as any,
+  authorName: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: 16,
+    color: t.color["text.primary"],
+    flexShrink: 1,
+  } as any,
+  charCount: {
+    fontFamily: t.font["body.medium"],
+    fontSize: 16,
+    color: t.color["text.muted"],
+  } as any,
+
+  // ── Body textarea ───────────────────────────────────────────
+  bodyScroll: { flex: 1 } as any,
+  bodyContent: { paddingHorizontal: 21, paddingTop: 12 } as any,
+  // No `minHeight` — leaving the TextInput auto-sized to its
+  // content lets the chip card (when present) sit right below the
+  // placeholder per Figma 895:290 (placeholder y=126, chip y=187 →
+  // 35-px gap from placeholder bottom). With a tall minHeight the
+  // chip floated halfway down the screen because the empty
+  // textarea reserved 200 px of vertical space.
+  body: {
+    fontFamily: t.font["body.regular"],
+    fontSize: 18,
+    lineHeight: 26,
+    color: t.color["text.primary"],
+    textAlignVertical: "top",
     ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
   } as any,
-  locationModalActions: {
-    flexDirection: "row", justifyContent: "flex-end",
-    alignItems: "center", gap: 12, marginTop: 14,
-  } as any,
-  pickerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" } as any,
-  pickerCard: { backgroundColor: t.color.bg, borderRadius: 12, width: "90%", maxWidth: 420 } as any,
-  pickerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: t.color["border.light"] } as any,
-  pickerTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: t.color["text.primary"] },
-  pickerEmpty: { padding: 20, textAlign: "center" as any, fontFamily: t.font["body.regular"], color: t.color["text.muted"] },
-  pickerRow: { padding: 14, borderBottomWidth: 1, borderBottomColor: t.color["border.light"] } as any,
-  pickerRowName: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"] },
-  pickerRowSub: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.muted"], marginTop: 2 },
 
-  imageGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 } as any,
-  imageThumb: { borderRadius: PG_RADIUS, overflow: "hidden", position: "relative" } as any,
-  imageRemove: { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center", shadowColor: t.color.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 4, elevation: 4 } as any,
-  imageAdd: { borderRadius: PG_RADIUS, borderWidth: 1.5, borderColor: t.color.divider, borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: 6 } as any,
-  imageAddLabel: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.muted"] },
-  // Add Card modal
-  addCardOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" } as any,
-  addCardModal: { backgroundColor: t.color.bg, borderRadius: 12, width: "90%", maxWidth: 420, maxHeight: "80%", padding: 20 } as any,
-  addCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } as any,
-  addCardTitle: { fontFamily: t.font["body.semibold"], fontSize: 16, color: t.color["text.primary"] },
-  addCardTabs: { flexDirection: "row", gap: 8, marginBottom: 16 } as any,
-  addCardTab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 4, borderWidth: 1, borderColor: t.color.border, backgroundColor: t.color["card.subtle"] },
-  addCardTabActive: { borderColor: t.color["accent.cta"], backgroundColor: t.color["accent.cta"] },
-  addCardTabText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.secondary"] },
-  addCardTabTextActive: { color: t.color["text.on-cta"] },
-  addCardImageBtn: { alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 40, borderRadius: 8, borderWidth: 1.5, borderColor: t.color.divider, borderStyle: "dashed" } as any,
-  addCardImageBtnText: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.secondary"] },
-  // Tasting note selector
-  tnSearch: { fontFamily: t.font["body.regular"], fontSize: 14, color: t.color["text.primary"], borderRadius: 6, borderWidth: 1, borderColor: t.color.border, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: t.color["card.subtle"] },
-  tnResultRow: { paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.color.border },
-  tnResultName: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"] },
-  tnResultRoaster: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.secondary"], marginTop: 2 },
-  tnSelectedName: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"] },
-  tnSelectedRoaster: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.secondary"], marginBottom: 12 },
-  tnScoreRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 } as any,
-  tnScoreLabel: { fontFamily: t.font["body.medium"], fontSize: 13, color: t.color["text.primary"], width: 80 },
-  tnScoreDots: { flexDirection: "row", gap: 8 } as any,
-  tnDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: "rgba(215,209,196,0.4)", alignItems: "center", justifyContent: "center" } as any,
-  tnDotActive: { backgroundColor: t.color.accent },
-  tnDotText: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.secondary"] },
-  tnDotTextActive: { color: t.color["text.primary"] },
-  tnConfirmBtn: { marginTop: 16, paddingVertical: 12, borderRadius: 6, backgroundColor: t.color["accent.cta"], alignItems: "center" } as any,
-  tnConfirmText: { fontFamily: t.font["body.semibold"], fontSize: 13, color: t.color["text.on-cta"] },
-  // Repost preview
-  repostPreview: { borderWidth: 1, borderColor: t.color.border, borderRadius: 8, padding: 12, marginBottom: 12 },
-  repostPreviewHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 } as any,
-  repostAvatar: { width: 20, height: 20, borderRadius: 10, overflow: "hidden" } as any,
-  repostAvatarFallback: { backgroundColor: t.color["accent.cta"], alignItems: "center", justifyContent: "center" } as any,
-  repostAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 8, color: t.color["text.on-cta"] },
-  repostAuthor: { fontFamily: t.font["body.medium"], fontSize: 11, color: t.color["text.primary"], flex: 1 },
-  repostTime: { fontFamily: t.font["body.regular"], fontSize: 10, color: t.color["text.muted"] },
-  repostTeaser: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.secondary"], lineHeight: 18, marginBottom: 6 },
-  repostThumb: { width: 60, height: 60, borderRadius: 4, marginTop: 4 },
-  // Submit bar — pinned outside the ScrollView so it never clips
-  // when Long-mode content grows. Own padding + top border visually
-  // separates it from the scrolling body.
-  submitRow: {
-    flexDirection: "row", justifyContent: "flex-end", alignItems: "center",
-    gap: 12, paddingHorizontal: 20, paddingVertical: 12,
-    borderTopWidth: 1, borderTopColor: t.color.border,
-    backgroundColor: t.color.bg,
+  // ── Selected-coffee chip card (Figma 895:290 / 895:328) ────
+  // Sits inside the body ScrollView, below the textarea. All
+  // geometry is literal to the Figma node so the title + roaster
+  // + close button hit their pixel positions inside the 350×94
+  // frame.
+  // Chip's vertical gap from the placeholder/textarea: Figma 895:290
+  // gives placeholder bottom y=152 and chip top y=187 → 35-px gap.
+  chipCard: {
+    width: 350,
+    height: 94,
+    borderRadius: 5,
+    backgroundColor: t.color["card.product.bg"],
+    position: "relative",
+    overflow: "hidden",
+    marginTop: 35,
+    alignSelf: "flex-start",
+    marginLeft: -1, // Figma chip x=20 lines up with the body's x=21 inset minus 1
   } as any,
-  cancelBtn: { paddingHorizontal: 14, paddingVertical: 8 },
-  cancelText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.muted"] },
-  submitBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 4, backgroundColor: t.color["accent.cta"] },
-  submitBtnDisabled: { opacity: 0.4 },
-  submitText: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-cta"] },
+  chipImage: {
+    position: "absolute",
+    left: 9,
+    top: 9,
+    width: 68,
+    height: 75,
+    borderRadius: 5,
+    backgroundColor: t.color["card.info"],
+    overflow: "hidden",
+  } as any,
+  // Title + roaster use `card.product.text*` (constant Espresso /
+  // constant warm-brown) NOT the mode-flipping `text.primary` /
+  // `text.secondary`. The chip's bg is `card.product.bg` (always
+  // cream/white in both modes) — flipping text would have read as
+  // pale-cream on cream in dark mode.
+  chipTitle: {
+    position: "absolute",
+    left: 91,
+    top: 17,
+    width: 149,
+    fontFamily: t.font["body.semibold"],
+    fontSize: 16,
+    lineHeight: 20,
+    color: t.color["card.product.text"],
+  } as any,
+  chipRoaster: {
+    position: "absolute",
+    left: 91,
+    top: 61,
+    width: 144,
+    fontFamily: t.font["body.medium"],
+    fontSize: 12,
+    color: t.color["card.product.text.muted"],
+  } as any,
+  // Close button — circle at Figma (295, 27) inside the 350×94
+  // card. The hit area extends slightly via `hitSlop` so the small
+  // 8-px X glyph isn't a frustrating tap target. The 37-px circle
+  // matches the Figma exactly.
+  chipCloseHit: {
+    position: "absolute",
+    left: 295,
+    top: 27,
+    width: 37,
+    height: 37,
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+  chipCloseCircle: {
+    width: 37,
+    height: 37,
+    borderRadius: 18.5,
+    backgroundColor: t.color["card.info"],
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+
+  // ── Attached image chip ─────────────────────────────────────
+  // Lives at the top of the body content above the coffee chip
+  // (Figma 900:1915 places the image first). Geometry is literal
+  // to Figma 900:1980: 350 × 258 rounded rectangle, the photo
+  // fills the box. The previous 180-px height was cropping
+  // landscape photos; 258 matches the design.
+  imageChip: {
+    width: 350,
+    height: 258,
+    borderRadius: 5,
+    backgroundColor: t.color["card.product.bg"],
+    overflow: "hidden",
+    marginTop: 12,
+    alignSelf: "flex-start",
+    marginLeft: -1,
+    position: "relative",
+  } as any,
+  imageChipPreview: {
+    width: "100%" as any,
+    height: "100%" as any,
+  } as any,
+  imageChipCloseHit: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 37,
+    height: 37,
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+  imageChipCloseCircle: {
+    width: 37,
+    height: 37,
+    borderRadius: 18.5,
+    backgroundColor: t.color["card.info"],
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+
+  // ── Inline location label ──────────────────────────────────
+  // Sits inside the body, after the image + coffee chips. Per
+  // Figma 942:343 + 942:344: pin icon in Crema pink, label in
+  // Inter Medium 16 / Dull Brown. Padding keeps the icon on the
+  // same column the body content sits on (matches the action
+  // rows' icon column for a clean visual rhythm).
+  locationLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingTop: 16,
+    paddingBottom: 4,
+  } as any,
+  locationLabelText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: 16,
+    color: t.color["text.secondary"],
+    flexShrink: 1,
+  } as any,
+
+  // ── Action rows ─────────────────────────────────────────────
+  // Each row is 54 px tall (Figma divider-to-divider). Icon at
+  // x=21, label at x=56, chevron flush-right.
+  row: {
+    height: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 21,
+    gap: 14,
+  } as any,
+  rowLabel: {
+    flex: 1,
+    fontFamily: t.font["body.medium"],
+    fontSize: 16,
+    color: t.color["text.secondary"],
+  } as any,
 }));

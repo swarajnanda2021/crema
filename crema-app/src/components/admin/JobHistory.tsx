@@ -513,13 +513,28 @@ function summarizeJob(job: CatalogJob): string {
     const enriched = r.enriched ?? 0;
     const enrichFailed = r.enrich_failed ?? 0;
     const notArticle = r.not_article_skipped ?? 0;
+    const offTopic = r.off_topic_skipped ?? 0;
+    const empty = r.empty_skipped ?? 0;
+    const hintsGen = r.hints_generated ?? 0;
+    const hintsRegen = r.hints_regenerated ?? 0;
+    const hintsTotal = hintsGen + hintsRegen;
+    // Cancel-requested via the live banner's Stop button. The runner
+    // exits cleanly (status="succeeded" + result_summary.cancelled=true),
+    // but the row should read differently than a normal completion so
+    // the admin can tell at a glance the run was stopped.
+    const wasCancelled = r.cancelled === true;
+    const prefix = wasCancelled ? "stopped · " : "";
     return (
+      prefix +
       `${r.roasters_processed ?? 0} roasters · ` +
       `+${r.articles_inserted ?? 0} new · ` +
       `~${r.articles_updated ?? 0} updated · ` +
       `${enriched} enriched` +
       (enrichFailed ? ` · ${enrichFailed} enrich-failed` : "") +
       (notArticle ? ` · ${notArticle} non-article` : "") +
+      (offTopic ? ` · ${offTopic} off-topic` : "") +
+      (empty ? ` · ${empty} empty` : "") +
+      (hintsTotal ? ` · ${hintsTotal} hint${hintsTotal === 1 ? "" : "s"}` : "") +
       (errs ? ` · ${errs} error${errs === 1 ? "" : "s"}` : "")
     );
   }
@@ -717,7 +732,7 @@ const useStyles = makeStyles((t) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: t.spacing.sm,
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
     paddingHorizontal: t.spacing["2xl"],
     paddingVertical: t.spacing.lg,
     borderRadius: t.radius.md,

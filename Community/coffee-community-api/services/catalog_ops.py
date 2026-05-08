@@ -1897,7 +1897,9 @@ def run_roaster_enrich_job(job_id: int, *, website: str,
 
 def run_article_scrape_job(job_id: int, *,
                               roaster_slug: str | None = None,
-                              force_enrich: bool = False) -> None:
+                              roaster_slugs: Optional[list[str]] = None,
+                              force_enrich: bool = False,
+                              regenerate_article_hint: bool = False) -> None:
     """Discover + scrape blog/journal articles for one roaster (or
     every enabled roaster when roaster_slug is None) and write them
     into `roaster_articles`.
@@ -1916,9 +1918,12 @@ def run_article_scrape_job(job_id: int, *,
          b. Otherwise fetch the page HTML, strip chrome, send the
             cleaned text + og: hints to Haiku
             (services.article_enricher) and use its structured
-            response for title / body_html / summary / image_url /
+            response for title / body_html / image_url /
             published_at. Falls back to the bs4 extraction when
-            Haiku fails or returns is_article=False.
+            Haiku fails or returns is_article=False. Excerpt
+            comes from the scraper stub / og:description (no
+            longer enriched by Haiku — see Figma 801:155 card
+            design + article_enricher.py docstring).
          c. Download the hero image, convert to WebP, persist under
             `/uploads/articles/`, store the local path. External URL
             stays as the fallback when the download fails.
@@ -1929,12 +1934,25 @@ def run_article_scrape_job(job_id: int, *,
     SQLite writer-lock window short — same DB-lock discipline as
     `services/scrape_runner.py:_insert_proposal`.
 
+    `roaster_slug` scopes the run to ONE roaster (per-roaster admin
+    button). `roaster_slugs` scopes to a multi-select subset (Layer
+    C2's "Refresh N selected" button). Both empty = all published
+    roasters. The two are mutually exclusive — if both arrive, the
+    list takes precedence.
+
+    `regenerate_article_hint` (Layer B) forces the per-roaster site-
+    quirk hint to be regenerated for every roaster touched in this
+    run, even if a cached hint already exists.
+
     Result summary keys: `roasters_processed`, `articles_inserted`,
     `articles_updated`, `articles_skipped`, `discoveries`, `enriched`,
-    `enrich_failed`, `not_article_skipped`, `errors` (list of
-    `{slug, message}`).
+    `enrich_failed`, `not_article_skipped`, `off_topic_skipped`,
+    `empty_skipped`, `hints_generated`, `hints_regenerated`,
+    `hints_failed`, `errors` (list of `{slug, message}`).
     """
-    from services import article_scraper, article_enricher
+    from services import (
+        article_scraper, article_enricher, article_site_prompt_generator,
+    )
 
     db = get_db()
     log_lines: list[str] = []
@@ -1952,12 +1970,38 @@ def run_article_scrape_job(job_id: int, *,
         "enriched": 0,
         "enrich_failed": 0,
         "not_article_skipped": 0,
+        # Off-topic Haiku gate (founder bios, spirituality essays, etc.).
+        # Row is still written but hidden from consumers; admin can
+        # un-hide if Haiku misclassified.
+        "off_topic_skipped": 0,
+        # Empty-shell guard — Haiku failed AND bs4 fallback came back
+        # with no body and no image. Nothing renderable; we skip
+        # without writing a row.
+        "empty_skipped": 0,
+        # Layer B — per-roaster article-extraction site-quirk hint.
+        "hints_generated": 0,
+        "hints_regenerated": 0,
+        "hints_failed": 0,
         "errors": [],
     }
 
     try:
         mark_running(db, job_id)
-        log(f"starting article scrape (scope={roaster_slug or 'all published'})")
+        # Resolve the slug filter shape: single > list > all-published.
+        # The two single-source paths exist because the per-roaster
+        # admin button posts `roaster_slug` and the multi-select
+        # bulk button posts `roaster_slugs` (Layer C2). When both
+        # arrive — shouldn't happen but guard anyway — the list wins.
+        slug_subset: Optional[list[str]] = None
+        if roaster_slugs:
+            slug_subset = [s for s in roaster_slugs if s]
+        elif roaster_slug:
+            slug_subset = [roaster_slug]
+        scope_label = (
+            f"{len(slug_subset)} selected" if slug_subset is not None
+            else "all published"
+        )
+        log(f"starting article scrape (scope={scope_label})")
 
         # Pull the source rows we'll iterate. JOIN to roaster_profiles
         # so we have the slug (sources is keyed on website, but the
@@ -1975,21 +2019,26 @@ def run_article_scrape_job(job_id: int, *,
         # Gate on `roaster_profiles.published = 1` instead so we don't
         # spend cycles on draft/unreviewed roasters whose articles
         # wouldn't surface to consumers anyway.
-        if roaster_slug:
+        if slug_subset is not None:
+            placeholders = ",".join("?" * len(slug_subset))
             rows = db.execute(
                 "SELECT rs.id, rs.website, rs.platform, "
                 "  rs.articles_index_url, rs.articles_feed_kind, "
-                "  rs.articles_handles, rp.roaster_slug "
+                "  rs.articles_handles, rp.roaster_slug, rp.name AS roaster_name, "
+                "  rp.article_enrichment_prompt_hint, "
+                "  rp.article_hint_force_regenerate "
                 "FROM roaster_sources rs "
                 "JOIN roaster_profiles rp ON rp.website = rs.website "
-                "WHERE rp.roaster_slug = ?",
-                (roaster_slug,),
+                f"WHERE rp.roaster_slug IN ({placeholders})",
+                slug_subset,
             ).fetchall()
         else:
             rows = db.execute(
                 "SELECT rs.id, rs.website, rs.platform, "
                 "  rs.articles_index_url, rs.articles_feed_kind, "
-                "  rs.articles_handles, rp.roaster_slug "
+                "  rs.articles_handles, rp.roaster_slug, rp.name AS roaster_name, "
+                "  rp.article_enrichment_prompt_hint, "
+                "  rp.article_hint_force_regenerate "
                 "FROM roaster_sources rs "
                 "JOIN roaster_profiles rp ON rp.website = rs.website "
                 "WHERE rp.published = 1",
@@ -2004,9 +2053,51 @@ def run_article_scrape_job(job_id: int, *,
             )
             return
 
+        # Cancellation contract: runner polls `jobs.cancel_requested`
+        # at the top of every per-source iteration. Admin sets it via
+        # POST /admin/jobs/{id}/cancel from the live progress banner's
+        # Stop button. On detection we break out cleanly and stamp the
+        # job as `succeeded` with `result_summary.cancelled = true` —
+        # NOT `failed`, because every committed article is a real
+        # full article (per-row commits in upsert_article). Cancelled
+        # state is a clean stop, not a crash.
+        cancelled = False
         for row in rows:
+            # Re-read the cancellation flag every iteration. Cheap (one
+            # indexed lookup per roaster, ~95 max in a bulk run).
+            flag_row = db.execute(
+                "SELECT cancel_requested FROM jobs WHERE id = ?",
+                (job_id,),
+            ).fetchone()
+            if flag_row and flag_row["cancel_requested"]:
+                cancelled = True
+                log("CANCELLED by admin — committing partial summary")
+                break
+
             slug = row["roaster_slug"]
             website = row["website"]
+
+            # Stamp current_target so the admin UI's live banner can
+            # show "Looking at {name}" instead of an opaque spinner.
+            # The display name from the JOIN reads cleaner than the
+            # slug, so we prefer it when present.
+            current_label = row["roaster_name"] or slug
+            try:
+                db.execute(
+                    "UPDATE jobs SET current_target = ? WHERE id = ?",
+                    (current_label, job_id),
+                )
+                db.commit()
+            except Exception:
+                # Telemetry-only; never let it break the actual scrape.
+                pass
+
+            # Layer B — per-roaster site-quirk hint, prepended to every
+            # Haiku call for this roaster. None until the meta-call has
+            # generated one; threaded through unchanged for the rest of
+            # this iteration so all per-article calls see the same
+            # hint state.
+            article_hint = row["article_enrichment_prompt_hint"]
             try:
                 index_url = row["articles_index_url"]
                 kind = row["articles_feed_kind"]
@@ -2106,6 +2197,7 @@ def run_article_scrape_job(job_id: int, *,
                             og_description=extracted["og_description"],
                             og_image=extracted["og_image"],
                             og_published_at=extracted["og_published_at"],
+                            system_addendum=article_hint,
                         )
                     except article_enricher.ArticleEnricherError as e:
                         # Setup error (no SDK, etc.) — bubble up,
@@ -2126,6 +2218,24 @@ def run_article_scrape_job(job_id: int, *,
                         skipped += 1
                         continue
 
+                    # Coffee-relevance gate (Layer A2). Off-topic
+                    # rows still write so admin can review + override,
+                    # but the row goes in with `published=0` so it
+                    # never reaches the consumer JOURNAL feed. Counter
+                    # bumps separately from `articles_skipped` because
+                    # the upsert still produces an inserted/updated
+                    # row.
+                    is_about_coffee = bool(
+                        enriched.get("is_about_coffee", True)
+                    ) if enriched is not None else True
+                    topic_category = (
+                        enriched.get("topic_category")
+                        if enriched is not None else None
+                    )
+                    enriched_tags = (
+                        enriched.get("tags") if enriched is not None else []
+                    ) or []
+
                     # Build the article dict from Haiku output
                     # (preferred) or bs4 fallback. Always merge in
                     # the stub fields (Atom feed title/published_at)
@@ -2139,9 +2249,21 @@ def run_article_scrape_job(job_id: int, *,
                                 or stub.get("title")
                                 or fallback.get("title")
                             ),
+                            # Excerpt comes from the scraper's stub
+                            # (Atom/RSS summary) or bs4 fallback
+                            # (og:description, first paragraph). The
+                            # Haiku enricher used to also produce a
+                            # `summary` field, but the new article-
+                            # card design (Figma 801:155) shows
+                            # title + parent-domain + hero only —
+                            # no excerpt — so the field was dropped
+                            # from the tool schema to save Haiku
+                            # output tokens. The scraper-derived
+                            # excerpt still serves as a fallback for
+                            # the reader when body_html parsing
+                            # fails.
                             "excerpt": (
-                                enriched.get("summary")
-                                or stub.get("excerpt")
+                                stub.get("excerpt")
                                 or fallback.get("excerpt")
                             ),
                             "image_url": (
@@ -2174,6 +2296,20 @@ def run_article_scrape_job(job_id: int, *,
                         enrichment_status = "failed"
                         summary["enrich_failed"] += 1
 
+                    # A5 secondary guard — drop rows with NEITHER body
+                    # nor hero image. Nothing for the reader or card
+                    # to render; an empty row is just noise in the
+                    # admin tab. We don't gate on word_count alone
+                    # because Devans-style infographic articles have
+                    # short text but a real hero image.
+                    if not article.get("body_html") and not article.get("image_url"):
+                        summary["empty_skipped"] += 1
+                        skipped += 1
+                        continue
+
+                    if not is_about_coffee:
+                        summary["off_topic_skipped"] += 1
+
                     # Hero image: download external URL → WebP local.
                     # Falls back to the external URL when the download
                     # or convert fails so cards still render heroes.
@@ -2192,6 +2328,9 @@ def run_article_scrape_job(job_id: int, *,
                             db, roaster_slug=slug, article=article,
                             now_iso=now_iso,
                             enrichment_status=enrichment_status,
+                            is_about_coffee=is_about_coffee,
+                            topic_category=topic_category,
+                            tags=enriched_tags,
                         )
                     except Exception as e:
                         summary["errors"].append({
@@ -2230,6 +2369,29 @@ def run_article_scrape_job(job_id: int, *,
                     f"  {slug}: +{inserted} inserted · "
                     f"~{updated} updated · -{skipped} skipped",
                 )
+
+                # Layer B — site-quirk hint generation.
+                # Trigger when the roaster has ≥1 enriched article AND
+                # (no cached hint OR job-level `regenerate_article_hint`
+                # OR the perpetual per-roaster `article_hint_force_regenerate`
+                # flag is set). The DB flag is sticky/server-side — the
+                # admin toggles it from the Journals expand row and it
+                # never auto-clears, so every subsequent scrape regenerates
+                # until the admin flips it back off.
+                row_force_regen = bool(row["article_hint_force_regenerate"])
+                hint_outcome = _maybe_generate_article_hint(
+                    db, slug=slug,
+                    roaster_name=row["roaster_name"] or slug,
+                    existing_hint=article_hint,
+                    regenerate=regenerate_article_hint or row_force_regen,
+                    log=log,
+                )
+                if hint_outcome == "generated":
+                    summary["hints_generated"] += 1
+                elif hint_outcome == "regenerated":
+                    summary["hints_regenerated"] += 1
+                elif hint_outcome == "failed":
+                    summary["hints_failed"] += 1
             except Exception as e:
                 summary["errors"].append({
                     "slug": slug,
@@ -2237,6 +2399,23 @@ def run_article_scrape_job(job_id: int, *,
                 })
                 log(f"  {slug}: ERROR {type(e).__name__}: {e}")
 
+        # Surface the cancellation to JobHistory + the live banner.
+        # We finish as `succeeded` (cancel is a clean stop, not a
+        # crash) but stamp the summary so summarizeJob can show
+        # "(cancelled — N done)" instead of treating it as a normal
+        # success.
+        if cancelled:
+            summary["cancelled"] = True
+        # Clear current_target so a stale slug doesn't render in the
+        # live banner if the admin re-opens the panel after finish.
+        try:
+            db.execute(
+                "UPDATE jobs SET current_target = NULL WHERE id = ?",
+                (job_id,),
+            )
+            db.commit()
+        except Exception:
+            pass
         mark_finished(
             db, job_id, status="succeeded",
             log_tail="\n".join(log_lines)[-10_000:],
@@ -2244,6 +2423,14 @@ def run_article_scrape_job(job_id: int, *,
         )
     except Exception as e:
         log(f"unexpected error: {type(e).__name__}: {e}")
+        try:
+            db.execute(
+                "UPDATE jobs SET current_target = NULL WHERE id = ?",
+                (job_id,),
+            )
+            db.commit()
+        except Exception:
+            pass
         try:
             mark_finished(
                 db, job_id, status="failed",
@@ -2255,3 +2442,119 @@ def run_article_scrape_job(job_id: int, *,
             pass
     finally:
         db.close()
+
+
+def _maybe_generate_article_hint(db, *, slug: str, roaster_name: str,
+                                   existing_hint: Optional[str],
+                                   regenerate: bool,
+                                   log) -> str:
+    """Generate (or regenerate) the per-roaster article-extraction
+    site-quirk hint when conditions are met.
+
+    Returns one of:
+      • 'generated'     — first-time generation succeeded
+      • 'regenerated'   — admin asked us to redo it; succeeded
+      • 'cached'        — hint already exists, no regen requested
+      • 'skipped'       — no enriched articles yet → nothing to learn from
+      • 'failed'        — Sonnet meta-call returned None / failed
+
+    Failure is non-fatal: leave the hint at its current value (None
+    on first run, stale value on regen) and move on. The next run
+    retries.
+    """
+    from services import article_site_prompt_generator, article_scraper
+
+    if existing_hint and not regenerate:
+        return "cached"
+
+    # Pull enriched articles for this roaster — title / image_url /
+    # word_count / topic_category / tags / url. Skip rows that are
+    # off-topic or had failed enrichment; we only want signal-rich
+    # samples for the Sonnet meta-call.
+    enriched_rows = db.execute(
+        "SELECT url, title, excerpt, image_url, word_count, "
+        "  published_at, topic_category, tags, is_about_coffee, "
+        "  enrichment_status "
+        "FROM roaster_articles "
+        "WHERE roaster_slug = ? "
+        "  AND enrichment_status = 'enriched' "
+        "  AND is_about_coffee = 1 "
+        "ORDER BY id DESC "
+        "LIMIT 50",
+        (slug,),
+    ).fetchall()
+    if not enriched_rows:
+        return "skipped"
+
+    # Decode tags from JSON for the meta-call's per-sample summary.
+    articles: list[dict] = []
+    for r in enriched_rows:
+        d = dict(r)
+        raw_tags = d.get("tags")
+        if raw_tags:
+            try:
+                parsed = json.loads(raw_tags)
+                d["tags"] = parsed if isinstance(parsed, list) else []
+            except (TypeError, ValueError):
+                d["tags"] = []
+        else:
+            d["tags"] = []
+        articles.append(d)
+
+    picks = article_site_prompt_generator.pick_samples(articles)
+    if not picks:
+        return "skipped"
+
+    # Re-fetch live page text for each pick — we don't store it.
+    samples: list[dict] = []
+    for pick in picks:
+        url = pick.get("url")
+        if not url:
+            continue
+        try:
+            html = article_scraper.fetch_article_html(url)
+            extracted = article_scraper.extract_for_enrichment(
+                html, base_url=url,
+            )
+        except Exception:
+            # A single-sample fetch failure isn't fatal — keep going
+            # with the remaining samples. Sonnet can still spot
+            # patterns from 2-3 samples.
+            continue
+        samples.append({
+            "article_url": url,
+            "page_text": extracted.get("page_text") or "",
+            "extracted": {
+                "title": pick.get("title"),
+                "summary": pick.get("excerpt"),
+                "image_url": pick.get("image_url"),
+                "word_count": pick.get("word_count"),
+                "published_at": pick.get("published_at"),
+                "topic_category": pick.get("topic_category"),
+                "is_about_coffee": bool(pick.get("is_about_coffee", 1)),
+                "tags": pick.get("tags") or [],
+                "enrichment_status": pick.get("enrichment_status"),
+            },
+        })
+
+    if not samples:
+        return "failed"
+
+    log(f"  {slug}: generating article-extraction site hint "
+        f"({len(samples)} samples, {'regen' if regenerate else 'first-time'})")
+    addendum = article_site_prompt_generator.generate_article_site_prompt_hint(
+        roaster_name=roaster_name, samples=samples,
+    )
+    if addendum is None:
+        log(f"  {slug}: hint generation FAILED — leaving hint unchanged")
+        return "failed"
+
+    db.execute(
+        "UPDATE roaster_profiles SET "
+        "  article_enrichment_prompt_hint = ?, "
+        "  article_enrichment_prompt_hint_updated_at = ? "
+        "WHERE roaster_slug = ?",
+        (addendum or None, _now(), slug),
+    )
+    db.commit()
+    return "regenerated" if regenerate else "generated"

@@ -878,8 +878,8 @@ const useStyles = makeStyles((t) => ({
     justifyContent: "center",
   } as any,
   includeBoxOn: {
-    backgroundColor: t.color["text.primary"],
-    borderColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
+    borderColor: t.color.accent,
   } as any,
   taskTitle: {
     fontFamily: t.font["body.semibold"],
@@ -1056,7 +1056,7 @@ const useStyles = makeStyles((t) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: t.spacing.sm,
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
     paddingHorizontal: t.spacing.xl,
     paddingVertical: t.spacing.md,
     borderRadius: t.radius.md,

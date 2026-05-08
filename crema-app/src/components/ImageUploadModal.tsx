@@ -391,7 +391,7 @@ const useStyles = makeStyles((t) => ({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
   },
   urlGoText: {
     fontFamily: t.font["body.semibold"],
@@ -421,7 +421,7 @@ const useStyles = makeStyles((t) => ({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 10,
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
   },
   confirmBtnDisabled: {
     backgroundColor: t.color["text.muted"],

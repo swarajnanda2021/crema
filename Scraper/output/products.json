@@ -1,27 +1,26 @@
 [
   {
-    "product_id": "black-poetry_bold-whispers",
-    "roaster_name": "Black Poetry",
-    "roaster_slug": "black-poetry",
+    "product_id": "zenforest-coffee-roasters_fruit-burst",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://blackpoetry.in/",
-    "coffee_name": "BOLD WHISPERS",
-    "coffee_slug": "bold-whispers",
-    "roast_level": "Unknown",
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Fruit Burst",
+    "coffee_slug": "fruit-burst",
+    "roast_level": "Medium",
     "tasting_notes": null,
-    "origin": null,
+    "origin": "Mathavara Estate",
     "altitude_masl": null,
     "process": "Natural",
-    "varietal": "Arabica",
-    "weight_grams": 250,
-    "price_inr": 825.0,
-    "price_per_gram": 3.3,
+    "varietal": null,
+    "weight_grams": null,
+    "price_inr": 1120.0,
+    "price_per_gram": null,
     "currency": "INR",
     "grind_options": [
-      "AeroPress",
       "Cold Brew",
       "Espresso",
       "French Press",
@@ -29,800 +28,605 @@
       "Pour Over",
       "Whole Bean"
     ],
-    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/BlackPoetryWebsiteProductPaintingImages-whispers_1_50.png?v=1772805314",
-    "product_url": "https://blackpoetry.in/products/bold-whispers",
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/04/Untitled-design-1.png",
+    "product_url": "https://zenforestcoffee.com/product/fruit-burst/",
     "available": true,
-    "variants": [
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "Whole Bean"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "French Press"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "AeroPress"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "Pour Over"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "Moka Pot"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "Cold Brew"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "Espresso"
-      }
+    "variants": [],
+    "tags": [
+      "Medium"
     ],
-    "tags": [],
-    "description_raw": "From the misty eastern Himalayan region of Kalimpong comes a Super Natural Arabica that pushes the boundaries of craftsmanship. Imagine the sweetness of ripe banana, the tangy zest of red guava, and a medley of mixed berries dancing on your palate. Our innovative processing technique involves a controlled oxygen treatment and temperature resulting in a complex cup brimming with flavours.",
+    "description_raw": "Fruit Burst FRUITY & FLORAL Medium ● ● ● ● ● ○ ○ Notes / Berries · Tropical Fruits · Florals · Chocolate · Honey Finish Aromatics Sweetness Body Sidamo, Ethiopia — 50% NATURALS · 6,234 FT Shade Dried Berry-forward sweetness and wild, juicy intensity from one of Ethiopia’s most celebrated coffee regions. Mathavara Estate — 50% CHERRY FERMENTED · 4,000 FT 18 Days Dried Chikkamangalore single-estate depth — chocolatey body and clean sweetness that anchors the blend. Zenforest Coffee — India × Ethiopia",
     "scrape_confidence": "medium",
     "scrape_flags": [
-      "missing_roast_level",
       "missing_tasting_notes",
-      "altitude_not_found"
+      "altitude_not_found",
+      "weight_unknown",
+      "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T07:58:47Z"
+    "scraped_at": "2026-05-01T13:52:51Z"
   },
   {
-    "product_id": "black-poetry_harmonic-hills",
-    "roaster_name": "Black Poetry",
-    "roaster_slug": "black-poetry",
+    "product_id": "zenforest-coffee-roasters_test",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://blackpoetry.in/",
-    "coffee_name": "HARMONIC HILLS",
-    "coffee_slug": "harmonic-hills",
-    "roast_level": "Unknown",
-    "tasting_notes": null,
-    "origin": "E In Chikmagalur - Indian Coffee’S Birthplace, This Hone",
-    "altitude_masl": null,
-    "process": "Natural",
-    "varietal": "Robusta",
-    "weight_grams": 250,
-    "price_inr": 600.0,
-    "price_per_gram": 2.4,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
-    ],
-    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/Black_Poetry_Website_Product_Painting_Images-harmonic.png?v=1744359185",
-    "product_url": "https://blackpoetry.in/products/harmonic-hills",
-    "available": true,
-    "variants": [
-      {
-        "weight_grams": 250,
-        "price_inr": 600.0,
-        "price_per_gram": 2.4,
-        "available": true,
-        "grind": "Whole Bean"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 600.0,
-        "price_per_gram": 2.4,
-        "available": true,
-        "grind": "French Press"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 600.0,
-        "price_per_gram": 2.4,
-        "available": true,
-        "grind": "AeroPress"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 600.0,
-        "price_per_gram": 2.4,
-        "available": true,
-        "grind": "Pour Over"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 600.0,
-        "price_per_gram": 2.4,
-        "available": true,
-        "grind": "Moka Pot"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 600.0,
-        "price_per_gram": 2.4,
-        "available": true,
-        "grind": "Cold Brew"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 600.0,
-        "price_per_gram": 2.4,
-        "available": true,
-        "grind": "Espresso"
-      }
-    ],
-    "tags": [],
-    "description_raw": "Sourced from an award-winning estate in Chikmagalur - Indian coffee’s birthplace, this Honey-Dried Robusta, is an escape for your senses. The unique drying process creates a delightful sweetness that balances the Robusta’s natural intensity. Savour a smooth body with a lingering aftertaste of honey and ripe blackberries, making it a truly delightful surprise.",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level",
-      "missing_tasting_notes",
-      "altitude_not_found"
-    ],
-    "scraped_at": "2026-05-01T07:58:47Z"
-  },
-  {
-    "product_id": "black-poetry_brewers-pack",
-    "roaster_name": "Black Poetry",
-    "roaster_slug": "black-poetry",
-    "roaster_city": "Bengaluru",
-    "roaster_state": "Karnataka",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://blackpoetry.in/",
-    "coffee_name": "BREWER’S PACK",
-    "coffee_slug": "brewers-pack",
-    "roast_level": "Unknown",
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Test",
+    "coffee_slug": "test",
+    "roast_level": "Medium-Dark",
     "tasting_notes": null,
     "origin": null,
     "altitude_masl": null,
     "process": null,
-    "varietal": null,
-    "weight_grams": 100,
-    "price_inr": 1800.0,
-    "price_per_gram": 18.0,
+    "varietal": "Bourbon",
+    "weight_grams": null,
+    "price_inr": 1.0,
+    "price_per_gram": null,
     "currency": "INR",
     "grind_options": [
       "Cold Brew",
       "Espresso",
-      "French Press",
       "Moka Pot",
       "Pour Over",
       "Whole Bean"
     ],
-    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/Brewer_Pouch.jpg?v=1756373274",
-    "product_url": "https://blackpoetry.in/products/brewer-s-pack",
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Cinnamon-Ferment-X-Bourbon-Bliss.png",
+    "product_url": "https://zenforestcoffee.com/product/test/",
     "available": true,
-    "variants": [
-      {
-        "weight_grams": 100,
-        "price_inr": 1800.0,
-        "price_per_gram": 18.0,
-        "available": true,
-        "grind": "Whole Bean"
-      },
-      {
-        "weight_grams": 100,
-        "price_inr": 1800.0,
-        "price_per_gram": 18.0,
-        "available": true,
-        "grind": "French Press"
-      },
-      {
-        "weight_grams": 100,
-        "price_inr": 1800.0,
-        "price_per_gram": 18.0,
-        "available": true,
-        "grind": null
-      },
-      {
-        "weight_grams": 100,
-        "price_inr": 1800.0,
-        "price_per_gram": 18.0,
-        "available": true,
-        "grind": "Pour Over"
-      },
-      {
-        "weight_grams": 100,
-        "price_inr": 1800.0,
-        "price_per_gram": 18.0,
-        "available": true,
-        "grind": "Moka Pot"
-      },
-      {
-        "weight_grams": 100,
-        "price_inr": 1800.0,
-        "price_per_gram": 18.0,
-        "available": true,
-        "grind": "Cold Brew"
-      },
-      {
-        "weight_grams": 100,
-        "price_inr": 1800.0,
-        "price_per_gram": 18.0,
-        "available": true,
-        "grind": "Espresso"
-      }
+    "variants": [],
+    "tags": [
+      "Experience Box"
     ],
-    "tags": [],
-    "description_raw": "Travel across India’s rarest coffee terrains with this Brewer’s Pack collection. Featuring seven unique 100g samples from our select microlots, this pack boasts beans from the monsoon-kissed Malabar coasts to the high altitudes of Kalimpong. Taste each, fall in love, and find your personal favourite, whether you’re brewing at home or gifting to someone who loves exploring new flavours. Each pack is freshly roasted, portioned for peak flavour, and beautifully presented so every cup tells its own story.",
+    "description_raw": "Cinnamon Fermented SPICED & SWEET Medium ● ● ● ● ○ ○ ○ Notes / Cinnamon · Brown Sugar · Clove · Cocoa Aromatics Sweetness Body Bourbon Bliss WOODY & CITRUS Medium Dark ● ● ● ● ● ○ ○ Notes / Cocoa · Berries · Spices · Oak Aromatics Sweetness Body Zenforest Coffee — Dual Profile",
     "scrape_confidence": "medium",
     "scrape_flags": [
-      "missing_roast_level",
       "missing_tasting_notes",
       "altitude_not_found",
       "missing_process",
+      "weight_unknown",
       "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T07:58:47Z"
+    "scraped_at": "2026-05-01T13:52:51Z"
   },
   {
-    "product_id": "black-poetry_highland-blues",
-    "roaster_name": "Black Poetry",
-    "roaster_slug": "black-poetry",
+    "product_id": "zenforest-coffee-roasters_cinnamon-fermented-x-bourbon-bliss",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://blackpoetry.in/",
-    "coffee_name": "HIGHLAND BLUES",
-    "coffee_slug": "highland-blues",
-    "roast_level": "Dark",
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Cinnamon Fermented X Bourbon Bliss",
+    "coffee_slug": "cinnamon-fermented-x-bourbon-bliss",
+    "roast_level": "Medium-Dark",
     "tasting_notes": null,
-    "origin": "From Shevaroy Hills In Tamil Nadu",
+    "origin": null,
     "altitude_masl": null,
-    "process": "Washed",
-    "varietal": "Arabica",
-    "weight_grams": 250,
-    "price_inr": 600.0,
-    "price_per_gram": 2.4,
+    "process": null,
+    "varietal": "Bourbon",
+    "weight_grams": null,
+    "price_inr": 725.0,
+    "price_per_gram": null,
     "currency": "INR",
     "grind_options": [
-      "AeroPress",
       "Cold Brew",
       "Espresso",
-      "French Press",
       "Moka Pot",
       "Pour Over",
       "Whole Bean"
     ],
-    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/BlackPoetryWebsiteProductPaintingImages-highlandblues_1_ec011273-56e2-46f5-8b8f-e131ed6fb956.png?v=1772805034",
-    "product_url": "https://blackpoetry.in/products/highland-blues",
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Cinnamon-Ferment-X-Bourbon-Bliss.png",
+    "product_url": "https://zenforestcoffee.com/product/cinnamon-fermented-x-bourbon-bliss/",
     "available": true,
-    "variants": [
-      {
-        "weight_grams": 250,
-        "price_inr": 600.0,
-        "price_per_gram": 2.4,
-        "available": true,
-        "grind": "Whole Bean"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 600.0,
-        "price_per_gram": 2.4,
-        "available": true,
-        "grind": "French Press"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 600.0,
-        "price_per_gram": 2.4,
-        "available": true,
-        "grind": "AeroPress"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 600.0,
-        "price_per_gram": 2.4,
-        "available": true,
-        "grind": "Pour Over"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 625.0,
-        "price_per_gram": 2.5,
-        "available": true,
-        "grind": "Moka Pot"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 600.0,
-        "price_per_gram": 2.4,
-        "available": true,
-        "grind": "Cold Brew"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 600.0,
-        "price_per_gram": 2.4,
-        "available": true,
-        "grind": "Espresso"
-      }
+    "variants": [],
+    "tags": [
+      "Experience Box"
     ],
-    "tags": [],
-    "description_raw": "This washed Arabica is a bold and beautiful brew from Shevaroy Hills in Tamil Nadu. Imagine dark, rich chocolate melting on your tongue, followed by bursts of juicy jackfruit and hints of warm spices. From notes of cardamom to natural brown sugar sweetness, this is a mid-day pick-me-up that will invigorate your senses and transport you to the hills.",
-    "scrape_confidence": "high",
-    "scrape_flags": [
-      "missing_tasting_notes",
-      "altitude_not_found"
-    ],
-    "scraped_at": "2026-05-01T07:58:47Z"
-  },
-  {
-    "product_id": "black-poetry_soul-tribe",
-    "roaster_name": "Black Poetry",
-    "roaster_slug": "black-poetry",
-    "roaster_city": "Bengaluru",
-    "roaster_state": "Karnataka",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://blackpoetry.in/",
-    "coffee_name": "SOUL TRIBE",
-    "coffee_slug": "soul-tribe",
-    "roast_level": "Unknown",
-    "tasting_notes": null,
-    "origin": "S Of Koraput",
-    "altitude_masl": null,
-    "process": "Natural",
-    "varietal": "Arabica",
-    "weight_grams": 250,
-    "price_inr": 825.0,
-    "price_per_gram": 3.3,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
-    ],
-    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/BlackPoetryWebsiteProductPaintingImages-soultribe_1.png?v=1744807573",
-    "product_url": "https://blackpoetry.in/products/soul-tribe",
-    "available": true,
-    "variants": [
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "Whole Bean"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "French Press"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "AeroPress"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "Pour Over"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "Moka Pot"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "Cold Brew"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 825.0,
-        "price_per_gram": 3.3,
-        "available": true,
-        "grind": "Espresso"
-      }
-    ],
-    "tags": [],
-    "description_raw": "Odisha’s hidden gem, this Arabica Selective Naturals makes it to your cup all the way from the Eastern Ghats of Koraput. Far from the usual coffee havens, this hidden treasure brings a vibrant acidity that dances on your palate, exploding with flavours of sun-ripened mixed berries, guavas and a hint of citrus.",
+    "description_raw": "Cinnamon Fermented SPICED & SWEET Medium ● ● ● ● ○ ○ ○ Notes / Cinnamon · Brown Sugar · Clove · Cocoa Aromatics Sweetness Body Bourbon Bliss WOODY & CITRUS Medium Dark ● ● ● ● ● ○ ○ Notes / Cocoa · Berries · Spices · Oak Aromatics Sweetness Body Zenforest Coffee — Dual Profile",
     "scrape_confidence": "medium",
     "scrape_flags": [
-      "missing_roast_level",
       "missing_tasting_notes",
-      "altitude_not_found"
+      "altitude_not_found",
+      "missing_process",
+      "weight_unknown",
+      "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T07:58:47Z"
+    "scraped_at": "2026-05-01T13:52:51Z"
   },
   {
-    "product_id": "black-poetry_monsoon-raga",
-    "roaster_name": "Black Poetry",
-    "roaster_slug": "black-poetry",
+    "product_id": "zenforest-coffee-roasters_monsoon-malabar-x-black-honey",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://blackpoetry.in/",
-    "coffee_name": "MONSOON RAGA",
-    "coffee_slug": "monsoon-raga",
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Monsoon Malabar X Black Honey",
+    "coffee_slug": "monsoon-malabar-x-black-honey",
+    "roast_level": "Dark",
+    "tasting_notes": null,
+    "origin": null,
+    "altitude_masl": null,
+    "process": "Honey",
+    "varietal": null,
+    "weight_grams": null,
+    "price_inr": 725.0,
+    "price_per_gram": null,
+    "currency": "INR",
+    "grind_options": [
+      "Cold Brew",
+      "Espresso",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Monsoon-Malabar-X-Black-Honey.png",
+    "product_url": "https://zenforestcoffee.com/product/monsoon-malabar-x-black-honey/",
+    "available": true,
+    "variants": [],
+    "tags": [
+      "Experience Box"
+    ],
+    "description_raw": "Monsoon Malabar AA COCOA & NUTS Med. Dark ● ● ● ● ● ○ ○ Notes / Cocoa · Nuts · Spice · Low Acidity Aromatics Sweetness Body Black Honey EARTHY & RICH Medium ● ● ● ● ○ ○ ○ Notes / Cocoa · Dates · Forest Honey · Spice Aromatics Sweetness Body Zenforest Coffee — Dual Profile",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_tasting_notes",
+      "altitude_not_found",
+      "weight_unknown",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-01T13:52:51Z"
+  },
+  {
+    "product_id": "zenforest-coffee-roasters_toddy-toffee-x-cinnamon-fermented",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Toddy Toffee X Cinnamon Fermented",
+    "coffee_slug": "toddy-toffee-x-cinnamon-fermented",
     "roast_level": "Medium",
     "tasting_notes": null,
     "origin": null,
     "altitude_masl": null,
     "process": null,
-    "varietal": "Arabica",
-    "weight_grams": 250,
-    "price_inr": 800.0,
-    "price_per_gram": 3.2,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
-    ],
-    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/BlackPoetryWebsiteProductPaintingImages-monsoon_2.png?v=1744807721",
-    "product_url": "https://blackpoetry.in/products/monsoon-raga",
-    "available": true,
-    "variants": [
-      {
-        "weight_grams": 250,
-        "price_inr": 800.0,
-        "price_per_gram": 3.2,
-        "available": true,
-        "grind": "Whole Bean"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 800.0,
-        "price_per_gram": 3.2,
-        "available": true,
-        "grind": "French Press"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 800.0,
-        "price_per_gram": 3.2,
-        "available": true,
-        "grind": "AeroPress"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 800.0,
-        "price_per_gram": 3.2,
-        "available": true,
-        "grind": "Pour Over"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 800.0,
-        "price_per_gram": 3.2,
-        "available": true,
-        "grind": "Moka Pot"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 800.0,
-        "price_per_gram": 3.2,
-        "available": true,
-        "grind": "Cold Brew"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 800.0,
-        "price_per_gram": 3.2,
-        "available": true,
-        "grind": "Espresso"
-      }
-    ],
-    "tags": [],
-    "description_raw": "This Monsooned Malabar Arabica is like a morning breeze carrying the earthy scent of rain, and a hint of cedar. A unique medium-roasted coffee, exposed to the monsoon winds of the Malabar coast, boasts a smooth body, low acidity and a touch of sweetness. It’s your perfect breakfast companion!",
-    "scrape_confidence": "high",
-    "scrape_flags": [
-      "missing_tasting_notes",
-      "altitude_not_found",
-      "missing_process"
-    ],
-    "scraped_at": "2026-05-01T07:58:47Z"
-  },
-  {
-    "product_id": "black-poetry_everyday-sunshine",
-    "roaster_name": "Black Poetry",
-    "roaster_slug": "black-poetry",
-    "roaster_city": "Bengaluru",
-    "roaster_state": "Karnataka",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://blackpoetry.in/",
-    "coffee_name": "EVERYDAY SUNSHINE",
-    "coffee_slug": "everyday-sunshine",
-    "roast_level": "Unknown",
-    "tasting_notes": null,
-    "origin": "T Of Coorg, This Fermented Natural Arabica Finds I",
-    "altitude_masl": null,
-    "process": "Natural",
-    "varietal": "Arabica",
-    "weight_grams": 250,
-    "price_inr": 750.0,
-    "price_per_gram": 3.0,
-    "currency": "INR",
-    "grind_options": [
-      "AeroPress",
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
-    ],
-    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/BlackPoetryWebsiteProductPaintingImages-sunshine_1.png?v=1758617726",
-    "product_url": "https://blackpoetry.in/products/everyday-sunshine",
-    "available": true,
-    "variants": [
-      {
-        "weight_grams": 250,
-        "price_inr": 750.0,
-        "price_per_gram": 3.0,
-        "available": true,
-        "grind": "Whole Bean"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 750.0,
-        "price_per_gram": 3.0,
-        "available": true,
-        "grind": "French Press"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 750.0,
-        "price_per_gram": 3.0,
-        "available": true,
-        "grind": "AeroPress"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 750.0,
-        "price_per_gram": 3.0,
-        "available": true,
-        "grind": "Pour Over"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 750.0,
-        "price_per_gram": 3.0,
-        "available": true,
-        "grind": "Moka Pot"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 750.0,
-        "price_per_gram": 3.0,
-        "available": true,
-        "grind": "Cold Brew"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 750.0,
-        "price_per_gram": 3.0,
-        "available": true,
-        "grind": "Espresso"
-      }
-    ],
-    "tags": [],
-    "description_raw": "From the heart of Coorg, this Fermented Natural Arabica finds its symphony of flavours from our unique processing methods and the estate’s rich climate. Picture a summer orchard, biting into a juicy peach and the sweet aromatics of ripe Mandarin orange surrounding you. That’s what the smooth body and lingering sweetness of this coffee can make you feel. Each cup is truly memorable - a taste of Coorg’s sunshine in every sip.",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_roast_level",
-      "missing_tasting_notes",
-      "altitude_not_found"
-    ],
-    "scraped_at": "2026-05-01T07:58:47Z"
-  },
-  {
-    "product_id": "black-poetry_mini-brewers-pack",
-    "roaster_name": "Black Poetry",
-    "roaster_slug": "black-poetry",
-    "roaster_city": "Bengaluru",
-    "roaster_state": "Karnataka",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://blackpoetry.in/",
-    "coffee_name": "MINI BREWER’S PACK",
-    "coffee_slug": "mini-brewers-pack",
-    "roast_level": "Light",
-    "tasting_notes": null,
-    "origin": "Most Unique Coffee Estate",
-    "altitude_masl": null,
-    "process": null,
     "varietal": null,
-    "weight_grams": 20,
-    "price_inr": 1675.0,
-    "price_per_gram": 83.75,
+    "weight_grams": null,
+    "price_inr": 725.0,
+    "price_per_gram": null,
     "currency": "INR",
     "grind_options": [
       "Cold Brew",
       "Espresso",
-      "French Press",
       "Moka Pot",
       "Pour Over",
       "Whole Bean"
     ],
-    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/Pouch-Pack-02.jpg?v=1762945004",
-    "product_url": "https://blackpoetry.in/products/mini-brewer-s-pack",
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Toddy-Toffee-X-Cinnamaon-Fermented.png",
+    "product_url": "https://zenforestcoffee.com/product/toddy-toffee-x-cinnamon-fermented/",
     "available": true,
-    "variants": [
-      {
-        "weight_grams": 20,
-        "price_inr": 1675.0,
-        "price_per_gram": 83.75,
-        "available": true,
-        "grind": "Whole Bean"
-      },
-      {
-        "weight_grams": 20,
-        "price_inr": 875.0,
-        "price_per_gram": 43.75,
-        "available": true,
-        "grind": "Whole Bean"
-      },
-      {
-        "weight_grams": 20,
-        "price_inr": 1675.0,
-        "price_per_gram": 83.75,
-        "available": true,
-        "grind": "French Press"
-      },
-      {
-        "weight_grams": 20,
-        "price_inr": 875.0,
-        "price_per_gram": 43.75,
-        "available": true,
-        "grind": "French Press"
-      },
-      {
-        "weight_grams": 20,
-        "price_inr": 1675.0,
-        "price_per_gram": 83.75,
-        "available": true,
-        "grind": null
-      },
-      {
-        "weight_grams": 20,
-        "price_inr": 875.0,
-        "price_per_gram": 43.75,
-        "available": true,
-        "grind": null
-      },
-      {
-        "weight_grams": 20,
-        "price_inr": 1675.0,
-        "price_per_gram": 83.75,
-        "available": true,
-        "grind": "Pour Over"
-      },
-      {
-        "weight_grams": 20,
-        "price_inr": 875.0,
-        "price_per_gram": 43.75,
-        "available": true,
-        "grind": "Pour Over"
-      },
-      {
-        "weight_grams": 20,
-        "price_inr": 1675.0,
-        "price_per_gram": 83.75,
-        "available": true,
-        "grind": "Moka Pot"
-      },
-      {
-        "weight_grams": 20,
-        "price_inr": 875.0,
-        "price_per_gram": 43.75,
-        "available": true,
-        "grind": "Moka Pot"
-      },
-      {
-        "weight_grams": 20,
-        "price_inr": 1675.0,
-        "price_per_gram": 83.75,
-        "available": true,
-        "grind": "Cold Brew"
-      },
-      {
-        "weight_grams": 20,
-        "price_inr": 875.0,
-        "price_per_gram": 43.75,
-        "available": true,
-        "grind": "Cold Brew"
-      },
-      {
-        "weight_grams": 20,
-        "price_inr": 1675.0,
-        "price_per_gram": 83.75,
-        "available": true,
-        "grind": "Espresso"
-      },
-      {
-        "weight_grams": 20,
-        "price_inr": 875.0,
-        "price_per_gram": 43.75,
-        "available": true,
-        "grind": "Espresso"
-      }
+    "variants": [],
+    "tags": [
+      "Experience Box"
     ],
-    "tags": [],
-    "description_raw": "Pack light, brew bold. Go on a week-long adventure through India’s most unique coffee estates with seven 20g single-serve coffees. Light to carry and easy to travel with, these brews follow wherever the week takes you. From early mornings at home to flights across time zones, enjoy a new flavour every day, each telling its own story in a cup. Great coffee should feel effortless.",
-    "scrape_confidence": "high",
+    "description_raw": "Toddy & Toffee SWEET & SPICE Medium ● ● ● ● ○ ○ ○ Notes / Toffee · Caramel · Spice · Mild Fruit Aromatics Sweetness Body Cinnamon Fermented SPICED & SWEET Medium ● ● ● ● ○ ○ ○ Notes / Cinnamon · Brown Sugar · Clove · Cocoa Aromatics Sweetness Body Zenforest Coffee — Dessert Profile",
+    "scrape_confidence": "medium",
     "scrape_flags": [
       "missing_tasting_notes",
       "altitude_not_found",
       "missing_process",
+      "weight_unknown",
       "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T07:58:47Z"
+    "scraped_at": "2026-05-01T13:52:51Z"
   },
   {
-    "product_id": "black-poetry_java-joy-box",
-    "roaster_name": "Black Poetry",
-    "roaster_slug": "black-poetry",
+    "product_id": "zenforest-coffee-roasters_mathavara-estate-x-coorg-highlands",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://blackpoetry.in/",
-    "coffee_name": "JAVA JOY BOX",
-    "coffee_slug": "java-joy-box",
-    "roast_level": "Unknown",
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Mathavara Estate x Coorg Highlands",
+    "coffee_slug": "mathavara-estate-x-coorg-highlands",
+    "roast_level": "Dark",
+    "tasting_notes": null,
+    "origin": "Coorg Highlands Fruity & Floral Medium ● ● ●",
+    "altitude_masl": null,
+    "process": null,
+    "varietal": null,
+    "weight_grams": null,
+    "price_inr": 725.0,
+    "price_per_gram": null,
+    "currency": "INR",
+    "grind_options": [
+      "Cold Brew",
+      "Espresso",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Mathavara-Estate-X-Coorg-Highlands.png",
+    "product_url": "https://zenforestcoffee.com/product/mathavara-estate-x-coorg-highlands/",
+    "available": true,
+    "variants": [],
+    "tags": [
+      "Experience Box"
+    ],
+    "description_raw": "Coorg Highlands FRUITY & FLORAL Medium ● ● ● ● ○ ○ ○ Notes / Floral · Citrus · Mild Berry · Bright Finish Aromatics Sweetness Body Mathavra Estate COCOA & BERRY Medium ● ● ● ● ○ ○ ○ Notes / Cocoa · Berry · Spice · Dark Sweetness Aromatics Sweetness Body Zenforest Coffee — Forest & Fruit Profile",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_tasting_notes",
+      "altitude_not_found",
+      "missing_process",
+      "weight_unknown",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-01T13:52:51Z"
+  },
+  {
+    "product_id": "zenforest-coffee-roasters_bourbon-bliss-x-rum-barrel",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Bourbon Bliss X Rum Barrel",
+    "coffee_slug": "bourbon-bliss-x-rum-barrel",
+    "roast_level": "Medium-Dark",
+    "tasting_notes": null,
+    "origin": null,
+    "altitude_masl": null,
+    "process": null,
+    "varietal": "Bourbon",
+    "weight_grams": null,
+    "price_inr": 725.0,
+    "price_per_gram": null,
+    "currency": "INR",
+    "grind_options": [
+      "Cold Brew",
+      "Espresso",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Bourbon-Bliss-X-Rum-Barrel.png",
+    "product_url": "https://zenforestcoffee.com/product/bourbon-bliss-x-rum-barrel/",
+    "available": true,
+    "variants": [],
+    "tags": [
+      "Experience Box"
+    ],
+    "description_raw": "Bourbon Bliss WOODY & CITRUS Medium Dark ● ● ● ● ● ○ ○ Notes / Cocoa · Citrus · Oak · Spice Aromatics Sweetness Body Rum Barrel Aged SWEET & SOUR Medium Dark ● ● ● ● ● ○ ○ Notes / Molasses · Dark Fruit · Spice · Barrel Aromatics Sweetness Body Zenforest Coffee — Barrel Aged Series",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_tasting_notes",
+      "altitude_not_found",
+      "missing_process",
+      "weight_unknown",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-01T13:52:51Z"
+  },
+  {
+    "product_id": "zenforest-coffee-roasters_wildwood-spice",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Wildwood Spice",
+    "coffee_slug": "wildwood-spice",
+    "roast_level": "Medium-Dark",
+    "tasting_notes": null,
+    "origin": "Gion Chikmagaluru Altitude 3900 Ft Zenforest Coffee — Pr",
+    "altitude_masl": 3900,
+    "process": "Washed",
+    "varietal": null,
+    "weight_grams": null,
+    "price_inr": 890.0,
+    "price_per_gram": null,
+    "currency": "INR",
+    "grind_options": [
+      "Cold Brew",
+      "Espresso",
+      "French Press",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-12.png",
+    "product_url": "https://zenforestcoffee.com/product/wildwood-spice/",
+    "available": true,
+    "variants": [],
+    "tags": [
+      "Medium Dark",
+      "Nanolot",
+      "New Launch"
+    ],
+    "description_raw": "Wildwood Spice SPICES & SWEET Medium ● ● ● ● ● ● ● Notes / Clove · Nutmeg · Cocoa · Cedar Aromatics & Flavour Sweetness Acidity Body Balance Process Washed & Aged Washed coffee aged in barrel with whole dry spices Region Chikmagaluru Altitude 3900 FT Zenforest Coffee — Premium Indian Origin",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_tasting_notes",
+      "weight_unknown",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-01T13:52:51Z"
+  },
+  {
+    "product_id": "zenforest-coffee-roasters_mathavara-estate",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Mathavara Estate",
+    "coffee_slug": "mathavara-estate",
+    "roast_level": "Light",
+    "tasting_notes": null,
+    "origin": "Gion Chikmagaluru Altitude 4000 Ft Zenforest Coffee — Pr",
+    "altitude_masl": 4000,
+    "process": "Natural",
+    "varietal": null,
+    "weight_grams": null,
+    "price_inr": 830.0,
+    "price_per_gram": null,
+    "currency": "INR",
+    "grind_options": [
+      "Cold Brew",
+      "Espresso",
+      "French Press",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-20.png",
+    "product_url": "https://zenforestcoffee.com/product/mathavara-estate/",
+    "available": true,
+    "variants": [],
+    "tags": [
+      "Light Roast",
+      "Microlot",
+      "New Launch"
+    ],
+    "description_raw": "Mathavara Estate COCOA & BERRY Medium ● ● ● ● ● ● ● Notes / Cocoa · Berries · Spices Aromatics & Flavour Sweetness Acidity Body Balance Process Super Naturals Cherry fermented and dried in shade for 18 days Region Chikmagaluru Altitude 4000 FT Zenforest Coffee — Premium Indian Origin",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_tasting_notes",
+      "weight_unknown",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-01T13:52:51Z"
+  },
+  {
+    "product_id": "zenforest-coffee-roasters_banana-fermented",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Banana Fermented",
+    "coffee_slug": "banana-fermented",
+    "roast_level": "Medium",
+    "tasting_notes": null,
+    "origin": "Gion Chikmagaluru Altitude 3900 Ft Zenforest Coffee — Pr",
+    "altitude_masl": 3900,
+    "process": null,
+    "varietal": null,
+    "weight_grams": null,
+    "price_inr": 890.0,
+    "price_per_gram": null,
+    "currency": "INR",
+    "grind_options": [
+      "Cold Brew",
+      "Espresso",
+      "French Press",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-10.png",
+    "product_url": "https://zenforestcoffee.com/product/banana-fermented/",
+    "available": true,
+    "variants": [],
+    "tags": [
+      "Fermented",
+      "Medium",
+      "Nanolot",
+      "New Launch"
+    ],
+    "description_raw": "Banana Fermented FRUITY & SWEET Medium ● ● ● ● ● ● ● Notes / Banana · Toffee · Cocoa · Spice Aromatics & Flavour Sweetness Acidity Body Balance Process Double Ferment Carbonic maceration with banana fermentation Region Chikmagaluru Altitude 3900 FT Zenforest Coffee — Premium Indian Origin",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_tasting_notes",
+      "missing_process",
+      "weight_unknown",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-01T13:52:51Z"
+  },
+  {
+    "product_id": "zenforest-coffee-roasters_toddy-038-toffee",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Toddy &#038; Toffee",
+    "coffee_slug": "toddy-038-toffee",
+    "roast_level": "Medium",
+    "tasting_notes": null,
+    "origin": "Gion Coorg Altitude 3100 Ft Zenforest Coffee — Pre",
+    "altitude_masl": 3100,
+    "process": "Washed",
+    "varietal": null,
+    "weight_grams": null,
+    "price_inr": 860.0,
+    "price_per_gram": null,
+    "currency": "INR",
+    "grind_options": [
+      "Cold Brew",
+      "Espresso",
+      "French Press",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-21.png",
+    "product_url": "https://zenforestcoffee.com/product/toddy-toffee/",
+    "available": true,
+    "variants": [],
+    "tags": [
+      "Medium",
+      "Microlot",
+      "New Launch"
+    ],
+    "description_raw": "Toddy & Toffee SWEET & SPICE Medium ● ● ● ● ● ● ● Notes / Cocoa · Berries · Spices Aromatics & Flavour Sweetness Acidity Body Balance Process Double Fermented Carbonic Maceration – Washed and Fermented with sugarcane juice, oranges & coconut water Region Coorg Altitude 3100 FT Zenforest Coffee — Premium Indian Origin",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_tasting_notes",
+      "weight_unknown",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-01T13:52:51Z"
+  },
+  {
+    "product_id": "zenforest-coffee-roasters_black-honey-coffee",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Black Honey Coffee",
+    "coffee_slug": "black-honey-coffee",
+    "roast_level": "Medium-Light",
+    "tasting_notes": null,
+    "origin": "Gion Coorg Altitude 3100 Ft Zenforest Coffee — Pre",
+    "altitude_masl": 3100,
+    "process": "Washed",
+    "varietal": null,
+    "weight_grams": null,
+    "price_inr": 769.0,
+    "price_per_gram": null,
+    "currency": "INR",
+    "grind_options": [
+      "Cold Brew",
+      "Espresso",
+      "French Press",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-17.png",
+    "product_url": "https://zenforestcoffee.com/product/black-honey-coffee/",
+    "available": true,
+    "variants": [],
+    "tags": [
+      "Medium Light",
+      "Microlot",
+      "New Launch"
+    ],
+    "description_raw": "Black Honey Earthy & Rich Medium ● ● ● ● ● ● ● Notes / Plum, Molasses, Caramel, Raisin Aromatics & Flavour Sweetness Acidity Body Balance Process Honey Process Washed and dried with around 70-80% mucilage Region Coorg Altitude 3100 FT Zenforest Coffee — Premium Indian Origin",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_tasting_notes",
+      "weight_unknown",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-01T13:52:51Z"
+  },
+  {
+    "product_id": "zenforest-coffee-roasters_rum-barrel-aged-coffee",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Rum Barrel Aged Coffee",
+    "coffee_slug": "rum-barrel-aged-coffee",
+    "roast_level": "Medium",
+    "tasting_notes": null,
+    "origin": "Gion Chikmagaluru Altitude 3800 Ft Zenforest Coffee — Pr",
+    "altitude_masl": 3800,
+    "process": "Washed",
+    "varietal": null,
+    "weight_grams": null,
+    "price_inr": 829.0,
+    "price_per_gram": null,
+    "currency": "INR",
+    "grind_options": [
+      "Cold Brew",
+      "Espresso",
+      "French Press",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-18.png",
+    "product_url": "https://zenforestcoffee.com/product/rum-barrel-aged-coffee/",
+    "available": true,
+    "variants": [],
+    "tags": [
+      "Aged",
+      "Barrel Aged",
+      "Medium",
+      "Monthly Roast"
+    ],
+    "description_raw": "Rum Barrel Aged Sweet & Sour Medium ● ● ● ● ● ● ● Notes: Cocoa, Berries, Spices, Molases Aroma & Flavours Aromatics & Flavour Sweetness Acidity Body Balance Process Barrel Aged Washed and aged in barrels for 190 days. Region Chikmagaluru Altitude 3800 FT Zenforest Coffee — Premium Indian Origin",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_tasting_notes",
+      "weight_unknown",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-01T13:52:51Z"
+  },
+  {
+    "product_id": "zenforest-coffee-roasters_cappuccino-blend",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Cappuccino Blend",
+    "coffee_slug": "cappuccino-blend",
+    "roast_level": "Dark",
     "tasting_notes": null,
     "origin": null,
     "altitude_masl": null,
     "process": "Washed",
     "varietal": "Arabica, Robusta",
-    "weight_grams": 250,
-    "price_inr": 1650.0,
-    "price_per_gram": 6.6,
+    "weight_grams": null,
+    "price_inr": 719.0,
+    "price_per_gram": null,
     "currency": "INR",
     "grind_options": [
-      "AeroPress",
       "Cold Brew",
       "Espresso",
       "French Press",
@@ -830,93 +634,46 @@
       "Pour Over",
       "Whole Bean"
     ],
-    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/Bundles_Offer_Carousel1.png?v=1758007396",
-    "product_url": "https://blackpoetry.in/products/gift-box-2",
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-16-29.png",
+    "product_url": "https://zenforestcoffee.com/product/cappuccino-blend/",
     "available": true,
-    "variants": [
-      {
-        "weight_grams": 250,
-        "price_inr": 1650.0,
-        "price_per_gram": 6.6,
-        "available": true,
-        "grind": "Whole Bean"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 1650.0,
-        "price_per_gram": 6.6,
-        "available": true,
-        "grind": "French Press"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 1650.0,
-        "price_per_gram": 6.6,
-        "available": true,
-        "grind": "AeroPress"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 1650.0,
-        "price_per_gram": 6.6,
-        "available": true,
-        "grind": "Pour Over"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 1650.0,
-        "price_per_gram": 6.6,
-        "available": true,
-        "grind": "Moka Pot"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 1650.0,
-        "price_per_gram": 6.6,
-        "available": true,
-        "grind": "Cold Brew"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 1650.0,
-        "price_per_gram": 6.6,
-        "available": true,
-        "grind": "Espresso"
-      }
+    "variants": [],
+    "tags": [
+      "Classic",
+      "Dark"
     ],
-    "tags": [],
-    "description_raw": "Elevate your coffee experience with this curated bundle of Arabica Washed, Robusta Honey Sundried and Arabica Fermented Naturals . Each blend offers a unique tasting experience - from rich notes of jackfruit and brown sugar to warm honeyed textures and bright citrus sparks. Packed in three beautifully designed cans and paired with collectible coasters, this gift box is a perfect harmony of flavour and style. Whether as a treat for yourself or a thoughtful gift for a fellow coffee enthusiast, it's an invitation to sip, savour, and slow down.",
+    "description_raw": "Cappuccino Blend MILK FRIENDLY Medium ● ● ● ● ● ● ● Perfectly crafted for cappuccinos, lattes & flat whites 60% Arabica Washed 20% Robusta Naturals 20% Robusta Monsoon Malabar ROAST MEDIUM ROAST PROFILE MILK BASED Designed for creamy, smooth cappuccinos and lattes BATCH SMALL BATCH Zenforest Coffee — Premium Indian Origin",
     "scrape_confidence": "medium",
     "scrape_flags": [
-      "missing_roast_level",
       "missing_tasting_notes",
-      "altitude_not_found"
+      "altitude_not_found",
+      "weight_unknown",
+      "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T07:58:47Z"
+    "scraped_at": "2026-05-01T13:52:51Z"
   },
   {
-    "product_id": "black-poetry_brew-bliss-box",
-    "roaster_name": "Black Poetry",
-    "roaster_slug": "black-poetry",
+    "product_id": "zenforest-coffee-roasters_cinnamon-fermented-coffee",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://blackpoetry.in/",
-    "coffee_name": "BREW BLISS BOX",
-    "coffee_slug": "brew-bliss-box",
-    "roast_level": "Light",
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Cinnamon Fermented Coffee",
+    "coffee_slug": "cinnamon-fermented-coffee",
+    "roast_level": "Medium-Light",
     "tasting_notes": null,
-    "origin": null,
-    "altitude_masl": null,
-    "process": "Natural",
-    "varietal": "Arabica, Robusta",
-    "weight_grams": 250,
-    "price_inr": 1900.0,
-    "price_per_gram": 7.6,
+    "origin": "Gion Coorg Altitude 23100 Ft Zenforest Coffee — Pr",
+    "altitude_masl": 2310,
+    "process": "Washed",
+    "varietal": null,
+    "weight_grams": null,
+    "price_inr": 829.0,
+    "price_per_gram": null,
     "currency": "INR",
     "grind_options": [
-      "AeroPress",
       "Cold Brew",
       "Espresso",
       "French Press",
@@ -924,67 +681,124 @@
       "Pour Over",
       "Whole Bean"
     ],
-    "image_url": "https://cdn.shopify.com/s/files/1/0639/4458/9466/files/Bundles_Offer_Carousel.png?v=1758007458",
-    "product_url": "https://blackpoetry.in/products/make-your-bundle-of-3",
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-16-25.png",
+    "product_url": "https://zenforestcoffee.com/product/cinnamon-fermented-coffee/",
     "available": true,
-    "variants": [
-      {
-        "weight_grams": 250,
-        "price_inr": 1900.0,
-        "price_per_gram": 7.6,
-        "available": true,
-        "grind": "Whole Bean"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 1900.0,
-        "price_per_gram": 7.6,
-        "available": true,
-        "grind": "French Press"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 1900.0,
-        "price_per_gram": 7.6,
-        "available": true,
-        "grind": "AeroPress"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 1900.0,
-        "price_per_gram": 7.6,
-        "available": true,
-        "grind": "Pour Over"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 1900.0,
-        "price_per_gram": 7.6,
-        "available": true,
-        "grind": "Moka Pot"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 1900.0,
-        "price_per_gram": 7.6,
-        "available": true,
-        "grind": "Cold Brew"
-      },
-      {
-        "weight_grams": 250,
-        "price_inr": 1900.0,
-        "price_per_gram": 7.6,
-        "available": true,
-        "grind": "Espresso"
-      }
+    "variants": [],
+    "tags": [
+      "Fermented",
+      "Medium Light",
+      "Rainforest Collection",
+      "Cinnamon Fermented Coffee",
+      "Zenforest Coffee Roasters"
     ],
-    "tags": [],
-    "description_raw": "Step into a world of mellowed spice and golden light with this thoughtfully curated trio. Featuring Monsoon Raga Robusta, Monsoon Raga Arabica, and the bright, citrus-kissed Arabica Fermented Naturals, this collection brings together depth, nuance, and a touch of warmth in every cup. Packed in three beautifully designed cans and paired with collectible coasters, this gift box is a perfect harmony of flavour and style. Whether as a treat for yourself or a thoughtful gift for a fellow coffee enthusiast, it's an invitation to sip, savour, and slow down.",
-    "scrape_confidence": "high",
+    "description_raw": "Cinnamon Fermented SPICED & fruity Medium ● ● ● ● ● ● ● Notes: Cinnamon, Clove, Apple Aroma & Flavours Aromatics & Flavour Sweetness Acidity Body Balance Process C0 Fermented Washed & Co-fermented with Cinnamon Region Coorg Altitude 23100 FT Zenforest Coffee — Premium Indian Origin",
+    "scrape_confidence": "medium",
     "scrape_flags": [
       "missing_tasting_notes",
-      "altitude_not_found"
+      "weight_unknown",
+      "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T07:58:47Z"
+    "scraped_at": "2026-05-01T13:52:51Z"
+  },
+  {
+    "product_id": "zenforest-coffee-roasters_coorg-highlands-coffee",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Coorg Highlands Coffee",
+    "coffee_slug": "coorg-highlands-coffee",
+    "roast_level": "Medium",
+    "tasting_notes": null,
+    "origin": "Coorg Highlands Fruity & Floral Medium ● ● ●",
+    "altitude_masl": 3900,
+    "process": "Natural",
+    "varietal": null,
+    "weight_grams": null,
+    "price_inr": 825.0,
+    "price_per_gram": null,
+    "currency": "INR",
+    "grind_options": [
+      "Cold Brew",
+      "Espresso",
+      "French Press",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-19.png",
+    "product_url": "https://zenforestcoffee.com/product/coorg-highlands-coffee/",
+    "available": true,
+    "variants": [],
+    "tags": [
+      "Medium",
+      "Mountain Mist",
+      "blend",
+      "coffee",
+      "Coorg Highlands"
+    ],
+    "description_raw": "Coorg Highlands FRUITY & FLORAL Medium ● ● ● ● ● ● ● Notes: Stone fruits (peach, apricot) tea-like notes Aromatics & Flavour Sweetness Acidity Body Balance Process Natural High Altitude Coffee – Natural dried Region Coorg Altitude 3900 FT Zenforest Coffee — Premium Indian Origin",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_tasting_notes",
+      "weight_unknown",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-01T13:52:51Z"
+  },
+  {
+    "product_id": "zenforest-coffee-roasters_bourbon-bliss-coffee",
+    "roaster_name": "Zenforest Coffee Roasters",
+    "roaster_slug": "zenforest-coffee-roasters",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://zenforestcoffee.com/",
+    "coffee_name": "Bourbon Bliss Coffee",
+    "coffee_slug": "bourbon-bliss-coffee",
+    "roast_level": "Medium-Light",
+    "tasting_notes": null,
+    "origin": "Gion Chikmagaluru Altitude 3800 Ft Zenforest Coffee — Pr",
+    "altitude_masl": 3800,
+    "process": "Washed",
+    "varietal": "Bourbon",
+    "weight_grams": null,
+    "price_inr": 829.0,
+    "price_per_gram": null,
+    "currency": "INR",
+    "grind_options": [
+      "Cold Brew",
+      "Espresso",
+      "French Press",
+      "Moka Pot",
+      "Pour Over",
+      "Whole Bean"
+    ],
+    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-11.png",
+    "product_url": "https://zenforestcoffee.com/product/bourbon-bliss-coffee/",
+    "available": true,
+    "variants": [],
+    "tags": [
+      "Aged",
+      "Barrel Aged",
+      "Cold Brew",
+      "Medium Light",
+      "Monsoon Aged",
+      "blend",
+      "coffee"
+    ],
+    "description_raw": "Bourbon Bliss Woody & Sweet Medium Dark ● ● ● ● ● ● ● Notes / Cocoa · Raisin · Berrries · Woody · Toffee Aromatics & Flavour Sweetness Acidity Body Balance Process Barrel Aged Washed and aged in barrels for 190 days. Region Chikmagaluru Altitude 3800 FT Zenforest Coffee — Premium Indian Origin",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_tasting_notes",
+      "weight_unknown",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-01T13:52:51Z"
   }
 ]

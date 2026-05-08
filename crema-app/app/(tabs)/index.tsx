@@ -10,7 +10,6 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { View, Text, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
-import { Plus } from "lucide-react-native";
 
 import { useAuth } from "../../src/hooks/useAuth";
 import { apiFetchRaw } from "../../src/api/client";
@@ -18,11 +17,9 @@ import { listen } from "../../src/utils/events";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
 import { useResource } from "../../src/resources/useResource";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
-import { openPostModal, openComposePost, ConfirmDeleteModal, HapticPressable } from "../../src/components/primitives";
-import { showToast } from "../../src/components/shell/Toast";
+import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
 import PostCard from "../../src/components/domain/PostCard";
 import HiddenPostRow from "../../src/components/domain/HiddenPostRow";
-import SwipeToCommit from "../../src/components/mobile/SwipeToCommit";
 import ScrollScrubber, { type ScrollScrubberHandle } from "../../src/components/mobile/ScrollScrubber";
 import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { t, makeStyles } from "../../src/tokens/useTokens";
@@ -136,7 +133,6 @@ export default function FeedPage() {
                 post={post}
                 user={user}
                 isOwner={user?.id === post.user_id}
-                hideActionBar={isMobile}
                 onOpen={(p) => openPostModal({ post: p, mode: "view" })}
                 onComment={(p) => openPostModal({ post: p, mode: "comment" })}
                 onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
@@ -160,30 +156,11 @@ export default function FeedPage() {
             );
             return (
               <View key={`post-${post.id}-${idx}`}>
-                {isMobile ? (
-                  <SwipeToCommit
-                    onSwipeLike={async () => {
-                      // Fire the toggle endpoint directly; refetch so the
-                      // feed's post state reflects the new like count.
-                      // ActionBar is hidden on mobile feed rows, so the
-                      // round-trip is the sole source of truth. Toast
-                      // reflects the new state — `toggled: true` means the
-                      // row was created (user now likes); `false` means
-                      // the row was deleted (unliked).
-                      try {
-                        const res: any = await apiFetchRaw(`/post_likes/${post.id}/toggle`, { method: "POST" });
-                        const nowLiked = !!(res?.data?.toggled ?? res?.toggled);
-                        showToast(nowLiked ? "Liked" : "Unliked");
-                        refetch();
-                      } catch {
-                        /* swallow — the swipe is best-effort */
-                      }
-                    }}
-                    onSwipeComment={() => openPostModal({ post, mode: "comment" })}
-                  >
-                    {card}
-                  </SwipeToCommit>
-                ) : card}
+                {/* SwipeToCommit (swipe-left-to-like, swipe-right-
+                    to-comment) was retired in §2.40.22 — the
+                    visible action bar under each post is the
+                    affordance the user opted for. */}
+                {card}
                 {idx < Math.min(items.length, visibleCount) - 1 && <View style={s.divider} />}
               </View>
             );
@@ -196,16 +173,16 @@ export default function FeedPage() {
           browser scrollbar. */}
       <ScrollScrubber ref={scrubberRef} scrollRef={scrollRef} />
 
-      {/* FAB — routes to the sitewide composer (GlobalComposePost at
-          root layout) via the `openComposePost` helper. On mobile the
-          composer renders in the mid-band between MobileHeader and
-          MobileFooter; on web wide it stays a centered floating card.
-          (§2.40.3 / §2.40.6) */}
-      {user && (
-        <HapticPressable haptic="tap" onPress={() => openComposePost()} style={s.fab}>
-          <Plus size={22} color={t.color["text.on-cta"]} strokeWidth={2.5} />
-        </HapticPressable>
-      )}
+      {/* The "Create post" pill that used to live here as an inline
+          circular FAB is now rendered at root layout via
+          `<ConditionalCreatePostFab />` (Figma 864:3286 spec —
+          Crema-pink pill, "+" icon + "Create post" label). Mounted
+          there because the inline mount inherited per-frame
+          re-layout from the chrome-scroll's height-animated
+          MobileHeader, producing a visible jitter on the
+          `position: absolute, bottom: 28` element. The relative
+          wrapper at root has a stable bottom edge (footer height
+          is fixed), so the pill stays put. (§2.40.16) */}
 
       {/* Edit post routing is handled inline on the PostCard's edit
           tap — see the `onEdit` prop below. GlobalComposePost is
@@ -234,11 +211,15 @@ const useStyles = makeStyles((t) => ({
   loadingText: { fontFamily: t.font["body.regular"], color: t.color["text.secondary"] },
   container: { flex: 1, backgroundColor: t.color.bg },
   scroll: { flex: 1 },
+  // The feed's contentContainer drops horizontal padding so the
+  // post divider runs edge-to-edge of the column (Figma feed
+  // spec). Each PostCard owns its own internal padding via
+  // `cardMobile` / `card`. The empty-state Text below has
+  // `textAlign: "center"` so it still centres without padding.
   content: {
     maxWidth: 900,
     alignSelf: "center" as any,
     width: "100%" as any,
-    paddingHorizontal: t.spacing.lg,
     paddingVertical: t.spacing["2xl"],
     paddingBottom: 100,
   },
@@ -255,15 +236,5 @@ const useStyles = makeStyles((t) => ({
   editModalFull: {
     width: "100%" as any, height: "100%" as any,
     maxWidth: undefined, maxHeight: undefined, borderRadius: 0,
-  } as any,
-  // Sitewide reference style for the "create" FAB. Matched on
-  // `app/(tabs)/profile.tsx`, `app/roaster/[slug].tsx`, and the
-  // `Onboard Roaster` button on `RoastersPanel.tsx`.
-  fab: {
-    position: "absolute", bottom: 28, right: 28,
-    width: t.size["fab.size"], height: t.size["fab.size"], borderRadius: t.size["fab.size"] / 2,
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: t.color["text.primary"],
-    shadowColor: t.color.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8,
   } as any,
 }));

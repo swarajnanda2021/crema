@@ -18,16 +18,19 @@
  */
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { openExternal } from "../../utils/openExternal";
 import { useRouter } from "expo-router";
-import { Image } from "expo-image";
 
 import { CroppedAvatar, ActionBar, timeAgo } from "../primitives";
-import PostGallery from "../PostGallery";
+import PostGallery, { isTastingNoteEntry as isTNEntry } from "../PostGallery";
 import PostMenu from "../PostMenu";
-import { resolveUploadUrl } from "../../api/client";
+import ArticlePreviewCard from "./ArticlePreviewCard";
 import { t, makeStyles } from "../../tokens/useTokens";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
+import { useCoffeeData } from "../../hooks/useCoffeeData";
+import { resolveUploadUrl } from "../../api/client";
+import { thumbnailUrl } from "../../utils/imageUrl";
 import { PostLocationPinIcon } from "../icons/FigmaIcons";
 import type { Post } from "../../resources/types";
 
@@ -72,6 +75,7 @@ export default function PostCard({
 }: PostCardProps) {
   const router = useRouter();
   const { isMobile } = useBreakpoint();
+  const { productMap } = useCoffeeData() as any;
   const s = useStyles();
   const isPinned = !!post.is_pinned;
   const isArticle = post.post_type === "article";
@@ -79,11 +83,19 @@ export default function PostCard({
   const isSourcingStory = post.post_type === "sourcing_story";
   const [storyExpanded, setStoryExpanded] = useState(false);
 
+  // Hydrate the tagged coffee (if the post carries a `product_id`)
+  // via the shared coffee catalog. Used to render the small in-post
+  // coffee chip per Figma 825:2657, and to drive the subtitle copy
+  // ("Posted about a coffee" vs the generic "Shared a moment").
+  const taggedCoffee =
+    (post as any).product_id && productMap?.get?.((post as any).product_id);
+
   const feedAvatarSize = isMobile ? FEED_AVATAR_MOBILE : t.size["avatar.feed"];
   const repostAvatarSize = isMobile ? NESTED_AVATAR_MOBILE : t.size["avatar.xs"];
 
   const subtitleText = isPinned ? "Pinned"
     : post.post_type === "tasting_note" ? "Posted a tasting note"
+    : post.post_type === "note" && taggedCoffee ? "Posted about a coffee"
     : post.post_type === "note" ? "Shared a moment"
     : isRepost ? "Reposted"
     : isSourcingStory ? "Shared a long-form post"
@@ -131,6 +143,30 @@ export default function PostCard({
         <Text style={[s.metaTime, isMobile && s.metaTimeMobile]}>{timeAgo(post.published_at)}</Text>
       </View>
       <Text style={[s.metaSubtitle, isMobile && s.metaSubtitleMobile]}>{subtitleText}</Text>
+      {/* Location lives UNDER the subtitle in the header (Figma
+          825:2639 et al). Renders a small pin glyph + place name
+          below "Posted about a coffee" / "Shared a moment" so the
+          location reads as a metadata trail rather than a body
+          element. The standalone body location row is removed
+          below — the user's spec puts location here, not down with
+          the body. */}
+      {post.location ? (
+        <View style={s.headerLocationRow}>
+          <PostLocationPinIcon
+            size={isMobile ? 13 : 11}
+            color={t.color.accent}
+          />
+          <Text
+            style={[
+              s.headerLocationText,
+              isMobile && s.headerLocationTextMobile,
+            ]}
+            numberOfLines={1}
+          >
+            {post.location}
+          </Text>
+        </View>
+      ) : null}
     </>
   );
 
@@ -138,8 +174,16 @@ export default function PostCard({
   // the tap — drop the inner Pressable so the touch falls through.
   // On web the body still wraps a Pressable for article / link posts
   // whose primary action is "open the external URL".
+  //
+  // bodyEl is null when post.teaser is empty — most relevant for
+  // commentless reposts (user reposts without adding their own
+  // comment): without this guard the empty Text would still
+  // reserve a line of vertical space above the nested repost
+  // card, leaving a visible blank gap. The guard also covers
+  // image-only / tasting-note posts that ship without body copy.
   const mobileTapToOpen = isMobile && !!onOpen;
-  const bodyEl = mobileTapToOpen ? (
+  const hasTeaser = !!(post.teaser && post.teaser.trim());
+  const bodyEl = !hasTeaser ? null : mobileTapToOpen ? (
     <Text style={[s.body, s.bodyMobile]}>{post.teaser}</Text>
   ) : (
     <Pressable onPress={isRepost ? undefined : handleOpen}>
@@ -164,11 +208,57 @@ export default function PostCard({
     </View>
   ) : null;
 
-  const locationEl = post.location ? (
-    <View style={isMobile ? s.locationRowMobile : s.locationRow}>
-      <PostLocationPinIcon size={isMobile ? 16 : 12} color={t.color.accent} />
-      <Text style={[s.locationText, isMobile && s.locationTextMobile]}>{post.location}</Text>
-    </View>
+  // Body location row retired — location now renders in the header
+  // under the subtitle (see `nameBlock` above). Keeping the const
+  // null here so the existing JSX that reads `locationEl` doesn't
+  // need surgical changes; the body simply renders nothing.
+  const locationEl = null;
+
+  // Tagged-coffee chip — Figma 825:2657 / 801:132. Renders BELOW
+  // the image (and any other body media) when the post carries a
+  // `product_id`. Unlike the composer's chip (image-left), the
+  // feed chip puts the text on the LEFT and a 60×62 image at the
+  // RIGHT edge of the 350-wide row. Tap to navigate to the
+  // coffee's detail screen.
+  const taggedCoffeeChipEl = taggedCoffee ? (
+    <Pressable
+      onPress={() =>
+        router.push(`/coffee/${(taggedCoffee as any).product_id}` as any)
+      }
+      style={isMobile ? s.coffeeChipMobile : s.coffeeChip}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${(taggedCoffee as any).coffee_name}`}
+    >
+      <View style={s.coffeeChipText}>
+        <Text style={s.coffeeChipName} numberOfLines={2} ellipsizeMode="tail">
+          {(taggedCoffee as any).coffee_name}
+        </Text>
+        <Text
+          style={s.coffeeChipRoaster}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          By {(taggedCoffee as any).roaster_name || "—"}
+        </Text>
+      </View>
+      {(() => {
+        const raw =
+          (taggedCoffee as any).hero_image || (taggedCoffee as any).image_url;
+        if (!raw) return <View style={s.coffeeChipImage} />;
+        const resolved = resolveUploadUrl(raw) || raw;
+        const src = thumbnailUrl(resolved, 200) || resolved;
+        return (
+          <View style={s.coffeeChipImage}>
+            <Image
+              source={{ uri: src }}
+              style={StyleSheet.absoluteFillObject}
+              contentFit="cover"
+              transition={150}
+            />
+          </View>
+        );
+      })()}
+    </Pressable>
   ) : null;
 
   const repostEl = isRepost && post.original_post ? (
@@ -219,27 +309,22 @@ export default function PostCard({
         {post.original_post.teaser}
       </Text>
       {(() => {
-        // If the reposted post is an ARTICLE, render the article card
-        // (cover image + title/domain overlay) instead of falling back
-        // to a single thumbnail in the gallery strip. Matches the
-        // top-level article presentation so reposts don't mangle the
-        // original's layout. (§postmodal-redo)
+        // If the reposted post is an ARTICLE, render the canonical
+        // ArticlePreviewCard so reposts match the top-level article
+        // presentation (Figma 801:155).
         const op = post.original_post as any;
         const opIsArticle = op?.post_type === "article";
-        if (opIsArticle && op.cover_image_url) {
+        if (opIsArticle && (op.title || op.external_url || op.cover_image_url)) {
           return (
             <View style={{ marginTop: 8 }}>
-              <View style={isMobile ? s.articleWrapMobile : s.articleWrap}>
-                <Image source={{ uri: resolveUploadUrl(op.cover_image_url) }} style={s.articleImg} contentFit="cover" />
-                <View style={s.articleOverlay}>
-                  {op.title && <Text style={s.articleTitle} numberOfLines={2}>{op.title}</Text>}
-                  {op.external_url && (
-                    <Text style={s.articleDomain}>
-                      {op.external_url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]}
-                    </Text>
-                  )}
-                </View>
-              </View>
+              <ArticlePreviewCard
+                title={op.title}
+                sourceUrl={op.external_url}
+                imageUrl={op.cover_image_url}
+                onPress={() => {
+                  if (op.external_url) openExternal(op.external_url);
+                }}
+              />
             </View>
           );
         }
@@ -263,15 +348,44 @@ export default function PostCard({
   // instead of the external URL. The link is reachable inside the
   // modal. Web wide keeps the direct external-URL affordance.
   const mediaTapHandler = mobileTapToOpen ? () => onOpen!(post) : handleOpen;
-  const articleOrGalleryEl = isArticle && post.cover_image_url ? (
-    <Pressable onPress={mediaTapHandler} style={isMobile ? s.articleWrapMobile : s.articleWrap}>
-      <Image source={{ uri: resolveUploadUrl(post.cover_image_url) }} style={s.articleImg} contentFit="cover" />
-      <View style={s.articleOverlay}>
-        {post.title && <Text style={s.articleTitle} numberOfLines={2}>{post.title}</Text>}
-        <Text style={s.articleDomain}>
-          {post.external_url?.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]}
-        </Text>
-      </View>
+  // Single-image note posts get the Figma 825:2669 hero treatment
+  // (350-wide × ~266-tall, aspect 349/266 ≈ 1.31). PostGallery's
+  // 3-up thumbnail strip is appropriate when the post carries
+  // multiple images, but for a single hero image it renders as a
+  // tiny 1/3-width thumbnail which the user (rightly) called out
+  // as "looks like shit." Branch on count and render the single-
+  // image case directly.
+  const allImages =
+    post.images && post.images.length > 0
+      ? post.images
+      : post.cover_image_url
+        ? [post.cover_image_url]
+        : [];
+  const isSingleImageNote =
+    !isArticle && allImages.length === 1 && !isTNEntry(allImages[0]);
+
+  const articleOrGalleryEl = isArticle ? (
+    <View style={isMobile ? s.articleWrapMobile : s.articleWrap}>
+      <ArticlePreviewCard
+        title={post.title}
+        sourceUrl={post.external_url}
+        imageUrl={post.cover_image_url}
+        onPress={mediaTapHandler}
+      />
+    </View>
+  ) : isSingleImageNote ? (
+    <Pressable
+      onPress={mediaTapHandler}
+      style={isMobile ? s.singleImageWrapMobile : s.singleImageWrap}
+      accessibilityRole="button"
+      accessibilityLabel="Open post"
+    >
+      <Image
+        source={{ uri: resolveUploadUrl(allImages[0]) || allImages[0] }}
+        style={s.singleImage}
+        contentFit="cover"
+        transition={150}
+      />
     </Pressable>
   ) : (
     <View style={isMobile ? s.galleryWrapMobile : s.galleryWrap}>
@@ -298,48 +412,51 @@ export default function PostCard({
   // ── Mobile: X-style indent ───────────────────────────────────────
 
   if (isMobile) {
-    // Tap-to-open: on mobile the card itself is the affordance to
-    // reach the PostModal. Nested Pressables (avatar → author, name
-    // block → author, repost inner → original, story toggle, media)
-    // claim touches in their regions first; the outer Pressable only
-    // fires when the user tapped empty space or the body text.
+    // Mobile layout: the avatar lives INLINE in the header row only
+    // (alongside the author name + subtitle + 3-dots menu); the body,
+    // location, repost embed, article/gallery, and action bar all
+    // sit BELOW the header at the card's full content width — no
+    // X-style indent. The user's mental model: "the post's text
+    // should start at the same x as the avatar's left edge." That's
+    // what this layout produces — body/article/actionbar all start
+    // at `cardMobile.paddingLeft` (16), which is exactly where the
+    // avatar's left edge sits.
+    //
+    // Tap-to-open: the card itself is the affordance to reach
+    // PostModal. Nested Pressables (avatar / name → author, repost
+    // inner → original, story toggle, media) claim touches in their
+    // regions first; the outer Pressable only fires when the user
+    // tapped empty space or the body text.
     const CardContainer: any = mobileTapToOpen ? Pressable : View;
     const containerProps = mobileTapToOpen
       ? { onPress: () => onOpen!(post), style: s.cardMobile }
       : { style: s.cardMobile };
     return (
       <CardContainer {...containerProps}>
-        <View style={s.cardRowMobile}>
-          {/* Avatar column — tap routes to author. */}
-          <Pressable onPress={goToAuthor} style={s.avatarColMobile}>
+        <View style={s.headerRowMobile}>
+          <Pressable onPress={goToAuthor}>
             {authorAvatar}
           </Pressable>
-
-          {/* Content column — everything indented to align with the
-              author name. */}
-          <View style={s.contentColMobile}>
-            <View style={s.headerRowMobile}>
-              <Pressable onPress={goToAuthor} style={{ flex: 1 }}>
-                {nameBlock}
-              </Pressable>
-              <PostMenu
-                onEdit={isOwner && onEdit ? () => onEdit(post) : undefined}
-                onPin={isOwner && onPin ? () => onPin(post) : undefined}
-                onDelete={isOwner && onDelete ? () => onDelete(post) : undefined}
-                isPinned={isPinned}
-                onHide={!isOwner && onHide ? () => onHide(post) : undefined}
-                onReport={!isOwner && onReport ? () => onReport(post) : undefined}
-                onDislike={!isOwner && onDislike ? () => onDislike(post) : undefined}
-              />
-            </View>
-            {bodyEl}
-            {storyEl}
-            {locationEl}
-            {repostEl}
-            {articleOrGalleryEl}
-            {actionBarEl}
-          </View>
+          <Pressable onPress={goToAuthor} style={s.headerNameWrapMobile}>
+            {nameBlock}
+          </Pressable>
+          <PostMenu
+            onEdit={isOwner && onEdit ? () => onEdit(post) : undefined}
+            onPin={isOwner && onPin ? () => onPin(post) : undefined}
+            onDelete={isOwner && onDelete ? () => onDelete(post) : undefined}
+            isPinned={isPinned}
+            onHide={!isOwner && onHide ? () => onHide(post) : undefined}
+            onReport={!isOwner && onReport ? () => onReport(post) : undefined}
+            onDislike={!isOwner && onDislike ? () => onDislike(post) : undefined}
+          />
         </View>
+        {bodyEl}
+        {storyEl}
+        {locationEl}
+        {repostEl}
+        {articleOrGalleryEl}
+        {taggedCoffeeChipEl}
+        {actionBarEl}
       </CardContainer>
     );
   }
@@ -369,6 +486,7 @@ export default function PostCard({
       {locationEl}
       {repostEl}
       {articleOrGalleryEl}
+      {taggedCoffeeChipEl}
       {actionBarEl}
     </View>
   );
@@ -380,12 +498,37 @@ const useStyles = makeStyles((t) => ({
   headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 14 } as any,
   header: { flexDirection: "row", alignItems: "flex-start", gap: 10, flex: 1 } as any,
 
-  // Mobile X-style layout
-  cardMobile: { backgroundColor: t.color.bg, paddingHorizontal: 16, paddingVertical: 14 } as any,
-  cardRowMobile: { flexDirection: "row", alignItems: "flex-start", gap: 12 } as any,
-  avatarColMobile: { flexShrink: 0 } as any,
-  contentColMobile: { flex: 1, minWidth: 0 } as any,
-  headerRowMobile: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 } as any,
+  // Mobile post card. Symmetric 20-px horizontal padding per
+  // Figma 801:103 — the action bar's like-cluster sits at x=20
+  // and the share icon ends at x≈370 on the 390-wide canvas, i.e.
+  // 20 from each screen edge. Body text, location row, repost
+  // embed, article preview, and actionbar all line up at this
+  // 20-px inset. (Earlier passes split this — paddingLeft 16,
+  // paddingRight 8 — to "widen" the text on the right; that
+  // produced visibly mismatched padding on the like vs share
+  // icons + a too-tight repost-card right edge, which was the
+  // user's complaint in the §2.40.22 follow-up.)
+  // Vertical padding: 30 each side (Figma 801:103 — the action
+  // bar's bottom edge sits 30 px above the divider, and the next
+  // post header sits 30 px below the divider; total 60 px between
+  // adjacent post content blocks).
+  cardMobile: { backgroundColor: t.color.bg, paddingHorizontal: t.spacing.xl, paddingVertical: 30 } as any,
+  // Header row hosts the avatar + name/subtitle + 3-dots menu
+  // inline. The body and everything below this row sit at the
+  // cardMobile level (full content width), NOT inside an X-style
+  // right column — that's why this is the only row that needs the
+  // avatar gap, and why the row's marginBottom (8) is the only
+  // breathing room between header and body.
+  headerRowMobile: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: t.spacing.md,
+    marginBottom: t.spacing.sm,
+  } as any,
+  // Name + subtitle column inside headerRowMobile. flex:1 so the
+  // 3-dots menu pins to the right edge, minWidth:0 so a long
+  // display name truncates instead of pushing the menu off-screen.
+  headerNameWrapMobile: { flex: 1, minWidth: 0 } as any,
 
   avatarFb: { width: 30, height: 30, borderRadius: 15, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,
   avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-cta"] },
@@ -409,10 +552,112 @@ const useStyles = makeStyles((t) => ({
   body: { fontFamily: t.font["body.regular"], fontSize: 16.8, color: t.color["text.primary"], lineHeight: 23.5, marginBottom: 10 },
   bodyMobile: { fontSize: 15, lineHeight: 20, marginTop: 4, marginBottom: 8 } as any,
 
+  // Legacy body-location styles, kept so any external surface still
+  // referencing them compiles. The current layout renders the
+  // location in the header (see `headerLocationRow*` below) — these
+  // are inert.
   locationRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, marginBottom: 14 } as any,
   locationRowMobile: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10, marginTop: 2 } as any,
   locationText: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
   locationTextMobile: { fontSize: 14 } as any,
+
+  // ── Header location (under the subtitle) ────────────────────
+  // Sits inside the `nameBlock` column, below "Posted about a
+  // coffee" / "Shared a moment". Pin glyph in Crema pink + warm-
+  // brown muted text reads as a metadata trail rather than a
+  // body element.
+  headerLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  } as any,
+  headerLocationText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: 10,
+    color: t.color["text.secondary"],
+    flexShrink: 1,
+  } as any,
+  headerLocationTextMobile: {
+    fontSize: 13,
+  } as any,
+
+  // ── Single-image hero (Figma 825:2669) ──────────────────────
+  // Used when a "Posted about a coffee" / "Shared a moment" post
+  // carries exactly one image. 349/266 aspect (≈1.31) per the
+  // Figma frame. The 350-wide footprint matches the rest of the
+  // body block; height auto-derives via aspectRatio so the box
+  // grows / shrinks with the parent without manual math.
+  singleImageWrap: {
+    width: 350,
+    aspectRatio: 349 / 266,
+    borderRadius: 5,
+    overflow: "hidden",
+    backgroundColor: t.color["card.info"],
+    marginTop: 12,
+    alignSelf: "flex-start",
+  } as any,
+  singleImageWrapMobile: {
+    width: 350,
+    aspectRatio: 349 / 266,
+    borderRadius: 5,
+    overflow: "hidden",
+    backgroundColor: t.color["card.info"],
+    marginTop: 12,
+  } as any,
+  singleImage: {
+    width: "100%" as any,
+    height: "100%" as any,
+  } as any,
+
+  // ── Tagged-coffee chip (Figma 825:2657 / 801:132) ──────────
+  // Renders below the gallery on a "Posted about a coffee" post.
+  // 350-wide row with text-left, image-right (60×62). Different
+  // from the composer's chip (image-left, X on right) — this is
+  // the read-only feed presentation.
+  coffeeChip: {
+    flexDirection: "row",
+    width: 350,
+    height: 62,
+    backgroundColor: t.color["card.product.bg"],
+    borderRadius: 5,
+    overflow: "hidden",
+    marginTop: 12,
+    alignSelf: "flex-start",
+    paddingLeft: 0,
+    paddingRight: 0,
+  } as any,
+  coffeeChipMobile: {
+    flexDirection: "row",
+    height: 62,
+    backgroundColor: t.color["card.product.bg"],
+    borderRadius: 5,
+    overflow: "hidden",
+    marginTop: 12,
+  } as any,
+  coffeeChipText: {
+    flex: 1,
+    paddingHorizontal: 14,
+    justifyContent: "center",
+  } as any,
+  coffeeChipName: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: 14,
+    lineHeight: 18,
+    color: t.color["card.product.text"],
+  } as any,
+  coffeeChipRoaster: {
+    fontFamily: t.font["body.medium"],
+    fontSize: 11,
+    lineHeight: 14,
+    color: t.color["card.product.text.muted"],
+    marginTop: 3,
+  } as any,
+  coffeeChipImage: {
+    width: 60,
+    height: 62,
+    backgroundColor: t.color["card.info"],
+  } as any,
 
   // Repost nested card
   // Nested repost (the original post being quoted). Always-light card
@@ -422,6 +667,11 @@ const useStyles = makeStyles((t) => ({
   // is just the page bg, which already provides the dark backdrop in
   // night mode that the user wants behind the light inner card.
   repostCard: { marginHorizontal: 20, marginBottom: 14, borderRadius: t.radius.md, backgroundColor: t.color["card.product.subtle"], padding: 12 },
+  // cardMobile is now symmetric 20-px horizontal padding, so the
+  // repost embed inherits equal screen-edge spacing without a
+  // marginRight band-aid. (The earlier `marginRight: 8` was
+  // compensating for cardMobile's asymmetric 16/8 padding —
+  // dropped along with that asymmetry.)
   repostCardMobile: { marginTop: 6, marginBottom: 8, borderRadius: t.radius.md, backgroundColor: t.color["card.product.subtle"], padding: 12 } as any,
   repostHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 } as any,
   repostAuthorRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 } as any,
@@ -439,12 +689,12 @@ const useStyles = makeStyles((t) => ({
   repostTeaserMobile: { fontSize: 15, lineHeight: 20, color: t.color["text.on-light"] } as any,
 
   // Article thumbnail
-  articleWrap: { marginHorizontal: 20, marginBottom: 14, borderRadius: t.radius.md, overflow: "hidden", position: "relative", height: 200 } as any,
-  articleWrapMobile: { marginTop: 6, marginBottom: 10, borderRadius: t.radius.md, overflow: "hidden", position: "relative", height: 200 } as any,
-  articleImg: { width: "100%" as any, height: "100%" as any },
-  articleOverlay: { position: "absolute", bottom: 10, left: 10, backgroundColor: t.color["card.subtle"], borderRadius: t.radius.md, paddingHorizontal: 14, paddingVertical: 10, maxWidth: "80%" } as any,
-  articleTitle: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.primary"], lineHeight: 19, marginBottom: 2 },
-  articleDomain: { fontFamily: t.font["body.regular"], fontSize: 11, color: t.color["text.muted"] },
+  // Article wrappers carry only the surrounding spacing — the card
+  // surface (white bg, radius, shadow, title/domain/hero layout) is
+  // owned by `<ArticlePreviewCard>` so PostCard and the JOURNALS
+  // ArticleCard stay visually identical (Figma 801:155).
+  articleWrap: { marginHorizontal: t.spacing.xl, marginBottom: t.spacing.md } as any,
+  articleWrapMobile: { marginTop: t.spacing.xs, marginBottom: t.spacing.sm } as any,
 
   // Gallery
   galleryWrap: { paddingHorizontal: 20 },

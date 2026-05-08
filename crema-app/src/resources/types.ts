@@ -268,6 +268,17 @@ export interface RoasterProfile {
   products_count?: number;
   scrape_ready?: number;
   /**
+   * Live article count + most-recent scraped-at time, derived directly
+   * from `roaster_articles` keyed by `roaster_slug`. Bypasses the
+   * `roaster_sources.articles_count` denormalized cache (which is
+   * only stamped at the end of a successful per-source loop and so
+   * disagrees with reality whenever articles were written via a
+   * different path). Powers the Journals admin row's count line +
+   * the "has articles" filter axis.
+   */
+  articles_count_live?: number;
+  last_article_scraped_at?: string | null;
+  /**
    * Per-roaster site prompt addendum. Sonnet writes this once after
    * the first per-roaster Haiku enrichment run completes; Haiku
    * prepends it to the base extraction system prompt on every
@@ -275,6 +286,19 @@ export interface RoasterProfile {
    * roaster page so they can read what Haiku is being told.
    */
   enrichment_prompt_hint: string | null;
+  /**
+   * Article-extraction site-quirk hint (parallel to the bean enricher
+   * hint above). Drives the admin Journals expand row's hint card +
+   * the "Has site hint" / "No site hint" filter axis.
+   */
+  article_enrichment_prompt_hint?: string | null;
+  article_enrichment_prompt_hint_updated_at?: string | null;
+  /**
+   * Perpetual server-side flag — while 1, every article_scrape pass
+   * regenerates the article hint via a Sonnet meta-call. Never
+   * auto-clears; admin toggles from the Journals expand row.
+   */
+  article_hint_force_regenerate?: number;
   /**
    * ISO timestamp of the most recent Sonnet meta-call that wrote
    * `enrichment_prompt_hint`. Distinct from `updated_at` (which
@@ -481,8 +505,34 @@ export interface RoasterArticle {
   published_at: string | null;
   scraped_at: string;
   published?: number;
+  /** `pending` | `enriched` | `failed`. Stamped by the runner. */
+  enrichment_status?: string | null;
+  /** 1 when Haiku judged the page on-topic for a coffee app, 0 when
+   *  it's a founder bio / spirituality essay / etc. Off-topic rows
+   *  go in with `published=0`; admin can override. */
+  is_about_coffee?: number;
+  /** One of TOPIC_CATEGORIES (services/article_enricher). */
+  topic_category?: string | null;
+  /** 3-7 lowercase keyword tags from Haiku, used by SearchDropdown. */
+  tags?: string[];
   roaster_name: string | null;
   roaster_logo_url: string | null;
+}
+
+/** Per-roaster article-extraction site-quirk hint, returned from
+ *  /admin/roasters/{slug}/article-hint. Mirrors the shape used by
+ *  the bean enrichment hint card on /admin/roaster/[slug].
+ *
+ *  `article_hint_force_regenerate` is a perpetual server-side flag —
+ *  while 1, every article_scrape pass regenerates the hint via a
+ *  Sonnet meta-call (~$0.03 each). Never auto-clears; admin toggles
+ *  it back to 0 from the Journals expand row when satisfied. */
+export interface ArticleHint {
+  roaster_slug: string;
+  roaster_name: string | null;
+  article_enrichment_prompt_hint: string | null;
+  article_enrichment_prompt_hint_updated_at: string | null;
+  article_hint_force_regenerate?: number;
 }
 
 /** Audit row written by the admin DELETE-roaster endpoint just before
@@ -519,6 +569,17 @@ export interface CatalogJob {
   log_tail: string | null;
   result_summary: Record<string, any> | string | null;
   created_at: string;
+  /** Live progress label the runner stamps at the top of each
+   *  per-source iteration. The admin live banner reads this on its
+   *  2.5s poll and renders "Looking at {current_target}". Cleared
+   *  to null when the runner exits. Only meaningful while
+   *  status === "running". */
+  current_target?: string | null;
+  /** Sticky cancel flag — POST /admin/jobs/{id}/cancel sets it to
+   *  1; the runner polls this every iteration and exits cleanly
+   *  with whatever has already committed. Cancelled runs land as
+   *  status="succeeded" with `result_summary.cancelled = true`. */
+  cancel_requested?: number;
 }
 
 /** One row per catalog tag → SCA-tree address resolution. */

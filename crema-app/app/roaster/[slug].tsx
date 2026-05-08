@@ -33,6 +33,8 @@ import CoffeeCard from "../../src/components/CoffeeCard";
 import RoasterLogo from "../../src/components/primitives/RoasterLogo";
 import CoffeeDetailSheet from "../../src/components/CoffeeDetailSheet";
 import { commit as hapticCommit } from "../../src/utils/haptics";
+import { useFloatingFab } from "../../src/contexts/FloatingFabContext";
+import FabPill from "../../src/components/primitives/FabPill";
 import SiteHeader from "../../src/components/SiteHeader";
 import PostCard from "../../src/components/domain/PostCard";
 import BusinessAnalytics from "../../src/components/analytics/BusinessAnalytics";
@@ -325,6 +327,29 @@ export default function RoasterDetailPage() {
   // Profile editing (owner)
   const [isEditing, setIsEditing] = useState(edit === "1");
   const [saving, setSaving] = useState(false);
+
+  // Register the "Create post" FabPill at root layout via
+  // FloatingFabContext (§2.40.18). Only renders when the viewer
+  // owns this roaster, isn't currently editing the profile, and
+  // is on the Posts tab — same conditions as the prior inline
+  // circular FAB. Anchored to the relative wrapper's stable
+  // bottom edge so it doesn't jitter on chrome-scroll.
+  useFloatingFab(
+    isOwner && !isEditing && activeTab === "posts" ? (
+      <FabPill
+        icon={<Plus size={17} color={t.color["text.on-light"]} strokeWidth={2.5} />}
+        label="Create post"
+        onPress={() =>
+          openComposePost({
+            endpoint: "/roaster-posts",
+            extraData: { roaster_slug: slug },
+            refetchEventName: "crema:roaster-posts-updated",
+          })
+        }
+        style={{ position: "absolute" as any, bottom: 28, right: 28 }}
+      />
+    ) : null,
+  );
 
   // Profile derived values
   const heroImageUrl = useMemo(
@@ -1130,19 +1155,9 @@ export default function RoasterDetailPage() {
               "float over the page" experience the consumer feed FAB has.
               The old version expanded ComposePost inline at the top of the
               Posts tab (and posted as the user, not the roaster), which
-              was the wrong mechanism. */}
-          {isOwner && !isEditing && activeTab === "posts" && (
-            <Pressable
-              onPress={() => openComposePost({
-                endpoint: "/roaster-posts",
-                extraData: { roaster_slug: slug },
-                refetchEventName: "crema:roaster-posts-updated",
-              })}
-              style={s.fab}
-            >
-              <Plus size={22} color={t.color["text.on-cta"]} strokeWidth={2.5} />
-            </Pressable>
-          )}
+              was the wrong mechanism. The pill itself is now rendered at
+              root layout via `useFloatingFab` (§2.40.18) — see the
+              `useFloatingFab` call earlier in this component. */}
 
           {/* Edit-post path (§2.40.3-follow-up): routes through the
              sitewide composer via `openComposePost({ editPostId })` —
@@ -1432,7 +1447,7 @@ const useStyles = makeStyles((t) => ({
   backFloating: {
     position: "absolute", top: t.spacing.md, left: t.spacing.md,
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
     alignItems: "center", justifyContent: "center",
     shadowColor: t.color.shadow,
     shadowOffset: { width: 0, height: 4 },
@@ -1537,16 +1552,6 @@ const useStyles = makeStyles((t) => ({
   rightTabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"], letterSpacing: 0.5, textTransform: "uppercase" } as any,
   rightTabTextActive: { color: t.color["text.primary"] },
 
-  // FAB — same colour scheme as the feed FAB
-  // (`app/(tabs)/index.tsx` `s.fab`) and the user-profile FAB
-  // (`app/(tabs)/profile.tsx` `s.fab`) so every "create" CTA is
-  // visually identical sitewide.
-  fab: {
-    position: "absolute" as any, bottom: 28, right: 28,
-    width: t.size["fab.size"], height: t.size["fab.size"], borderRadius: t.size["fab.size"] / 2,
-    alignItems: "center", justifyContent: "center", backgroundColor: t.color["text.primary"],
-    shadowColor: t.color.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8, zIndex: 50,
-  } as any,
 
   // Empty posts
   emptyPostsWrap: {

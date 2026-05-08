@@ -143,7 +143,7 @@ function NativeRow({ actions, children }: Props) {
             onPress={() => { closeFromJS(); a.onPress(); }}
             style={[
               s.actionBtn,
-              { width: ACTION_WIDTH, backgroundColor: a.background || t.color["text.primary"] },
+              { width: ACTION_WIDTH, backgroundColor: a.background || t.color.accent },
             ]}
             accessibilityLabel={a.label}
             accessibilityRole="button"

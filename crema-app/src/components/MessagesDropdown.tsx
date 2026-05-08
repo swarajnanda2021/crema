@@ -447,10 +447,11 @@ const useStyles = makeStyles((t) => ({
     fontFamily: t.font["body.semibold"], fontSize: 9,
     color: t.color["text.on-cta"], letterSpacing: 0.2,
   } as any,
+  // Identity surface — see NotificationsDropdown avatarFallback.
   avatarFb: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: t.color["accent.cta"],
+    backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
   } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-cta"] },
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"] },
 }));

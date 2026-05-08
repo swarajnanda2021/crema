@@ -335,7 +335,7 @@ const useStyles = makeStyles((t) => ({
   // signed-in users on this product.
   writeBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14,
   } as any,
   writeBtnText: {

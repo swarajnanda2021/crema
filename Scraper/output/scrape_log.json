@@ -1,26 +1,26 @@
 [
   {
-    "roaster": "Black Poetry",
-    "website": "https://blackpoetry.in/",
-    "platform_catalog": "shopify",
-    "platform_detected": "shopify",
+    "roaster": "Zenforest Coffee Roasters",
+    "website": "https://zenforestcoffee.com/",
+    "platform_catalog": "woocommerce",
+    "platform_detected": "woocommerce",
     "status": "success",
-    "products_found": 11,
-    "coffee_products": 11,
-    "non_coffee_excluded": 0,
+    "products_found": 19,
+    "coffee_products": 17,
+    "non_coffee_excluded": 2,
     "confidence_breakdown": {
-      "high": 4,
-      "medium": 7,
+      "high": 0,
+      "medium": 17,
       "low": 0
     },
     "flags_summary": [
-      "missing_tasting_notes: 11",
-      "altitude_not_found: 11",
-      "missing_roast_level: 7",
-      "missing_process: 4",
-      "needs_llm_review: 3"
+      "missing_tasting_notes: 17",
+      "weight_unknown: 17",
+      "needs_llm_review: 17",
+      "altitude_not_found: 8",
+      "missing_process: 6"
     ],
-    "scrape_duration_seconds": 0.59,
-    "scraped_at": "2026-05-01T07:58:47Z"
+    "scrape_duration_seconds": 6.78,
+    "scraped_at": "2026-05-01T13:52:51Z"
   }
 ]

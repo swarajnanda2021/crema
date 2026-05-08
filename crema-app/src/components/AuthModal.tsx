@@ -37,6 +37,7 @@ export default function AuthModal() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => listen("crema:open-auth-modal", () => setVisible(true)), []);
+  useEffect(() => listen("crema:dismiss-modals", () => setVisible(false)), []);
 
   if (!visible) return null;
   return <AuthModalContent visible={visible} onClose={() => setVisible(false)} />;
@@ -295,7 +296,12 @@ const useStyles = makeStyles((t) => ({
     paddingHorizontal: 16, paddingVertical: 7,
     borderRadius: 999,
   } as any,
-  trackTabActiveLight: { backgroundColor: t.color["text.primary"] } as any,
+  // Two-track segmented control "active" pill bg. Both modes
+  // resolve to `accent` (constant Crema pink) per §2.40.19 — the
+  // mode-named keys are kept for now to minimise churn at the
+  // call sites that still pick between them, but they're
+  // effectively aliases.
+  trackTabActiveLight: { backgroundColor: t.color.accent } as any,
   trackTabActiveDark: { backgroundColor: t.color.accent } as any,
   trackTabText: {
     fontFamily: t.font["body.semibold"], fontSize: 12,
@@ -345,7 +351,7 @@ const useStyles = makeStyles((t) => ({
     textAlign: "center",
   },
   submit: {
-    backgroundColor: t.color["text.primary"],
+    backgroundColor: t.color.accent,
     borderRadius: 10,
     paddingVertical: 13,
     alignItems: "center",
