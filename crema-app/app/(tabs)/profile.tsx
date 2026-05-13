@@ -256,6 +256,7 @@ export default function ProfilePage() {
   useFloatingFab(
     user && activeTab === "posts" && !isEditing ? (
       <FabPill
+        testID="fab-compose-post"
         icon={<Plus size={17} color={t.color["text.on-light"]} strokeWidth={2.5} />}
         label="Create post"
         onPress={() =>
@@ -938,7 +939,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <View style={s.container}>
+    <View testID="profile-screen" style={s.container}>
       {/* The FloatingFabProvider used to be mounted here so the admin
           Catalog Ops Journals panel could register its Refresh FAB at
           this flex:1 container's level. It now lives at root layout

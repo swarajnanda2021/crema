@@ -86,15 +86,34 @@ export function ShareIcon({ size = 31 }: IconProps) {
 
 /**
  * Cart button — 31px circle with shopping cart icon.
- * Figma: circle #351101 (dark), cart icon stroke white.
+ *
+ * Default: Espresso disc + white glyph. The card front uses this
+ * default because the card's info panel is a constant beige
+ * (`#EFE9DB`) in both light and dark mode — Espresso reads cleanly.
+ *
+ * For surfaces with a mode-flipping background (e.g. /coffee/[id],
+ * which sits on `t.color.bg` and flips to `#2a0d00` in dark), pass
+ * `fill={t.color["accent.cta"]}` + `glyph={t.color["text.on-cta"]}`
+ * so the disc reads as a Crema-pink CTA against either page tone.
  */
-export function CartIcon({ size = 31 }: IconProps) {
+interface CartIconProps {
+  size?: number;
+  /** Disc fill. Defaults to Espresso for card-front use. */
+  fill?: string;
+  /** Cart-glyph stroke. Defaults to white for card-front use. */
+  glyph?: string;
+}
+export function CartIcon({
+  size = 31,
+  fill = "#351101",
+  glyph = "#FFFFFF",
+}: CartIconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 31 31" fill="none">
-      <Circle cx={15.5} cy={15.5} r={15.5} fill="#351101" />
+      <Circle cx={15.5} cy={15.5} r={15.5} fill={fill} />
       <Path
         d="M9.25 9.25H9.4348C9.7611 9.25 9.9245 9.25 10.0576 9.3089C10.1749 9.3608 10.2752 9.4443 10.3475 9.5503C10.4294 9.6703 10.459 9.8305 10.518 10.1502L12.0046 18.2024L19.1814 18.2023C19.4935 18.2023 19.65 18.2023 19.7793 18.1472C19.8935 18.0985 19.992 18.0196 20.0651 17.9193C20.1479 17.8058 20.1829 17.654 20.2529 17.3505L21.3341 12.6656C21.4405 12.2044 21.4938 11.9737 21.4353 11.7927C21.384 11.634 21.2761 11.4993 21.1329 11.4137C20.9696 11.3159 20.7336 11.3159 20.2605 11.3159H10.9716M19.5796 21.6455C19.1993 21.6455 18.891 21.3372 18.891 20.9569C18.891 20.5766 19.1993 20.2682 19.5796 20.2682C19.9599 20.2682 20.2682 20.5766 20.2682 20.9569C20.2682 21.3372 19.9599 21.6455 19.5796 21.6455ZM12.6932 21.6455C12.3129 21.6455 12.0046 21.3372 12.0046 20.9569C12.0046 20.5766 12.3129 20.2682 12.6932 20.2682C13.0735 20.2682 13.3818 20.5766 13.3818 20.9569C13.3818 21.3372 13.0735 21.6455 12.6932 21.6455Z"
-        stroke="#FFFFFF"
+        stroke={glyph}
         strokeWidth={1.5}
         strokeLinecap="round"
         strokeLinejoin="round"

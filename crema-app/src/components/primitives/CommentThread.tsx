@@ -185,6 +185,7 @@ export default function CommentThread({
       {user && (
         <View style={s.input}>
           <TextInput
+            testID="comment-input"
             ref={inputRef}
             value={commentText}
             onChangeText={setCommentText}
@@ -193,7 +194,7 @@ export default function CommentThread({
             style={s.inputField}
             onSubmitEditing={handleSubmit}
           />
-          <HapticPressable haptic="commit" onPress={handleSubmit} disabled={sending || !commentText.trim()}>
+          <HapticPressable testID="comment-send" haptic="commit" onPress={handleSubmit} disabled={sending || !commentText.trim()}>
             <Send size={18} color={commentText.trim() ? t.color.accent : t.color.border} />
           </HapticPressable>
         </View>

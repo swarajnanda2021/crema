@@ -155,7 +155,7 @@ function ArticleBubbleBody({
     : null;
   const readingTime = estimateReadingTime(article.word_count);
   return (
-    <View style={s.articleBlock}>
+    <View testID={`chat-article-unfurl-${article.id}`} style={s.articleBlock}>
       {tagLabel ? (
         <View style={s.articleMetaRow}>
           <Text style={metaStyle}>{tagLabel}</Text>
@@ -532,7 +532,7 @@ export default function ThreadBody({ kind, id, onBack, onClose }: Props) {
   // dropdown card → here) layout; the explicit listener-driven pad
   // is the deterministic path.
   return (
-    <View style={[s.root, keyboardPad > 0 && { paddingBottom: keyboardPad }]}>
+    <View testID="chat-thread" style={[s.root, keyboardPad > 0 && { paddingBottom: keyboardPad }]}>
       <View style={s.header}>
         {onBack && (
           <Pressable onPress={onBack} hitSlop={6} style={s.iconBtn}>
@@ -785,6 +785,7 @@ export default function ThreadBody({ kind, id, onBack, onClose }: Props) {
             <Camera size={18} color={t.color["text.primary"]} strokeWidth={1.75} />
           </Pressable>
           <TextInput
+            testID="thread-compose-input"
             ref={inputRef}
             style={s.input}
             value={draft}
@@ -798,6 +799,7 @@ export default function ThreadBody({ kind, id, onBack, onClose }: Props) {
           />
           {draft.trim() ? (
             <Pressable
+              testID="thread-send-btn"
               onPress={send}
               disabled={sending}
               style={[s.composerSendBtn, sending && { opacity: 0.5 }]}

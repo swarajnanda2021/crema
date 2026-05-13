@@ -81,7 +81,7 @@ export default function FeedPage() {
   }
 
   return (
-    <View style={s.container}>
+    <View testID="feed-screen" style={s.container}>
       <ScrollView
         ref={scrollRef}
         style={s.scroll}

@@ -69,7 +69,24 @@ export function RoasterArticlesProvider({ children }: { children: ReactNode }) {
         const res: any = await apiFetchRaw("/articles?limit=500");
         const data = res?.data ?? res;
         const list: RoasterArticle[] = Array.isArray(data) ? data : [];
-        setArticles(list);
+        // MERGE rather than replace. The /articles endpoint orders
+        // by published_at DESC and caps at 500, so older articles
+        // (Caffena's 2022 evergreens, etc.) fall past the cutoff. Any
+        // such rows that were upserted into the cache via per-roaster
+        // fetches (browse.tsx JournalList chip handler, article
+        // reader sibling fetch) need to SURVIVE the silent refetch
+        // that fires on JOURNALS focus — without this merge, the
+        // useFocusEffect → refetch chain wiped them every time the
+        // user navigated back to the tab from an article reader.
+        setArticles((prev) => {
+          const freshIds = new Set(
+            list.map((a) => Number(a?.id)).filter((n) => Number.isFinite(n)),
+          );
+          const carriedOver = prev.filter(
+            (a) => a?.id != null && !freshIds.has(Number(a.id)),
+          );
+          return [...list, ...carriedOver];
+        });
         hasFetchedRef.current = true;
 
         // Warm the disk cache for hero images so JOURNAL paints

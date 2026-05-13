@@ -300,6 +300,7 @@ export default function MessagesDropdown({ visible, onClose, initialThread, full
                     {idx > 0 && <View style={s.itemDivider} />}
                     <SwipeableRow actions={buildActions(row)}>
                     <Pressable
+                      testID={`thread-row-${row.other_username || row.other_display_name || row.thread_id}`}
                       onPress={() => handleRow(row)}
                       style={({ pressed }: any) => [
                         s.item,

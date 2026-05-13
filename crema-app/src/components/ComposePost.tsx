@@ -211,10 +211,11 @@ export default function ComposePost({
   const avatarUrl = user?.avatar_url;
 
   return (
-    <View style={s.root}>
+    <View testID="compose-post-modal" style={s.root}>
       {/* Top bar — Cancel / New post / Share. Figma 895:223 y=0..59. */}
       <View style={s.topBar}>
         <HapticPressable
+          testID="compose-post-cancel"
           haptic="tap"
           onPress={() => {
             // Dismiss the keyboard FIRST, then run the parent's
@@ -237,9 +238,12 @@ export default function ComposePost({
           <Text style={s.cancelText}>Cancel</Text>
         </HapticPressable>
 
-        <Text style={s.title}>New post</Text>
+        <View pointerEvents="none" style={s.titleWrap}>
+          <Text style={s.title}>New post</Text>
+        </View>
 
         <HapticPressable
+          testID="compose-post-submit"
           haptic="commit"
           onPress={handleSubmit}
           disabled={!canSubmit}
@@ -296,6 +300,7 @@ export default function ComposePost({
             tap a textarea explicitly to start typing — fewer
             surprises that way, and Cancel works first try. */}
         <TextInput
+          testID="compose-post-input"
           style={s.body}
           value={teaser}
           onChangeText={onChangeText}
@@ -645,9 +650,9 @@ function AttachedArticleCard({
   const tagLabel = article?.topic_category
     ? TOPIC_LABELS[article.topic_category] || null
     : null;
-  const dateLabel = article
-    ? formatArticleDate(article.published_at || article.scraped_at)
-    : "";
+  // Display the article's own publish date only — never the scrape
+  // day. NULL published_at returns "" and the date line hides.
+  const dateLabel = article ? formatArticleDate(article.published_at) : "";
   const readingTime = article ? estimateReadingTime(article.word_count) : "";
   return (
     <View style={s.attachedArticleCard}>
@@ -735,25 +740,29 @@ const useStyles = makeStyles((t) => ({
     fontSize: 12.5,
     color: t.color["accent.cta"],
   } as any,
-  // Absolute-positioned + `left: 0, right: 0` makes the title's
-  // UIView span the FULL top-bar width on iOS — its hitbox sat
-  // over Cancel and Share, swallowing taps even though only the
-  // centered text was visible. `pointerEvents: "none"` makes the
-  // Text purely visual so taps fall through to the Cancel /
-  // Share Pressables underneath. (User reported repeatedly that
-  // "the cancel button does not work" on iOS — this was the
-  // root cause.)
-  title: {
+  // The title sits absolute-positioned across the full top-bar so
+  // a wider/narrower Cancel doesn't shove it off-center. Its
+  // hitbox would otherwise sit over Cancel + Share, swallowing
+  // taps. We wrap the Text in a View with `pointerEvents="none"`
+  // (as a prop, not a style — the style version is silently
+  // ignored on Android RN, which lets the title eat taps even
+  // though it's invisible).
+  titleWrap: {
     position: "absolute",
     left: 0,
     right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+  title: {
     textAlign: "center",
     fontFamily: t.font.display,
     fontWeight: "500",
     fontSize: 18,
     lineHeight: 25,
     color: t.color["text.primary"],
-    pointerEvents: "none",
   } as any,
   // Share pill — Figma's literal 61×33.48 / borderRadius 26.6.
   // Disabled state mirrors Figma's 50% opacity Share label:

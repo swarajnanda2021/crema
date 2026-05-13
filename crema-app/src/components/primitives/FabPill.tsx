@@ -63,6 +63,7 @@ interface FabPillProps {
    *  `{ position: "absolute", bottom: 28, right: 28 }`). */
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
+  testID?: string;
 }
 
 export default function FabPill({
@@ -72,10 +73,12 @@ export default function FabPill({
   disabled,
   style,
   accessibilityLabel,
+  testID,
 }: FabPillProps) {
   const s = useStyles();
   return (
     <HapticPressable
+      testID={testID}
       haptic={disabled ? "none" : "tap"}
       onPress={disabled ? () => {} : onPress}
       style={[s.pill, disabled && s.pillDisabled, style]}

@@ -26,7 +26,6 @@ interface CoffeeLabelProps {
   roast_level: string;
   tasting_notes: string | null;
   flavor_notes: string[] | string | null;
-  origin: string | null;
   process: string | null;
   varietal: string | null;
   altitude_masl: number | null;
@@ -42,26 +41,22 @@ function formatINR(n: number): string {
   return "\u20B9" + n.toLocaleString("en-IN");
 }
 
-const BAD_ESTATE_PREFIX = /^(and|our|both|this|single|the|sourced|grown|washed|from|at|a|all)\b/i;
-function extractEstate(origin: string | null): string | null {
-  if (!origin) return null;
-  const t = origin.trim();
-  if (!/\s+Estates?$/i.test(t)) return null;
-  if (BAD_ESTATE_PREFIX.test(t)) return null;
-  if (t.split(/\s+/).length > 5) return null;
-  return t;
-}
-
 function CoffeeLabel({
   coffee_name, roast_level, tasting_notes, flavor_notes, process,
-  roaster_name, roaster_slug, bean_type, origin,
+  roaster_name, roaster_slug, bean_type,
 }: CoffeeLabelProps) {
   const router = useRouter();
   const roastClean = roast_level && roast_level !== "Unknown" ? roast_level : null;
   const processClean = process || null;
 
-  const estate = extractEstate(origin);
-  const displayName = estate || coffee_name;
+  // Display name is the roaster's own product name \u2014 Newton, Nikola,
+  // "Gangecool Estate Washed", etc. This used to fall back to an
+  // estate string extracted from `origin`, which produced misleading
+  // titles ("Ratnagiri Estate" appeared on every Nada bean since
+  // they all source from Ratnagiri). The estate stays visible in the
+  // detail rows on the full /coffee/[id] page; the card title sticks
+  // to the roaster's wording as authored.
+  const displayName = coffee_name;
 
   const roastProcessLine = [
     processClean ? `${processClean} Process` : null,

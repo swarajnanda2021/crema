@@ -7,39 +7,34 @@
  * panel slides in, the Crema chrome stays painted and the user's
  * orientation is preserved.
  *
- * The two panels hosted here:
- *   - Notifications  (§2.40.1, right-slide) — MobileHeader bell
- *   - Account  (§2.40.2, left-slide)  — MobileHeader hamburger
+ * Currently hosts ONE panel:
+ *   - Account  (§2.40.2, left-slide) — MobileHeader hamburger
  *
- * (Search used to be a third right-slide panel; it was retired in
- * favour of a full-page `app/search.tsx` Stack screen reached from
- * the MobileFooter's Search tab. The header dropped its search
- * glass at the same time so the only icons there are the
- * hamburger + bell.)
+ * (Notifications used to be a right-slide panel here; retired
+ * 2026-05-10 in favor of the full-page `app/notifications.tsx`
+ * Stack route reached from the MobileHeader bell. Same reasoning
+ * as the prior search-panel retirement — full screen real estate
+ * + a back button reads as proper navigation, not an ephemeral
+ * swipe-away. Search was retired earlier for the same reason
+ * — `app/search.tsx` reached from the MobileFooter's Search tab.)
  *
- * Each is triggered by an `emit("crema:toggle-<panel>-panel")` call
- * (the MobileHeader icons emit). We maintain a single-open invariant:
- * opening any panel closes whichever was open. Route changes also
- * close the open panel so the user doesn't re-surface it after
- * drilling into a detail screen.
- *
- * Keeps the Stack screens `app/notifications.tsx`, `app/account.tsx`
- * intact for direct URL access / web fallback — MobileHeader just
- * prefers the panel path now.
+ * Triggered by an `emit("crema:toggle-account-panel")` call from
+ * the MobileHeader hamburger. Route changes auto-close the panel so
+ * the user doesn't re-surface it after drilling into a detail
+ * screen.
  */
 import { useEffect, useState } from "react";
 import { View, StyleSheet, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { usePathname, useRouter } from "expo-router";
+import { usePathname } from "expo-router";
 
 import { t } from "../../tokens/useTokens";
 import { listen } from "../../utils/events";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import SlidePanel from "./SlidePanel";
-import NotificationsDropdown from "../NotificationsDropdown";
 import ProfileDropdown from "../ProfileDropdown";
 
-type PanelKey = "notifications" | "account" | null;
+type PanelKey = "account" | null;
 
 const MOBILE_HEADER_HEIGHT = (t.size as any)["navbar.mobile.height"];
 
@@ -47,16 +42,12 @@ export default function MobileOverlays() {
   const { isMobile } = useBreakpoint();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
-  const router = useRouter();
   const [open, setOpen] = useState<PanelKey>(null);
 
-  // Toggle events. Re-tapping the same icon closes. Tapping a
-  // different icon switches atomically (single-panel invariant).
+  // Toggle event. Re-tapping the hamburger closes the panel. The
+  // `crema:close-mobile-panels` broadcast lets any caller force-shut.
   useEffect(() => {
     const subs = [
-      listen("crema:toggle-notifications-panel", () =>
-        setOpen((prev) => (prev === "notifications" ? null : "notifications")),
-      ),
       listen("crema:toggle-account-panel", () =>
         setOpen((prev) => (prev === "account" ? null : "account")),
       ),
@@ -93,26 +84,6 @@ export default function MobileOverlays() {
         { top: topOffset, bottom: 0 },
       ]}
     >
-      {/* Notifications — right-slide ~80%. Dropdown has its own
-          "Notifications" header + Mark all read; we feed it onClose
-          so the existing header can paint an X. */}
-      <SlidePanel
-        visible={open === "notifications"}
-        onClose={close}
-        side="right"
-        widthPercent={80}
-      >
-        <NotificationsDropdown
-          visible={open === "notifications"}
-          onClose={close}
-          onOpenThread={() => {
-            close();
-            router.push("/messages");
-          }}
-          fullScreen
-        />
-      </SlidePanel>
-
       {/* Account — left-slide ~75%. ProfileDropdown's own account-
           header row + divider stack takes the full width. */}
       <SlidePanel

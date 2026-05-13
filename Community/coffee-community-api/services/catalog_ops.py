@@ -2197,6 +2197,8 @@ def run_article_scrape_job(job_id: int, *,
                             og_description=extracted["og_description"],
                             og_image=extracted["og_image"],
                             og_published_at=extracted["og_published_at"],
+                            detected_videos=extracted.get("detected_videos"),
+                            detected_links=extracted.get("detected_links"),
                             system_addendum=article_hint,
                         )
                     except article_enricher.ArticleEnricherError as e:
@@ -2252,18 +2254,18 @@ def run_article_scrape_job(job_id: int, *,
                             # Excerpt comes from the scraper's stub
                             # (Atom/RSS summary) or bs4 fallback
                             # (og:description, first paragraph). The
-                            # Haiku enricher used to also produce a
-                            # `summary` field, but the new article-
-                            # card design (Figma 801:155) shows
-                            # title + parent-domain + hero only —
-                            # no excerpt — so the field was dropped
-                            # from the tool schema to save Haiku
-                            # output tokens. The scraper-derived
-                            # excerpt still serves as a fallback for
-                            # the reader when body_html parsing
-                            # fails.
+                            # Excerpt: re-introduced to the v2 tool
+                            # schema (2026-05-09) so Haiku derives
+                            # it from the article BODY (first prose
+                            # sentence verbatim) rather than the
+                            # site's og:description, which on most
+                            # roaster blogs is the homepage tagline
+                            # and reads as gutter when it duplicates
+                            # across every article. Stub/fallback
+                            # remain as fallbacks if Haiku fails.
                             "excerpt": (
-                                stub.get("excerpt")
+                                enriched.get("excerpt")
+                                or stub.get("excerpt")
                                 or fallback.get("excerpt")
                             ),
                             "image_url": (

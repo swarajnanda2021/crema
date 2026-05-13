@@ -280,7 +280,9 @@ export default function PostCard({
     const tagLabel = a.topic_category
       ? TOPIC_LABELS[a.topic_category] || null
       : null;
-    const dateLabel = formatArticleDate(a.published_at || a.scraped_at);
+    // Display the article's own publish date only — never the scrape
+    // day. NULL published_at hides the date cleanly.
+    const dateLabel = formatArticleDate(a.published_at);
     const readingTime = estimateReadingTime(a.word_count);
     return (
       <Pressable
@@ -490,8 +492,8 @@ export default function PostCard({
     // tapped empty space or the body text.
     const CardContainer: any = mobileTapToOpen ? Pressable : View;
     const containerProps = mobileTapToOpen
-      ? { onPress: () => onOpen!(post), style: s.cardMobile }
-      : { style: s.cardMobile };
+      ? { onPress: () => onOpen!(post), style: s.cardMobile, testID: `post-card-${post.id}` }
+      : { style: s.cardMobile, testID: `post-card-${post.id}` };
     return (
       <CardContainer {...containerProps}>
         <View style={s.headerRowMobile}>
@@ -526,7 +528,7 @@ export default function PostCard({
   // ── Web wide: historical layout ─────────────────────────────────
 
   return (
-    <View style={s.card}>
+    <View testID={`post-card-${post.id}`} style={s.card}>
       {/* Header */}
       <View style={s.headerRow}>
         <Pressable onPress={goToAuthor} style={s.header}>

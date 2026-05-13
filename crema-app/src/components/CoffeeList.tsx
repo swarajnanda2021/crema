@@ -39,7 +39,13 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
   }, []);
 
   const availableWidth = containerW > 0 ? containerW - GRID_PAD * 2 : 960;
-  const numCols = Math.max(1, Math.min(8, Math.round((availableWidth + GAP) / (TARGET_CARD_W + GAP))));
+  // Mobile is always 1 column — the card flips landscape on mobile
+  // and a single landscape card per row is the canonical layout
+  // (DESIGN_LANGUAGE §7). Wide viewports use the target-width math
+  // to pack 2-N portrait cards per row.
+  const numCols = isMobile
+    ? 1
+    : Math.max(1, Math.min(8, Math.round((availableWidth + GAP) / (TARGET_CARD_W + GAP))));
   const cardWidth = Math.floor((availableWidth - GAP * (numCols - 1)) / numCols);
   // Landscape flip on mobile — the card sizes itself landscape
   // internally, so the wrapper has to allocate the landscape height
@@ -79,7 +85,7 @@ export default function CoffeeList({ coffees, popularity = {}, compact, ListHead
       {ListHeaderComponent}
       <View style={[s.grid, { gap: GAP, paddingHorizontal: GRID_PAD }]}>
         {visible.map((item) => (
-          // CoffeeCard now owns long-press → CoffeeDetailSheet
+          // CoffeeCard owns its tap → /coffee/[id] navigation
           // internally (DESIGN_LANGUAGE §7); the wrapper just sizes
           // the cell so the variant has matching height to render.
           <View

@@ -240,6 +240,7 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
       <View style={s.inputWrap}>
         <SearchIcon size={16} color={t.color["text.muted"]} />
         <TextInput
+          testID="search-input"
           ref={inputRef}
           value={query}
           onChangeText={setQuery}
@@ -257,7 +258,11 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
       </View>
       <View style={s.divider} />
 
-      <ScrollView style={s.results} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={s.results}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {!q ? (
           <Text style={s.hint}>Start typing to find users, beans, articles, and roasters.</Text>
         ) : !anyResults ? (
@@ -299,6 +304,7 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
                 {beanHits.map((b: any) => (
                   <Pressable
                     key={`b-${b.product_id}`}
+                    testID={`search-result-bean-${b.product_id}`}
                     onPress={() => goto(`/coffee/${b.product_id}`)}
                     style={({ pressed }: any) => [s.row, pressed && s.rowPressed]}
                   >

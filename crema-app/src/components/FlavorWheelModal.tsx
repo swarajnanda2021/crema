@@ -22,14 +22,12 @@
  * schema in Catalog Ops > Schema Manager and the next focus on this
  * surface picks it up.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Platform, Pressable, View, Text, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
-import * as Haptics from "expo-haptics";
+import { useEffect, useMemo, useState } from "react";
+import { View, Text, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import { ArrowLeft, RefreshCw } from "lucide-react-native";
 import FlavorWheel, { WHEEL_HEIGHT_RATIO, bullseyeBoxPx } from "./FlavorWheel";
 import FlavorBodyStrip, { BODY_CHIPS, type BodySelection } from "./FlavorBodyStrip";
 import CoffeeCard from "./CoffeeCard";
-import CoffeeDetailSheet from "./CoffeeDetailSheet";
 import HapticPressable from "./primitives/HapticPressable";
 import { t, makeStyles } from "../tokens/useTokens";
 import * as haptics from "../utils/haptics";
@@ -88,16 +86,6 @@ export default function FlavorWheelModal({
   // body filtering is wheel-modal-scoped until users prove they want
   // it elsewhere.
   const [bodyPick, setBodyPick] = useState<BodySelection>(null);
-
-  // Long-press → CoffeeDetailSheet. Owns the modal state here so the
-  // sheet is mounted once for the whole carousel, not per card.
-  const [detailCoffee, setDetailCoffee] = useState<any>(null);
-  const openDetail = useCallback((c: any) => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    }
-    setDetailCoffee(c);
-  }, []);
 
   // First filter: wheel pick (or pass-all if nothing picked). Used
   // as the base set for BOTH the body chip counts AND the carousel.
@@ -223,20 +211,14 @@ export default function FlavorWheelModal({
               decelerationRate="fast"
             >
               {matching.slice(0, 60).map((coffee: any) => (
-                <Pressable
-                  key={coffee.product_id}
-                  onLongPress={() => openDetail(coffee)}
-                  delayLongPress={350}
-                  style={s.cardSlot}
-                  accessibilityHint="Long-press to inspect every detail the roaster shared about this coffee"
-                >
+                <View key={coffee.product_id} style={s.cardSlot}>
                   <CoffeeCard
                     coffee={coffee}
                     width={370}
                     forceLandscape
                     isOwner={false}
                   />
-                </Pressable>
+                </View>
               ))}
             </ScrollView>
           </View>
@@ -249,11 +231,6 @@ export default function FlavorWheelModal({
           </View>
         )}
       </ScrollView>
-      <CoffeeDetailSheet
-        coffee={detailCoffee}
-        visible={detailCoffee !== null}
-        onClose={() => setDetailCoffee(null)}
-      />
     </View>
   );
 }

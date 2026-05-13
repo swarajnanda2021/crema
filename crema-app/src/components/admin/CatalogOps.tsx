@@ -40,13 +40,13 @@ const SECTIONS: CatalogOpsSection[] = [
 const SECTION_LABEL: Record<CatalogOpsSection, string> = {
   roasters: "ROASTERS & BEANS",
   standardization: "STANDARDIZATION",
-  articles: "JOURNALS OPS",
+  articles: "JOURNAL OPS",
 };
 
 const SECTION_TITLE: Record<CatalogOpsSection, string> = {
   roasters: "Roasters & Beans",
   standardization: "Catalog Standardization",
-  articles: "Roaster Journals",
+  articles: "Roaster Journal",
 };
 
 const SECTION_BLURB: Record<CatalogOpsSection, string> = {

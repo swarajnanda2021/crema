@@ -25,7 +25,7 @@ export default function SearchScreen() {
   const s = useStyles();
   const router = useRouter();
   return (
-    <View style={s.wrap}>
+    <View testID="search-screen" style={s.wrap}>
       <SearchDropdown
         visible={true}
         onClose={() => router.replace("/")}

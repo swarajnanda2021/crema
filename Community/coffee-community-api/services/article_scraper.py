@@ -631,12 +631,15 @@ def _normalize_pubdate(raw: Optional[str]) -> Optional[str]:
         return None
     raw = raw.strip()
     # RFC 822: "Mon, 01 Jan 2024 12:34:56 +0000"
+    # Shopify JSON-LD: "2026-01-03 11:05:39 +0530"
     fmts = (
         "%a, %d %b %Y %H:%M:%S %z",
         "%a, %d %b %Y %H:%M:%S %Z",
         "%Y-%m-%dT%H:%M:%SZ",
         "%Y-%m-%dT%H:%M:%S%z",
         "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S %z",
+        "%Y-%m-%d",
     )
     for f in fmts:
         try:
@@ -647,7 +650,235 @@ def _normalize_pubdate(raw: Optional[str]) -> Optional[str]:
     return raw
 
 
+def _extract_jsonld_date(soup: BeautifulSoup) -> Optional[str]:
+    """Walk every `<script type="application/ld+json">` block on the
+    page looking for Article / BlogPosting / NewsArticle schemas, and
+    return the first non-empty `datePublished` value found.
+
+    Shopify is the dominant pattern here — its default blog templates
+    emit JSON-LD with `BlogPosting` containing `datePublished` while
+    leaving `og:article:published_time` and `<time datetime=>` empty.
+    Without this branch, the scraper's date extraction misses every
+    Shopify blog that doesn't customize its head metadata (Chariot,
+    Okiru, many others — 442 of 912 articles in catalog as of
+    2026-05-13 land with published_at = NULL because of this gap).
+
+    Walks `@graph` arrays (the wrapped form Yoast / Rank Math / Shopify
+    sometimes uses) as well as top-level objects. Returns the raw
+    value — caller passes through `_normalize_pubdate` for ISO
+    coercion.
+    """
+    import json
+    targets = {"Article", "BlogPosting", "NewsArticle", "TechArticle"}
+
+    def _walk(node) -> Optional[str]:
+        if isinstance(node, dict):
+            typ = node.get("@type")
+            types = set()
+            if isinstance(typ, str):
+                types = {typ}
+            elif isinstance(typ, list):
+                types = {t for t in typ if isinstance(t, str)}
+            if types & targets:
+                dp = node.get("datePublished")
+                if isinstance(dp, str) and dp.strip():
+                    return dp.strip()
+            # Walk children — `@graph`, nested objects, arrays.
+            for v in node.values():
+                found = _walk(v)
+                if found:
+                    return found
+        elif isinstance(node, list):
+            for item in node:
+                found = _walk(item)
+                if found:
+                    return found
+        return None
+
+    for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        raw = script.string or script.text
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        found = _walk(data)
+        if found:
+            return found
+    return None
+
+
 # ── Page-text + og: hint extraction (Haiku enricher input) ─────────────────
+
+
+_YOUTUBE_ID_RE = re.compile(
+    r"(?:youtube\.com/(?:embed/|watch\?(?:[^#]*&)?v=|v/|shorts/)"
+    r"|youtu\.be/)([A-Za-z0-9_-]{11})",
+    re.IGNORECASE,
+)
+_VIMEO_ID_RE = re.compile(
+    r"(?:vimeo\.com/(?:video/|channels/[^/]+/|groups/[^/]+/videos/)?"
+    r"|player\.vimeo\.com/video/)(\d{6,12})",
+    re.IGNORECASE,
+)
+
+
+def _extract_video_embeds(html: str) -> list[dict]:
+    """Find every YouTube + Vimeo embed reference in raw page HTML and
+    return canonicalised entries.
+
+    Runs over the RAW HTML before BS4 strips nav/script/iframe/etc.
+    chrome — by that point the iframes are already gone and Haiku has
+    no signal that there's a video on the page. We surface the
+    detected videos as a separate enricher-input field so Haiku can
+    place a `<video-embed>` block where the source positioned them in
+    body prose.
+
+    Dedupes on (platform, video_id) so the same embed appearing in
+    iframe src + a bare-URL share link doesn't produce two entries.
+    Captures both iframe-embed forms (the common `youtube.com/embed/`
+    iframe + `player.vimeo.com/video/`) AND bare URLs in href / text
+    (`youtu.be/ID`, `youtube.com/watch?v=ID`, `vimeo.com/ID`) which
+    some authors paste in body prose instead of using an embed.
+
+    Returns a list of dicts shaped:
+        {"platform": "youtube" | "vimeo",
+         "video_id": "vbEADaG4F2Y",
+         "url":      "https://youtu.be/vbEADaG4F2Y"}
+    in source order. Empty list when nothing matched.
+    """
+    if not html:
+        return []
+    out: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+
+    for m in _YOUTUBE_ID_RE.finditer(html):
+        vid = m.group(1)
+        key = ("youtube", vid)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({
+            "platform": "youtube",
+            "video_id": vid,
+            "url": f"https://youtu.be/{vid}",
+        })
+
+    for m in _VIMEO_ID_RE.finditer(html):
+        vid = m.group(1)
+        key = ("vimeo", vid)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({
+            "platform": "vimeo",
+            "video_id": vid,
+            "url": f"https://vimeo.com/{vid}",
+        })
+
+    return out
+
+
+def _extract_body_links(soup: BeautifulSoup, base_url: str) -> list[dict]:
+    """Find every inline <a href> link inside the article body (post
+    nav/footer/script strip) and return absolute-URL entries with
+    visible text.
+
+    Surfaces source body-prose links to Haiku as a `DETECTED BODY
+    LINKS` block in the user message. The body_html allow-list rule
+    already says 'preserve every <a href> the source has inside body
+    prose', but Haiku is non-deterministic on which links it
+    preserves — explicit listing eliminates the drift. The
+    renderer's embed-resolver then matches each href against the
+    in-app catalog (products + sibling articles).
+
+    Includes only links whose visible text is non-empty and ≤ 100
+    chars, with href pointing to /products/, /blogs/, /collections/
+    paths or any non-relative URL. Drops same-page anchors, mailto,
+    javascript:.
+
+    Dedupes on (canonical href, visible text) so a product mentioned
+    twice doesn't produce two entries. Source-order preserved.
+    """
+    out: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+
+    for a in soup.find_all("a", href=True):
+        href = a.get("href", "").strip()
+        text = a.get_text(strip=True)
+        if not href or not text or len(text) > 100:
+            continue
+        if href.startswith("#") or href.startswith("mailto:") or href.startswith("javascript:"):
+            continue
+        # Build absolute URL.
+        try:
+            abs_url = urljoin(base_url, href)
+        except (ValueError, TypeError):
+            continue
+        # Only keep http(s).
+        if not (abs_url.startswith("http://") or abs_url.startswith("https://")):
+            continue
+        # Drop chrome paths that bs4 didn't fully scrub. Shopify
+        # Dawn-style themes embed the mega-menu links inside <main>
+        # rather than <nav>, so the bs4 chrome strip leaves them
+        # behind. Keep only what's plausibly a body link:
+        #   - /products/<slug>                (product page)
+        #   - /collections/<x>/products/<y>   (product via category)
+        #   - /blogs/<x>/<y>                  (sibling article)
+        #   - any cross-domain http(s) link   (citation, source)
+        # Drop everything else (bare collections, /pages/*, social
+        # icons, cart/login/policy chrome).
+        path_low = abs_url.lower()
+        if any(p in path_low for p in (
+            "/cart", "/account", "/login", "/search", "/policies/",
+            "/checkout", "/orders", "/pages/", "facebook.com",
+            "instagram.com", "twitter.com", "x.com", "linkedin.com",
+            "youtube.com", "shopify.com", "tiktok.com", "pinterest.com",
+        )):
+            continue
+        try:
+            p = urlparse(abs_url)
+            same_host = p.netloc.lower().lstrip("www.") == urlparse(base_url).netloc.lower().lstrip("www.")
+        except Exception:
+            same_host = False
+        if same_host:
+            # On-site links: only product / collection-product / blog
+            # paths count as body content. Bare collection roots and
+            # the homepage are chrome.
+            path = p.path.rstrip("/")
+            looks_body = (
+                path.startswith("/products/")
+                or path.startswith("/blogs/")
+                or ("/products/" in path and path.startswith("/collections/"))
+            )
+            if not looks_body:
+                continue
+            # Drop the homepage / empty path explicitly.
+            if path in ("", "/"):
+                continue
+        # Strip Shopify-specific tracking params (`?pr_prod_strat=`,
+        # `?_pos=`, `?_sid=`, `?variant=`) so the same product
+        # surfaced via different click-paths dedupes.
+        try:
+            u = urlparse(abs_url)
+            from urllib.parse import parse_qsl, urlencode
+            cleaned_q = [
+                (k, v) for k, v in parse_qsl(u.query)
+                if not k.startswith(("pr_", "_pos", "_sid", "utm_"))
+                and k not in ("variant", "ref")
+            ]
+            canon = u._replace(query=urlencode(cleaned_q)).geturl()
+        except Exception:
+            canon = abs_url
+
+        key = (canon, text)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"url": canon, "text": text})
+
+    return out
 
 
 def extract_for_enrichment(html: str, *, base_url: str) -> dict:
@@ -664,6 +895,13 @@ def extract_for_enrichment(html: str, *, base_url: str) -> dict:
     og_description = _meta(soup, "og:description")
     og_image_raw = _meta(soup, "og:image")
     og_image = urljoin(base_url, og_image_raw) if og_image_raw else None
+    # Date-extraction cascade — checked in order until one returns a
+    # value. The first three are the historical paths; JSON-LD was
+    # added 2026-05-13 because Shopify's default blog template emits
+    # `datePublished` in <script type="application/ld+json"> ONLY,
+    # which is invisible to og:meta + <time> probes. Without it, 442
+    # of 912 articles landed with NULL published_at (then displayed
+    # the scrape date in the UI, misleading the user).
     og_published_at = (
         _meta(soup, "article:published_time")
         or _meta(soup, "og:article:published_time")
@@ -672,6 +910,14 @@ def extract_for_enrichment(html: str, *, base_url: str) -> dict:
         time_el = soup.find("time", attrs={"datetime": True})
         if time_el and time_el.get("datetime"):
             og_published_at = time_el["datetime"].strip()
+    if not og_published_at:
+        og_published_at = _extract_jsonld_date(soup)
+    # Normalize to ISO so downstream comparisons / sort don't have to
+    # juggle formats. Falls back to the raw string when no format
+    # matches — Discover JOURNAL groups by COALESCE so a malformed
+    # date is harmless.
+    if og_published_at:
+        og_published_at = _normalize_pubdate(og_published_at) or og_published_at
 
     # Strip globally — nav, header, footer, scripts, styles, noscript,
     # forms, and aria-hidden subtrees. Page text becomes the article
@@ -679,11 +925,28 @@ def extract_for_enrichment(html: str, *, base_url: str) -> dict:
     # needs to judge what's body and what's not.
     cleaned = BeautifulSoup(html, "html.parser")
     for sel in ("nav", "header", "footer", "script", "style",
-                "noscript", "form"):
+                "noscript", "form", "aside"):
         for el in cleaned.find_all(sel):
             el.decompose()
     for el in cleaned.select("[aria-hidden='true']"):
         el.decompose()
+    # Shopify Dawn-style themes embed mega-menus + drawer popovers
+    # inside <main> (not <nav>), so the strips above leave them
+    # behind. Target the common container class fragments — these
+    # are the chrome wrappers the theme uses for header drawers,
+    # account popovers, search overlays, cart drawers, etc.
+    chrome_class_fragments = (
+        "mega-menu", "menu-drawer", "menu-bar", "account-popover",
+        "search-popover", "cart-drawer", "predictive-search",
+        "header__inline-menu", "search-modal",
+        # Shopify "AI footer column" blocks — hashed class names like
+        # `ai-footer-column-azxaruwlpr1u3ugxdcaigenblock759374cwc97jw`
+        # wrap footer link grids that survive the <footer> strip.
+        "ai-footer-column", "ai-footer-columns",
+    )
+    for frag in chrome_class_fragments:
+        for el in cleaned.select(f"[class*='{frag}']"):
+            el.decompose()
     page_text = cleaned.get_text("\n", strip=True)
     # Collapse 3+ blank lines so the LLM doesn't waste tokens on
     # whitespace.
@@ -698,12 +961,27 @@ def extract_for_enrichment(html: str, *, base_url: str) -> dict:
     # page does carry a visible hero.
     og_image_hint = og_image or fallback.get("image_url")
 
+    # Scan the RAW html (not the cleaned body) for video embeds —
+    # BS4 already stripped iframes by this point in `cleaned`, so we
+    # have to look at the original. See `_extract_video_embeds`.
+    detected_videos = _extract_video_embeds(html)
+
+    # Inline body links: scan the cleaned body so nav/footer chrome
+    # is already gone. Haiku is told to preserve every <a href> in
+    # body prose, but it's non-deterministic on which ones survive.
+    # Surfacing the list explicitly in the user message + having an
+    # explicit prompt rule "every URL in DETECTED BODY LINKS must
+    # appear in body_html" eliminates the drift. See `_extract_body_links`.
+    detected_links = _extract_body_links(cleaned, base_url)
+
     return {
         "page_text": page_text,
         "og_title": og_title,
         "og_description": og_description,
         "og_image": og_image_hint,
         "og_published_at": og_published_at,
+        "detected_videos": detected_videos,
+        "detected_links": detected_links,
         "fallback": fallback,
     }
 

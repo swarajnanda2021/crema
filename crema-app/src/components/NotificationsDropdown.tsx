@@ -170,8 +170,17 @@ export default function NotificationsDropdown({ visible, onClose, onOpenThread, 
 
         <View style={s.divider} />
 
-        {/* List */}
-        <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
+        {/* List. The styles.list maxHeight (400 px) is intended for
+            the floating-dropdown surface, where the card is bounded
+            and the list shouldn't outgrow its container. In
+            fullScreen mode that cap clipped the list ~3/4 of the way
+            down the page — flex through the entire body column
+            instead so the list scrolls all the way to the
+            MobileFooter. */}
+        <ScrollView
+          style={fullScreen ? s.listFullScreen : s.list}
+          showsVerticalScrollIndicator={false}
+        >
           {loading ? (
             <ActivityIndicator size="small" color={t.color.accent} style={{ paddingVertical: 24 }} />
           ) : notifications.length === 0 ? (
@@ -265,6 +274,11 @@ const useStyles = makeStyles((t) => ({
   } as any,
   divider: { height: 1, backgroundColor: t.color["border.light"], marginHorizontal: 12 },
   list: { maxHeight: 400 },
+  // FullScreen mode (the /notifications full page) lets the list
+  // grow to fill the body column under SiteHeader and above the
+  // MobileFooter; the dropdown's 400-px cap is for the popover
+  // variant only.
+  listFullScreen: { flex: 1 } as any,
   empty: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.muted"], textAlign: "center", paddingVertical: 32 },
   item: {
     flexDirection: "row",

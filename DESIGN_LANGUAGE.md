@@ -304,9 +304,9 @@ Quick lookups:
   bottom-right where applicable.
 - **List page** — `app/(tabs)/browse.tsx` (BEANS / ROASTERS tabs).
   Filter sidebar (wide) or filter drawer (mobile), sticky search.
-- **Modal** — `PostModal.tsx`, `CoffeeDetailSheet.tsx`. Cream card
-  centered, blur backdrop overlay, X to close, ScrollView body
-  with concrete height via `useWindowDimensions`.
+- **Modal** — `PostModal.tsx`. Cream card centered, blur
+  backdrop overlay, X to close, ScrollView body with concrete
+  height via `useWindowDimensions`.
 - **Form** — `EditableCoffeeCard.tsx`, `ComposePost.tsx`.
   Floating modal, field rows with consistent label width,
   Submit-style primary button bottom-right.
@@ -333,14 +333,17 @@ card the user sees follows the rules below.**
 must NOT re-add them via wrapper Pressables or sibling
 components — duplicating these is a regression:
 
-- **Long-press → `CoffeeDetailSheet`.** The detail sheet (every
-  enriched field with prettified labels, sectioned by Origin /
-  Roast & process / Brew guide / Tasting / Pack) opens on
-  long-press of any CoffeeCard. Haptic medium-impact on native.
-  Local state inside CoffeeCard owns the sheet's visibility.
+- **Tap → `/coffee/[id]` full-page reader.** A simple press on
+  any CoffeeCard navigates to the full coffee page (hero +
+  every enriched field, sectioned by Origin / Roast & process /
+  Brew guide / Tasting / Pack). Haptic light-impact on native.
   This is the **central card affordance** — the user's primary
   way to inspect a bean's full provenance — and it must work on
-  every card, every surface, with zero call-site wiring.
+  every card, every surface, with zero call-site wiring. *(2026-
+  05-10: replaced the prior long-press → floating
+  `CoffeeDetailSheet` modal. The modal was data-rich but
+  hero-less; the full page now carries both, and the sitewide
+  affordance is one press.)*
 - **Buy click-through.** Cart icon → `trackClick(...)` then
   `openExternal(coffee.product_url)`. Already inside CoffeeCard.
 - **Share.** Share icon → `useShare().share(coffee)`. Already
@@ -352,6 +355,13 @@ components — duplicating these is a regression:
 
 The wrapper's only job is to allocate width + height. Don't add
 anything else.
+
+**No more long-press affordance.** The floating
+`CoffeeDetailSheet` modal is retired. Don't add a parallel
+long-press handler at any call-site — every coffee detail
+surface is the full page now. Call-sites must not wrap the
+card in their own `<Pressable>` to add tap behavior; the card
+already owns its onPress.
 
 ### Geometry (Figma 66:6267 + 66:6268)
 
@@ -446,11 +456,11 @@ fork a different one in a single call-site.
 - Build a parallel `<MiniCoffeeCard />` / `<CarouselCoffeeCard />`
   / `<RelatedCoffeesCard />`. Every card surface ships through
   `<CoffeeCard />`. Compose, don't fork.
-- Re-add long-press → `CoffeeDetailSheet` at the call-site
-  (wrapper Pressable + a sibling sheet). It's already inside
-  `CoffeeCard`. Doing it again either double-mounts the sheet
-  (two opens on one long-press) or shadows the built-in with a
-  stale variant. The wrapper is just `<View width height>`.
+- Wrap the card in your own `<Pressable onPress={...}>` to add
+  a tap behavior. The card already owns its onPress (tap →
+  `/coffee/[id]`). Wrapping in a sibling Pressable shadows the
+  built-in handler and the tap stops navigating. The wrapper is
+  just `<View width height>`.
 
 ### Pre-flight check (additive to §8 below)
 

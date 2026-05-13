@@ -61,6 +61,7 @@ export default function RoasterRow({
 
   return (
     <Pressable
+      testID={`roaster-row-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
       onPress={() => {
         hapticTap();
         onPress();

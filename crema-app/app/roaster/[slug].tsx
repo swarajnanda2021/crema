@@ -22,6 +22,7 @@ import { Plus, X, PenLine, Camera, MapPin, Check, ArrowLeft, MessageCircle } fro
 
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
+import { useRoasterArticles } from "../../src/hooks/useRoasterArticles";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import CropGestureWrap from "../../src/components/shell/CropGestureWrap";
@@ -31,12 +32,11 @@ import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t, makeStyles } from "../../src/tokens/useTokens";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import RoasterLogo from "../../src/components/primitives/RoasterLogo";
-import CoffeeDetailSheet from "../../src/components/CoffeeDetailSheet";
-import { commit as hapticCommit } from "../../src/utils/haptics";
 import { useFloatingFab } from "../../src/contexts/FloatingFabContext";
 import FabPill from "../../src/components/primitives/FabPill";
 import SiteHeader from "../../src/components/SiteHeader";
 import PostCard from "../../src/components/domain/PostCard";
+import ArticleListRow from "../../src/components/domain/ArticleListRow";
 import BusinessAnalytics from "../../src/components/analytics/BusinessAnalytics";
 import CremaLogo from "../../src/components/CremaLogo";
 import EditableCoffeeCard from "../../src/components/domain/EditableCoffeeCard";
@@ -92,10 +92,10 @@ function LeftPanelShareIcon({ color = t.color.accent }: { color?: string }) {
 
 // ── FollowButton ─────────────────────────────────────────────────────────────
 
-function FollowButton({ following, onToggle }: { following: boolean; onToggle: () => void }) {
+function FollowButton({ following, onToggle, testID }: { following: boolean; onToggle: () => void; testID?: string }) {
   const fb = useFbStyles();
   return (
-    <Pressable onPress={onToggle} style={[fb.btn, following && fb.btnFollowing]}>
+    <Pressable testID={testID} onPress={onToggle} style={[fb.btn, following && fb.btnFollowing]}>
       {/* `+` icon matches the cream border + "Follow" text — both use
          text.on-dark which stays cream in both modes. The previous
          text.on-cta token flipped to Espresso in dark mode and made
@@ -142,7 +142,6 @@ function CoffeeGrid({
   popularity?: Record<string, number>;
 }) {
   const [containerW, setContainerW] = useState(0);
-  const [detailCoffee, setDetailCoffee] = useState<any>(null);
   const { isMobile } = useBreakpoint();
   const cg = useCgStyles();
   const available = containerW > 0 ? containerW - GRID_PAD * 2 : 800;
@@ -152,14 +151,6 @@ function CoffeeGrid({
   // fork inside CoffeeCard; portrait on web wide.
   const cardH = Math.floor(cardW * (isMobile ? LANDSCAPE_ASPECT : CARD_ASPECT));
 
-  // Long-press → CoffeeDetailSheet. Mounted once at the bottom of the
-  // grid (state lives here, not per card) so the sheet opens with
-  // whichever coffee was long-pressed.
-  const openDetail = useCallback((c: any) => {
-    hapticCommit();
-    setDetailCoffee(c);
-  }, []);
-
   if (coffees.length === 0 && !isOwner) {
     return (
       <View style={cg.empty}><Text style={cg.emptyText}>No coffees listed yet.</Text></View>
@@ -168,13 +159,7 @@ function CoffeeGrid({
   return (
     <View onLayout={(e) => setContainerW(e.nativeEvent.layout.width)} style={[cg.grid, { gap: GRID_GAP, paddingHorizontal: GRID_PAD }]}>
       {coffees.map((c) => (
-        <Pressable
-          key={c.product_id || c.id}
-          onLongPress={() => openDetail(c)}
-          delayLongPress={350}
-          style={{ width: cardW, height: cardH }}
-          accessibilityHint="Long-press to inspect every detail the roaster shared about this coffee"
-        >
+        <View key={c.product_id || c.id} style={{ width: cardW, height: cardH }}>
           <CoffeeCard
             coffee={c} width={cardW} height={cardH}
             shelfMode={isOwner && !!onDeleteProduct}
@@ -182,18 +167,13 @@ function CoffeeGrid({
             onRemove={isOwner && onDeleteProduct ? () => onDeleteProduct(c.product_id || c.id) : undefined}
             onEdit={isOwner && onEditProduct ? () => onEditProduct(c) : undefined}
           />
-        </Pressable>
+        </View>
       ))}
       {isOwner && roasterName && onSaveCard && containerW > 0 && (
         <View key="__editable__" style={{ width: cardW, height: cardH }}>
           <EditableCoffeeCard roasterName={roasterName} width={cardW} height={cardH} onSave={onSaveCard} />
         </View>
       )}
-      <CoffeeDetailSheet
-        coffee={detailCoffee}
-        visible={detailCoffee !== null}
-        onClose={() => setDetailCoffee(null)}
-      />
     </View>
   );
 }
@@ -225,6 +205,7 @@ export default function RoasterDetailPage() {
   const s = useStyles();
   const { products, roasters, appendProducts, removeProduct, loading: coffeeLoading } = useCoffeeData();
   const profilesCache = useRoasterProfiles();
+  const articlesCache = useRoasterArticles();
   const { height: winH, width: winW } = useWindowDimensions();
   const isWide = winW >= 800;
   const { isMobile } = useBreakpoint();
@@ -320,9 +301,49 @@ export default function RoasterDetailPage() {
   const [myFollows, setMyFollows] = useState<string[]>([]);
 
   // Tabs & compose
-  const [activeTab, setActiveTab] = useState<"posts" | "beans" | "analytics">("posts");
+  const [activeTab, setActiveTab] = useState<"posts" | "beans" | "journals" | "analytics">("posts");
   const [postToDelete, setPostToDelete] = useState<any>(null);
   const [aboutExpanded, setAboutExpanded] = useState(false);
+
+  // Per-roaster article top-up — mirrors browse.tsx's JOURNALS chip
+  // handler. The sitewide /articles?limit=500 cache orders by
+  // published_at DESC and caps at 500, so older articles fall past
+  // the cutoff. Fetch this roaster's full set the first time the
+  // JOURNALS tab is opened and upsert into the shared cache so
+  // subsequent navigation keeps the benefit.
+  const journalsFetchedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (activeTab !== "journals" || !slug) return;
+    if (journalsFetchedRef.current === slug) return;
+    journalsFetchedRef.current = slug;
+    let cancelled = false;
+    apiFetchRaw(`/roasters/${encodeURIComponent(slug)}/articles?limit=100`)
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = res?.data || res || [];
+        if (Array.isArray(list)) {
+          for (const a of list) if (a?.id != null) articlesCache.upsert(a);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, slug]);
+
+  // Roaster's article list — newest first, sourced from the shared
+  // cache so it stays in sync with Discover JOURNAL + the article
+  // reader. Tie-break on id DESC matches the server ordering.
+  const roasterArticles = useMemo(() => {
+    const list = articlesCache.getByRoasterSlug(slug);
+    return [...list].sort((a, b) => {
+      const ta = Date.parse(a.published_at || a.scraped_at) || 0;
+      const tb = Date.parse(b.published_at || b.scraped_at) || 0;
+      if (ta !== tb) return tb - ta;
+      return (Number(b.id) || 0) - (Number(a.id) || 0);
+    });
+  }, [articlesCache, slug]);
 
   // Profile editing (owner)
   const [isEditing, setIsEditing] = useState(edit === "1");
@@ -357,21 +378,16 @@ export default function RoasterDetailPage() {
     [profile, coffees, profileLoading],
   );
   const logoUrl = profile?.logo_url ?? null;
-  const rawSpecs = profile?.specialties;
-  const parsedSpecs = Array.isArray(rawSpecs) ? rawSpecs
-    : typeof rawSpecs === "string" && rawSpecs.startsWith("[") ? JSON.parse(rawSpecs)
-    : typeof rawSpecs === "string" && rawSpecs ? rawSpecs.split(",").map((s: string) => s.trim())
-    : [];
-  const specialtyTags: string[] = parsedSpecs.length > 0
-    ? parsedSpecs.slice(0, 4)
-    : ["Single Origin", "Estate Grown", "Specialty Grade"];
+  // The `specialties` field stays on the schema for back-compat with
+  // any prior data, but the consumer profile no longer renders or
+  // edits tags — they were too redundant alongside the bio,
+  // location, and beans grid right below. Removed 2026-05-10.
   const city = roaster?.city || profile?.city || null;
   const website = roaster?.website || profile?.website || null;
   const aboutBlurb = profile?.about_blurb || null;
 
   // Edit form state
   const [editAbout, setEditAbout] = useState(aboutBlurb || "");
-  const [editSpecialties, setEditSpecialties] = useState(specialtyTags.join(", "));
   const [editWebsite, setEditWebsite] = useState(website || "");
   const [editCity, setEditCity] = useState(city || "");
   const [editLogo, setEditLogo] = useState(logoUrl || "");
@@ -430,7 +446,7 @@ export default function RoasterDetailPage() {
   useEffect(() => { if (edit === "1" && isOwner) setIsEditing(true); }, [edit, isOwner]);
   useEffect(() => {
     if (isEditing) {
-      setEditAbout(aboutBlurb || ""); setEditSpecialties(specialtyTags.join(", "));
+      setEditAbout(aboutBlurb || "");
       setEditWebsite(website || ""); setEditCity(city || "");
       setEditLogo(logoUrl || ""); setEditHero(heroImageUrl || "");
       setEditCropX(heroCropX); setEditCropY(heroCropY); setEditHeroZoom(heroZoom);
@@ -569,11 +585,13 @@ export default function RoasterDetailPage() {
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      const specs = editSpecialties.split(",").map((s) => s.trim()).filter(Boolean);
+      // `specialties` deliberately omitted from the PUT — the
+      // consumer profile no longer renders or edits tags. Existing
+      // values stay in the DB untouched.
       await apiFetchRaw(`/roasters/${slug}/profile`, {
         method: "PUT",
         body: JSON.stringify({
-          about_blurb: editAbout, specialties: specs, website: editWebsite,
+          about_blurb: editAbout, website: editWebsite,
           city: editCity, logo_url: editLogo, hero_image_url: editHero,
           hero_crop_x: editCropX, hero_crop_y: editCropY, hero_zoom: editHeroZoom,
         }),
@@ -677,7 +695,7 @@ export default function RoasterDetailPage() {
          panel below). Same merge pattern as the café profile. Wide
          web keeps its side-panel layout below. (§2.35 redo) */}
       {!isWide && (
-        <View style={s.heroWrapMobile}>
+        <View testID="roaster-screen" style={s.heroWrapMobile}>
           {heroImageUrl ? (
             <Image source={{ uri: resolveUploadUrl(heroImageUrl) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
           ) : (
@@ -802,30 +820,17 @@ export default function RoasterDetailPage() {
           {!isEditing && <View style={{ flex: 1 }} />}
           {isEditing && <View style={{ height: 24 }} />}
 
-          {/* Specialty tags as bordered pill chips. The `/`-joined
-             text version read as ugly typographic clutter; pills give
-             each specialty its own visual boundary and wrap cleanly
-             at the panel width on both modes. Border + text use
-             `text.on-dark` so the chip pops on the persistently-dark
-             roaster.panel background. Mirrors the FollowButton's
-             cream-border-on-dark treatment for a coherent leftPanel
-             chrome language. */}
-          <View style={s.tagBand}>
-            {!isEditing && <View style={[s.rule, isMobile && s.ruleMobile]} />}
-            {isEditing ? (
-              <TextInput style={[s.tagText, s.inlineEditTag]} value={editSpecialties} onChangeText={setEditSpecialties}
-                placeholder="Single Origin, Estate Grown" placeholderTextColor="rgba(199,186,165,0.35)" />
-            ) : (
-              <View style={s.tagsRow}>
-                {specialtyTags.map((tag, i) => (
-                  <View key={`${tag}-${i}`} style={s.tagChip}>
-                    <Text style={s.tagChipText} numberOfLines={1}>{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-            {!isEditing && <View style={[s.rule, isMobile && s.ruleMobile]} />}
-          </View>
+          {/* Single divider between the bio block above and the meta
+              row (Website / Followers / City) below. The specialty-
+              tag chip band that used to sit here was removed
+              2026-05-10 — the bio + beans grid below already
+              communicate the roaster's identity without the chips
+              repeating it. */}
+          {!isEditing ? (
+            <View style={[s.rule, isMobile && s.ruleMobile, s.tagBandSpacer]} />
+          ) : (
+            <View style={{ height: 8 }} />
+          )}
 
           {/* Meta row. Wide mode keeps the gap-based row that fits
              alongside the narrow left rail. Mobile spreads the items
@@ -867,7 +872,7 @@ export default function RoasterDetailPage() {
 
           {!isOwner && (
             <View style={s.followRow}>
-              <FollowButton following={following} onToggle={handleFollowToggle} />
+              <FollowButton testID="roaster-follow-btn" following={following} onToggle={handleFollowToggle} />
               {user && (
                 <Pressable
                   onPress={async () => {
@@ -895,6 +900,7 @@ export default function RoasterDetailPage() {
                       console.warn("Open roaster DM failed:", e);
                     }
                   }}
+                  testID="roaster-message-btn"
                   style={s.messageBtn}
                   accessibilityRole="button"
                   accessibilityLabel={`Message ${roaster.name}`}
@@ -980,8 +986,8 @@ export default function RoasterDetailPage() {
             )}
 
             {/* Tab bar — wraps in a horizontal ScrollView on mobile
-               so POSTS / BEANS / ANALYTICS can scroll past the
-               viewport when the full labels overflow. */}
+               so POSTS / BEANS / JOURNALS / ANALYTICS can scroll past
+               the viewport when the full labels overflow. */}
             {(() => {
               // Spec-aligned with café + user-profile tab bars: the
               // POSTS tab is always present (matches BIO/MENU/POSTS on
@@ -997,6 +1003,10 @@ export default function RoasterDetailPage() {
                   <Pressable onPress={() => setActiveTab("beans")} style={s.rightTab}>
                     <Text style={[s.rightTabText, activeTab === "beans" && s.rightTabTextActive]}>BEANS</Text>
                     {activeTab === "beans" && <View style={s.rightTabUnderline} />}
+                  </Pressable>
+                  <Pressable onPress={() => setActiveTab("journals")} style={s.rightTab}>
+                    <Text style={[s.rightTabText, activeTab === "journals" && s.rightTabTextActive]}>JOURNAL</Text>
+                    {activeTab === "journals" && <View style={s.rightTabUnderline} />}
                   </Pressable>
                   {isOwner && (
                     <Pressable onPress={() => setActiveTab("analytics")} style={s.rightTab}>
@@ -1080,6 +1090,33 @@ export default function RoasterDetailPage() {
                   {`Explore ${coffees.length} ${coffees.length === 1 ? "coffee" : "coffees"} from ${roaster.name}`}
                 </Text>
                 <CoffeeGrid coffees={coffees} isOwner={isOwner} onDeleteProduct={requestDelete} onEditProduct={setEditingProduct} roasterName={roaster.name} onSaveCard={handleCreateProduct} popularity={popularity} />
+              </>
+            )}
+
+            {/* JOURNAL TAB — roaster's scraped articles. Sourced from
+               the sitewide RoasterArticlesProvider cache + the per-
+               roaster top-up fetch above. Stacked as ArticleListRows
+               in a single editorial column, newest first. */}
+            {activeTab === "journals" && (
+              <>
+                <Text style={s.gridHeading}>
+                  {roasterArticles.length > 0
+                    ? `Read ${roasterArticles.length} ${roasterArticles.length === 1 ? "article" : "articles"} from ${roaster.name}`
+                    : `Journal from ${roaster.name}`}
+                </Text>
+                {roasterArticles.length === 0 ? (
+                  <View style={s.journalEmpty}>
+                    <Text style={s.journalEmptyText}>Nothing here yet.</Text>
+                  </View>
+                ) : (
+                  roasterArticles.map((a, idx) => (
+                    <ArticleListRow
+                      key={a.id}
+                      article={a}
+                      showDivider={idx < roasterArticles.length - 1}
+                    />
+                  ))
+                )}
               </>
             )}
 
@@ -1338,28 +1375,20 @@ const useStyles = makeStyles((t) => ({
   aboutText: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.on-dark"], lineHeight: 18 },
   aboutMore: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"] },
 
-  tagBand: { marginBottom: 14 },
+  // Spacer + divider between the bio block and the meta row. Left
+  // over from when this slot held a chip band of specialty tags
+  // (Single Origin, Estate Grown, etc.) — the chips were retired
+  // 2026-05-10 because they read as redundant alongside the bio +
+  // beans grid. Just the divider remains so the bio and meta keep
+  // their visual separator.
+  tagBandSpacer: { marginVertical: 14 } as any,
   rule: { height: 1, width: 280, alignSelf: "flex-start" as any, backgroundColor: "rgba(250,248,240,0.25)", marginVertical: 0 },
   // Mobile override — wide-mode keeps the 280-px accent line that fits
   // the narrow left rail; on phones the bio panel is full screen width
   // and the short 280-px line read as truncated junk floating above
-  // the tags + meta. Stretch the divider edge-to-edge so the panel
+  // the meta row. Stretch the divider edge-to-edge so the panel
   // padding matches on both sides.
   ruleMobile: { width: "100%" as any, alignSelf: "stretch" as any } as any,
-  tagText: { fontFamily: t.font["body.regular"], fontSize: 13, color: t.color["text.on-dark"], lineHeight: 18, paddingVertical: 8, textAlign: "justify" as any },
-  // Pill-chip tag list — wraps freely so 1-6 specialties land cleanly
-  // in either the wide-rail or mobile panel. `paddingVertical` here
-  // matches the prior text-band rhythm so the rules above/below sit
-  // at the same y-coordinates as before.
-  tagsRow: { flexDirection: "row" as any, flexWrap: "wrap" as any, gap: 8, paddingVertical: 8 } as any,
-  tagChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: t.color["text.on-dark"],
-    borderRadius: (t.radius as any).full,
-  } as any,
-  tagChipText: { fontFamily: t.font["body.regular"], fontSize: 12, color: t.color["text.on-dark"], lineHeight: 16 },
 
   // Top + bottom margins now match so the icon row sits on the
   // centerline between the rule above (below tags) and the rule
@@ -1390,10 +1419,6 @@ const useStyles = makeStyles((t) => ({
   inlineEdit: {
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
     backgroundColor: "rgba(250,248,240,0.1)", minHeight: 80, textAlignVertical: "top" as any,
-  } as any,
-  inlineEditTag: {
-    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4,
-    backgroundColor: "rgba(250,248,240,0.1)", textAlign: "center" as any, flex: 1,
   } as any,
   inlineEditMeta: {
     fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.on-dark"],
@@ -1573,6 +1598,16 @@ const useStyles = makeStyles((t) => ({
   gridHeading: {
     fontFamily: t.font.display, fontSize: 20, color: t.color["text.primary"],
     lineHeight: 28, paddingHorizontal: 28, paddingTop: 24, paddingBottom: 20, ...liningNumerals,
+  } as any,
+
+  // JOURNAL tab — canonical empty state per DESIGN_LANGUAGE §6.
+  // Single line, body.regular, font.md, text.muted, centered.
+  journalEmpty: { paddingVertical: t.spacing["3xl"], alignItems: "center" } as any,
+  journalEmptyText: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.md"],
+    color: t.color["text.muted"],
+    textAlign: "center",
   } as any,
 
   // Followers modal

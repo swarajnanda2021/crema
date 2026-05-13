@@ -36,12 +36,13 @@ interface ToggleProps {
    *  receives the new state. Used by ActionBar to flash a "Liked" /
    *  "Unliked" toast when the viewer taps the heart. */
   onToggled?: (nowToggled: boolean) => void;
+  testID?: string;
 }
 
 export default function Toggle({
   resource, targetId, initial, count: initialCount,
   iconOn, iconOff, showCount = true, style, countSize = 13,
-  onToggled,
+  onToggled, testID,
 }: ToggleProps) {
   const { toggled, count, toggle } = useToggle(resource, targetId, {
     initial, count: initialCount, onToggled,
@@ -59,7 +60,7 @@ export default function Toggle({
   }, [toggle, scaleAnim]);
 
   return (
-    <HapticPressable haptic="select" onPress={handlePress} style={[s.btn, style]}>
+    <HapticPressable testID={testID} haptic="select" onPress={handlePress} style={[s.btn, style]}>
       <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
         {toggled ? iconOn : iconOff}
       </Animated.View>

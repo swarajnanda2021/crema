@@ -143,6 +143,7 @@ export default function AuthPage() {
           )}
 
           <TextInput
+            testID="auth-username"
             placeholder="Username"
             placeholderTextColor={t.color["text.muted"]}
             value={username}
@@ -154,6 +155,7 @@ export default function AuthPage() {
 
           {!isLogin && (
             <TextInput
+              testID="auth-displayname"
               placeholder={isBusiness ? "Business name" : "Display Name"}
               placeholderTextColor={t.color["text.muted"]}
               value={displayName}
@@ -163,6 +165,7 @@ export default function AuthPage() {
           )}
 
           <TextInput
+            testID="auth-password"
             placeholder="Password"
             placeholderTextColor={t.color["text.muted"]}
             value={password}
@@ -174,6 +177,7 @@ export default function AuthPage() {
           {error ? <Text style={s.errorText}>{error}</Text> : null}
 
           <Pressable
+            testID="auth-submit"
             onPress={handleSubmit}
             disabled={loading}
             style={[s.submitBtn, loading && s.submitBtnLoading]}
@@ -183,7 +187,11 @@ export default function AuthPage() {
             </Text>
           </Pressable>
 
-          <Pressable onPress={() => { setIsLogin(!isLogin); setError(""); }} hitSlop={6}>
+          <Pressable
+            testID="auth-toggle-mode"
+            onPress={() => { setIsLogin(!isLogin); setError(""); }}
+            hitSlop={6}
+          >
             <Text style={s.toggleText}>
               {isLogin ? "New here? Create an account" : "Already have an account? Sign in"}
             </Text>

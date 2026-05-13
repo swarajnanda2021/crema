@@ -121,17 +121,21 @@ export default function MobileHeader() {
           <CremaLogo width={131} height={27} />
         </Pressable>
 
-        {/* Right: bell only. Toggles the notifications slide panel;
-           re-tapping closes it. The search glass that used to live
-           here moved to the MobileFooter (Search tab → /search).
-           Dismisses any open modal first — see the hamburger
-           comment above. */}
+        {/* Right: bell only. Navigates to the full-page notifications
+           reader (`/notifications`). The previous right-slide panel
+           was retired 2026-05-10 — the notifications surface deserves
+           full screen real estate (not 80% of viewport-width with the
+           Crema chrome peeking around the edges) and the back-button
+           exit reads as proper navigation rather than a swipe-away
+           ephemeral. The search glass that used to live here moved
+           to the MobileFooter (Search tab → /search). Dismisses any
+           open modal first — see the hamburger comment above. */}
         <View style={s.flankRight}>
           {user && (
             <Pressable
               onPress={() => {
                 emit("crema:dismiss-modals");
-                emit("crema:toggle-notifications-panel");
+                router.push("/notifications");
               }}
               style={s.iconBtn}
               hitSlop={10}

@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
+import { useRouter } from "expo-router";
 import { openExternal } from "../utils/openExternal";
 import { Coffee, Pencil, Trash2 } from "lucide-react-native";
 import { t, tLight, cardShadow, makeStyles, SHELF_LABELS, ShelfKey } from "../tokens/useTokens";
@@ -17,7 +18,6 @@ import { useShelves } from "../hooks/useShelves";
 import { thumbnailUrl } from "../utils/imageUrl";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { openPopularityModal } from "./primitives";
-import CoffeeDetailSheet from "./CoffeeDetailSheet";
 import * as Haptics from "expo-haptics";
 
 interface CoffeeCardProps {
@@ -80,18 +80,20 @@ const SHELF_KEYS: ShelfKey[] = ["open_bags", "on_the_list"];
 const BTN_SIZE = 31;
 
 export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 240, height: cardH = 372, shelfMode, isOwner = true, currentShelf, onMoveShelf, onRemove, onAddToShelf, onEdit, forceLandscape = false }: CoffeeCardProps) {
+  const router = useRouter();
   const [showShelfPicker, setShowShelfPicker] = useState(false);
   const [shelvedAs, setShelvedAs] = useState<ShelfKey | null>(currentShelf || null);
-  // Long-press detail sheet — central card affordance, baked in here
-  // so every CoffeeCard surface (Discover BEANS grid, roaster page,
-  // related-coffees rail, JOURNAL article rail, admin scrape carousel)
-  // gets it for free. Per DESIGN_LANGUAGE §7.
-  const [showDetail, setShowDetail] = useState(false);
+  // Tap → full-page reader at `/coffee/{id}`. Replaces the prior
+  // long-press → CoffeeDetailSheet floating modal: the modal was
+  // data-rich but lacked the hero, the page had the hero but lacked
+  // the rich detail sections — the page now carries both. One press
+  // type sitewide. Haptic medium-impact on native to mirror the old
+  // long-press tactile cue.
   const openDetail = () => {
     if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     }
-    setShowDetail(true);
+    router.push(`/coffee/${coffee.product_id}` as any);
   };
   const { share } = useShare();
   const { addToShelf } = useShelves();
@@ -146,9 +148,9 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
   if (isMobile || forceLandscape) {
     return (
       <Pressable
-        onLongPress={openDetail}
-        delayLongPress={350}
-        accessibilityHint="Long-press to inspect every detail the roaster shared about this coffee"
+        testID={`coffee-card-${coffee.product_id}`}
+        onPress={openDetail}
+        accessibilityHint="Open the full coffee page with origin, roast, brew guide, and tasting notes"
         style={{ width: lsCardW, height: lsCardH }}
       >
       <View style={[s.cardLs, { width: lsCardW, height: lsCardH }]}>
@@ -237,7 +239,6 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
             roast_level={coffee.roast_level || "Unknown"}
             tasting_notes={coffee.tasting_notes}
             flavor_notes={coffee.flavor_notes}
-            origin={coffee.origin}
             process={coffee.process}
             varietal={coffee.varietal}
             altitude_masl={coffee.altitude_masl}
@@ -253,6 +254,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
           <View style={s.bottomRowLs}>
             <CoffeeLabelPrice price_inr={coffee.price_inr} weight_grams={coffee.weight_grams} />
             <Pressable
+              testID={`coffee-buy-${coffee.product_id}`}
               onPress={() => { if (coffee.product_url) { trackClick(coffee.product_id, coffee.roaster_slug, "card_front"); openExternal(coffee.product_url); } }}
               accessibilityLabel="Open product page"
             >
@@ -261,11 +263,6 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
           </View>
         </View>
       </View>
-      <CoffeeDetailSheet
-        coffee={coffee}
-        visible={showDetail}
-        onClose={() => setShowDetail(false)}
-      />
       </Pressable>
     );
   }
@@ -274,9 +271,9 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
 
   return (
     <Pressable
-      onLongPress={openDetail}
-      delayLongPress={350}
-      accessibilityHint="Long-press to inspect every detail the roaster shared about this coffee"
+      testID={`coffee-card-${coffee.product_id}`}
+      onPress={openDetail}
+      accessibilityHint="Open the full coffee page with origin, roast, brew guide, and tasting notes"
       style={{ width: cardW, height: cardH }}
     >
     <View style={[s.card, { width: cardW, height: cardH }]}>
@@ -376,7 +373,6 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
           roast_level={coffee.roast_level || "Unknown"}
           tasting_notes={coffee.tasting_notes}
           flavor_notes={coffee.flavor_notes}
-          origin={coffee.origin}
           process={coffee.process}
           varietal={coffee.varietal}
           altitude_masl={coffee.altitude_masl}
@@ -395,7 +391,9 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
               <ShareIcon size={BTN_SIZE} />
             </Pressable>
             <Pressable
+              testID={`coffee-buy-${coffee.product_id}`}
               onPress={() => { if (coffee.product_url) { trackClick(coffee.product_id, coffee.roaster_slug, "card_front"); openExternal(coffee.product_url); } }}
+              accessibilityLabel="Open product page"
             >
               <CartIcon size={BTN_SIZE} />
             </Pressable>
@@ -408,11 +406,6 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
          GlobalPopularityModal at root layout handles presentation
          (mid-band on mobile, centered card on web). (§2.40.3) */}
     </View>
-    <CoffeeDetailSheet
-      coffee={coffee}
-      visible={showDetail}
-      onClose={() => setShowDetail(false)}
-    />
     </Pressable>
   );
 }

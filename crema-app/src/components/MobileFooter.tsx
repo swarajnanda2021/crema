@@ -301,6 +301,7 @@ export default function MobileFooter() {
         return (
           <Pressable
             key={tab.path}
+            testID={`tab-${tab.label.toLowerCase()}`}
             onPress={onPress}
             style={s.tab}
             hitSlop={4}

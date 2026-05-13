@@ -16,6 +16,7 @@ import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { useRoasterArticles } from "../../src/hooks/useRoasterArticles";
 import ArticleListRow from "../../src/components/domain/ArticleListRow";
+import { TOPIC_CHIPS, topicBucketKey } from "../../src/utils/articleMeta";
 import RoasterLogo from "../../src/components/primitives/RoasterLogo";
 import { useSearchBarAutoHide } from "../../src/hooks/useSearchBarAutoHide";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
@@ -623,7 +624,7 @@ export default function BrowsePage() {
               setActiveTab("roasters");
               setTimeout(() => emit("crema:loading-end"), 350);
             }} />
-            <TabButton label="JOURNALS" active={activeTab === "journal"} onPress={() => {
+            <TabButton label="JOURNAL" active={activeTab === "journal"} onPress={() => {
               if (activeTab === "journal") return;
               emit("crema:loading-start");
               setActiveTab("journal");
@@ -980,7 +981,11 @@ function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }
 function TabButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   const s = useStyles();
   return (
-    <Pressable onPress={onPress} style={s.tabBtn}>
+    <Pressable
+      testID={`browse-tab-${label.toLowerCase()}`}
+      onPress={onPress}
+      style={s.tabBtn}
+    >
       <Text style={[s.tabLabel, active && s.tabLabelActive]}>{label}</Text>
       {active && <View style={s.tabUnderline} />}
     </Pressable>
@@ -1304,6 +1309,14 @@ function JournalList() {
   const isWide = width >= 768;
   const s = useStyles();
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  // Filter axes added 2026-05-10. Sort defaults to "newest" so the
+  // chronological feed reads top-down on first paint; tapping the
+  // sort pill flips to oldest-first. Topic filter is multi-select —
+  // empty array = "all topics". The "other" chip key collapses
+  // both topic_category='other' AND NULL rows (legacy + Haiku
+  // failures) — see articleMeta.topicBucketKey.
+  const [sortDir, setSortDir] = useState<"newest" | "oldest">("newest");
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1311,6 +1324,35 @@ function JournalList() {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []),
   );
+
+  // When the user picks a roaster from the strip, fetch that
+  // roaster's full article set and merge into the cache. The
+  // sitewide /articles?limit=500 endpoint orders chronologically and
+  // older articles (Caffena's 2022 evergreens, etc.) fall past the
+  // cap — without this fetch, the Caffena chip would surface only
+  // ~5 of 9 articles. Bounded per call (5–30 articles per roaster);
+  // cache.upsert merges in so subsequent navigation keeps benefit.
+  useEffect(() => {
+    if (!selectedSlug) return;
+    let cancelled = false;
+    apiFetchRaw(
+      `/roasters/${encodeURIComponent(selectedSlug)}/articles?limit=100`,
+    )
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = res?.data || res || [];
+        if (Array.isArray(list)) {
+          for (const a of list) {
+            if (a?.id != null) articlesCache.upsert(a);
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSlug]);
 
   const allArticles = articlesCache.articles;
 
@@ -1345,12 +1387,36 @@ function JournalList() {
       .sort((a, b) => b.latest - a.latest);
   }, [allArticles, profilesCache]);
 
-  // Filter the rendered feed by the selected roaster. "All" leaves
-  // the chronological feed unfiltered.
+  // Apply all three filter axes + sort in one pass. Roaster chip,
+  // topic chips, sort direction. Stable order for ties (id DESC) so
+  // a re-sort doesn't shuffle articles with identical timestamps.
   const articles = useMemo(() => {
-    if (!selectedSlug) return allArticles;
-    return allArticles.filter((a) => a.roaster_slug === selectedSlug);
-  }, [allArticles, selectedSlug]);
+    let out = allArticles;
+    if (selectedSlug) {
+      out = out.filter((a) => a.roaster_slug === selectedSlug);
+    }
+    if (selectedTopics.length > 0) {
+      const set = new Set(selectedTopics);
+      out = out.filter((a) => set.has(topicBucketKey(a.topic_category)));
+    }
+    // Make a copy before sorting — `cache.articles` is reactive
+    // shared state, in-place sorts ripple to other consumers.
+    const dir = sortDir === "newest" ? -1 : 1;
+    return [...out].sort((a, b) => {
+      const ta = Date.parse(a.published_at || a.scraped_at) || 0;
+      const tb = Date.parse(b.published_at || b.scraped_at) || 0;
+      if (ta !== tb) return (ta - tb) * dir;
+      // Tie-break on id DESC (matches the server's
+      // ORDER BY ... t.id DESC for newest-first; flipped for oldest).
+      return ((Number(a.id) || 0) - (Number(b.id) || 0)) * dir;
+    });
+  }, [allArticles, selectedSlug, selectedTopics, sortDir]);
+
+  const toggleTopic = useCallback((key: string) => {
+    setSelectedTopics((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  }, []);
 
   // JOURNALS is now a single editorial column — `<ArticleListRow>`
   // stacks tag/date · title · byline · hero · excerpt · action bar
@@ -1390,6 +1456,24 @@ function JournalList() {
             roasters={roastersByLatest}
             selectedSlug={selectedSlug}
             onSelect={setSelectedSlug}
+          />
+        ) : null}
+
+        {/* Filter strip — sort toggle + 8 topic chips. Sits below the
+            roster carousel and above the editorial column. The "Other"
+            chip catches both topic_category='other' AND null rows so
+            unenriched / legacy articles still surface under a single
+            opt-in. Hidden when there's nothing to filter (empty
+            cache). */}
+        {allArticles.length > 0 ? (
+          <JournalFilterStrip
+            sortDir={sortDir}
+            onToggleSort={() =>
+              setSortDir((d) => (d === "newest" ? "oldest" : "newest"))
+            }
+            selectedTopics={selectedTopics}
+            onToggleTopic={toggleTopic}
+            onClearTopics={() => setSelectedTopics([])}
           />
         ) : null}
 
@@ -1518,6 +1602,115 @@ function RoasterStrip({
     </ScrollView>
   );
 }
+
+
+// ── JournalFilterStrip — sort toggle + topic chips ──────────────────────────
+// Sits below the roaster carousel. Horizontal scroll on every viewport
+// (the 8 topic chips overflow most mobile widths). Sort pill on the
+// left flips between "Newest" and "Oldest" when tapped; the active
+// state is implicit (the label reflects the current order). Topic
+// chips are multi-select with a pink fill in the active state. A
+// trailing "Clear" pill appears when any topic is selected so the
+// user can reset without scrolling back.
+
+function JournalFilterStrip({
+  sortDir,
+  onToggleSort,
+  selectedTopics,
+  onToggleTopic,
+  onClearTopics,
+}: {
+  sortDir: "newest" | "oldest";
+  onToggleSort: () => void;
+  selectedTopics: string[];
+  onToggleTopic: (key: string) => void;
+  onClearTopics: () => void;
+}) {
+  const s = useStyles();
+  const sortLabel = sortDir === "newest" ? "Newest first" : "Oldest first";
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        gap: 8,
+        alignItems: "center",
+      }}
+      style={{ flexGrow: 0 }}
+    >
+      <Pressable
+        onPress={onToggleSort}
+        style={({ pressed }) => [
+          s.journalSortPill,
+          pressed && { opacity: 0.7 },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={`Sort: ${sortLabel}. Tap to flip.`}
+      >
+        <Text style={s.journalSortLabel}>{sortLabel}</Text>
+        <ChevronDown
+          size={14}
+          color={t.color["text.primary"]}
+          strokeWidth={2}
+          style={{
+            transform: [
+              { rotate: sortDir === "oldest" ? "180deg" : "0deg" },
+            ],
+          }}
+        />
+      </Pressable>
+
+      {/* Vertical separator between sort and topic axes — calm
+          divider line, not a chip. Same divider color the rest of the
+          page uses. */}
+      <View style={s.journalFilterSep} />
+
+      {TOPIC_CHIPS.map((chip) => {
+        const active = selectedTopics.includes(chip.key);
+        return (
+          <Pressable
+            key={chip.key}
+            onPress={() => onToggleTopic(chip.key)}
+            style={({ pressed }) => [
+              s.journalTopicChip,
+              active && s.journalTopicChipActive,
+              pressed && { opacity: 0.85 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Filter by ${chip.label}`}
+            accessibilityState={{ selected: active }}
+          >
+            <Text
+              style={[
+                s.journalTopicChipText,
+                active && s.journalTopicChipTextActive,
+              ]}
+            >
+              {chip.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+
+      {selectedTopics.length > 0 ? (
+        <Pressable
+          onPress={onClearTopics}
+          style={({ pressed }) => [
+            s.journalClearPill,
+            pressed && { opacity: 0.7 },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Clear all topic filters"
+        >
+          <Text style={s.journalClearText}>Clear</Text>
+        </Pressable>
+      ) : null}
+    </ScrollView>
+  );
+}
+
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -1942,4 +2135,66 @@ const useStyles = makeStyles((t) => ({
   roasterStripAllTextActive: {
     color: t.color["text.on-cta"],
   },
+
+  // ── JOURNAL filter strip ──────────────────────────────────────────
+  // Sort pill + topic chips in one horizontal scroll. The sort pill is
+  // bordered (not filled) so it reads as a control, not a selection;
+  // topic chips fill in pink when active so they pair with the
+  // roaster-strip "All" pill's active style above. Sort + topics are
+  // separated by a small vertical hairline so the eye groups them
+  // correctly.
+  journalSortPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: t.spacing.md,
+    paddingVertical: t.spacing.sm,
+    borderRadius: t.radius.full,
+    borderWidth: 1,
+    borderColor: t.color.border,
+    backgroundColor: t.color["card.subtle"],
+  } as any,
+  journalSortLabel: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.primary"],
+  } as any,
+  journalFilterSep: {
+    width: 1,
+    height: 20,
+    backgroundColor: t.color.divider,
+    marginHorizontal: 4,
+  } as any,
+  journalTopicChip: {
+    paddingHorizontal: t.spacing.md,
+    paddingVertical: t.spacing.sm,
+    borderRadius: t.radius.full,
+    borderWidth: 1,
+    borderColor: t.color.border,
+    backgroundColor: "transparent",
+  } as any,
+  journalTopicChipActive: {
+    borderColor: t.color["accent.cta"],
+    backgroundColor: t.color["accent.cta"],
+  } as any,
+  journalTopicChipText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.primary"],
+  } as any,
+  journalTopicChipTextActive: {
+    color: t.color["text.on-cta"],
+    fontFamily: t.font["body.semibold"],
+  } as any,
+  journalClearPill: {
+    paddingHorizontal: t.spacing.md,
+    paddingVertical: t.spacing.sm,
+    borderRadius: t.radius.full,
+  } as any,
+  journalClearText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.muted"],
+    textDecorationLine: "underline",
+  } as any,
 }));

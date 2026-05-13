@@ -284,6 +284,7 @@ export default function PostModal({
 
                     {/* Optional comment input */}
                     <TextInput
+                      testID="repost-comment-input"
                       value={repostComment}
                       onChangeText={setRepostComment}
                       placeholder="Add a comment (optional)..."
@@ -336,6 +337,7 @@ export default function PostModal({
                         soft shadow. */}
                     <View style={s.repostBtnRow}>
                       <Pressable
+                        testID="repost-submit"
                         onPress={() => handleRepostSubmit({
                           post_type: "repost",
                           repost_of_id: post.id,

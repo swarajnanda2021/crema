@@ -18,7 +18,6 @@ import { useDirectInbox } from "../hooks/useDirectInbox";
 import { CroppedAvatar } from "./primitives";
 import CremaLogo from "./CremaLogo";
 import ProfileDropdown from "./ProfileDropdown";
-import NotificationsDropdown from "./NotificationsDropdown";
 import MessagesDropdown from "./MessagesDropdown";
 import SearchDropdown from "./SearchDropdown";
 import type { ThreadKind } from "./ThreadBody";
@@ -33,10 +32,10 @@ export default function Navbar() {
   // SearchDropdown.
   const [searchOpen, setSearchOpen] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   // Messages dropdown holds list + active thread in a single floating
-  // panel. initialThread lets notification taps jump straight into
-  // the right conversation without first showing the list.
+  // panel. initialThread lets cross-page taps (profile "Message" CTA,
+  // window.__crema_openThread bridge) jump straight into the right
+  // conversation without first showing the list.
   const [showMessages, setShowMessages] = useState(false);
   const [initialThread, setInitialThread] = useState<{ kind: ThreadKind; id: number } | null>(null);
   const { unreadCount } = useNotifications(!!user);
@@ -51,19 +50,12 @@ export default function Navbar() {
 
   // Close every dropdown except the one named. Called from every
   // navbar-button onPress so clicking any icon/search always
-  // dismisses whatever else was open. Keeps the three dropdowns
-  // mutually exclusive without threading state through each toggler.
-  const closeOthers = (keep?: "messages" | "notifications" | "profile" | "search") => {
+  // dismisses whatever else was open. Keeps the dropdowns mutually
+  // exclusive without threading state through each toggler.
+  const closeOthers = (keep?: "messages" | "profile" | "search") => {
     if (keep !== "messages") setShowMessages(false);
-    if (keep !== "notifications") setShowNotifications(false);
     if (keep !== "profile") setShowDropdown(false);
     if (keep !== "search") setSearchOpen(false);
-  };
-
-  const openThreadFromNotification = (kind: ThreadKind, id: number) => {
-    setInitialThread({ kind, id });
-    closeOthers("messages");
-    setShowMessages(true);
   };
 
   // Cross-component bridge. Anywhere on the site that wants to open a
@@ -134,12 +126,16 @@ export default function Navbar() {
                 </Pressable>
               )}
 
-              {/* Bell icon with unread badge */}
+              {/* Bell icon with unread badge — navigates to the
+                 full-page notifications reader. The floating
+                 dropdown was retired 2026-05-10 in favor of the
+                 sitewide /notifications route so the surface is the
+                 same affordance everywhere (mobile + web). */}
               {user && (
                 <Pressable
                   onPress={() => {
-                    closeOthers("notifications");
-                    setShowNotifications((v) => !v);
+                    closeOthers();
+                    router.push("/notifications");
                   }}
                   style={s.iconBtn}
                 >
@@ -189,13 +185,10 @@ export default function Navbar() {
         onClose={() => setSearchOpen(false)}
       />
 
-      {/* Notifications dropdown. Tapping a thread-related notification
-         opens the Messages dropdown directly at the right thread. */}
-      <NotificationsDropdown
-        visible={showNotifications}
-        onClose={() => setShowNotifications(false)}
-        onOpenThread={openThreadFromNotification}
-      />
+      {/* Notifications dropdown was retired 2026-05-10 — the bell now
+         navigates to /notifications (full-page reader). Sitewide
+         affordance is one tap, one full page; same as messages /
+         coffee detail / article reader. */}
 
       {/* Messages dropdown — compact floating panel that holds both
          the list and the active thread in master-detail. Non-blocking:

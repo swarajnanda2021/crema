@@ -76,6 +76,7 @@ function ConditionalCreatePostFab() {
 
   return (
     <FabPill
+      testID="fab-compose-post"
       icon={<Plus size={17} color={t.color["text.on-light"]} strokeWidth={2.5} />}
       label="Create post"
       onPress={() => openComposePost()}
@@ -286,28 +287,42 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
+  const inAuthScreen = segments[0] === "auth";
+  const inBrowse = segments[0] === "(tabs)" && segments[1] === "browse";
+  // Deliberate exception — ProfileDropdown "Add another account" on
+  // native routes to `/auth?addAccount=1`. A logged-in user has to
+  // land on that screen to sign a SECOND account in; without this
+  // exception, AuthGate bounces them back to "/" and the flow
+  // silently fails. (§2.40.4)
+  const isAddAccountFlow =
+    inAuthScreen &&
+    (typeof window !== "undefined" && typeof window.location !== "undefined"
+      ? new URLSearchParams(window.location.search || "").get("addAccount") === "1"
+      : pathname?.includes("addAccount=1"));
+  const wantsAuth = !backendAvailable || !user;
+
   useEffect(() => {
     if (loading) return;
-    const inAuthScreen = segments[0] === "auth";
-    const inBrowse = segments[0] === "(tabs)" && segments[1] === "browse";
-    // Deliberate exception — ProfileDropdown "Add another account" on
-    // native routes to `/auth?addAccount=1`. A logged-in user has to
-    // land on that screen to sign a SECOND account in; without this
-    // exception, AuthGate bounces them back to "/" and the flow
-    // silently fails. (§2.40.4)
-    const isAddAccountFlow =
-      inAuthScreen &&
-      (typeof window !== "undefined" && typeof window.location !== "undefined"
-        ? new URLSearchParams(window.location.search || "").get("addAccount") === "1"
-        : pathname?.includes("addAccount=1"));
     if (inBrowse) return;
-    if (!backendAvailable || !user) {
+    if (wantsAuth) {
       if (!inAuthScreen) router.replace("/auth");
     } else {
       if (inAuthScreen && !isAddAccountFlow) router.replace("/");
     }
   }, [user, loading, backendAvailable, segments, pathname]);
 
+  // Hold the native splash until auth has resolved AND we're already
+  // rendering the route the user belongs on. Otherwise on cold-launch
+  // the (tabs) chrome flashes for one frame before the router.replace
+  // to /auth lands.
+  useEffect(() => {
+    if (loading) return;
+    const matched = inBrowse || isAddAccountFlow || wantsAuth === inAuthScreen;
+    if (matched) SplashScreen.hideAsync().catch(() => {});
+  }, [loading, wantsAuth, inAuthScreen, inBrowse, isAddAccountFlow]);
+
+  if (loading) return null;
+  if (!inBrowse && !isAddAccountFlow && wantsAuth !== inAuthScreen) return null;
   return <>{children}</>;
 }
 
@@ -324,9 +339,14 @@ export default function RootLayout() {
     if (fontError) throw fontError;
   }, [fontError]);
 
+  // Splash hide is owned by AuthGate now — it holds the splash until
+  // auth has resolved AND the rendered route matches the user state,
+  // so cold-launch never flashes the (tabs) chrome before bouncing to
+  // /auth. Falling back here keeps a runaway splash from sticking when
+  // fonts hard-fail.
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
-  }, [fontsLoaded]);
+    if (fontError) SplashScreen.hideAsync().catch(() => {});
+  }, [fontError]);
 
   if (!fontsLoaded) return null;
 

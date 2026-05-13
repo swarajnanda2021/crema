@@ -142,6 +142,7 @@ assumptions is large.
 Pull these in only when the task touches their area:
 
 - [README.md](README.md) — repo overview, onboarding, local setup
+- [MAESTRO_OPS.md](MAESTRO_OPS.md) — operational guide for running and extending the Maestro E2E suite. Pull this in whenever the user asks to run flows, debug a Maestro failure, or add a new user journey.
 - [LAUNCH_TODO.md](LAUNCH_TODO.md) — pre-launch backlog. Don't self-direct onto these items; only pull in when the user explicitly asks to work on launch blockers / infra / legal / app-store prep.
 - [specs/UI_SPEC.md](specs/UI_SPEC.md) — component structure, page flows, design tokens
 - [specs/CATALOG_SPEC.md](specs/CATALOG_SPEC.md) — catalog data model
@@ -191,3 +192,50 @@ When LAUNCH_TODO items do come up:
   change rather than leaving specs to drift behind code.
 - If the code contradicts a spec, surface it — don't silently "fix"
   the spec to match the code or vice versa.
+
+## Hard rule — Haiku-agent validation runs
+
+When you iterate on a Haiku-driven prompt (article enricher, product
+enricher, site-hint generator, etc.) and the API credits are exhausted
+so you spawn Claude Code `Agent` calls with `model: "haiku"` to act as
+the production Haiku, the spawned agent MUST run the full production
+prompt + tool schema and produce the FULL structured output that
+production would write to the DB.
+
+Concretely:
+
+- **Load the canonical assets**: read the actual `_ARTICLE_SYSTEM` (or
+  whichever module-level prompt you're iterating) verbatim into
+  `/tmp/haiku_system.txt`. Read the actual `_ARTICLE_TOOL.input_schema`
+  verbatim into `/tmp/haiku_schema.json`. The agent reads those files;
+  no excerpting, no paraphrasing, no narrow extracts.
+- **Build the user_content the same way `enrich_article` would**:
+  ARTICLE URL, OG hints, DETECTED VIDEOS, DETECTED BODY LINKS,
+  CLEANED PAGE TEXT — exactly the structure the production runner
+  passes to the SDK. Don't strip blocks because "I'm only testing the
+  title polish today" — Haiku reads the full context to make every
+  field decision.
+- **Demand every field**: the agent must produce every schema field
+  (`is_article`, `is_about_coffee`, `title`, `excerpt`, `body_html`,
+  `topic_category`, `tags`, `image_url`, `published_at`,
+  `word_count`). The whole structured payload, not a slice. Validation
+  is meaningless if the agent under-emits and you only inspect the
+  one field you were tuning.
+- **Write the full payload back to the DB**: same fields the
+  production runner's `upsert_scraped_articles` writes — title,
+  excerpt, body_html, topic_category, tags, image_url, published_at,
+  word_count, is_about_coffee, enrichment_status. Anything less and
+  the validation is unrepresentative of what would land in
+  production. **Including the `published` flag** when the runner's
+  rule (`published = is_about_coffee ? 1 : 0` on insert, sticky on
+  update) calls for it — admin curation stays sticky on update, but a
+  validation re-enrichment that restores `is_about_coffee=1` should
+  also re-publish if the prior `published=0` was driven by a stale
+  `is_about_coffee=0` decision.
+- **Report the full delta**: when summarising the validation results
+  to the user, show every changed field (title, excerpt, body_html
+  length, topic, tags, published flag, …) — not just the one you were
+  tuning. Hiding changes obscures regressions.
+
+Spawned Haiku is production Haiku for these validation purposes. Treat
+it that way.

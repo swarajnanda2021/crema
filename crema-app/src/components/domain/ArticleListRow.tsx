@@ -42,7 +42,7 @@ import { View, Text, Pressable } from "react-native";
 
 import { t, makeStyles } from "../../tokens/useTokens";
 import {
-  TOPIC_LABELS,
+  resolveTopicLabel,
   formatArticleDate,
   estimateReadingTime,
 } from "../../utils/articleMeta";
@@ -61,10 +61,18 @@ export default function ArticleListRow({
   const router = useRouter();
   const s = useStyles();
 
-  const dateLabel = formatArticleDate(article.published_at || article.scraped_at);
-  const tagLabel = article.topic_category
-    ? TOPIC_LABELS[article.topic_category] || null
-    : null;
+  // Display the article's own publish date only. Falling back to
+  // scraped_at would surface the scrape day (e.g. 2026-05-08 for the
+  // bulk run) as the article date for the 442 / 912 rows that have
+  // NULL published_at, which is misleading — those articles aren't
+  // from May 2026; the source page just doesn't expose a date the
+  // scraper recognized. formatArticleDate returns "" on null and the
+  // row hides the date cell cleanly.
+  const dateLabel = formatArticleDate(article.published_at);
+  // NULL topic_category collapses into "Other" alongside explicit
+  // 'other' — see resolveTopicLabel. Both states should read the
+  // same on the row meta line.
+  const tagLabel = resolveTopicLabel(article.topic_category);
   const readingTime = estimateReadingTime(article.word_count);
 
   const goToReader = () => router.push(`/article/${article.id}` as any);
@@ -76,6 +84,7 @@ export default function ArticleListRow({
   return (
     <View style={s.wrap}>
       <Pressable
+        testID={`article-row-${article.id}`}
         onPress={goToReader}
         accessibilityRole="link"
         accessibilityLabel={
