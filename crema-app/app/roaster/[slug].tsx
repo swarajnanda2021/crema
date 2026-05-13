@@ -17,7 +17,7 @@ import {
 import { Image } from "expo-image";
 import { useLocalSearchParams, Stack, useRouter } from "expo-router";
 import { openExternal } from "../../src/utils/openExternal";
-import Svg, { Path } from "react-native-svg";
+import Svg, { Path, Circle } from "react-native-svg";
 import { Plus, X, PenLine, Camera, MapPin, Check, ArrowLeft, MessageCircle } from "lucide-react-native";
 
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
@@ -184,6 +184,542 @@ const useCgStyles = makeStyles((t) => ({
   emptyText: { fontFamily: t.font["body.regular"], fontSize: 14, color: t.color["text.secondary"] },
 }));
 
+// ── AdJournalRow ─────────────────────────────────────────────────────────────
+//
+// One row of the ADS · JOURNAL sub-tab. Single column: article
+// title + topic on top, horizontal carousel of compact coffee
+// chips below. Each chip has a delete X overlay. The carousel
+// ends with a "+ Add coffee" placeholder chip that opens a
+// multi-select modal of the roaster's catalog.
+//
+// Local state only this iteration — deletions and additions
+// modify the React state but are NOT persisted to the backend.
+// Persistence ships next round once the roaster's review of
+// the auto-suggestions has built trust.
+
+function AdJournalRow({
+  article,
+  placements,
+  catalog,
+  onDelete,
+  onAddSelected,
+  isLast,
+}: {
+  article: any;
+  placements: any[];
+  catalog: any[];
+  onDelete: (productId: string) => void;
+  onAddSelected: (products: any[]) => void;
+  isLast: boolean;
+}) {
+  const s = useAdsStyles();
+  const router = useRouter();
+  const [modalOpen, setModalOpen] = useState(false);
+  const placedIds = useMemo(
+    () => new Set(placements.map((p) => p.product_id)),
+    [placements],
+  );
+  return (
+    <>
+      <View style={s.row}>
+        <Pressable
+          onPress={() => router.push(`/article/${article.id}` as any)}
+          accessibilityRole="link"
+          accessibilityLabel={`Open article: ${article.title}`}
+        >
+          <Text style={s.articleTitle} numberOfLines={3}>
+            {article.title || "(untitled)"}
+          </Text>
+          {article.topic_category ? (
+            <Text style={s.articleMeta} numberOfLines={1}>
+              {article.topic_category.replace(/_/g, " ")}
+            </Text>
+          ) : null}
+        </Pressable>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.carouselContent}
+          style={s.carousel}
+        >
+          {placements.map((product) => (
+            <AdCoffeeChip
+              key={product.product_id}
+              product={product}
+              onDelete={() => onDelete(product.product_id)}
+            />
+          ))}
+          <AdAddChip onPress={() => setModalOpen(true)} />
+        </ScrollView>
+
+        {modalOpen ? (
+          <AddCoffeesModal
+            visible={modalOpen}
+            onClose={() => setModalOpen(false)}
+            catalog={catalog}
+            alreadyPlaced={placedIds}
+            onConfirm={(selected) => {
+              onAddSelected(selected);
+              setModalOpen(false);
+            }}
+          />
+        ) : null}
+      </View>
+      {/* Inset hairline matching the feed's dividerLight — end-to-end
+         lines are reserved for the tab strips (POSTS/BEANS/JOURNAL/
+         ADS/ANALYTICS and JOURNAL/SEARCH/FEED). The article-row
+         break is the calmer style. */}
+      {!isLast && <View style={s.rowDividerLine} />}
+    </>
+  );
+}
+
+function AdCoffeeChip({
+  product,
+  onDelete,
+}: {
+  product: any;
+  onDelete?: () => void;
+}) {
+  const router = useRouter();
+  const s = useAdsStyles();
+  const raw = product?.image_url as string | undefined;
+  const resolved = raw ? (resolveUploadUrl(raw) || raw) : null;
+  const heroSrc = resolved
+    ? require("../../src/utils/imageUrl").thumbnailUrl(resolved, 200) || resolved
+    : null;
+  return (
+    <View style={s.chipWrap}>
+      <Pressable
+        style={s.chip}
+        onPress={() => router.push(`/coffee/${product?.product_id}` as any)}
+        accessibilityRole="link"
+        accessibilityLabel={`Open coffee: ${product?.coffee_name}`}
+      >
+        <View style={s.chipImage}>
+          {heroSrc ? (
+            <Image
+              source={{ uri: heroSrc }}
+              style={StyleSheet.absoluteFillObject}
+              contentFit="cover"
+              transition={200}
+            />
+          ) : null}
+        </View>
+        <Text style={s.chipTitle} numberOfLines={1} ellipsizeMode="tail">
+          {product?.coffee_name || "—"}
+        </Text>
+        {product?.origin ? (
+          <Text style={s.chipMeta} numberOfLines={1} ellipsizeMode="tail">
+            {product.origin}
+          </Text>
+        ) : null}
+        {product?.bean_type ? (
+          <Text style={s.chipMeta} numberOfLines={1} ellipsizeMode="tail">
+            {product.bean_type}
+          </Text>
+        ) : null}
+      </Pressable>
+      {onDelete ? (
+        <Pressable
+          onPress={onDelete}
+          style={s.chipDelete}
+          hitSlop={6}
+          accessibilityLabel={`Remove ${product?.coffee_name}`}
+          accessibilityRole="button"
+        >
+          <X size={14} color={t.color["text.on-cta"]} strokeWidth={2.2} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+// "+" placeholder card at the end of each carousel. Same outer
+// dimensions as `AdCoffeeChip` so the chip-row reads as a uniform
+// strip — the + icon lives where the bag image would, no text
+// below. Background is the always-light `card.product.bg` so it
+// reads in dark mode (matches the actual coffee chip bg).
+function AdAddChip({ onPress }: { onPress: () => void }) {
+  const s = useAdsStyles();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={s.chip}
+      accessibilityLabel="Add coffees to this article"
+      accessibilityRole="button"
+    >
+      <View style={s.chipAddImage}>
+        <Svg width={44} height={44} viewBox="0 0 44 44" fill="none">
+          <Circle cx={22} cy={22} r={22} fill={t.color["card.info"]} />
+          <Path
+            d="M22 12V32M12 22H32"
+            stroke={t.color["text.primary"]}
+            strokeWidth={2}
+            strokeLinecap="round"
+          />
+        </Svg>
+      </View>
+    </Pressable>
+  );
+}
+
+// Floating modal — lists the roaster's catalog with multi-select
+// ticks. The roaster taps each coffee they want to add to the
+// article's placement carousel; "Add to list" commits the
+// selections. Coffees already in the article's carousel render
+// with a "Placed" badge instead of a tick so they can't be added
+// again as duplicates.
+function AddCoffeesModal({
+  visible,
+  onClose,
+  catalog,
+  alreadyPlaced,
+  onConfirm,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  catalog: any[];
+  alreadyPlaced: Set<string>;
+  onConfirm: (selected: any[]) => void;
+}) {
+  const s = useAdsStyles();
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
+  // Reset selection on every open so a previous selection doesn't
+  // bleed into the next add session.
+  useEffect(() => {
+    if (visible) setTicked(new Set());
+  }, [visible]);
+
+  const toggle = (id: string) => {
+    setTicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const handleAdd = () => {
+    const selected = catalog.filter((c) => ticked.has(c.product_id));
+    onConfirm(selected);
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={s.modalOverlay}>
+        <Pressable style={s.modalBackdrop} onPress={onClose} />
+        <View style={s.modalCard}>
+          <View style={s.modalHeader}>
+            <Text style={s.modalTitle}>Add coffees</Text>
+            <Pressable onPress={onClose} hitSlop={8} accessibilityLabel="Close">
+              <X size={20} color={t.color["text.primary"]} strokeWidth={2} />
+            </Pressable>
+          </View>
+          <ScrollView
+            style={s.modalList}
+            contentContainerStyle={{ paddingBottom: 24 }}
+          >
+            {catalog.length === 0 ? (
+              <View style={s.modalEmpty}>
+                <Text style={s.modalEmptyText}>
+                  No coffees in your catalog yet.
+                </Text>
+              </View>
+            ) : (
+              catalog.map((c) => {
+                const placed = alreadyPlaced.has(c.product_id);
+                const isTicked = ticked.has(c.product_id);
+                const raw = c.image_url as string | undefined;
+                const resolved = raw ? (resolveUploadUrl(raw) || raw) : null;
+                const heroSrc = resolved
+                  ? require("../../src/utils/imageUrl").thumbnailUrl(resolved, 200) || resolved
+                  : null;
+                return (
+                  <Pressable
+                    key={c.product_id}
+                    onPress={() => !placed && toggle(c.product_id)}
+                    disabled={placed}
+                    style={[s.modalRow, placed && s.modalRowDisabled]}
+                  >
+                    <View style={s.modalRowImage}>
+                      {heroSrc ? (
+                        <Image
+                          source={{ uri: heroSrc }}
+                          style={StyleSheet.absoluteFillObject}
+                          contentFit="cover"
+                          transition={200}
+                        />
+                      ) : null}
+                    </View>
+                    <View style={s.modalRowBody}>
+                      <Text style={s.modalRowTitle} numberOfLines={1}>
+                        {c.coffee_name}
+                      </Text>
+                      <Text style={s.modalRowMeta} numberOfLines={1}>
+                        {[c.origin, c.bean_type, c.roast_level].filter(Boolean).join(" · ")}
+                      </Text>
+                    </View>
+                    {placed ? (
+                      <View style={s.modalRowPlacedBadge}>
+                        <Text style={s.modalRowPlacedText}>Placed</Text>
+                      </View>
+                    ) : (
+                      <View style={[s.modalTick, isTicked && s.modalTickOn]}>
+                        {isTicked ? (
+                          <Check size={16} color={t.color["text.on-cta"]} strokeWidth={2.4} />
+                        ) : null}
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })
+            )}
+          </ScrollView>
+          <View style={s.modalFooter}>
+            <Pressable
+              onPress={handleAdd}
+              disabled={ticked.size === 0}
+              style={[
+                s.modalConfirmBtn,
+                ticked.size === 0 && s.modalConfirmBtnDisabled,
+              ]}
+            >
+              <Text style={s.modalConfirmBtnText}>
+                {ticked.size === 0
+                  ? "Pick coffees to add"
+                  : `Add ${ticked.size} ${ticked.size === 1 ? "coffee" : "coffees"}`}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const useAdsStyles = makeStyles((t) => ({
+  row: {
+    // Padding matches `rowDividerLine.marginHorizontal` (20px) so the
+    // article title's left/right edges align with the inset divider
+    // below — no content over-hanging the line.
+    paddingHorizontal: 20,
+    paddingVertical: t.spacing.lg,
+    gap: t.spacing.md,
+  } as any,
+  // Inset hairline matching the feed's `dividerLight` (line 2271).
+  // Same hairline thickness, same muted rgba, same 20-px horizontal
+  // inset — keeps the row break visually distinct from the tab
+  // strip's full-width separators above.
+  rowDividerLine: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(215,209,196,0.35)",
+    marginHorizontal: 20,
+  } as any,
+  articleTitle: {
+    fontFamily: t.font.display,
+    fontSize: t.size["font.lg"],
+    lineHeight: 22,
+    color: t.color["text.primary"],
+  } as any,
+  articleMeta: {
+    fontFamily: t.font["body.medium"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.muted"],
+    marginTop: t.spacing.xs,
+    textTransform: "capitalize",
+  } as any,
+  // Horizontal carousel of placement chips below each article.
+  carousel: { flexGrow: 0 } as any,
+  carouselContent: {
+    gap: t.spacing.sm,
+    paddingRight: t.spacing.lg,
+  } as any,
+  // Compact coffee chip — same geometry as ComposePost's chipCard.
+  // Fixed `height` so the add-chip (no title/meta below) matches the
+  // coffee-chip's full size — without it the + placeholder collapsed
+  // to image-only height and read as a different element.
+  chipWrap: { position: "relative" } as any,
+  chip: {
+    width: 120,
+    height: 176,
+    backgroundColor: t.color["card.product.bg"],
+    borderRadius: t.radius.lg,
+    padding: t.spacing.sm,
+    gap: t.spacing.xs,
+  } as any,
+  chipImage: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: t.radius.md,
+    overflow: "hidden",
+    backgroundColor: t.color["card.product.surface"],
+  } as any,
+  chipTitle: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.sm"],
+    lineHeight: 16,
+    color: t.color["card.product.text"],
+  } as any,
+  chipMeta: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.xs"],
+    color: t.color["card.product.text.muted"],
+  } as any,
+  // Delete X overlay — 24-px Crema-pink disc in the top-right of
+  // the chip's image area. Matches the back-button language used
+  // across articles + the addressed forward-arrow language.
+  chipDelete: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: t.color["accent.cta"],
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+  } as any,
+  // "+" image area for the add-chip. Same colour + radius as the
+  // coffee chip's `chipImage`, but `flex: 1` (no aspectRatio) so it
+  // fills the chip's entire inner height when no title/meta is
+  // rendered below. Keeps the add-chip the SAME total size as a
+  // coffee chip with the + visually centered top-to-bottom.
+  chipAddImage: {
+    flex: 1,
+    width: "100%",
+    borderRadius: t.radius.md,
+    overflow: "hidden",
+    backgroundColor: t.color["card.product.surface"],
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+  // Floating modal — multi-select pick-list of the roaster's
+  // catalog. Cream card centered on a backdrop scrim.
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: t.spacing.lg,
+  } as any,
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: t.color.overlay,
+  } as any,
+  modalCard: {
+    width: "100%",
+    maxWidth: 500,
+    maxHeight: "80%",
+    backgroundColor: t.color["card.front"],
+    borderRadius: t.radius.lg,
+    overflow: "hidden",
+  } as any,
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: t.spacing.lg,
+    paddingVertical: t.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: t.color.divider,
+  } as any,
+  modalTitle: {
+    fontFamily: t.font.display,
+    fontSize: t.size["font.xl"],
+    color: t.color["text.primary"],
+  } as any,
+  modalList: { flexGrow: 0 } as any,
+  modalEmpty: {
+    paddingVertical: t.spacing["3xl"],
+    alignItems: "center",
+    paddingHorizontal: t.spacing.lg,
+  } as any,
+  modalEmptyText: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.md"],
+    color: t.color["text.muted"],
+    textAlign: "center",
+  } as any,
+  modalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: t.spacing.md,
+    paddingHorizontal: t.spacing.lg,
+    paddingVertical: t.spacing.sm,
+  } as any,
+  modalRowDisabled: { opacity: 0.45 } as any,
+  modalRowImage: {
+    width: 48,
+    height: 48,
+    borderRadius: t.radius.md,
+    overflow: "hidden",
+    backgroundColor: t.color["card.product.surface"],
+  } as any,
+  modalRowBody: { flex: 1, minWidth: 0 } as any,
+  modalRowTitle: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.md"],
+    color: t.color["text.primary"],
+  } as any,
+  modalRowMeta: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.muted"],
+    marginTop: 2,
+  } as any,
+  modalRowPlacedBadge: {
+    paddingHorizontal: t.spacing.sm,
+    paddingVertical: t.spacing.xs,
+    backgroundColor: t.color["tag.bg"],
+    borderRadius: t.radius.md,
+  } as any,
+  modalRowPlacedText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: t.size["font.xs"],
+    color: t.color["text.muted"],
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  } as any,
+  modalTick: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: t.color.border,
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+  modalTickOn: {
+    backgroundColor: t.color["accent.cta"],
+    borderColor: t.color["accent.cta"],
+  } as any,
+  modalFooter: {
+    paddingHorizontal: t.spacing.lg,
+    paddingVertical: t.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: t.color.divider,
+  } as any,
+  modalConfirmBtn: {
+    backgroundColor: t.color["accent.cta"],
+    borderRadius: t.radius.full,
+    paddingVertical: t.spacing.md,
+    alignItems: "center",
+  } as any,
+  modalConfirmBtnDisabled: { opacity: 0.4 } as any,
+  modalConfirmBtnText: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.md"],
+    color: t.color["text.on-cta"],
+  } as any,
+}));
+
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 const NAVBAR_H = 72;
@@ -301,7 +837,11 @@ export default function RoasterDetailPage() {
   const [myFollows, setMyFollows] = useState<string[]>([]);
 
   // Tabs & compose
-  const [activeTab, setActiveTab] = useState<"posts" | "beans" | "journals" | "analytics">("posts");
+  const [activeTab, setActiveTab] = useState<"posts" | "beans" | "journals" | "ads" | "analytics">("posts");
+  const [adsSubTab, setAdsSubTab] = useState<"journal" | "search" | "feed">("journal");
+  const [adsJournal, setAdsJournal] = useState<any[] | null>(null);
+  const [adsJournalLoading, setAdsJournalLoading] = useState(false);
+  const adsFetchedRef = useRef<string | null>(null);
   const [postToDelete, setPostToDelete] = useState<any>(null);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
@@ -331,6 +871,76 @@ export default function RoasterDetailPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, slug]);
+
+  // Ads · Journal — owner-only. Fires once per slug on first
+  // activation of the ADS tab (any sub-tab) so the data is ready
+  // when the user picks JOURNAL. Returns a list of articles each
+  // with up to 3 suggested coffee placements above the matcher's
+  // score threshold.
+  useEffect(() => {
+    if (activeTab !== "ads" || !slug || !isOwner) return;
+    if (adsFetchedRef.current === slug) return;
+    adsFetchedRef.current = slug;
+    let cancelled = false;
+    setAdsJournalLoading(true);
+    apiFetchRaw(`/roasters/${encodeURIComponent(slug)}/ads/journal`)
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = res?.data || res || [];
+        setAdsJournal(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAdsJournal([]);
+      })
+      .finally(() => {
+        if (!cancelled) setAdsJournalLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, slug, isOwner]);
+
+  // Per-article placement state — initialised from the server's
+  // auto-suggestions and locally mutable via delete + add-modal
+  // controls in each AdJournalRow. NOT persisted yet (read-only-
+  // suggestions iteration first, then commit + persistence).
+  const [adsPlacements, setAdsPlacements] = useState<Record<number, any[]>>({});
+  useEffect(() => {
+    if (!adsJournal) return;
+    const next: Record<number, any[]> = {};
+    for (const row of adsJournal) {
+      const aid = row?.article?.id;
+      if (aid == null) continue;
+      const suggs = (row.suggestions || []).map((s: any) => s.product);
+      next[aid] = suggs;
+    }
+    setAdsPlacements(next);
+  }, [adsJournal]);
+
+  const removePlacement = useCallback(
+    (articleId: number, productId: string) => {
+      setAdsPlacements((prev) => ({
+        ...prev,
+        [articleId]: (prev[articleId] || []).filter(
+          (p) => p.product_id !== productId,
+        ),
+      }));
+    },
+    [],
+  );
+  const addPlacements = useCallback(
+    (articleId: number, products: any[]) => {
+      setAdsPlacements((prev) => {
+        const existing = prev[articleId] || [];
+        const seen = new Set(existing.map((p) => p.product_id));
+        const fresh = products.filter((p) => !seen.has(p.product_id));
+        return { ...prev, [articleId]: [...existing, ...fresh] };
+      });
+    },
+    [],
+  );
 
   // Roaster's article list — newest first, sourced from the shared
   // cache so it stays in sync with Discover JOURNAL + the article
@@ -1009,6 +1619,12 @@ export default function RoasterDetailPage() {
                     {activeTab === "journals" && <View style={s.rightTabUnderline} />}
                   </Pressable>
                   {isOwner && (
+                    <Pressable onPress={() => setActiveTab("ads")} style={s.rightTab}>
+                      <Text style={[s.rightTabText, activeTab === "ads" && s.rightTabTextActive]}>ADS</Text>
+                      {activeTab === "ads" && <View style={s.rightTabUnderline} />}
+                    </Pressable>
+                  )}
+                  {isOwner && (
                     <Pressable onPress={() => setActiveTab("analytics")} style={s.rightTab}>
                       <Text style={[s.rightTabText, activeTab === "analytics" && s.rightTabTextActive]}>ANALYTICS</Text>
                       {activeTab === "analytics" && <View style={s.rightTabUnderline} />}
@@ -1118,6 +1734,83 @@ export default function RoasterDetailPage() {
                   ))
                 )}
               </>
+            )}
+
+            {/* ADS TAB — owner-only. Where Crema's auto-suggested
+               in-article coffee placements surface so the roaster
+               can keep / remove / replace. Sub-tabs split by ad
+               surface: JOURNAL (now), SEARCH (later), FEED (later). */}
+            {activeTab === "ads" && isOwner && (
+              <View style={s.adsWrap}>
+                <View style={s.adsSubTabRow}>
+                  {(["journal", "search", "feed"] as const).map((k) => {
+                    const active = adsSubTab === k;
+                    return (
+                      <Pressable
+                        key={k}
+                        onPress={() => setAdsSubTab(k)}
+                        style={s.adsSubTab}
+                      >
+                        <Text
+                          style={[
+                            s.adsSubTabText,
+                            active && s.adsSubTabTextActive,
+                          ]}
+                        >
+                          {k.toUpperCase()}
+                        </Text>
+                        {active && <View style={s.adsSubTabUnderline} />}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {adsSubTab === "journal" && (
+                  <View style={s.adsJournalWrap}>
+                    <Text style={s.adsBlurb}>
+                      Crema suggests in-article coffee placements based on
+                      your articles' content. Keep, remove, or replace —
+                      controls coming soon.
+                    </Text>
+                    {adsJournalLoading ? (
+                      <View style={s.adsLoading}>
+                        <ActivityIndicator size="small" color={t.color["text.primary"]} />
+                      </View>
+                    ) : !adsJournal || adsJournal.length === 0 ? (
+                      <View style={s.adsEmpty}>
+                        <Text style={s.adsEmptyText}>
+                          You haven't published any articles yet. When you
+                          do, we'll suggest placements here.
+                        </Text>
+                      </View>
+                    ) : (
+                      adsJournal.map((row: any, idx: number) => {
+                        const aid = row.article?.id;
+                        return (
+                          <AdJournalRow
+                            key={aid ?? idx}
+                            article={row.article}
+                            placements={adsPlacements[aid] || []}
+                            catalog={catalogCoffees}
+                            onDelete={(pid) => removePlacement(aid, pid)}
+                            onAddSelected={(products) => addPlacements(aid, products)}
+                            isLast={idx === adsJournal.length - 1}
+                          />
+                        );
+                      })
+                    )}
+                  </View>
+                )}
+                {adsSubTab === "search" && (
+                  <View style={s.adsEmpty}>
+                    <Text style={s.adsEmptyText}>Coming soon.</Text>
+                  </View>
+                )}
+                {adsSubTab === "feed" && (
+                  <View style={s.adsEmpty}>
+                    <Text style={s.adsEmptyText}>Coming soon.</Text>
+                  </View>
+                )}
+              </View>
             )}
 
             {/* ANALYTICS TAB — owner-only per the isOwner gate above */}
@@ -1604,6 +2297,50 @@ const useStyles = makeStyles((t) => ({
   // Single line, body.regular, font.md, text.muted, centered.
   journalEmpty: { paddingVertical: t.spacing["3xl"], alignItems: "center" } as any,
   journalEmptyText: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.md"],
+    color: t.color["text.muted"],
+    textAlign: "center",
+  } as any,
+
+  // ADS tab — wraps the sub-tab strip + the active sub-content.
+  adsWrap: { paddingTop: t.spacing.md } as any,
+  adsSubTabRow: {
+    flexDirection: "row",
+    gap: t.spacing.lg,
+    paddingHorizontal: t.spacing.lg,
+    paddingBottom: t.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: t.color.divider,
+  } as any,
+  adsSubTab: { paddingVertical: t.spacing.sm, position: "relative" } as any,
+  adsSubTabText: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.muted"],
+    letterSpacing: 0.5,
+  } as any,
+  adsSubTabTextActive: { color: t.color["text.primary"] } as any,
+  adsSubTabUnderline: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: -1,
+    height: 3,
+    backgroundColor: t.color["text.primary"],
+  } as any,
+  adsJournalWrap: { paddingTop: t.spacing.md } as any,
+  adsBlurb: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.secondary"],
+    paddingHorizontal: t.spacing.lg,
+    paddingBottom: t.spacing.lg,
+    lineHeight: 20,
+  } as any,
+  adsLoading: { paddingVertical: t.spacing["3xl"], alignItems: "center" } as any,
+  adsEmpty: { paddingVertical: t.spacing["3xl"], alignItems: "center", paddingHorizontal: t.spacing.lg } as any,
+  adsEmptyText: {
     fontFamily: t.font["body.regular"],
     fontSize: t.size["font.md"],
     color: t.color["text.muted"],

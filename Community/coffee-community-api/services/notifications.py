@@ -60,6 +60,8 @@ def run_hook(hook_name, db, *, resource_name=None, item=None, current_user=None,
         _handle_sync_roaster_logo(db, item, current_user)
     elif hook_name == "sync_roaster_name_to_user":
         _handle_sync_roaster_name_to_user(db, item, current_user)
+    elif hook_name == "sync_user_avatar_from_roaster":
+        _handle_sync_user_avatar_from_roaster(db, item, current_user)
     elif hook_name == "notify_sourcing_story":
         _handle_notify_sourcing_story(db, item, current_user)
     # validate_dictionary is handled inline in tasting_notes route
@@ -192,6 +194,41 @@ def _handle_sync_roaster_logo(db, item, actor):
     db.execute(
         "UPDATE users SET avatar_url = ? WHERE account_type = 'roaster' AND roaster_slug = ?",
         (logo, slug),
+    )
+    db.commit()
+
+
+def _handle_sync_user_avatar_from_roaster(db, item, actor):
+    """Inverse of `sync_roaster_logo_to_user` — fires when a user's row
+    is updated. If the user has just become (or already is) a roaster
+    account linked to a slug, AND the user's avatar_url is empty,
+    backfill it from the matching `roaster_profiles.logo_url`.
+
+    This closes the gap where a user signs up AFTER catalog ops has
+    already enriched their roaster: the on_update hook on
+    `roaster_profiles` already fired before the user existed, so the
+    sync never mirrored to that user. Without this inverse direction,
+    newly-linked roaster owners land with NULL avatar_url even though
+    the catalog has their logo on file.
+    """
+    if not item:
+        return
+    if (item.get("account_type") or "") != "roaster":
+        return
+    if item.get("avatar_url"):
+        return  # user already has an avatar — don't overwrite
+    slug = item.get("roaster_slug")
+    if not slug:
+        return
+    row = db.execute(
+        "SELECT logo_url FROM roaster_profiles WHERE roaster_slug = ?",
+        (slug,),
+    ).fetchone()
+    if not row or not row["logo_url"]:
+        return
+    db.execute(
+        "UPDATE users SET avatar_url = ? WHERE id = ?",
+        (row["logo_url"], item.get("id")),
     )
     db.commit()
 

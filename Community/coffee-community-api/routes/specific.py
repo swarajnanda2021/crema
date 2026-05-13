@@ -3296,3 +3296,23 @@ def admin_delete_article(article_id: int, user=Depends(get_current_user)):
         return ok({"deleted": article_id}, resource="roaster_articles")
     finally:
         db.close()
+
+
+# ── Ad placement suggestions ─────────────────────────────────────────────────
+#
+# Owner-only — the roaster sees Crema's suggested in-article coffee
+# placements for their JOURNAL surface. Two-column layout client-side:
+# left = article title, right = compact coffee card per matched coffee.
+# Below the threshold, an article shows with empty suggestions.
+
+@router.get("/roasters/{slug}/ads/journal")
+def ads_journal_suggestions(slug: str, user=Depends(get_current_user)):
+    from services.ad_placements import suggest_journal_placements
+    if (user or {}).get("roaster_slug") != slug:
+        raise HTTPException(403, "Not your roaster")
+    db = get_db()
+    try:
+        results = suggest_journal_placements(slug, db)
+        return ok(results, resource="ad_placements")
+    finally:
+        db.close()

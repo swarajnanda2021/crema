@@ -48,6 +48,16 @@ RESOURCES = {
         "hidden": ["password_hash"],
         "auth": {"list": None, "read": None, "update": "owner"},
         "owner": "id",
+        # `sync_user_avatar_from_roaster` runs on every user update.
+        # The handler is a no-op except when the user is a roaster
+        # account with empty avatar_url and a roaster_slug — then it
+        # backfills the avatar from `roaster_profiles.logo_url`.
+        # Closes the gap where a user signs up AFTER catalog ops has
+        # already enriched their roaster (the on_update hook on
+        # `roaster_profiles` fired before the user existed, so the
+        # sync never mirrored). See
+        # `services/notifications.py::_handle_sync_user_avatar_from_roaster`.
+        "hooks": {"on_update": ["sync_user_avatar_from_roaster"]},
         "order": "id ASC",
     },
 
