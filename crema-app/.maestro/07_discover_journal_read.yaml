@@ -1,0 +1,44 @@
+# Journey 7 — Editorial reading. Open Discover JOURNALS, tap an
+# article row, scroll through the reader. The retention surface for
+# users who treat Crema as their morning coffee-news read.
+
+appId: com.crema.app
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "feed-screen"
+    timeout: 30000
+
+# 1. Discover → JOURNALS sub-tab.
+- tapOn:
+    id: "tab-discover"
+- tapOn:
+    id: "browse-tab-journals"
+
+# 2. Wait for the article list to settle on at least one row.
+- extendedWaitUntil:
+    visible:
+      id: "article-row-.*"
+    timeout: 15000
+
+# 3. Tap the topmost article.
+- tapOn:
+    id: "article-row-.*"
+
+# 4. Land on the reader.
+- extendedWaitUntil:
+    visible:
+      id: "article-screen"
+    timeout: 15000
+
+# 5. Scroll down through the body so the chrome-collapse path runs.
+- swipe:
+    start: 50%, 70%
+    end: 50%, 20%
+    duration: 600
+
+# 6. Confirm the reader is still mounted after the scroll (chrome
+#    auto-hide doesn't unmount the screen).
+- assertVisible:
+    id: "article-screen"

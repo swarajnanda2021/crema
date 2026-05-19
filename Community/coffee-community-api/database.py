@@ -1051,6 +1051,16 @@ _MIGRATIONS = [
     # the site-quirk hint via the Sonnet meta-call. Admin flips back
     # to 0 once they're satisfied with the hint.
     "ALTER TABLE roaster_profiles ADD COLUMN article_hint_force_regenerate INTEGER NOT NULL DEFAULT 0",
+    # Catalog Ops v2 — per-roaster diff interpretation hint. Read by
+    # Haiku when staging diff proposals on Tab 2 (Refresh Catalog) so
+    # the LLM can apply roaster-specific filters when interpreting
+    # storefront diffs — e.g. "Caffena keeps gift-card SKUs at
+    # /products/gift-card-*; treat them as non-bean and don't propose
+    # them" or "This roaster archives by setting available=false
+    # instead of unlisting". Same surface model as the bio + article
+    # hints; admin-editable in the Refresh tab.
+    "ALTER TABLE roaster_profiles ADD COLUMN diff_prompt_hint TEXT",
+    "ALTER TABLE roaster_profiles ADD COLUMN diff_prompt_hint_updated_at TEXT",
     # Live job state — `current_target` is the slug (or other label) the
     # runner is iterating right now; the admin UI reads it during a
     # 2.5s poll to render "Looking at {target}" while the job is in
@@ -1177,6 +1187,133 @@ _MIGRATIONS = [
     # be empty when the message is image-only — the post endpoint
     # accepts (body OR image_url) rather than requiring both.
     "ALTER TABLE direct_messages ADD COLUMN image_url TEXT",
+    # ── Roaster ad placements (P0 — persistence for the ADS tab) ──
+    # One row per (article, product) the roaster has committed to
+    # surface in-article. Source distinguishes how the row landed:
+    #   • 'auto'   — originally proposed by services/ad_placements.py
+    #                and explicitly kept (or never touched — see below)
+    #   • 'manual' — added by the roaster via AddCoffeesModal
+    # The auto-suggester runs deterministically on every owner GET, so
+    # we don't need to materialise its picks on initial load. The
+    # client only writes to this table when the roaster's effective
+    # set diverges from the auto-suggestions: removed auto-picks land
+    # here as `source='auto', deleted_at=<ts>` tombstones; added
+    # manual picks land as `source='manual', deleted_at=NULL`. The GET
+    # endpoint reconciles auto-suggestions against this delta table to
+    # produce the effective list both the owner and the public reader
+    # see. Soft-delete preserves "the roaster rejected this
+    # auto-suggestion" so the attribution work (next session) can
+    # tell ad-slot clicks from organic Buy clicks AND so future
+    # auto-runs don't keep proposing a coffee the roaster has already
+    # said no to. UNIQUE(article_id, product_id) means we toggle
+    # deleted_at in place rather than appending rows on each flip.
+    """CREATE TABLE IF NOT EXISTS roaster_ad_placements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        roaster_slug TEXT NOT NULL,
+        article_id INTEGER NOT NULL,
+        product_id TEXT NOT NULL,
+        source TEXT NOT NULL CHECK (source IN ('auto','manual')),
+        order_idx INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        deleted_at TEXT,
+        UNIQUE(article_id, product_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_ad_placements_article ON roaster_ad_placements(article_id)",
+    "CREATE INDEX IF NOT EXISTS idx_ad_placements_roaster ON roaster_ad_placements(roaster_slug)",
+    # ── P1 — attribution (impressions + ad-aware clicks) ─────────────
+    # click_events now carries the ad-slot context. A click on an
+    # in-article placement populates `article_id` + `placement_source`;
+    # an organic Buy click from /coffee/[id], /roaster/[slug], the
+    # feed, etc. leaves both NULL. `placement_source` is one of:
+    #   'inline' — a coffee whose product_url appears in the article body
+    #              (Crema-responsible, non-removable in the ADS tab)
+    #   'auto'   — a coffee the services/ad_placements.py scorer
+    #              matched against the article above threshold and
+    #              the roaster kept
+    #   'manual' — a coffee the roaster explicitly added via
+    #              AddCoffeesModal
+    # The three values match the placement source enum the consumer
+    # reader + ADS tab UI surface, so an analytics query can pivot
+    # clicks by source without joining back to a placements snapshot.
+    "ALTER TABLE click_events ADD COLUMN article_id INTEGER",
+    "ALTER TABLE click_events ADD COLUMN placement_source TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_clicks_article ON click_events(article_id)",
+    # ── Ad impressions ───────────────────────────────────────────────
+    # One row per (session × article × product × placement_source).
+    # `session_id` lets us de-duplicate re-renders within a browser
+    # session — refreshes / scrolls past the placement / re-mounts
+    # collapse to one row. A new session (tab close + reopen, app
+    # restart on native, a stale-session-id rotation) gets a fresh
+    # impression — that's the "reach over time" measurement roasters
+    # want.
+    #
+    # `user_id` is nullable so anonymous viewers count too — the
+    # pitch to roasters is "look at the traffic we're generating
+    # for you," and gating impressions to authed users would
+    # under-report.
+    #
+    # No `dwell_ms` for v1 — deferred until we know whether time-
+    # on-screen pulls weight in the analytics surface (impressions +
+    # clicks already compute reach + intent).
+    """CREATE TABLE IF NOT EXISTS ad_impressions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER REFERENCES users(id),
+        session_id TEXT NOT NULL,
+        article_id INTEGER NOT NULL,
+        product_id TEXT NOT NULL,
+        roaster_slug TEXT NOT NULL,
+        placement_source TEXT NOT NULL CHECK (placement_source IN ('inline','auto','manual')),
+        seen_at TEXT NOT NULL,
+        UNIQUE(session_id, article_id, product_id, placement_source)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_impr_article ON ad_impressions(article_id)",
+    "CREATE INDEX IF NOT EXISTS idx_impr_product ON ad_impressions(product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_impr_roaster ON ad_impressions(roaster_slug)",
+    "CREATE INDEX IF NOT EXISTS idx_impr_seen ON ad_impressions(seen_at)",
+    # ── Catalog Ops v2 — CrawlSnapshot for the 3-tab sync pipeline.
+    # Two tables holding N-1 retention of per-roaster crawl results:
+    # `crawl_snapshots` is the latest; `crawl_snapshots_prev` holds
+    # the prior snapshot for diffing. Each `payload_json` is the full
+    # resource manifest (bio hash + product list with stable IDs +
+    # article URL list with hashes). The Tab 2 refresh runner diffs
+    # current vs prev to identify added/updated/removed entities; only
+    # the diff goes through Haiku enrichment, keeping steady-state
+    # refresh cost near zero. See services/sync_runner.py.
+    """CREATE TABLE IF NOT EXISTS crawl_snapshots (
+        roaster_slug TEXT PRIMARY KEY,
+        taken_at TEXT NOT NULL,
+        payload_json TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS crawl_snapshots_prev (
+        roaster_slug TEXT PRIMARY KEY,
+        taken_at TEXT NOT NULL,
+        payload_json TEXT NOT NULL
+    )""",
+    # Agent-runs audit log — every MCP tool call writes one row here.
+    # The MCP server (Community/coffee-community-api/mcp-server) wraps
+    # every tool execution with an INSERT here. Future "Agent activity"
+    # UI reads from this table to surface what each agent (Claude
+    # Sonnet/Haiku, local Llama, cron-triggered routines) did, when,
+    # with what inputs, what outputs. The `agent_identity` column is
+    # the LLM+host string (e.g. `claude-haiku-4-5@anthropic`,
+    # `llama-3.3-70b@macstudio.local`) so per-provider audit is free.
+    """CREATE TABLE IF NOT EXISTS agent_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT,
+        agent_identity TEXT NOT NULL,
+        operator_user_id INTEGER,
+        tool_name TEXT NOT NULL,
+        args_json TEXT,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        result_summary TEXT,
+        error TEXT,
+        prompt_hash TEXT,
+        schema_hash TEXT
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_agent_runs_started ON agent_runs(started_at DESC)""",
+    """CREATE INDEX IF NOT EXISTS idx_agent_runs_session ON agent_runs(session_id)""",
+    """CREATE INDEX IF NOT EXISTS idx_agent_runs_tool ON agent_runs(tool_name)""",
 ]
 
 
@@ -1254,7 +1391,45 @@ def init_db():
         seed_initial_state(conn)
     except Exception as e:
         print(f"Catalog-ops seed note: {e}")
+    # Roaster avatar backfill — covers any account_type='roaster' user
+    # with NULL avatar_url whose roaster has a logo on file. The
+    # registry's `sync_user_avatar_from_roaster` hook handles this on
+    # every UPDATE, but raw-INSERT paths (admin seed scripts, dev
+    # bootstrap, direct SQL) bypass the hook and land the row with
+    # NULL avatar. Running the backfill on every init_db keeps the
+    # invariant ("a roaster-account user has the roaster's logo as
+    # their avatar") true regardless of how the user row was created.
+    try:
+        _backfill_roaster_avatars(conn)
+    except Exception as e:
+        print(f"Roaster avatar backfill note: {e}")
     conn.close()
+
+
+def _backfill_roaster_avatars(conn):
+    """Populate `users.avatar_url` for every account_type='roaster'
+    user whose row has NULL/empty avatar but whose linked
+    `roaster_profiles` row carries a non-empty `logo_url`. Idempotent —
+    re-running finds zero rows after the first pass."""
+    cur = conn.execute("""
+        UPDATE users
+        SET avatar_url = (
+            SELECT logo_url FROM roaster_profiles
+            WHERE roaster_profiles.roaster_slug = users.roaster_slug
+        )
+        WHERE account_type = 'roaster'
+          AND (avatar_url IS NULL OR avatar_url = '')
+          AND roaster_slug IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM roaster_profiles
+            WHERE roaster_profiles.roaster_slug = users.roaster_slug
+              AND roaster_profiles.logo_url IS NOT NULL
+              AND roaster_profiles.logo_url <> ''
+          )
+    """)
+    if cur.rowcount > 0:
+        print(f"Roaster avatar backfill: synced {cur.rowcount} user(s)")
+    conn.commit()
 
 
 def _remove_cafe_users(conn):

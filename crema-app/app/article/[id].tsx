@@ -40,7 +40,7 @@ import { t, makeStyles } from "../../src/tokens/useTokens";
 import { useRoasterArticles } from "../../src/hooks/useRoasterArticles";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
-import { apiFetchRaw, resolveUploadUrl, trackClick } from "../../src/api/client";
+import { apiFetchRaw, resolveUploadUrl, trackClick, trackImpression } from "../../src/api/client";
 import { thumbnailUrl } from "../../src/utils/imageUrl";
 import { openExternal } from "../../src/utils/openExternal";
 import { tap as hapticTap } from "../../src/utils/haptics";
@@ -153,6 +153,77 @@ export default function ArticlePage() {
   // endpoint excludes it for payload size).
   const article = full || cached;
 
+  // Ad-placement entries — the article's merged placement set,
+  // bucketed by source ('inline' | 'auto' | 'manual'). Each entry
+  // carries its attribution cause + the paragraph index where the
+  // cause was found, so the reader can:
+  //   • splice the card next to the originating paragraph (anchor)
+  //   • show 'Recommended due to: <cause>' under each carousel
+  //
+  // `paragraph_idx = -1` means the cause came from title/excerpt
+  // (no body anchor) or there's no specific anchor — the reader
+  // falls back to a mid-body splice in that case.
+  type PlacementEntry = {
+    product_id: string;
+    source: "inline" | "auto" | "manual";
+    roaster_slug: string;
+    attribution_cause?: string;
+    /** The exact word/phrase from the catalog that matched a paragraph.
+     *  Used by the reader's caption: "because this paragraph mentioned
+     *  {trigger}". Empty/absent for inline + manual (no caption shown). */
+    trigger?: string;
+    paragraph_idx?: number;
+  };
+  const [placements, setPlacements] = useState<PlacementEntry[]>([]);
+  useEffect(() => {
+    if (!Number.isFinite(idNum)) return;
+    let cancelled = false;
+    apiFetchRaw(`/articles/${idNum}/placements`)
+      .then((res: any) => {
+        if (cancelled) return;
+        const data = res?.data ?? res;
+        if (Array.isArray(data)) {
+          setPlacements(
+            data
+              .filter((e: any) => typeof e?.product_id === "string" && typeof e?.source === "string")
+              .map((e: any) => ({
+                product_id: e.product_id,
+                source: e.source,
+                roaster_slug: e.roaster_slug,
+                attribution_cause: typeof e.attribution_cause === "string" ? e.attribution_cause : undefined,
+                trigger: typeof e.trigger === "string" ? e.trigger : undefined,
+                paragraph_idx: typeof e.paragraph_idx === "number" ? e.paragraph_idx : -1,
+              })),
+          );
+        }
+      })
+      .catch(() => {
+        // Best-effort — a placements miss falls back to inline-link
+        // matching only, which is what the reader did before P0.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [idNum]);
+
+  // Fire one impression per (session, article, product, source) on
+  // first render of each placement. The server's UNIQUE constraint
+  // dedups so refreshes within the same session collapse to a
+  // single row. Runs once per placement set change — i.e. on the
+  // initial fetch only, since `placements` is stable for the
+  // article's lifetime.
+  useEffect(() => {
+    if (!placements.length || !article?.id) return;
+    for (const entry of placements) {
+      trackImpression({
+        article_id: article.id,
+        product_id: entry.product_id,
+        roaster_slug: entry.roaster_slug,
+        placement_source: entry.source,
+      });
+    }
+  }, [placements, article?.id]);
+
   const heroSrc = useMemo(() => {
     if (!article?.image_url) return null;
     const w = isMobile ? 1080 : 1600;
@@ -264,6 +335,7 @@ export default function ArticlePage() {
         productsByRoaster,
         currentRoasterSlug: article?.roaster_slug ?? null,
         currentArticleId: article?.id,
+        placements,
       }),
     [
       baseBlocks,
@@ -273,6 +345,7 @@ export default function ArticlePage() {
       productsByRoaster,
       article?.roaster_slug,
       article?.id,
+      placements,
     ],
   );
 
@@ -456,6 +529,7 @@ export default function ArticlePage() {
                 articlesByRoaster={articlesByRoaster}
                 productsByRoaster={productsByRoaster}
                 currentRoasterSlug={article.roaster_slug ?? null}
+                currentArticleId={article.id}
               />
             ))}
             {blocks.length === 0 && article.excerpt ? (
@@ -628,7 +702,18 @@ function BodyImage({
  *  shapes are unchanged. */
 type RenderableBlock =
   | Block
-  | { kind: "embed-coffee"; productIds: string[] }
+  | {
+      kind: "embed-coffee";
+      productIds: string[];
+      embedSource?: "inline" | "auto" | "manual" | "mentioned";
+      roasterName?: string;
+      // Per-product trigger map. The reader's caption renders as
+      // "because this paragraph mentioned {trigger}" using the exact
+      // catalog string that matched (e.g. "Anaerobic", "MOGRA",
+      // "Baarbara Estate"). Captions are AUTO-ONLY — inline (URL
+      // link) and manual (roaster pick) don't render a caption.
+      triggers?: Record<string, string>;
+    }
   | { kind: "embed-article"; articleIds: number[] };
 
 function RenderedBlock({
@@ -640,6 +725,7 @@ function RenderedBlock({
   articlesByRoaster,
   productsByRoaster,
   currentRoasterSlug,
+  currentArticleId,
 }: {
   block: RenderableBlock;
   pageWidth: number;
@@ -649,6 +735,7 @@ function RenderedBlock({
   articlesByRoaster: Map<string, RoasterArticle[]>;
   productsByRoaster: Map<string, any[]>;
   currentRoasterSlug: string | null;
+  currentArticleId?: number | null;
 }) {
   const s = useStyles();
   const router = useRouter();
@@ -853,14 +940,27 @@ function RenderedBlock({
     );
   }
   if (block.kind === "embed-coffee") {
-    // Inline coffee placement — a paragraph mentioned one or more
-    // products that resolve to our catalog. Render them as full
-    // CoffeeCards in a horizontal carousel beneath the paragraph
-    // (DESIGN_LANGUAGE §7: every coffee surface is the canonical
-    // CoffeeCard, no fork). Width math mirrors Discover BEANS so the
-    // variant flips correctly per viewport. Header label "Mentioned
-    // in this piece" is editorial scaffolding — the user knows why
-    // these cards just appeared.
+    // Coffee placement carousel — one of three sources:
+    //   • 'mentioned' — paragraph contained `<a href>` resolving to a
+    //     catalog product (in-flow inline match, rendered after the
+    //     mentioning paragraph). Label: "Found in this article".
+    //   • 'inline'    — server detected the link in body during the
+    //     placement merge. Crema-responsible. Label: "Referenced in
+    //     this article". Tracked as `placement_source='inline'` on
+    //     any click.
+    //   • 'auto'      — server's scorer matched the article. Label:
+    //     "Crema suggests". Tracked as `placement_source='auto'`.
+    //   • 'manual'    — roaster's curated pick. Label: "{Roaster}
+    //     recommends". Tracked as `placement_source='manual'`.
+    //
+    // The 'mentioned' bucket is what the original P0 splice produced
+    // (inline-href matches resolved client-side). With server-side
+    // inline detection in place, 'mentioned' overlaps semantically
+    // with 'inline' — but the splice point differs (mentioned
+    // renders after the paragraph that mentioned it; inline renders
+    // mid-body alongside auto/manual). For attribution purposes
+    // both are `placement_source='inline'` on the click event —
+    // they reference the same product through the same surface.
     const items = block.productIds
       .map((id) => {
         for (const p of productByUrl.values()) {
@@ -872,22 +972,81 @@ function RenderedBlock({
     if (items.length === 0) return null;
     const cardW = isMobile ? pageWidth - 32 : CARD_TARGET_WIDTH;
     const cardH = coffeeCardHeight(cardW, isMobile);
+    // Bucket label. "Referenced in this article" only for inline
+    // (URL link the article author placed). Everything else —
+    // Crema-detected matches AND roaster-curated picks — surfaces
+    // as "Promoted" so the affordance reads honestly to the
+    // consumer (this is an ad slot, regardless of who chose the
+    // coffee).
+    const label =
+      (block.embedSource === "inline" || block.embedSource === "mentioned")
+        ? "Referenced in this article"
+      : "Promoted";
+    // Click events from in-article CoffeeCards carry the placement
+    // context so attribution can split ad-slot vs organic clicks.
+    const clickSource: "inline" | "auto" | "manual" =
+      block.embedSource === "auto" ? "auto"
+      : block.embedSource === "manual" ? "manual"
+      : "inline";
+    // Caption logic. Only AUTO placements show a caption, and the
+    // caption is constructed from the trigger word in the form
+    // "because this paragraph mentioned {trigger}". Inline + manual
+    // skip the caption entirely:
+    //   • Inline: the URL link in the body IS the explanation
+    //   • Manual: the roaster picked it — no algorithmic reason
+    //     to surface
+    const triggers = block.triggers || {};
+    const showCaption = block.embedSource === "auto";
+    // When all cards in this carousel share the same trigger, the
+    // caption goes ABOVE the carousel as a single shared line.
+    // When triggers differ across cards (a multi-product splice
+    // with mixed causes — rare but possible after the grouping
+    // pass), each card gets its own per-card caption below it.
+    const distinctTriggers = showCaption
+      ? Array.from(new Set(Object.values(triggers).filter(Boolean)))
+      : [];
+    const sharedTrigger = distinctTriggers.length === 1 ? distinctTriggers[0] : null;
     return (
       <View style={s.embedWrap}>
-        <Text style={s.embedLabel}>Found in this article</Text>
+        <Text style={s.embedLabel}>{label}</Text>
+        {showCaption && sharedTrigger ? (
+          <Text style={s.embedCause}>
+            because this paragraph mentioned {sharedTrigger}
+          </Text>
+        ) : null}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: 16, paddingRight: 16 }}
         >
-          {items.map((c: any) => (
-            <View
-              key={c.product_id}
-              style={{ width: cardW, height: cardH }}
-            >
-              <CoffeeCard coffee={c} width={cardW} height={cardH} />
-            </View>
-          ))}
+          {items.map((c: any) => {
+            const trig = triggers[c.product_id];
+            const showPerCard = showCaption && !sharedTrigger && !!trig;
+            return (
+              <View
+                key={c.product_id}
+                style={{ width: cardW }}
+              >
+                <View style={{ width: cardW, height: cardH }}>
+                  <CoffeeCard
+                    coffee={c}
+                    width={cardW}
+                    height={cardH}
+                    attribution={
+                      currentArticleId != null
+                        ? { article_id: currentArticleId, placement_source: clickSource }
+                        : undefined
+                    }
+                  />
+                </View>
+                {showPerCard ? (
+                  <Text style={s.embedCausePerCard} numberOfLines={2}>
+                    because this paragraph mentioned {trig}
+                  </Text>
+                ) : null}
+              </View>
+            );
+          })}
         </ScrollView>
       </View>
     );
@@ -1021,6 +1180,14 @@ function augmentBlocksWithEmbeds(
     productsByRoaster: Map<string, any[]>;
     currentRoasterSlug: string | null;
     currentArticleId?: number | null;
+    placements?: Array<{
+      product_id: string;
+      source: "inline" | "auto" | "manual";
+      roaster_slug: string;
+      attribution_cause?: string;
+      trigger?: string;
+      paragraph_idx?: number;
+    }>;
   },
 ): RenderableBlock[] {
   const result: RenderableBlock[] = [];
@@ -1029,18 +1196,12 @@ function augmentBlocksWithEmbeds(
   // prompt's "hr count = h2 count" rule). Same product / article
   // mentioned again in a NEW section gets its own embed, but
   // multiple mentions inside one section collapse to a single
-  // embed. Keeps "Leaf Rust mentions Arabica" + "Cherry Selection
-  // mentions Arabica" both surfacing the Arabica callout, while
-  // preventing 5 duplicate cards when a single section name-drops
-  // a product five times.
+  // embed.
   let seenProducts = new Set<string>();
   let seenArticles = new Set<number>();
   for (const block of blocks) {
     result.push(block);
     if (block.kind === "adslot") {
-      // Section boundary — reset the dedup sets so the next
-      // section's first mention of an already-shown product /
-      // article shows its embed again.
       seenProducts = new Set();
       seenArticles = new Set();
       continue;
@@ -1051,12 +1212,131 @@ function augmentBlocksWithEmbeds(
     newProducts.forEach((id) => seenProducts.add(id));
     newArticles.forEach((id) => seenArticles.add(id));
     if (newProducts.length > 0) {
-      result.push({ kind: "embed-coffee", productIds: newProducts });
+      // In-flow href match — labeled "Found in this article". For
+      // attribution, this maps to placement_source='inline' on click
+      // (the server-side merge categorises the same product as
+      // inline; the in-flow splice is just a different visual
+      // anchor for the same underlying placement).
+      result.push({ kind: "embed-coffee", productIds: newProducts, embedSource: "mentioned" });
     }
     if (newArticles.length > 0) {
       result.push({ kind: "embed-article", articleIds: newArticles });
     }
   }
+
+  // Persisted ad-placement splice (P1 — bottom-up causal model).
+  //
+  // Server returns each placement with `paragraph_idx` — the index
+  // of the <p> block in the article body where the attribution
+  // cause was found. We splice each card RIGHT AFTER that paragraph
+  // so the card sits next to its evidence ("Mentioned by name in
+  // paragraph 9" → card after paragraph 9). This is the editorial
+  // win the bottom-up rewrite buys: every placement is anchored to
+  // why it's there, not at an arbitrary mid-body splice point.
+  //
+  // paragraph_idx === -1 means the cause came from title/excerpt
+  // (no body anchor) OR the placement is roaster-curated manual
+  // (no inherent reference). Those fall back to a mid-body splice.
+  //
+  // Resolve the roaster name from the products cache for the
+  // "{Roaster} recommends" label on the manual bucket.
+  const roasterSlug = ctx.currentRoasterSlug;
+  let roasterName: string | undefined;
+  if (roasterSlug) {
+    for (const p of ctx.productByUrl.values()) {
+      if (p?.roaster_slug === roasterSlug && p?.roaster_name) {
+        roasterName = p.roaster_name;
+        break;
+      }
+    }
+  }
+
+  const placements = ctx.placements || [];
+  if (placements.length > 0) {
+    // Skip placements already rendered via the in-flow `<a href>`
+    // pass above (the "mentioned" bucket renders them near their
+    // mentioning paragraph already; a second placement card would
+    // double up).
+    const alreadyEmbedded = new Set<string>();
+    for (const b of result) {
+      if (b.kind === "embed-coffee") {
+        for (const id of b.productIds) alreadyEmbedded.add(id);
+      }
+    }
+    const remaining = placements.filter((p) => !alreadyEmbedded.has(p.product_id));
+
+    // Build paragraph-index map: server's <p> index → block index in
+    // the rendered `result`. Both sides count <p> blocks (filtering
+    // empties) so the indices align if the body_html parsing agrees.
+    const pToBlockIdx: number[] = [];
+    for (let i = 0; i < result.length; i++) {
+      if (result[i].kind === "paragraph") pToBlockIdx.push(i);
+    }
+    const blockIdxForPara = (pi: number): number => {
+      if (pi < 0 || pToBlockIdx.length === 0) {
+        // -1 / no anchor → mid-body fallback (the 60% mark of
+        // paragraphs, or the last paragraph if there are few).
+        if (pToBlockIdx.length === 0) return result.length - 1;
+        return pToBlockIdx[Math.min(
+          pToBlockIdx.length - 1,
+          Math.floor(pToBlockIdx.length * 0.6),
+        )];
+      }
+      return pToBlockIdx[Math.min(pi, pToBlockIdx.length - 1)];
+    };
+
+    // Group placements by (source, paragraph_idx). Multiple coffees
+    // attributed to the SAME paragraph render together in one
+    // carousel under that paragraph; coffees attributed to different
+    // paragraphs render separately under each anchor.
+    type Group = {
+      source: "inline" | "auto" | "manual";
+      paragraphIdx: number;
+      ids: string[];
+      // Per-product trigger word — the catalog attribute that
+      // matched in the paragraph. Used by the renderer's caption:
+      // "because this paragraph mentioned {trigger}". Empty/absent
+      // for inline + manual (no caption renders).
+      triggers: Record<string, string>;
+    };
+    const groups: Group[] = [];
+    const groupKey = (p: typeof remaining[0]) =>
+      `${p.source}::${p.paragraph_idx ?? -1}`;
+    const byKey = new Map<string, Group>();
+    for (const p of remaining) {
+      const key = groupKey(p);
+      let g = byKey.get(key);
+      if (!g) {
+        g = {
+          source: p.source,
+          paragraphIdx: p.paragraph_idx ?? -1,
+          ids: [],
+          triggers: {},
+        };
+        byKey.set(key, g);
+        groups.push(g);
+      }
+      g.ids.push(p.product_id);
+      if (p.trigger) g.triggers[p.product_id] = p.trigger;
+    }
+
+    // Splice each group at its anchor paragraph. Insert in
+    // descending block-index order so earlier indices aren't
+    // shifted by the inserts that follow.
+    const positioned = groups
+      .map((g) => ({ group: g, at: blockIdxForPara(g.paragraphIdx) }))
+      .sort((a, b) => b.at - a.at);
+    for (const { group, at } of positioned) {
+      result.splice(at + 1, 0, {
+        kind: "embed-coffee",
+        productIds: group.ids,
+        embedSource: group.source,
+        roasterName,
+        triggers: group.triggers,
+      });
+    }
+  }
+
   return result;
 }
 
@@ -1693,6 +1973,27 @@ const useStyles = makeStyles((t) => ({
     letterSpacing: 1.2,
     textTransform: "uppercase",
     color: t.color["text.muted"],
+  } as any,
+  // Bucket-level cause line — reads under the label when every card
+  // in the carousel has the same attribution_cause. Lower-emphasis
+  // than the label (body.regular vs body.semibold, no caps) so it
+  // reads as supporting context, not a header.
+  embedCause: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.xs"],
+    color: t.color["text.muted"],
+    marginTop: -t.spacing.xs,
+  } as any,
+  // Per-card cause line — renders BELOW each CoffeeCard when the
+  // carousel has mixed causes across its cards. Constrained to the
+  // card's width so the explanation lines up with the bag it's
+  // describing.
+  embedCausePerCard: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.xs"],
+    color: t.color["text.muted"],
+    marginTop: t.spacing.xs,
+    paddingHorizontal: 4,
   } as any,
   // Journal callout — a calm framed card the reader taps to jump
   // to the referenced article. Border + cream surface, text aligned

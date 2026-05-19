@@ -1,804 +1,1964 @@
 [
   {
-    "product_id": "zenforest-coffee-roasters_fruit-burst",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
+    "product_id": "black-baza-coffee_yellow-honey",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Fruit Burst",
-    "coffee_slug": "fruit-burst",
-    "roast_level": "Medium",
-    "tasting_notes": null,
-    "origin": "Mathavara Estate",
-    "altitude_masl": null,
-    "process": "Natural",
-    "varietal": null,
-    "weight_grams": null,
-    "price_inr": 1120.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
-    ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/04/Untitled-design-1.png",
-    "product_url": "https://zenforestcoffee.com/product/fruit-burst/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Medium"
-    ],
-    "description_raw": "Fruit Burst FRUITY & FLORAL Medium ● ● ● ● ● ○ ○ Notes / Berries · Tropical Fruits · Florals · Chocolate · Honey Finish Aromatics Sweetness Body Sidamo, Ethiopia — 50% NATURALS · 6,234 FT Shade Dried Berry-forward sweetness and wild, juicy intensity from one of Ethiopia’s most celebrated coffee regions. Mathavara Estate — 50% CHERRY FERMENTED · 4,000 FT 18 Days Dried Chikkamangalore single-estate depth — chocolatey body and clean sweetness that anchors the blend. Zenforest Coffee — India × Ethiopia",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_tasting_notes",
-      "altitude_not_found",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T13:52:51Z"
-  },
-  {
-    "product_id": "zenforest-coffee-roasters_test",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
-    "roaster_city": "Bengaluru",
-    "roaster_state": "Karnataka",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Test",
-    "coffee_slug": "test",
-    "roast_level": "Medium-Dark",
-    "tasting_notes": null,
-    "origin": null,
-    "altitude_masl": null,
-    "process": null,
-    "varietal": "Bourbon",
-    "weight_grams": null,
-    "price_inr": 1.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
-    ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Cinnamon-Ferment-X-Bourbon-Bliss.png",
-    "product_url": "https://zenforestcoffee.com/product/test/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Experience Box"
-    ],
-    "description_raw": "Cinnamon Fermented SPICED & SWEET Medium ● ● ● ● ○ ○ ○ Notes / Cinnamon · Brown Sugar · Clove · Cocoa Aromatics Sweetness Body Bourbon Bliss WOODY & CITRUS Medium Dark ● ● ● ● ● ○ ○ Notes / Cocoa · Berries · Spices · Oak Aromatics Sweetness Body Zenforest Coffee — Dual Profile",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_tasting_notes",
-      "altitude_not_found",
-      "missing_process",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T13:52:51Z"
-  },
-  {
-    "product_id": "zenforest-coffee-roasters_cinnamon-fermented-x-bourbon-bliss",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
-    "roaster_city": "Bengaluru",
-    "roaster_state": "Karnataka",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Cinnamon Fermented X Bourbon Bliss",
-    "coffee_slug": "cinnamon-fermented-x-bourbon-bliss",
-    "roast_level": "Medium-Dark",
-    "tasting_notes": null,
-    "origin": null,
-    "altitude_masl": null,
-    "process": null,
-    "varietal": "Bourbon",
-    "weight_grams": null,
-    "price_inr": 725.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
-    ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Cinnamon-Ferment-X-Bourbon-Bliss.png",
-    "product_url": "https://zenforestcoffee.com/product/cinnamon-fermented-x-bourbon-bliss/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Experience Box"
-    ],
-    "description_raw": "Cinnamon Fermented SPICED & SWEET Medium ● ● ● ● ○ ○ ○ Notes / Cinnamon · Brown Sugar · Clove · Cocoa Aromatics Sweetness Body Bourbon Bliss WOODY & CITRUS Medium Dark ● ● ● ● ● ○ ○ Notes / Cocoa · Berries · Spices · Oak Aromatics Sweetness Body Zenforest Coffee — Dual Profile",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_tasting_notes",
-      "altitude_not_found",
-      "missing_process",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T13:52:51Z"
-  },
-  {
-    "product_id": "zenforest-coffee-roasters_monsoon-malabar-x-black-honey",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
-    "roaster_city": "Bengaluru",
-    "roaster_state": "Karnataka",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Monsoon Malabar X Black Honey",
-    "coffee_slug": "monsoon-malabar-x-black-honey",
-    "roast_level": "Dark",
-    "tasting_notes": null,
-    "origin": null,
-    "altitude_masl": null,
-    "process": "Honey",
-    "varietal": null,
-    "weight_grams": null,
-    "price_inr": 725.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
-    ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Monsoon-Malabar-X-Black-Honey.png",
-    "product_url": "https://zenforestcoffee.com/product/monsoon-malabar-x-black-honey/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Experience Box"
-    ],
-    "description_raw": "Monsoon Malabar AA COCOA & NUTS Med. Dark ● ● ● ● ● ○ ○ Notes / Cocoa · Nuts · Spice · Low Acidity Aromatics Sweetness Body Black Honey EARTHY & RICH Medium ● ● ● ● ○ ○ ○ Notes / Cocoa · Dates · Forest Honey · Spice Aromatics Sweetness Body Zenforest Coffee — Dual Profile",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_tasting_notes",
-      "altitude_not_found",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T13:52:51Z"
-  },
-  {
-    "product_id": "zenforest-coffee-roasters_toddy-toffee-x-cinnamon-fermented",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
-    "roaster_city": "Bengaluru",
-    "roaster_state": "Karnataka",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Toddy Toffee X Cinnamon Fermented",
-    "coffee_slug": "toddy-toffee-x-cinnamon-fermented",
-    "roast_level": "Medium",
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Yellow Honey",
+    "coffee_slug": "yellow-honey",
+    "roast_level": "Unknown",
     "tasting_notes": null,
     "origin": null,
     "altitude_masl": null,
     "process": null,
     "varietal": null,
-    "weight_grams": null,
-    "price_inr": 725.0,
-    "price_per_gram": null,
+    "weight_grams": 250,
+    "price_inr": 720.0,
+    "price_per_gram": 2.88,
     "currency": "INR",
     "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "Moka Pot",
-      "Pour Over",
+      "Coarse",
+      "Fine",
       "Whole Bean"
     ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Toddy-Toffee-X-Cinnamaon-Fermented.png",
-    "product_url": "https://zenforestcoffee.com/product/toddy-toffee-x-cinnamon-fermented/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Yellow_Honey_2026_Bag.png?v=1778498506",
+    "product_url": "https://blackbazacoffee.com/products/yellow-honey",
     "available": true,
-    "variants": [],
-    "tags": [
-      "Experience Box"
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 720.0,
+        "price_per_gram": 2.88,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 720.0,
+        "price_per_gram": 2.88,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 720.0,
+        "price_per_gram": 2.88,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 720.0,
+        "price_per_gram": 2.88,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 720.0,
+        "price_per_gram": 2.88,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 720.0,
+        "price_per_gram": 2.88,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 720.0,
+        "price_per_gram": 2.88,
+        "available": true,
+        "grind": "Fine"
+      }
     ],
-    "description_raw": "Toddy & Toffee SWEET & SPICE Medium ● ● ● ● ○ ○ ○ Notes / Toffee · Caramel · Spice · Mild Fruit Aromatics Sweetness Body Cinnamon Fermented SPICED & SWEET Medium ● ● ● ● ○ ○ ○ Notes / Cinnamon · Brown Sugar · Clove · Cocoa Aromatics Sweetness Body Zenforest Coffee — Dessert Profile",
+    "tags": [
+      "Arabica"
+    ],
+    "description_raw": "lorem ipsum",
     "scrape_confidence": "medium",
     "scrape_flags": [
+      "missing_roast_level",
       "missing_tasting_notes",
       "altitude_not_found",
       "missing_process",
-      "weight_unknown",
       "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T13:52:51Z"
+    "scraped_at": "2026-05-19T15:40:59Z"
   },
   {
-    "product_id": "zenforest-coffee-roasters_mathavara-estate-x-coorg-highlands",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
+    "product_id": "black-baza-coffee_frogmouth",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Mathavara Estate x Coorg Highlands",
-    "coffee_slug": "mathavara-estate-x-coorg-highlands",
-    "roast_level": "Dark",
-    "tasting_notes": null,
-    "origin": "Coorg Highlands Fruity & Floral Medium ● ● ●",
-    "altitude_masl": null,
-    "process": null,
-    "varietal": null,
-    "weight_grams": null,
-    "price_inr": 725.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
-    ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Mathavara-Estate-X-Coorg-Highlands.png",
-    "product_url": "https://zenforestcoffee.com/product/mathavara-estate-x-coorg-highlands/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Experience Box"
-    ],
-    "description_raw": "Coorg Highlands FRUITY & FLORAL Medium ● ● ● ● ○ ○ ○ Notes / Floral · Citrus · Mild Berry · Bright Finish Aromatics Sweetness Body Mathavra Estate COCOA & BERRY Medium ● ● ● ● ○ ○ ○ Notes / Cocoa · Berry · Spice · Dark Sweetness Aromatics Sweetness Body Zenforest Coffee — Forest & Fruit Profile",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_tasting_notes",
-      "altitude_not_found",
-      "missing_process",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T13:52:51Z"
-  },
-  {
-    "product_id": "zenforest-coffee-roasters_bourbon-bliss-x-rum-barrel",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
-    "roaster_city": "Bengaluru",
-    "roaster_state": "Karnataka",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Bourbon Bliss X Rum Barrel",
-    "coffee_slug": "bourbon-bliss-x-rum-barrel",
-    "roast_level": "Medium-Dark",
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Frogmouth",
+    "coffee_slug": "frogmouth",
+    "roast_level": "Unknown",
     "tasting_notes": null,
     "origin": null,
     "altitude_masl": null,
     "process": null,
-    "varietal": "Bourbon",
-    "weight_grams": null,
-    "price_inr": 725.0,
-    "price_per_gram": null,
+    "varietal": null,
+    "weight_grams": 250,
+    "price_inr": 610.0,
+    "price_per_gram": 2.44,
     "currency": "INR",
     "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "Moka Pot",
-      "Pour Over",
+      "Coarse",
+      "Fine",
       "Whole Bean"
     ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Bourbon-Bliss-X-Rum-Barrel.png",
-    "product_url": "https://zenforestcoffee.com/product/bourbon-bliss-x-rum-barrel/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Frogmouth_Bag.png?v=1774366865",
+    "product_url": "https://blackbazacoffee.com/products/frogmouth",
     "available": true,
-    "variants": [],
-    "tags": [
-      "Experience Box"
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": "Fine"
+      }
     ],
-    "description_raw": "Bourbon Bliss WOODY & CITRUS Medium Dark ● ● ● ● ● ○ ○ Notes / Cocoa · Citrus · Oak · Spice Aromatics Sweetness Body Rum Barrel Aged SWEET & SOUR Medium Dark ● ● ● ● ● ○ ○ Notes / Molasses · Dark Fruit · Spice · Barrel Aromatics Sweetness Body Zenforest Coffee — Barrel Aged Series",
+    "tags": [
+      "Arabica",
+      "Bestsellers"
+    ],
+    "description_raw": "lorem ipsum",
     "scrape_confidence": "medium",
     "scrape_flags": [
+      "missing_roast_level",
       "missing_tasting_notes",
       "altitude_not_found",
       "missing_process",
-      "weight_unknown",
       "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T13:52:51Z"
+    "scraped_at": "2026-05-19T15:40:59Z"
   },
   {
-    "product_id": "zenforest-coffee-roasters_wildwood-spice",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
+    "product_id": "black-baza-coffee_wanderoo",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Wildwood Spice",
-    "coffee_slug": "wildwood-spice",
-    "roast_level": "Medium-Dark",
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Wanderoo",
+    "coffee_slug": "wanderoo",
+    "roast_level": "Unknown",
     "tasting_notes": null,
-    "origin": "Gion Chikmagaluru Altitude 3900 Ft Zenforest Coffee — Pr",
-    "altitude_masl": 3900,
-    "process": "Washed",
+    "origin": null,
+    "altitude_masl": null,
+    "process": null,
     "varietal": null,
-    "weight_grams": null,
-    "price_inr": 890.0,
-    "price_per_gram": null,
+    "weight_grams": 250,
+    "price_inr": 600.0,
+    "price_per_gram": 2.4,
     "currency": "INR",
     "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
+      "Coarse",
+      "Fine",
       "Whole Bean"
     ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-12.png",
-    "product_url": "https://zenforestcoffee.com/product/wildwood-spice/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Coffee_Wanderoo_Main.png?v=1745068635",
+    "product_url": "https://blackbazacoffee.com/products/wanderoo",
     "available": true,
-    "variants": [],
-    "tags": [
-      "Medium Dark",
-      "Nanolot",
-      "New Launch"
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Fine"
+      }
     ],
-    "description_raw": "Wildwood Spice SPICES & SWEET Medium ● ● ● ● ● ● ● Notes / Clove · Nutmeg · Cocoa · Cedar Aromatics & Flavour Sweetness Acidity Body Balance Process Washed & Aged Washed coffee aged in barrel with whole dry spices Region Chikmagaluru Altitude 3900 FT Zenforest Coffee — Premium Indian Origin",
+    "tags": [
+      "Arabica",
+      "Bestsellers"
+    ],
+    "description_raw": "lorem ipsum",
     "scrape_confidence": "medium",
     "scrape_flags": [
+      "missing_roast_level",
       "missing_tasting_notes",
-      "weight_unknown",
+      "altitude_not_found",
+      "missing_process",
       "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T13:52:51Z"
+    "scraped_at": "2026-05-19T15:40:59Z"
   },
   {
-    "product_id": "zenforest-coffee-roasters_mathavara-estate",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
+    "product_id": "black-baza-coffee_luna",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Mathavara Estate",
-    "coffee_slug": "mathavara-estate",
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Luna",
+    "coffee_slug": "luna",
+    "roast_level": "Unknown",
+    "tasting_notes": null,
+    "origin": null,
+    "altitude_masl": null,
+    "process": null,
+    "varietal": null,
+    "weight_grams": 250,
+    "price_inr": 550.0,
+    "price_per_gram": 2.2,
+    "currency": "INR",
+    "grind_options": [
+      "Coarse",
+      "Fine",
+      "Whole Bean"
+    ],
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Coffee_Luna_Main.png?v=1745069316",
+    "product_url": "https://blackbazacoffee.com/products/luna",
+    "available": true,
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 550.0,
+        "price_per_gram": 2.2,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 550.0,
+        "price_per_gram": 2.2,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 550.0,
+        "price_per_gram": 2.2,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 550.0,
+        "price_per_gram": 2.2,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 550.0,
+        "price_per_gram": 2.2,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 550.0,
+        "price_per_gram": 2.2,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 550.0,
+        "price_per_gram": 2.2,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1080.0,
+        "price_per_gram": 2.16,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1080.0,
+        "price_per_gram": 2.16,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1080.0,
+        "price_per_gram": 2.16,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1080.0,
+        "price_per_gram": 2.16,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1080.0,
+        "price_per_gram": 2.16,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1080.0,
+        "price_per_gram": 2.16,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1080.0,
+        "price_per_gram": 2.16,
+        "available": true,
+        "grind": "Fine"
+      }
+    ],
+    "tags": [
+      "Robusta"
+    ],
+    "description_raw": "lorem ipsum",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_roast_level",
+      "missing_tasting_notes",
+      "altitude_not_found",
+      "missing_process",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-19T15:40:59Z"
+  },
+  {
+    "product_id": "black-baza-coffee_jumping-ant",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Jumping Ant",
+    "coffee_slug": "jumping-ant",
+    "roast_level": "Unknown",
+    "tasting_notes": null,
+    "origin": null,
+    "altitude_masl": null,
+    "process": null,
+    "varietal": null,
+    "weight_grams": 250,
+    "price_inr": 600.0,
+    "price_per_gram": 2.4,
+    "currency": "INR",
+    "grind_options": [
+      "Coarse",
+      "Fine",
+      "Whole Bean"
+    ],
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Coffee_JumpingAnt_Main.png?v=1745069316",
+    "product_url": "https://blackbazacoffee.com/products/jumping-ant",
+    "available": true,
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Fine"
+      }
+    ],
+    "tags": [
+      "Arabica"
+    ],
+    "description_raw": "lorem ipsum",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_roast_level",
+      "missing_tasting_notes",
+      "altitude_not_found",
+      "missing_process",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-19T15:40:59Z"
+  },
+  {
+    "product_id": "black-baza-coffee_chukki",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Chukki",
+    "coffee_slug": "chukki",
     "roast_level": "Light",
     "tasting_notes": null,
-    "origin": "Gion Chikmagaluru Altitude 4000 Ft Zenforest Coffee — Pr",
-    "altitude_masl": 4000,
-    "process": "Natural",
-    "varietal": null,
-    "weight_grams": null,
-    "price_inr": 830.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
-    ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-20.png",
-    "product_url": "https://zenforestcoffee.com/product/mathavara-estate/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Light Roast",
-      "Microlot",
-      "New Launch"
-    ],
-    "description_raw": "Mathavara Estate COCOA & BERRY Medium ● ● ● ● ● ● ● Notes / Cocoa · Berries · Spices Aromatics & Flavour Sweetness Acidity Body Balance Process Super Naturals Cherry fermented and dried in shade for 18 days Region Chikmagaluru Altitude 4000 FT Zenforest Coffee — Premium Indian Origin",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_tasting_notes",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T13:52:51Z"
-  },
-  {
-    "product_id": "zenforest-coffee-roasters_banana-fermented",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
-    "roaster_city": "Bengaluru",
-    "roaster_state": "Karnataka",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Banana Fermented",
-    "coffee_slug": "banana-fermented",
-    "roast_level": "Medium",
-    "tasting_notes": null,
-    "origin": "Gion Chikmagaluru Altitude 3900 Ft Zenforest Coffee — Pr",
-    "altitude_masl": 3900,
-    "process": null,
-    "varietal": null,
-    "weight_grams": null,
-    "price_inr": 890.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
-    ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-10.png",
-    "product_url": "https://zenforestcoffee.com/product/banana-fermented/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Fermented",
-      "Medium",
-      "Nanolot",
-      "New Launch"
-    ],
-    "description_raw": "Banana Fermented FRUITY & SWEET Medium ● ● ● ● ● ● ● Notes / Banana · Toffee · Cocoa · Spice Aromatics & Flavour Sweetness Acidity Body Balance Process Double Ferment Carbonic maceration with banana fermentation Region Chikmagaluru Altitude 3900 FT Zenforest Coffee — Premium Indian Origin",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_tasting_notes",
-      "missing_process",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T13:52:51Z"
-  },
-  {
-    "product_id": "zenforest-coffee-roasters_toddy-038-toffee",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
-    "roaster_city": "Bengaluru",
-    "roaster_state": "Karnataka",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Toddy &#038; Toffee",
-    "coffee_slug": "toddy-038-toffee",
-    "roast_level": "Medium",
-    "tasting_notes": null,
-    "origin": "Gion Coorg Altitude 3100 Ft Zenforest Coffee — Pre",
-    "altitude_masl": 3100,
+    "origin": "The Biligirirangan Hills Of Karnataka",
+    "altitude_masl": 1200,
     "process": "Washed",
-    "varietal": null,
-    "weight_grams": null,
-    "price_inr": 860.0,
-    "price_per_gram": null,
+    "varietal": "Arabica",
+    "weight_grams": 250,
+    "price_inr": 580.0,
+    "price_per_gram": 2.32,
     "currency": "INR",
     "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
+      "Coarse",
+      "Fine",
       "Whole Bean"
     ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-21.png",
-    "product_url": "https://zenforestcoffee.com/product/toddy-toffee/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Coffee_Chukki_Main.png?v=1745069615",
+    "product_url": "https://blackbazacoffee.com/products/chukki",
     "available": true,
-    "variants": [],
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Fine"
+      }
+    ],
     "tags": [
-      "Medium",
-      "Microlot",
-      "New Launch"
+      "Arabica"
     ],
-    "description_raw": "Toddy & Toffee SWEET & SPICE Medium ● ● ● ● ● ● ● Notes / Cocoa · Berries · Spices Aromatics & Flavour Sweetness Acidity Body Balance Process Double Fermented Carbonic Maceration – Washed and Fermented with sugarcane juice, oranges & coconut water Region Coorg Altitude 3100 FT Zenforest Coffee — Premium Indian Origin",
-    "scrape_confidence": "medium",
+    "description_raw": "Meet the Coffee This coffee is a Vienna Roast, dry ferment of carefully picked, sorted, pulped and washed Arabica. It was dry fermented in a barrel with pulped Arabica for 36 hours. While roasting, we particularly extended our development time on this one. The result is a brew with tasting notes of dark chocolate, roasted almonds and lingering caramel. This is best brewed with an Aeropress and Moka pot. Enjoy it black or with milk! Meet the Grower This beautiful Arabica coffee comes from our partner producers in the Biligirirangan Hills of Karnataka. This collective of growers is dreaming big about the wellbeing of their community and we are equally committed to enabling them to find their way. BR Hills is a magnificent forested landscape with elevational gradients that go from 800 to 1600m! This unique range in altitude enables all major forest types and this in turn produces a magical cup of coffee! Who's Chukki? Kethegowda decided where to set the camera trap - at the perimeter his coffee farm shares with the forest. She’s not the first Leopard we’ve spotted, but certainly is one that takes delight in making repeated visits to Kethegowda’s farm. The camera has been able to spot and capture her least once every month since the set-up. After a short, but happening discussion we decided to name her Chukki. Thanks to their cautious and elusive behaviour, we are yet to encounter one in daylight, despite sharing the neighbourhood. They’re usually active and preying at night. Being an apex predator makes the Leopard an indispensable part of the food chain and ecological balance of the region and the planet. Their continuous survival requires an abundance of prey and forest cover. Their population is mostly threatened by habitat loss from forest fragmentation. This gives us more reason to remain committed to growing coffee in the way that we do - under the canopy of native, moist deciduous forest trees and not despite it! Environment conditions that allow these leopards ",
+    "scrape_confidence": "high",
     "scrape_flags": [
-      "missing_tasting_notes",
-      "weight_unknown",
-      "needs_llm_review"
+      "missing_tasting_notes"
     ],
-    "scraped_at": "2026-05-01T13:52:51Z"
+    "scraped_at": "2026-05-19T15:40:59Z"
   },
   {
-    "product_id": "zenforest-coffee-roasters_black-honey-coffee",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
+    "product_id": "black-baza-coffee_whistling-schoolboy",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Black Honey Coffee",
-    "coffee_slug": "black-honey-coffee",
-    "roast_level": "Medium-Light",
-    "tasting_notes": null,
-    "origin": "Gion Coorg Altitude 3100 Ft Zenforest Coffee — Pre",
-    "altitude_masl": 3100,
-    "process": "Washed",
-    "varietal": null,
-    "weight_grams": null,
-    "price_inr": 769.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
-    ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-17.png",
-    "product_url": "https://zenforestcoffee.com/product/black-honey-coffee/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Medium Light",
-      "Microlot",
-      "New Launch"
-    ],
-    "description_raw": "Black Honey Earthy & Rich Medium ● ● ● ● ● ● ● Notes / Plum, Molasses, Caramel, Raisin Aromatics & Flavour Sweetness Acidity Body Balance Process Honey Process Washed and dried with around 70-80% mucilage Region Coorg Altitude 3100 FT Zenforest Coffee — Premium Indian Origin",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_tasting_notes",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T13:52:51Z"
-  },
-  {
-    "product_id": "zenforest-coffee-roasters_rum-barrel-aged-coffee",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
-    "roaster_city": "Bengaluru",
-    "roaster_state": "Karnataka",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Rum Barrel Aged Coffee",
-    "coffee_slug": "rum-barrel-aged-coffee",
-    "roast_level": "Medium",
-    "tasting_notes": null,
-    "origin": "Gion Chikmagaluru Altitude 3800 Ft Zenforest Coffee — Pr",
-    "altitude_masl": 3800,
-    "process": "Washed",
-    "varietal": null,
-    "weight_grams": null,
-    "price_inr": 829.0,
-    "price_per_gram": null,
-    "currency": "INR",
-    "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
-    ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-18.png",
-    "product_url": "https://zenforestcoffee.com/product/rum-barrel-aged-coffee/",
-    "available": true,
-    "variants": [],
-    "tags": [
-      "Aged",
-      "Barrel Aged",
-      "Medium",
-      "Monthly Roast"
-    ],
-    "description_raw": "Rum Barrel Aged Sweet & Sour Medium ● ● ● ● ● ● ● Notes: Cocoa, Berries, Spices, Molases Aroma & Flavours Aromatics & Flavour Sweetness Acidity Body Balance Process Barrel Aged Washed and aged in barrels for 190 days. Region Chikmagaluru Altitude 3800 FT Zenforest Coffee — Premium Indian Origin",
-    "scrape_confidence": "medium",
-    "scrape_flags": [
-      "missing_tasting_notes",
-      "weight_unknown",
-      "needs_llm_review"
-    ],
-    "scraped_at": "2026-05-01T13:52:51Z"
-  },
-  {
-    "product_id": "zenforest-coffee-roasters_cappuccino-blend",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
-    "roaster_city": "Bengaluru",
-    "roaster_state": "Karnataka",
-    "roaster_lat": 0,
-    "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Cappuccino Blend",
-    "coffee_slug": "cappuccino-blend",
-    "roast_level": "Dark",
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Whistling Schoolboy",
+    "coffee_slug": "whistling-schoolboy",
+    "roast_level": "Unknown",
     "tasting_notes": null,
     "origin": null,
     "altitude_masl": null,
-    "process": "Washed",
-    "varietal": "Arabica, Robusta",
-    "weight_grams": null,
-    "price_inr": 719.0,
-    "price_per_gram": null,
+    "process": null,
+    "varietal": null,
+    "weight_grams": 250,
+    "price_inr": 510.0,
+    "price_per_gram": 2.04,
     "currency": "INR",
     "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
-      "Whole Bean"
+      "Fine"
     ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-16-29.png",
-    "product_url": "https://zenforestcoffee.com/product/cappuccino-blend/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Coffee_WhistlingSchoolboy_Main.png?v=1745069316",
+    "product_url": "https://blackbazacoffee.com/products/filter-coffee",
     "available": true,
-    "variants": [],
-    "tags": [
-      "Classic",
-      "Dark"
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 510.0,
+        "price_per_gram": 2.04,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1000.0,
+        "price_per_gram": 2.0,
+        "available": true,
+        "grind": "Fine"
+      }
     ],
-    "description_raw": "Cappuccino Blend MILK FRIENDLY Medium ● ● ● ● ● ● ● Perfectly crafted for cappuccinos, lattes & flat whites 60% Arabica Washed 20% Robusta Naturals 20% Robusta Monsoon Malabar ROAST MEDIUM ROAST PROFILE MILK BASED Designed for creamy, smooth cappuccinos and lattes BATCH SMALL BATCH Zenforest Coffee — Premium Indian Origin",
+    "tags": [
+      "Bestsellers",
+      "Blend"
+    ],
+    "description_raw": "lorem ipsum",
     "scrape_confidence": "medium",
     "scrape_flags": [
+      "missing_roast_level",
       "missing_tasting_notes",
       "altitude_not_found",
-      "weight_unknown",
+      "missing_process",
       "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T13:52:51Z"
+    "scraped_at": "2026-05-19T15:40:59Z"
   },
   {
-    "product_id": "zenforest-coffee-roasters_cinnamon-fermented-coffee",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
+    "product_id": "black-baza-coffee_ficus",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Cinnamon Fermented Coffee",
-    "coffee_slug": "cinnamon-fermented-coffee",
-    "roast_level": "Medium-Light",
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Ficus",
+    "coffee_slug": "ficus",
+    "roast_level": "Unknown",
     "tasting_notes": null,
-    "origin": "Gion Coorg Altitude 23100 Ft Zenforest Coffee — Pr",
-    "altitude_masl": 2310,
-    "process": "Washed",
+    "origin": null,
+    "altitude_masl": null,
+    "process": null,
     "varietal": null,
-    "weight_grams": null,
-    "price_inr": 829.0,
-    "price_per_gram": null,
+    "weight_grams": 250,
+    "price_inr": 580.0,
+    "price_per_gram": 2.32,
     "currency": "INR",
     "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
+      "Coarse",
+      "Fine",
       "Whole Bean"
     ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-16-25.png",
-    "product_url": "https://zenforestcoffee.com/product/cinnamon-fermented-coffee/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Coffee_Ficus_Main.png?v=1745069374",
+    "product_url": "https://blackbazacoffee.com/products/ficus",
     "available": true,
-    "variants": [],
-    "tags": [
-      "Fermented",
-      "Medium Light",
-      "Rainforest Collection",
-      "Cinnamon Fermented Coffee",
-      "Zenforest Coffee Roasters"
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Fine"
+      }
     ],
-    "description_raw": "Cinnamon Fermented SPICED & fruity Medium ● ● ● ● ● ● ● Notes: Cinnamon, Clove, Apple Aroma & Flavours Aromatics & Flavour Sweetness Acidity Body Balance Process C0 Fermented Washed & Co-fermented with Cinnamon Region Coorg Altitude 23100 FT Zenforest Coffee — Premium Indian Origin",
+    "tags": [
+      "Blend"
+    ],
+    "description_raw": "lorem ipsum",
     "scrape_confidence": "medium",
     "scrape_flags": [
+      "missing_roast_level",
       "missing_tasting_notes",
-      "weight_unknown",
+      "altitude_not_found",
+      "missing_process",
       "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T13:52:51Z"
+    "scraped_at": "2026-05-19T15:40:59Z"
   },
   {
-    "product_id": "zenforest-coffee-roasters_coorg-highlands-coffee",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
+    "product_id": "black-baza-coffee_potter-wasp",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Coorg Highlands Coffee",
-    "coffee_slug": "coorg-highlands-coffee",
-    "roast_level": "Medium",
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Potter Wasp",
+    "coffee_slug": "potter-wasp",
+    "roast_level": "Unknown",
     "tasting_notes": null,
-    "origin": "Coorg Highlands Fruity & Floral Medium ● ● ●",
-    "altitude_masl": 3900,
-    "process": "Natural",
+    "origin": null,
+    "altitude_masl": null,
+    "process": null,
     "varietal": null,
-    "weight_grams": null,
-    "price_inr": 825.0,
-    "price_per_gram": null,
+    "weight_grams": 250,
+    "price_inr": 630.0,
+    "price_per_gram": 2.52,
     "currency": "INR",
     "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
+      "Coarse",
+      "Fine",
       "Whole Bean"
     ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-19.png",
-    "product_url": "https://zenforestcoffee.com/product/coorg-highlands-coffee/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Coffee_PottersWasp_Main.png?v=1745069316",
+    "product_url": "https://blackbazacoffee.com/products/potter-wasp",
     "available": true,
-    "variants": [],
-    "tags": [
-      "Medium",
-      "Mountain Mist",
-      "blend",
-      "coffee",
-      "Coorg Highlands"
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 630.0,
+        "price_per_gram": 2.52,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 630.0,
+        "price_per_gram": 2.52,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 630.0,
+        "price_per_gram": 2.52,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 630.0,
+        "price_per_gram": 2.52,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 630.0,
+        "price_per_gram": 2.52,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 630.0,
+        "price_per_gram": 2.52,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 630.0,
+        "price_per_gram": 2.52,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1240.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1240.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1240.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1240.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1240.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1240.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1240.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": "Fine"
+      }
     ],
-    "description_raw": "Coorg Highlands FRUITY & FLORAL Medium ● ● ● ● ● ● ● Notes: Stone fruits (peach, apricot) tea-like notes Aromatics & Flavour Sweetness Acidity Body Balance Process Natural High Altitude Coffee – Natural dried Region Coorg Altitude 3900 FT Zenforest Coffee — Premium Indian Origin",
+    "tags": [
+      "Arabica"
+    ],
+    "description_raw": "lorem ipsum",
     "scrape_confidence": "medium",
     "scrape_flags": [
+      "missing_roast_level",
       "missing_tasting_notes",
-      "weight_unknown",
+      "altitude_not_found",
+      "missing_process",
       "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T13:52:51Z"
+    "scraped_at": "2026-05-19T15:40:59Z"
   },
   {
-    "product_id": "zenforest-coffee-roasters_bourbon-bliss-coffee",
-    "roaster_name": "Zenforest Coffee Roasters",
-    "roaster_slug": "zenforest-coffee-roasters",
+    "product_id": "black-baza-coffee_loris",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
     "roaster_city": "Bengaluru",
     "roaster_state": "Karnataka",
     "roaster_lat": 0,
     "roaster_lng": 0,
-    "roaster_website": "https://zenforestcoffee.com/",
-    "coffee_name": "Bourbon Bliss Coffee",
-    "coffee_slug": "bourbon-bliss-coffee",
-    "roast_level": "Medium-Light",
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Loris",
+    "coffee_slug": "loris",
+    "roast_level": "Unknown",
     "tasting_notes": null,
-    "origin": "Gion Chikmagaluru Altitude 3800 Ft Zenforest Coffee — Pr",
-    "altitude_masl": 3800,
-    "process": "Washed",
-    "varietal": "Bourbon",
-    "weight_grams": null,
-    "price_inr": 829.0,
-    "price_per_gram": null,
+    "origin": null,
+    "altitude_masl": null,
+    "process": null,
+    "varietal": null,
+    "weight_grams": 250,
+    "price_inr": 580.0,
+    "price_per_gram": 2.32,
     "currency": "INR",
     "grind_options": [
-      "Cold Brew",
-      "Espresso",
-      "French Press",
-      "Moka Pot",
-      "Pour Over",
+      "Coarse",
+      "Fine",
       "Whole Bean"
     ],
-    "image_url": "https://zenforestcoffee.com/wp-content/uploads/2026/03/Render_Mockup_1920_1920_2026-03-18-11.png",
-    "product_url": "https://zenforestcoffee.com/product/bourbon-bliss-coffee/",
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Coffee_Loris_main.png?v=1745069316",
+    "product_url": "https://blackbazacoffee.com/products/loris",
     "available": true,
-    "variants": [],
-    "tags": [
-      "Aged",
-      "Barrel Aged",
-      "Cold Brew",
-      "Medium Light",
-      "Monsoon Aged",
-      "blend",
-      "coffee"
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Fine"
+      }
     ],
-    "description_raw": "Bourbon Bliss Woody & Sweet Medium Dark ● ● ● ● ● ● ● Notes / Cocoa · Raisin · Berrries · Woody · Toffee Aromatics & Flavour Sweetness Acidity Body Balance Process Barrel Aged Washed and aged in barrels for 190 days. Region Chikmagaluru Altitude 3800 FT Zenforest Coffee — Premium Indian Origin",
+    "tags": [
+      "Arabica",
+      "Bestsellers"
+    ],
+    "description_raw": "lorem ipsum",
     "scrape_confidence": "medium",
     "scrape_flags": [
+      "missing_roast_level",
       "missing_tasting_notes",
-      "weight_unknown",
+      "altitude_not_found",
+      "missing_process",
       "needs_llm_review"
     ],
-    "scraped_at": "2026-05-01T13:52:51Z"
+    "scraped_at": "2026-05-19T15:40:59Z"
+  },
+  {
+    "product_id": "black-baza-coffee_otter",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Otter",
+    "coffee_slug": "otter",
+    "roast_level": "Unknown",
+    "tasting_notes": null,
+    "origin": null,
+    "altitude_masl": null,
+    "process": null,
+    "varietal": null,
+    "weight_grams": 250,
+    "price_inr": 580.0,
+    "price_per_gram": 2.32,
+    "currency": "INR",
+    "grind_options": [
+      "Coarse",
+      "Fine",
+      "Whole Bean"
+    ],
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Coffee_Otter_Main.png?v=1745069316",
+    "product_url": "https://blackbazacoffee.com/products/otter",
+    "available": true,
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Fine"
+      }
+    ],
+    "tags": [
+      "Blend"
+    ],
+    "description_raw": "lorem ipsum",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_roast_level",
+      "missing_tasting_notes",
+      "altitude_not_found",
+      "missing_process",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-19T15:40:59Z"
+  },
+  {
+    "product_id": "black-baza-coffee_draco",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Draco",
+    "coffee_slug": "draco",
+    "roast_level": "Unknown",
+    "tasting_notes": null,
+    "origin": null,
+    "altitude_masl": null,
+    "process": null,
+    "varietal": null,
+    "weight_grams": 250,
+    "price_inr": 620.0,
+    "price_per_gram": 2.48,
+    "currency": "INR",
+    "grind_options": [
+      "Coarse",
+      "Fine",
+      "Whole Bean"
+    ],
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Coffee_Draco_Main.png?v=1745069316",
+    "product_url": "https://blackbazacoffee.com/products/draco",
+    "available": true,
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 620.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 620.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 620.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 620.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 620.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 620.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 620.0,
+        "price_per_gram": 2.48,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1200.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1200.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1200.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1200.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1200.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1200.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1200.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Fine"
+      }
+    ],
+    "tags": [
+      "Arabica"
+    ],
+    "description_raw": "lorem ipsum",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_roast_level",
+      "missing_tasting_notes",
+      "altitude_not_found",
+      "missing_process",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-19T15:40:59Z"
+  },
+  {
+    "product_id": "black-baza-coffee_galaxy-frog",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Galaxy Frog",
+    "coffee_slug": "galaxy-frog",
+    "roast_level": "Unknown",
+    "tasting_notes": null,
+    "origin": null,
+    "altitude_masl": null,
+    "process": null,
+    "varietal": null,
+    "weight_grams": 250,
+    "price_inr": 600.0,
+    "price_per_gram": 2.4,
+    "currency": "INR",
+    "grind_options": [
+      "Coarse",
+      "Fine",
+      "Whole Bean"
+    ],
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Coffee_GalaxyFrog_Main.png?v=1745069316",
+    "product_url": "https://blackbazacoffee.com/products/galaxy-frog",
+    "available": true,
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 600.0,
+        "price_per_gram": 2.4,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1180.0,
+        "price_per_gram": 2.36,
+        "available": true,
+        "grind": "Fine"
+      }
+    ],
+    "tags": [
+      "Arabica",
+      "Bestsellers"
+    ],
+    "description_raw": "lorem ipsum",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_roast_level",
+      "missing_tasting_notes",
+      "altitude_not_found",
+      "missing_process",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-19T15:40:59Z"
+  },
+  {
+    "product_id": "black-baza-coffee_tiger-beetle",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Tiger Beetle",
+    "coffee_slug": "tiger-beetle",
+    "roast_level": "Unknown",
+    "tasting_notes": null,
+    "origin": null,
+    "altitude_masl": null,
+    "process": null,
+    "varietal": null,
+    "weight_grams": 250,
+    "price_inr": 580.0,
+    "price_per_gram": 2.32,
+    "currency": "INR",
+    "grind_options": [
+      "Coarse",
+      "Fine",
+      "Whole Bean"
+    ],
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Coffee_tigerBeetle_Main.png?v=1745069316",
+    "product_url": "https://blackbazacoffee.com/products/tiger-beetle",
+    "available": true,
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 580.0,
+        "price_per_gram": 2.32,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1140.0,
+        "price_per_gram": 2.28,
+        "available": true,
+        "grind": "Fine"
+      }
+    ],
+    "tags": [
+      "Arabica"
+    ],
+    "description_raw": "lorem ipsum",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_roast_level",
+      "missing_tasting_notes",
+      "altitude_not_found",
+      "missing_process",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-19T15:40:59Z"
+  },
+  {
+    "product_id": "black-baza-coffee_kaati",
+    "roaster_name": "Black Baza Coffee",
+    "roaster_slug": "black-baza-coffee",
+    "roaster_city": "Bengaluru",
+    "roaster_state": "Karnataka",
+    "roaster_lat": 0,
+    "roaster_lng": 0,
+    "roaster_website": "https://blackbazacoffee.com",
+    "coffee_name": "Kaati",
+    "coffee_slug": "kaati",
+    "roast_level": "Unknown",
+    "tasting_notes": null,
+    "origin": null,
+    "altitude_masl": null,
+    "process": null,
+    "varietal": null,
+    "weight_grams": 250,
+    "price_inr": 610.0,
+    "price_per_gram": 2.44,
+    "currency": "INR",
+    "grind_options": [
+      "Coarse",
+      "Fine",
+      "Whole Bean"
+    ],
+    "image_url": "https://cdn.shopify.com/s/files/1/0092/8451/7967/files/Coffee_Kaati_Main.png?v=1745069316",
+    "product_url": "https://blackbazacoffee.com/products/kaati",
+    "available": true,
+    "variants": [
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 250,
+        "price_inr": 610.0,
+        "price_per_gram": 2.44,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": "Whole Bean"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": "Coarse"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": null
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": "Fine"
+      },
+      {
+        "weight_grams": 500,
+        "price_inr": 1170.0,
+        "price_per_gram": 2.34,
+        "available": true,
+        "grind": "Fine"
+      }
+    ],
+    "tags": [
+      "Arabica"
+    ],
+    "description_raw": "lorem ipsum",
+    "scrape_confidence": "medium",
+    "scrape_flags": [
+      "missing_roast_level",
+      "missing_tasting_notes",
+      "altitude_not_found",
+      "missing_process",
+      "needs_llm_review"
+    ],
+    "scraped_at": "2026-05-19T15:40:59Z"
   }
 ]

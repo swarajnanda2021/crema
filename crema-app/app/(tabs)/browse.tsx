@@ -7,11 +7,12 @@
 
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { View, Text, Pressable, TextInput, ScrollView, StyleSheet, useWindowDimensions, ActivityIndicator } from "react-native";
+import { useTabSlider } from "../../src/components/primitives";
+import Animated from "react-native-reanimated";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { Image } from "expo-image";
 import { Search, X, ArrowRight, ChevronDown, ChevronRight } from "lucide-react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { emit } from "../../src/utils/events";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useRoasterProfiles } from "../../src/hooks/useRoasterProfiles";
 import { useRoasterArticles } from "../../src/hooks/useRoasterArticles";
@@ -86,6 +87,7 @@ export default function BrowsePage() {
   const [query, setQuery] = useState("");
   const [popularity, setPopularity] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState<"beans" | "roasters" | "journal">("beans");
+  const tabSlider = useTabSlider(activeTab);
   const [sortBy, setSortBy] = useState<string>("featured");
   const [selectedRoasters, setSelectedRoasters] = useState<string[]>([]);
   const [selectedRoasts, setSelectedRoasts] = useState<string[]>([]);
@@ -607,50 +609,84 @@ export default function BrowsePage() {
           )}
           <View style={[s.tabBarRight, isMobile && s.tabBarRightMobile]}>
             {/* Sub-tab toggles flip local state, not router pathname,
-               so NavigationLoader's pathname-change effect never fires
-               for BEANS↔ROASTERS. Mirror the MobileFooter pattern: emit
-               the explicit start/end pair around the state flip so the
-               crema curtain shows for the same ~350 ms across every
-               navigation surface (bottom-tabs, sub-tabs, page nav). */}
-            <TabButton label="BEANS" active={activeTab === "beans"} onPress={() => {
-              if (activeTab === "beans") return;
-              emit("crema:loading-start");
-              setActiveTab("beans");
-              setTimeout(() => emit("crema:loading-end"), 350);
-            }} />
-            <TabButton label="ROASTERS" active={activeTab === "roasters"} onPress={() => {
-              if (activeTab === "roasters") return;
-              emit("crema:loading-start");
-              setActiveTab("roasters");
-              setTimeout(() => emit("crema:loading-end"), 350);
-            }} />
-            <TabButton label="JOURNAL" active={activeTab === "journal"} onPress={() => {
-              if (activeTab === "journal") return;
-              emit("crema:loading-start");
-              setActiveTab("journal");
-              setTimeout(() => emit("crema:loading-end"), 350);
-            }} />
-            {/* Filter icon hides on JOURNALS — no filter dimensions in
-               v1; the tab is a chronological feed only. The roaster +
-               topic filters land in a follow-up once the feed is live
-               and we can pick the dimensions that pull weight. */}
-            {isMobile && activeTab !== "journal" && (
-              <Pressable
-                onPress={() => setFilterDrawerOpen(true)}
-                style={({ pressed }) => [
-                  s.tabBarFilterBtn,
-                  pressed && s.tabBarFilterBtnPressed,
-                ]}
-                hitSlop={8}
-                accessibilityLabel={`Filters${activeFilterCount > 0 ? `, ${activeFilterCount} active` : ""}`}
-                accessibilityRole="button"
-              >
-                <SlidersHorizontal size={t.size["icon.lg"]} color={t.color["text.primary"]} strokeWidth={1.75} />
-                {activeFilterCount > 0 && <View style={s.tabBarFilterDot} />}
-              </Pressable>
-            )}
+               so NavigationLoader's pathname-change effect never fires.
+               No `crema:loading-*` emit on switch — the sliding
+               underline IS the navigation feedback, and a 350-ms
+               full-screen curtain over the tab strip hides the slide
+               (defeating the affordance). The data swap is in-memory
+               from `useCoffeeData` / `useRoasterProfiles`, so the
+               BEANS↔ROASTERS↔JOURNAL flip paints in one frame
+               anyway. */}
+            {/* `slideTo` fires the underline animation on the UI
+               thread immediately (reanimated worklet). `setActiveTab`
+               queues a React state update that swaps the content
+               area asynchronously. The slide is in flight before
+               React processes the swap, so heavy content mounting
+               can't stutter the animation. */}
+            <TabButton
+              label="BEANS"
+              active={activeTab === "beans"}
+              tabRef={tabSlider.trackTab("beans")}
+              onPress={() => {
+                tabSlider.slideTo("beans");
+                setActiveTab("beans");
+              }}
+            />
+            <TabButton
+              label="ROASTERS"
+              active={activeTab === "roasters"}
+              tabRef={tabSlider.trackTab("roasters")}
+              onPress={() => {
+                tabSlider.slideTo("roasters");
+                setActiveTab("roasters");
+              }}
+            />
+            <TabButton
+              label="JOURNAL"
+              active={activeTab === "journal"}
+              tabRef={tabSlider.trackTab("journal")}
+              onPress={() => {
+                tabSlider.slideTo("journal");
+                setActiveTab("journal");
+              }}
+            />
+            {/* One animated underline for the whole row — slides
+               between BEANS / ROASTERS / JOURNAL when the active tab
+               changes. Lives inside `tabBarRight` so the underline's
+               x coordinates match the tabs' onLayout x coordinates
+               (same coordinate space). The static per-tab underline
+               that used to ride on each TabButton was replaced by
+               this single bar (`useTabSlider` primitive). */}
+            <Animated.View
+              pointerEvents="none"
+              style={[s.tabUnderlineAnimated, tabSlider.underlineStyle]}
+            />
           </View>
         </View>
+        {/* Filter icon — absolutely positioned so it doesn't push
+           the BEANS / ROASTERS / JOURNAL labels off their Figma x
+           coordinates. Paddings + glyph size match the navbar bell
+           exactly (paddingRight: 3xl = 32, glyph 24×24 stroke 2),
+           so this icon sits directly below the bell on the chrome
+           stack — same center, same right edge. Hides on JOURNAL
+           — that tab is a chronological feed only in v1 (the
+           topic + roaster filters arrive once the feed is live and
+           we can pick the dimensions that pull weight). */}
+        {isMobile && activeTab !== "journal" && (
+          <Pressable
+            onPress={() => setFilterDrawerOpen(true)}
+            style={({ pressed }) => [
+              s.tabBarFilterBtn,
+              pressed && s.tabBarFilterBtnPressed,
+            ]}
+            hitSlop={10}
+            accessibilityLabel={`Filters${activeFilterCount > 0 ? `, ${activeFilterCount} active` : ""}`}
+            accessibilityRole="button"
+          >
+            <SlidersHorizontal size={24} color={t.color["text.primary"]} strokeWidth={2} />
+            {activeFilterCount > 0 && <View style={s.tabBarFilterDot} />}
+          </Pressable>
+        )}
       </View>
 
       {activeTab === "beans" ? (
@@ -978,16 +1014,26 @@ function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }
   );
 }
 
-function TabButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function TabButton({
+  label,
+  active,
+  onPress,
+  tabRef,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  tabRef?: (node: any) => void;
+}) {
   const s = useStyles();
   return (
     <Pressable
       testID={`browse-tab-${label.toLowerCase()}`}
       onPress={onPress}
+      ref={tabRef as any}
       style={s.tabBtn}
     >
       <Text style={[s.tabLabel, active && s.tabLabelActive]}>{label}</Text>
-      {active && <View style={s.tabUnderline} />}
     </Pressable>
   );
 }
@@ -1758,35 +1804,39 @@ const useStyles = makeStyles((t) => ({
   tabLabel: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"] },
   tabLabelActive: { fontFamily: t.font["body.semibold"], color: t.color["text.primary"] },
   tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: t.color["text.primary"] } as any,
-  // Filter icon pinned to the right of the tab row. Same circular
-  // cream-disc geometry the Catalog Ops Roasters & Beans tab uses
-  // for its filter trigger — the disc gives the icon a tappable
-  // surface that reads as a peer of the marketplace's compact-action
-  // affordances. `marginLeft: auto` pushes it to flex end regardless
-  // of how many sibling tabs render; `alignSelf: center` overrides
-  // `tabBarRight`'s `alignItems: stretch` (which collapses to
-  // flex-start for fixed-size children, sticking the disc to the
-  // top of the strip) so the disc's vertical center matches the
-  // tab labels'. Dot badge appears top-right when any filter is
-  // active.
+  // Animated counterpart — only chrome (bottom offset, height, color).
+  // `left` + `width` come from `useTabSlider`'s Animated.Values, so
+  // those properties are deliberately absent here.
+  tabUnderlineAnimated: {
+    bottom: -1,
+    height: 4,
+    backgroundColor: t.color["text.primary"],
+  } as any,
+  // Filter icon — absolutely pinned to the right of the tab bar
+  // at the same `paddingRight` the navbar bell uses (3xl = 32) so
+  // the two icons stack vertically aligned on the chrome stack.
+  // Bare glyph (no cream disc) — the disc previously here read as
+  // a sibling-affordance of marketplace controls, but stacking it
+  // below the bell calls attention to the size mismatch. Same
+  // geometry as the bell now (24-pt SlidersHorizontal at stroke 2)
+  // means the filter icon's optical weight matches the bell's
+  // exactly. Dot badge appears top-right when any filter is active.
   tabBarFilterBtn: {
-    marginLeft: "auto" as any,
-    alignSelf: "center" as any,
-    width: 36,
-    height: 36,
-    borderRadius: t.radius.full,
-    backgroundColor: t.color["card.info"],
+    position: "absolute" as any,
+    right: t.spacing["3xl"],
+    top: 0,
+    bottom: 0,
+    width: 24,
     justifyContent: "center",
     alignItems: "center",
-    position: "relative",
   } as any,
   tabBarFilterBtnPressed: {
     opacity: 0.7,
   } as any,
   tabBarFilterDot: {
     position: "absolute",
-    top: 6,
-    right: 6,
+    top: 8,
+    right: -2,
     width: 8,
     height: 8,
     borderRadius: 4,

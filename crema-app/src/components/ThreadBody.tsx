@@ -1112,13 +1112,13 @@ const useStyles = makeStyles((t) => ({
     backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
   } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: t.size["font.md"], color: t.color["text.on-dark"] },
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: t.size["font.md"], color: t.color.bg },
   avatarFbSmall: {
     width: 24, height: 24, borderRadius: 12,
     backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
   } as any,
-  avatarLetterSmall: { fontFamily: t.font["body.semibold"], fontSize: t.size["font.sm"], color: t.color["text.on-dark"] },
+  avatarLetterSmall: { fontFamily: t.font["body.semibold"], fontSize: t.size["font.sm"], color: t.color.bg },
   messages: { flex: 1 } as any,
   emptyText: {
     fontFamily: t.font["body.regular"], fontSize: t.size["font.md"],

@@ -825,7 +825,7 @@ const useStyles = makeStyles((t) => ({
   avatarLetter: {
     fontFamily: t.font["body.semibold"],
     fontSize: 14,
-    color: t.color["text.on-dark"],
+    color: t.color.bg,
   } as any,
   authorName: {
     fontFamily: t.font["body.semibold"],

@@ -108,6 +108,12 @@ def seed_initial_state(conn) -> None:
     # helpers that the per-scrape staging path now calls inline.
     # Gated on PRAGMA user_version so it runs exactly once.
     backfill_canonical_columns(conn)
+    # Collapse the 10-bucket article topic taxonomy into the 7-bucket
+    # v4 scheme (brew / roast / origins / taste / lifestyle / news /
+    # misc). Programmatic mapping for the bulk + a tight title-regex
+    # carve-out for the roast cluster. Gated on PRAGMA user_version
+    # >= 9 so it runs exactly once per DB.
+    migrate_topic_categories_v4(conn)
 
 
 def _seed_roaster_sources_combined(conn) -> None:
@@ -1113,6 +1119,109 @@ def restore_experimental_process_verbatim(conn) -> None:
         print(
             f"Process repair: restored verbatim text on {restored} rows "
             f"that had been overwritten with 'Experimental'."
+        )
+
+
+def migrate_topic_categories_v4(conn) -> None:
+    """Collapse the 10-bucket topic taxonomy into the 7-bucket v4
+    scheme. Runs exactly once per database, gated on `PRAGMA
+    user_version >= 9`.
+
+    Mapping (old → new):
+      origin_profile, sourcing_story, harvest_report → origins
+      tasting_notes                                  → taste
+      brew_guide                                     → brew
+      culture, health                                → lifestyle
+      industry_news, company_update                  → news
+      miscellaneous, other                           → misc
+
+    After the bulk remap, a tighter regex carves out clear roast-
+    subject articles currently sitting in `brew` and moves them to
+    the new `roast` bucket — only articles whose title carries a
+    sharp roast-subject signal ('roast level', 'roasting process',
+    'light/medium/dark roast', 'why freshly roasted X matters',
+    'resting roasted coffee', 'roast profile', 'how roast affects',
+    etc.). Borderline rows ('Roasted Coffee Beans for Those Who
+    Love Coffee' — adjective-style marketing) stay in `brew` until
+    the next Haiku re-enrichment surfaces them.
+
+    Why a programmatic carve-out instead of a Haiku re-enrich:
+    re-enriching 854 pre-v4 rows would burn ~$10 of Haiku spend.
+    Title-based regex catches ~50 of the clearest cases at zero
+    cost. The remaining ambiguous roast-flavored articles will
+    correctly land in `roast` on their next re-enrichment via the
+    v4 cascade.
+    """
+    cur = conn.execute("PRAGMA user_version")
+    version = cur.fetchone()[0]
+    if version >= 9:
+        return
+
+    bulk_mapping = {
+        "origin_profile": "origins",
+        "sourcing_story": "origins",
+        "harvest_report": "origins",
+        "tasting_notes": "taste",
+        "brew_guide": "brew",
+        "culture": "lifestyle",
+        "health": "lifestyle",
+        "industry_news": "news",
+        "company_update": "news",
+        "miscellaneous": "misc",
+        "other": "misc",
+    }
+
+    moved_by_bucket: dict[str, int] = {}
+    for old, new in bulk_mapping.items():
+        moved = conn.execute(
+            "UPDATE roaster_articles SET topic_category = ? "
+            "WHERE topic_category = ?",
+            (new, old),
+        ).rowcount
+        if moved:
+            moved_by_bucket[old] = moved
+
+    # Roast carve-out — tighter than just `LIKE '%roast%'`. Match
+    # any of: roast level(s), roasting process, light/medium/dark
+    # roast as a noun phrase, 'roast profile', 'freshly roasted X
+    # matters/why/benefits', 'resting roasted', 'how roast (level)
+    # affects'. These are all SUBJECT roast, not adjective roast.
+    roast_patterns = [
+        "LOWER(title) LIKE '%roast level%'",
+        "LOWER(title) LIKE '%roasting process%'",
+        "LOWER(title) LIKE '%light roast%'",
+        "LOWER(title) LIKE '%medium roast%'",
+        "LOWER(title) LIKE '%dark roast%'",
+        "LOWER(title) LIKE '%french roast%'",
+        "LOWER(title) LIKE '%vienna roast%'",
+        "LOWER(title) LIKE '%espresso roast%'",
+        "LOWER(title) LIKE '%roast profile%'",
+        "LOWER(title) LIKE '%freshly roasted%matters%'",
+        "LOWER(title) LIKE '%freshly roasted%why%'",
+        "LOWER(title) LIKE '%freshly roasted%benefits%'",
+        "LOWER(title) LIKE '%resting roasted%'",
+        "LOWER(title) LIKE '%rest roasted%'",
+        "LOWER(title) LIKE '%roasting specialty%'",
+        "LOWER(title) LIKE '%science behind roast%'",
+        "LOWER(title) LIKE '%art of%light roast%'",
+        "LOWER(title) LIKE '%how roast%affect%'",
+        "LOWER(title) LIKE '%types of%roast%'",
+        "LOWER(title) LIKE '%coffee roasts%'",
+        "LOWER(title) LIKE '%coffee roasting%'",
+    ]
+    where_clause = " OR ".join(roast_patterns)
+    moved_roast = conn.execute(
+        f"UPDATE roaster_articles SET topic_category = 'roast' "
+        f"WHERE topic_category IN ('brew','origins') AND ({where_clause})"
+    ).rowcount
+
+    conn.execute("PRAGMA user_version = 9")
+    conn.commit()
+
+    if moved_by_bucket or moved_roast:
+        summary = ", ".join(f"{k}→{bulk_mapping[k]}: {v}" for k, v in moved_by_bucket.items())
+        print(
+            f"Topic taxonomy v4 migration: {summary}; roast carve-out: {moved_roast} rows."
         )
 
 
@@ -2243,7 +2352,19 @@ def run_article_scrape_job(job_id: int, *,
                     # the stub fields (Atom feed title/published_at)
                     # so we don't lose canonical roaster-asserted
                     # values.
+                    #
+                    # Three cases to distinguish:
+                    #   (a) Haiku succeeded with body — full enrichment
+                    #   (b) Haiku succeeded but said is_about_coffee=
+                    #       false (permitted to omit body/title per
+                    #       schema) — TRUST the off-topic verdict,
+                    #       use bs4 fallback for the visible fields
+                    #       so the row still renders for admin
+                    #       override. enrichment_status='enriched'.
+                    #   (c) Haiku call failed entirely (None) — bs4
+                    #       fallback, enrichment_status='failed'.
                     if enriched and enriched.get("body_html"):
+                        # Case (a)
                         article = {
                             "url": url,
                             "title": (
@@ -2251,18 +2372,6 @@ def run_article_scrape_job(job_id: int, *,
                                 or stub.get("title")
                                 or fallback.get("title")
                             ),
-                            # Excerpt comes from the scraper's stub
-                            # (Atom/RSS summary) or bs4 fallback
-                            # (og:description, first paragraph). The
-                            # Excerpt: re-introduced to the v2 tool
-                            # schema (2026-05-09) so Haiku derives
-                            # it from the article BODY (first prose
-                            # sentence verbatim) rather than the
-                            # site's og:description, which on most
-                            # roaster blogs is the homepage tagline
-                            # and reads as gutter when it duplicates
-                            # across every article. Stub/fallback
-                            # remain as fallbacks if Haiku fails.
                             "excerpt": (
                                 enriched.get("excerpt")
                                 or stub.get("excerpt")
@@ -2286,12 +2395,47 @@ def run_article_scrape_job(job_id: int, *,
                         }
                         enrichment_status = "enriched"
                         summary["enriched"] += 1
+                    elif enriched is not None and not is_about_coffee:
+                        # Case (b) — Haiku DID respond, just decided
+                        # is_about_coffee=false so the optional fields
+                        # may be omitted per the v4 schema. The
+                        # verdict itself is the value of this call;
+                        # the row's body comes from bs4 so admin can
+                        # still review + override.
+                        fb = article_scraper.merge_full(stub, fallback)
+                        article = {
+                            "url": url,
+                            "title": (
+                                enriched.get("title")
+                                or fb.get("title")
+                            ),
+                            "excerpt": (
+                                enriched.get("excerpt")
+                                or fb.get("excerpt")
+                            ),
+                            "image_url": (
+                                enriched.get("image_url")
+                                or extracted["og_image"]
+                                or fb.get("image_url")
+                            ),
+                            "body_html": fb.get("body_html"),
+                            "word_count": (
+                                enriched.get("word_count")
+                                or fb.get("word_count")
+                            ),
+                            "published_at": (
+                                enriched.get("published_at")
+                                or fb.get("published_at")
+                            ),
+                        }
+                        enrichment_status = "enriched"
+                        summary["enriched"] += 1
                     else:
-                        # Haiku call failed (transient, missing key,
-                        # parse error) — write the bs4 fallback so
-                        # the scrape still produces a row, and stamp
-                        # enrichment_status='failed' so admin can
-                        # re-run with force_enrich later.
+                        # Case (c) — Haiku failed (transient, missing
+                        # key, parse error). Write the bs4 fallback
+                        # so the scrape still produces a row, and
+                        # stamp enrichment_status='failed' so admin
+                        # can re-run with force_enrich later.
                         article = article_scraper.merge_full(
                             stub, fallback,
                         )

@@ -74,9 +74,20 @@ export default function NavigationLoader() {
   }, [authLoading]);
 
   // Start the overlay on pathname change.
+  //
+  // Exception: skip the curtain when navigating AWAY from an
+  // article reader (`/article/[id]`). The destination is always a
+  // surface whose data is already in memory — the article list
+  // (`/browse?tab=journal`), the roaster profile (linked from the
+  // article's byline), the user's own feed — and the curtain just
+  // adds 320 ms of friction over content that's ready to paint.
+  // Inbound navigation TO `/article/[id]` still fires the curtain
+  // (the article body fetches on mount, so the buffer is honest).
   useEffect(() => {
     if (prevPathRef.current === pathname) return;
+    const prevPath = prevPathRef.current;
     prevPathRef.current = pathname;
+    if (prevPath?.startsWith("/article/")) return;
     showOverlay();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);

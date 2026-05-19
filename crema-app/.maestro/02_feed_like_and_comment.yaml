@@ -1,0 +1,59 @@
+# Journey 2 — Morning feed engagement. The user lands on the feed,
+# likes a friend's post, then opens comments on a post and leaves a
+# reply. The two primary engagement actions a daily user takes
+# without leaving the home tab.
+#
+# `action-like-.*` and `action-comment-.*` regex pick whichever post
+# Maestro finds first — both buttons live on every PostCard, so the
+# match is always the topmost rendered card.
+
+appId: com.crema.app
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "feed-screen"
+    timeout: 30000
+
+# 1. Wait for at least one post to render. `post-card-.*` is the
+#    stable anchor for "feed has loaded with content".
+- extendedWaitUntil:
+    visible:
+      id: "post-card-.*"
+    timeout: 15000
+
+# 2. Like the topmost post. The Toggle pulses + count increments;
+#    we don't assert the count (race-prone) but the tap itself proves
+#    the testID + handler are wired.
+- tapOn:
+    id: "action-like-.*"
+
+# 3. Open comments on the topmost post — same row, comment icon.
+- tapOn:
+    id: "action-comment-.*"
+
+# 4. PostModal opens in comment mode and auto-focuses the input,
+#    which pops the soft keyboard. The keyboard covers the input
+#    on the emulator, so dismiss it first to bring the input
+#    above the fold.
+- hideKeyboard
+
+# 5. Scroll inside the modal to reveal the input. PostModal's
+#    body is a ScrollView; `scrollUntilVisible` walks it down.
+- scrollUntilVisible:
+    element:
+      id: "comment-input"
+    direction: DOWN
+    timeout: 10000
+
+# 6. Type a real comment. Kept short ("nice") — the Android emulator's
+#    `inputText` runs ~10s/char and times out at 120s, so anything
+#    over ~10 chars hangs.
+- tapOn:
+    id: "comment-input"
+- inputText: "nice"
+
+# 7. Send. The Send icon is the canonical commit affordance.
+- hideKeyboard
+- tapOn:
+    id: "comment-send"

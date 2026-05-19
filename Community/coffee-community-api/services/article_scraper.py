@@ -305,9 +305,21 @@ def _generic_feed(base: str) -> Optional[dict]:
 def _html_index(base: str) -> Optional[dict]:
     """Last resort — HTML index page whose article links we'll
     scrape. The roaster has to expose a /blog or /journal section
-    for this to work."""
-    for path in ("/blog", "/journal", "/articles", "/stories",
-                 "/blogs/news"):
+    for this to work.
+
+    Wix sites use a `-N` suffix on the collection-root URL to
+    disambiguate the page (`/journal`) from the items collection
+    (`/journal-1`, `/journal-2`, …). Either can be the listing
+    page depending on the template — probe both forms."""
+    for path in (
+        "/blog", "/blog-1",
+        "/journal", "/journal-1",
+        "/articles", "/articles-1",
+        "/stories", "/stories-1",
+        "/news", "/news-1",
+        "/posts", "/posts-1",
+        "/blogs/news",
+    ):
         url = f"{base}{path}"
         try:
             r = requests.get(url, headers={"User-Agent": UA},
@@ -450,15 +462,35 @@ def _parse_html_index(url: str) -> list[dict]:
 
 def _extract_index_links(html: str, *, base_url: str) -> list[str]:
     """Pull article links from a /blog HTML index. Heuristic: anchor
-    href that looks like /blog/<slug> or /blogs/<handle>/<slug> or a
-    full URL on the same host pointing to a blog path."""
+    href that looks like:
+      - /blog/<slug>, /journal/<slug>, /articles/<slug>, /stories/<slug>
+      - /blog-N/<slug>, /journal-N/<slug>, … (Wix collection suffix)
+      - /blogs/<handle>/<slug> (Shopify-style nested)
+    on the same host as the index page."""
     soup = BeautifulSoup(html, "html.parser")
     base_host = urlparse(base_url).netloc
     candidates: list[str] = []
     seen: set[str] = set()
+    # The `(-\d+)?` slot catches Wix's `/journal-1/`, `/blog-2/` etc.
+    # collection-root suffix; bare `/journal/{slug}` paths still match.
     article_re = re.compile(
-        r"^(/blog/|/blogs/[^/]+/[^/]+|/journal/|/articles/|/stories/)"
+        r"^(?:"
+        r"/blog(?:-\d+)?/[^/]+"
+        r"|/blogs/[^/]+/[^/]+"
+        r"|/journal(?:-\d+)?/[^/]+"
+        r"|/articles(?:-\d+)?/[^/]+"
+        r"|/stories(?:-\d+)?/[^/]+"
+        r"|/news(?:-\d+)?/[^/]+"
+        r"|/posts(?:-\d+)?/[^/]+"
+        r")"
     )
+    # Section/index roots — exclude these even when the regex
+    # accidentally matches a `/journal-1/` with a trailing slash and
+    # no slug (the [^/]+ already prevents this, but belt-and-braces).
+    SECTION_ROOTS = {
+        "/blog", "/journal", "/articles", "/stories",
+        "/news", "/posts", "/blogs/news",
+    }
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
         if not href:
@@ -471,11 +503,12 @@ def _extract_index_links(html: str, *, base_url: str) -> list[str]:
             continue
         if not article_re.match(path):
             continue
-        # Reject the index page itself + section pages without a
-        # trailing slug.
-        if path.rstrip("/") in (
-            "/blog", "/journal", "/articles", "/stories", "/blogs/news",
-        ):
+        # Reject the index/section roots in either bare or suffixed
+        # form (`/journal` AND `/journal-1`).
+        stripped = path.rstrip("/")
+        if stripped in SECTION_ROOTS:
+            continue
+        if re.fullmatch(r"/(blog|journal|articles|stories|news|posts)-\d+", stripped):
             continue
         if path.startswith("/blogs/") and path.count("/") < 3:
             continue
@@ -856,6 +889,18 @@ def _extract_body_links(soup: BeautifulSoup, base_url: str) -> list[dict]:
                 continue
             # Drop the homepage / empty path explicitly.
             if path in ("", "/"):
+                continue
+            # `/blogs/<handle>` (2 segments) is the blog ROOT — Shopify
+            # renders a "Back to blog" anchor pointing to it at the
+            # end of every article body. That's chrome. Real article
+            # links have 3 segments: `/blogs/<handle>/<slug>`.
+            #
+            # This is a structural rule (URL shape only), not an
+            # anchor-text denylist. Anchor text like "Read more" or
+            # "Back to blog" can legitimately appear mid-prose
+            # pointing to a real article — those URLs have the slug
+            # so they pass; only the bare blog-root anchors fail.
+            if path.startswith("/blogs/") and path.count("/") < 3:
                 continue
         # Strip Shopify-specific tracking params (`?pr_prod_strat=`,
         # `?_pos=`, `?_sid=`, `?variant=`) so the same product

@@ -134,11 +134,18 @@ export async function apiUpload<T = any>(
 
 /** Fire-and-forget click tracking. Hits the registry-driven
  *  `click_events` resource — the table name is the URL by convention,
- *  no `clicks` alias on the backend. */
+ *  no `clicks` alias on the backend.
+ *
+ *  Optional `placement` argument tags a click as originating from an
+ *  in-article placement (P1 attribution): the article id + the
+ *  placement source ('inline' | 'auto' | 'manual') let the analytics
+ *  surface pivot ad-slot vs organic clicks. Organic clicks omit
+ *  this argument and store NULL on both fields. */
 export function trackClick(
   productId: string,
   roasterSlug: string,
-  sourcePage: string
+  sourcePage: string,
+  placement?: { article_id: number; placement_source: "inline" | "auto" | "manual" },
 ): void {
   apiFetchRaw("/click_events", {
     method: "POST",
@@ -146,6 +153,51 @@ export function trackClick(
       product_id: productId,
       roaster_slug: roasterSlug,
       source_page: sourcePage,
+      ...(placement ? {
+        article_id: placement.article_id,
+        placement_source: placement.placement_source,
+      } : null),
+    }),
+  }).catch(() => {});
+}
+
+/** Cached per-tab session id for impression dedup. Generated lazily
+ *  on first impression; resets when the tab/app session ends so the
+ *  next visit gets fresh impressions (the "reach over time" metric).
+ *  On web, sessionStorage scopes to the tab; on native, the
+ *  in-memory cache resets on app restart, same effect. */
+let _adSessionId: string | null = null;
+function getAdSessionId(): string {
+  if (_adSessionId) return _adSessionId;
+  if (typeof window !== "undefined" && typeof window.sessionStorage !== "undefined") {
+    let stored = window.sessionStorage.getItem("crema_ad_session");
+    if (!stored) {
+      stored = `s_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      window.sessionStorage.setItem("crema_ad_session", stored);
+    }
+    _adSessionId = stored;
+    return stored;
+  }
+  _adSessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  return _adSessionId;
+}
+
+/** Fire-and-forget impression tracking (P1 attribution). Hits the
+ *  POST /ad_impressions endpoint; idempotent server-side via UNIQUE
+ *  on (session, article, product, source), so a re-render or
+ *  scroll-past collapses to one row per session. Anonymous viewers
+ *  count too (the endpoint accepts unauthenticated requests). */
+export function trackImpression(opts: {
+  article_id: number;
+  product_id: string;
+  roaster_slug: string;
+  placement_source: "inline" | "auto" | "manual";
+}): void {
+  apiFetchRaw("/ad_impressions", {
+    method: "POST",
+    body: JSON.stringify({
+      ...opts,
+      session_id: getAdSessionId(),
     }),
   }).catch(() => {});
 }

@@ -1,0 +1,44 @@
+# Journey 8 — Sitewide search. Open Search, type "ethio", tap a
+# beans result, land on the coffee detail page. The user-flow when
+# someone has a specific origin in mind and wants to see what every
+# roaster on the platform is offering.
+#
+# Query is kept short ("ethio") — the Android emulator's `inputText`
+# is ~10s/char with a 120s gRPC timeout, so anything beyond ~10
+# chars hangs the gRPC call.
+
+appId: com.crema.app
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "feed-screen"
+    timeout: 30000
+
+# 1. Search tab. The screen auto-focuses the input on mount, so the
+#    keyboard is up — no extra tap needed before inputText.
+- tapOn:
+    id: "tab-search"
+- extendedWaitUntil:
+    visible:
+      id: "search-input"
+    timeout: 10000
+
+# 2. Type the query.
+- tapOn:
+    id: "search-input"
+- inputText: "ethio"
+
+# 3. Wait for at least one beans result row.
+- extendedWaitUntil:
+    visible:
+      id: "search-result-bean-.*"
+    timeout: 15000
+
+# 4. Tap the topmost beans result → coffee detail page.
+- tapOn:
+    id: "search-result-bean-.*"
+- extendedWaitUntil:
+    visible:
+      id: "coffee-detail-screen"
+    timeout: 15000

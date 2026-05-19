@@ -14,6 +14,7 @@ export { default as ActionBar } from "./ActionBar";
 export { default as CommentThread } from "./CommentThread";
 export { default as ConfirmDeleteModal } from "./ConfirmDeleteModal";
 export { default as HapticPressable, type HapticKind, type HapticPressableProps } from "./HapticPressable";
+export { useTabSlider } from "./TabSlider";
 
 /** Fire the sitewide PostModal — Comment / Repost / post-card-tap
  * all route through here. Cross-platform via the events helper

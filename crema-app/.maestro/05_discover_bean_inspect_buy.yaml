@@ -1,0 +1,49 @@
+# Journey 5 — Browse Discover BEANS, long-press a card to inspect the
+# full provenance in the DetailSheet, close the sheet, then tap the
+# in-card cart icon to fire the Buy click-through. The canonical
+# bean-discovery loop a coffee enthusiast runs every time they want
+# to see what's new.
+#
+# The cart tap fires `trackClick(...)` AND `openExternal(...)`. On
+# Android the openExternal opens the system browser; we don't follow
+# the navigation — the test ends as soon as the click is registered.
+
+appId: com.crema.app
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "feed-screen"
+    timeout: 30000
+
+# 1. Discover.
+- tapOn:
+    id: "tab-discover"
+
+# 2. Wait for the BEANS grid to settle on at least one card.
+- extendedWaitUntil:
+    visible:
+      id: "coffee-card-.*"
+    timeout: 15000
+
+# 3. Long-press the topmost card → DetailSheet opens with full
+#    provenance. The canonical "inspect this bean" affordance per
+#    DESIGN_LANGUAGE §7.
+- longPressOn:
+    id: "coffee-card-.*"
+- extendedWaitUntil:
+    visible:
+      id: "coffee-detail-sheet"
+    timeout: 10000
+
+# 4. Close the sheet.
+- tapOn:
+    id: "detail-sheet-close"
+- assertNotVisible:
+    id: "coffee-detail-sheet"
+
+# 5. Tap the in-card cart icon → buy click-through fires
+#    (`trackClick` + `openExternal`). The system browser opening is
+#    out of scope for the flow; we just verify the testID is wired.
+- tapOn:
+    id: "coffee-buy-.*"

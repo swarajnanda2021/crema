@@ -42,7 +42,8 @@ import CremaLogo from "../../src/components/CremaLogo";
 import EditableCoffeeCard from "../../src/components/domain/EditableCoffeeCard";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 import PostPromptModal from "../../src/components/PostPromptModal";
-import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
+import { openPostModal, openComposePost, ConfirmDeleteModal, useTabSlider } from "../../src/components/primitives";
+import Animated from "react-native-reanimated";
 import { listen } from "../../src/utils/events";
 
 // ── Icons (Figma SVG paths, left panel only) ─────────────────────────────────
@@ -197,6 +198,20 @@ const useCgStyles = makeStyles((t) => ({
 // Persistence ships next round once the roaster's review of
 // the auto-suggestions has built trust.
 
+type AdRowEntry = {
+  product: any;
+  source: "inline" | "auto" | "manual";
+  // P1 bottom-up attribution. `attribution_cause` is the full
+  // category label ("Same estate: Baarbara Estate") — used in
+  // analytics + debug surfaces. `cause_kind` is a stable enum the
+  // client switches on for badge formatting. `trigger` is the bare
+  // word that matched in the paragraph ("Baarbara") — used as the
+  // chip badge text.
+  attribution_cause?: string;
+  cause_kind?: "name" | "estate" | "producer" | "varietal" | "region" | "flavor" | "process" | "bean_type" | "roast" | "altitude" | "linked" | "picked";
+  trigger?: string;
+};
+
 function AdJournalRow({
   article,
   placements,
@@ -206,7 +221,7 @@ function AdJournalRow({
   isLast,
 }: {
   article: any;
-  placements: any[];
+  placements: AdRowEntry[];
   catalog: any[];
   onDelete: (productId: string) => void;
   onAddSelected: (products: any[]) => void;
@@ -216,7 +231,7 @@ function AdJournalRow({
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const placedIds = useMemo(
-    () => new Set(placements.map((p) => p.product_id)),
+    () => new Set(placements.map((e) => e.product.product_id)),
     [placements],
   );
   return (
@@ -243,11 +258,22 @@ function AdJournalRow({
           contentContainerStyle={s.carouselContent}
           style={s.carousel}
         >
-          {placements.map((product) => (
+          {placements.map((entry) => (
             <AdCoffeeChip
-              key={product.product_id}
-              product={product}
-              onDelete={() => onDelete(product.product_id)}
+              key={entry.product.product_id}
+              product={entry.product}
+              source={entry.source}
+              attributionCause={entry.attribution_cause}
+              causeKind={entry.cause_kind}
+              trigger={entry.trigger}
+              // Inline placements are Crema-responsible and cannot be
+              // removed by the roaster — the chip hides its X. Auto +
+              // manual placements get the X.
+              onDelete={
+                entry.source === "inline"
+                  ? undefined
+                  : () => onDelete(entry.product.product_id)
+              }
             />
           ))}
           <AdAddChip onPress={() => setModalOpen(true)} />
@@ -277,9 +303,17 @@ function AdJournalRow({
 
 function AdCoffeeChip({
   product,
+  source,
+  attributionCause,
+  causeKind,
+  trigger,
   onDelete,
 }: {
   product: any;
+  source: "inline" | "auto" | "manual";
+  attributionCause?: string;
+  causeKind?: "name" | "estate" | "producer" | "varietal" | "region" | "flavor" | "process" | "bean_type" | "roast" | "altitude" | "linked" | "picked";
+  trigger?: string;
   onDelete?: () => void;
 }) {
   const router = useRouter();
@@ -289,6 +323,36 @@ function AdCoffeeChip({
   const heroSrc = resolved
     ? require("../../src/utils/imageUrl").thumbnailUrl(resolved, 200) || resolved
     : null;
+  // Bottom-left badge — shows the matched WORD only ("Washed",
+  // "Chandragiri", "Baarbara", "M. Kethegowda", "Jasmine"). At the
+  // chip's 120-px width the category prefix doesn't fit; the chip's
+  // own metadata + the trigger together make the category clear.
+  //
+  // Special cases per cause kind:
+  //   • linked → "Linked" (the URL is the explanation; trigger
+  //     would duplicate the coffee name visible just below)
+  //   • name → "By name" (same redundancy — the trigger IS the
+  //     name below)
+  //   • estate / producer / varietal / region / flavor / process /
+  //     bean_type / roast / altitude → just the trigger word
+  //   • picked (manual) → no badge (the roaster chose it)
+  let badgeLabel: string | null = null;
+  const kind = causeKind ?? (
+    source === "inline" ? "linked"
+    : source === "manual" ? "picked"
+    : attributionCause === "Mentioned by name" ? "name"
+    : undefined
+  );
+  if (kind === "linked") {
+    badgeLabel = "Linked";
+  } else if (kind === "name") {
+    badgeLabel = "By name";
+  } else if (trigger) {
+    badgeLabel = trigger;
+  } else if (source === "auto") {
+    badgeLabel = "Promoted";
+  }
+  // source === "manual" / kind === "picked" → badgeLabel stays null
   return (
     <View style={s.chipWrap}>
       <Pressable
@@ -305,6 +369,13 @@ function AdCoffeeChip({
               contentFit="cover"
               transition={200}
             />
+          ) : null}
+          {badgeLabel ? (
+            <View style={s.chipBadge}>
+              <Text style={s.chipBadgeText} numberOfLines={1}>
+                {badgeLabel}
+              </Text>
+            </View>
           ) : null}
         </View>
         <Text style={s.chipTitle} numberOfLines={1} ellipsizeMode="tail">
@@ -586,6 +657,31 @@ const useAdsStyles = makeStyles((t) => ({
     justifyContent: "center",
     zIndex: 2,
   } as any,
+  // Bottom-left source badge — explains the chip's origin to the
+  // roaster ("Referenced" for inline, "Crema's pick" for auto).
+  // Anchored bottom-left of the image so it doesn't fight the
+  // top-right delete X disc on auto chips (top-left collision
+  // caught 2026-05-14). Tag-style pill, semi-translucent dark
+  // background so it reads on any bag photo without obscuring the
+  // image's central composition. Manual placements render no badge
+  // — the roaster added them themselves, so a label would be noise.
+  chipBadge: {
+    position: "absolute",
+    bottom: 6,
+    left: 6,
+    paddingHorizontal: t.spacing.sm,
+    paddingVertical: 2,
+    borderRadius: t.radius.full,
+    backgroundColor: "rgba(53,17,1,0.85)",
+    zIndex: 2,
+    maxWidth: 100,
+  } as any,
+  chipBadgeText: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: 10,
+    color: t.color["text.on-dark"],
+    letterSpacing: 0.3,
+  } as any,
   // "+" image area for the add-chip. Same colour + radius as the
   // coffee chip's `chipImage`, but `flex: 1` (no aspectRatio) so it
   // fills the chip's entire inner height when no title/meta is
@@ -839,6 +935,13 @@ export default function RoasterDetailPage() {
   // Tabs & compose
   const [activeTab, setActiveTab] = useState<"posts" | "beans" | "journals" | "ads" | "analytics">("posts");
   const [adsSubTab, setAdsSubTab] = useState<"journal" | "search" | "feed">("journal");
+  // Sliding underlines — one for the top tab strip (POSTS / BEANS /
+  // JOURNAL / ADS / ANALYTICS) and one for the ADS sub-strip
+  // (JOURNAL / SEARCH / FEED). The hook captures per-tab layout
+  // measurements and animates a single bar between positions; the
+  // host renders the bar absolutely inside the strip's container.
+  const tabSlider = useTabSlider(activeTab);
+  const adsSubTabSlider = useTabSlider(adsSubTab);
   const [adsJournal, setAdsJournal] = useState<any[] | null>(null);
   const [adsJournalLoading, setAdsJournalLoading] = useState(false);
   const adsFetchedRef = useRef<string | null>(null);
@@ -903,43 +1006,97 @@ export default function RoasterDetailPage() {
   }, [activeTab, slug, isOwner]);
 
   // Per-article placement state — initialised from the server's
-  // auto-suggestions and locally mutable via delete + add-modal
-  // controls in each AdJournalRow. NOT persisted yet (read-only-
-  // suggestions iteration first, then commit + persistence).
-  const [adsPlacements, setAdsPlacements] = useState<Record<number, any[]>>({});
+  // merged set. Each entry carries the placement's source + the
+  // specific attribution_cause so the chip can render both the
+  // right affordance (inline = non-removable; auto/manual =
+  // removable) AND a concrete reason ("Mentioned by name",
+  // "Same estate: Baarbara Estate", etc.).
+  type AdEntry = AdRowEntry;
+  const [adsPlacements, setAdsPlacements] = useState<Record<number, AdEntry[]>>({});
   useEffect(() => {
     if (!adsJournal) return;
-    const next: Record<number, any[]> = {};
+    const next: Record<number, AdEntry[]> = {};
     for (const row of adsJournal) {
       const aid = row?.article?.id;
       if (aid == null) continue;
-      const suggs = (row.suggestions || []).map((s: any) => s.product);
+      const suggs: AdEntry[] = (row.suggestions || []).map((s: any) => ({
+        product: s.product,
+        source: (s.source as AdEntry["source"]) || "auto",
+        attribution_cause: typeof s.attribution_cause === "string" ? s.attribution_cause : undefined,
+        cause_kind: typeof s.cause_kind === "string" ? s.cause_kind : undefined,
+        trigger: typeof s.trigger === "string" ? s.trigger : undefined,
+      }));
       next[aid] = suggs;
     }
     setAdsPlacements(next);
   }, [adsJournal]);
 
+  // PUT the new effective product list for one article. The backend
+  // diffs against inline detections + auto-suggestions + current
+  // persisted manual state, and returns the canonical post-save
+  // list with each entry tagged by source. We replace local state
+  // with the server's response so non-removable inline chips can't
+  // be optimistically wiped by a stale client-side filter.
+  const savePlacements = useCallback(
+    async (articleId: number, entries: AdEntry[]) => {
+      // Drop inline entries from the PUT payload — server ignores
+      // attempts to remove them, and including them here is
+      // semantically wrong (we're sending the roaster's edit, not
+      // the merged list).
+      const productIds = entries
+        .filter((e) => e.source !== "inline")
+        .map((e) => e.product.product_id);
+      try {
+        const res: any = await apiFetchRaw(
+          `/roasters/${encodeURIComponent(slug)}/ads/journal/${articleId}`,
+          {
+            method: "PUT",
+            body: JSON.stringify({ product_ids: productIds }),
+          },
+        );
+        const data = res?.data ?? res;
+        const effective: AdEntry[] = (data?.placements || []).map((e: any) => ({
+          product: e.product,
+          source: (e.source as AdEntry["source"]) || "auto",
+          attribution_cause: typeof e.attribution_cause === "string" ? e.attribution_cause : undefined,
+          cause_kind: typeof e.cause_kind === "string" ? e.cause_kind : undefined,
+          trigger: typeof e.trigger === "string" ? e.trigger : undefined,
+        }));
+        setAdsPlacements((prev) => ({ ...prev, [articleId]: effective }));
+      } catch {
+        // Network / 4xx failure — keep the optimistic UI state. The
+        // next ADS tab open will re-read from the server.
+      }
+    },
+    [slug],
+  );
+
   const removePlacement = useCallback(
     (articleId: number, productId: string) => {
-      setAdsPlacements((prev) => ({
-        ...prev,
-        [articleId]: (prev[articleId] || []).filter(
-          (p) => p.product_id !== productId,
-        ),
-      }));
+      const cur = adsPlacements[articleId] || [];
+      // Defensive: inline placements aren't removable. The chip UI
+      // hides the X for inline entries, but a stray onDelete call
+      // (e.g. dev-tools-driven) should silently no-op.
+      const target = cur.find((e) => e.product.product_id === productId);
+      if (!target || target.source === "inline") return;
+      const next = cur.filter((e) => e.product.product_id !== productId);
+      setAdsPlacements((prev) => ({ ...prev, [articleId]: next }));
+      savePlacements(articleId, next);
     },
-    [],
+    [adsPlacements, savePlacements],
   );
   const addPlacements = useCallback(
     (articleId: number, products: any[]) => {
-      setAdsPlacements((prev) => {
-        const existing = prev[articleId] || [];
-        const seen = new Set(existing.map((p) => p.product_id));
-        const fresh = products.filter((p) => !seen.has(p.product_id));
-        return { ...prev, [articleId]: [...existing, ...fresh] };
-      });
+      const existing = adsPlacements[articleId] || [];
+      const seen = new Set(existing.map((e) => e.product.product_id));
+      const fresh: AdEntry[] = products
+        .filter((p) => !seen.has(p.product_id))
+        .map((p) => ({ product: p, source: "manual" as const }));
+      const next = [...existing, ...fresh];
+      setAdsPlacements((prev) => ({ ...prev, [articleId]: next }));
+      savePlacements(articleId, next);
     },
-    [],
+    [adsPlacements, savePlacements],
   );
 
   // Roaster's article list — newest first, sourced from the shared
@@ -1442,13 +1599,13 @@ export default function RoasterDetailPage() {
             <View style={{ height: 8 }} />
           )}
 
-          {/* Meta row. Wide mode keeps the gap-based row that fits
-             alongside the narrow left rail. Mobile spreads the items
-             across the full panel width via `justify-content: space-
-             between` so Website starts at the line start (matching
-             the rule above) and the last item ends flush with the
-             rule's right edge — the bio block reads as a single
-             aligned column. */}
+          {/* Meta column. Website / Followers / City stack vertically
+             under the top rule above. Editing mode keeps two items
+             side-by-side (TextInputs need a wider hit zone). The
+             prior bottom rule below this block was removed
+             2026-05-14 — the tab strip immediately below carries its
+             own top border, so two stacked hairlines read as
+             redundant chrome. */}
           <View style={[s.metaRow, isMobile && s.metaRowMobile]}>
             {isEditing ? (
               <>
@@ -1477,8 +1634,6 @@ export default function RoasterDetailPage() {
               </>
             )}
           </View>
-
-          {!isEditing && <View style={[s.rule, isMobile && s.ruleMobile]} />}
 
           {!isOwner && (
             <View style={s.followRow}>
@@ -1587,7 +1742,7 @@ export default function RoasterDetailPage() {
               )}
               {isOwner && isEditing && (
                 <Pressable onPress={() => setShowHeroUpload(true)} style={s.heroEditBtn}>
-                  <Camera size={14} color={t.color["text.on-cta"]} strokeWidth={1.5} />
+                  <Camera size={14} color={t.color.bg} strokeWidth={1.5} />
                   <Text style={s.heroEditBtnText}>Change cover</Text>
                 </Pressable>
               )}
@@ -1606,30 +1761,39 @@ export default function RoasterDetailPage() {
               // Empty state copy lives inside the POSTS tab content.
               const tabs = (
                 <>
-                  <Pressable onPress={() => setActiveTab("posts")} style={s.rightTab}>
+                  {/* slideTo fires the underline on the UI thread
+                     before setActiveTab triggers the content swap —
+                     keeps the slide smooth even when the new tab's
+                     content mount is expensive. */}
+                  <Pressable onPress={() => { tabSlider.slideTo("posts"); setActiveTab("posts"); }} ref={tabSlider.trackTab("posts")} style={s.rightTab}>
                     <Text style={[s.rightTabText, activeTab === "posts" && s.rightTabTextActive]}>POSTS</Text>
-                    {activeTab === "posts" && <View style={s.rightTabUnderline} />}
                   </Pressable>
-                  <Pressable onPress={() => setActiveTab("beans")} style={s.rightTab}>
+                  <Pressable onPress={() => { tabSlider.slideTo("beans"); setActiveTab("beans"); }} ref={tabSlider.trackTab("beans")} style={s.rightTab}>
                     <Text style={[s.rightTabText, activeTab === "beans" && s.rightTabTextActive]}>BEANS</Text>
-                    {activeTab === "beans" && <View style={s.rightTabUnderline} />}
                   </Pressable>
-                  <Pressable onPress={() => setActiveTab("journals")} style={s.rightTab}>
+                  <Pressable onPress={() => { tabSlider.slideTo("journals"); setActiveTab("journals"); }} ref={tabSlider.trackTab("journals")} style={s.rightTab}>
                     <Text style={[s.rightTabText, activeTab === "journals" && s.rightTabTextActive]}>JOURNAL</Text>
-                    {activeTab === "journals" && <View style={s.rightTabUnderline} />}
                   </Pressable>
                   {isOwner && (
-                    <Pressable onPress={() => setActiveTab("ads")} style={s.rightTab}>
+                    <Pressable onPress={() => { tabSlider.slideTo("ads"); setActiveTab("ads"); }} ref={tabSlider.trackTab("ads")} style={s.rightTab}>
                       <Text style={[s.rightTabText, activeTab === "ads" && s.rightTabTextActive]}>ADS</Text>
-                      {activeTab === "ads" && <View style={s.rightTabUnderline} />}
                     </Pressable>
                   )}
                   {isOwner && (
-                    <Pressable onPress={() => setActiveTab("analytics")} style={s.rightTab}>
+                    <Pressable onPress={() => { tabSlider.slideTo("analytics"); setActiveTab("analytics"); }} ref={tabSlider.trackTab("analytics")} style={s.rightTab}>
                       <Text style={[s.rightTabText, activeTab === "analytics" && s.rightTabTextActive]}>ANALYTICS</Text>
-                      {activeTab === "analytics" && <View style={s.rightTabUnderline} />}
                     </Pressable>
                   )}
+                  {/* Animated bar — slides between tabs as activeTab
+                     changes. Sits in the same coordinate space as the
+                     tabs (parent is either the desktop `rightTabBar`
+                     View or the mobile ScrollView's contentContainer,
+                     both of which the tab onLayout values are
+                     measured relative to). */}
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[s.rightTabUnderlineAnimated, tabSlider.underlineStyle]}
+                  />
                 </>
               );
               return isMobile ? (
@@ -1742,34 +1906,53 @@ export default function RoasterDetailPage() {
                surface: JOURNAL (now), SEARCH (later), FEED (later). */}
             {activeTab === "ads" && isOwner && (
               <View style={s.adsWrap}>
+                {/* Two-layer row:
+                    • Outer `adsSubTabRow` carries the horizontal
+                      padding + the bottom spacing; no border.
+                    • Inner `adsSubTabsInner` is the content-width
+                      tab cluster that carries the bottom hairline.
+                      The static line spans ONLY the JOURNAL / SEARCH
+                      / FEED region; the sliding bar rides at the
+                      inner's bottom edge, riding on top of that
+                      line under the active tab. */}
                 <View style={s.adsSubTabRow}>
-                  {(["journal", "search", "feed"] as const).map((k) => {
-                    const active = adsSubTab === k;
-                    return (
-                      <Pressable
-                        key={k}
-                        onPress={() => setAdsSubTab(k)}
-                        style={s.adsSubTab}
-                      >
-                        <Text
-                          style={[
-                            s.adsSubTabText,
-                            active && s.adsSubTabTextActive,
-                          ]}
+                  <View style={s.adsSubTabsInner}>
+                    {(["journal", "search", "feed"] as const).map((k) => {
+                      const active = adsSubTab === k;
+                      return (
+                        <Pressable
+                          key={k}
+                          onPress={() => { adsSubTabSlider.slideTo(k); setAdsSubTab(k); }}
+                          ref={adsSubTabSlider.trackTab(k)}
+                          style={s.adsSubTab}
                         >
-                          {k.toUpperCase()}
-                        </Text>
-                        {active && <View style={s.adsSubTabUnderline} />}
-                      </Pressable>
-                    );
-                  })}
+                          <Text
+                            style={[
+                              s.adsSubTabText,
+                              active && s.adsSubTabTextActive,
+                            ]}
+                          >
+                            {k.toUpperCase()}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                    <Animated.View
+                      pointerEvents="none"
+                      style={[s.adsSubTabUnderlineAnimated, adsSubTabSlider.underlineStyle]}
+                    />
+                  </View>
                 </View>
                 {adsSubTab === "journal" && (
                   <View style={s.adsJournalWrap}>
                     <Text style={s.adsBlurb}>
-                      Crema suggests in-article coffee placements based on
-                      your articles' content. Keep, remove, or replace —
-                      controls coming soon.
+                      Crema places coffees from your catalog into your
+                      articles wherever a catalog attribute — estate,
+                      producer, varietal, region, flavor note, process,
+                      bean type, roast, or altitude — matches the article's
+                      content. The badge on each chip shows the matched
+                      word. Coffees linked by URL in your article body are
+                      non-removable; the rest you can add (+) or remove (×).
                     </Text>
                     {adsJournalLoading ? (
                       <View style={s.adsLoading}>
@@ -2087,11 +2270,26 @@ const useStyles = makeStyles((t) => ({
   // centerline between the rule above (below tags) and the rule
   // below (above the Follow button). Earlier the asymmetric 5/9
   // pair pulled the row a few pixels toward the top rule.
-  metaRow: { flexDirection: "row", flexWrap: "wrap" as any, gap: 20, marginTop: 8, marginBottom: 8 },
+  // Vertical stack — Website / Followers / City sit on their own
+  // lines. Each `metaItem` is a row (icon + text). The 12-px gap
+  // between items gives the cluster room to breathe without feeling
+  // like a list. `marginBottom` of 12 separates the cluster from
+  // the tab strip that follows (which has its own top border).
+  metaRow: {
+    flexDirection: "column" as any,
+    gap: t.spacing.md,
+    marginTop: t.spacing.md,
+    marginBottom: t.spacing.md,
+  },
   // Mobile: spread the meta items across the full panel width so the
   // first item starts at the rule's left edge and the last item ends
   // at the rule's right edge — same alignment as the bio block above.
-  metaRowMobile: { gap: 0 as any, justifyContent: "space-between" as any } as any,
+  // Mobile override — also vertical, inheriting `flexDirection: column`
+  // from the base. The prior horizontal `space-between` layout
+  // crammed Website / Followers / City onto one row with no
+  // breathing room; vertical stacking matches the rest of the
+  // wide layout too (2026-05-14).
+  metaRowMobile: {} as any,
   metaItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   metaText: { fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.on-dark"] },
 
@@ -2207,7 +2405,7 @@ const useStyles = makeStyles((t) => ({
     shadowRadius: 12,
     elevation: 8,
   } as any,
-  heroDragHintText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.on-cta"] },
+  heroDragHintText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color.bg },
   heroEditBtn: {
     position: "absolute" as any, bottom: 14, right: 14, flexDirection: "row", alignItems: "center",
     gap: 6, backgroundColor: t.color["text.primary"], borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
@@ -2217,7 +2415,7 @@ const useStyles = makeStyles((t) => ({
     shadowRadius: 12,
     elevation: 8,
   } as any,
-  heroEditBtnText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color["text.on-cta"] },
+  heroEditBtnText: { fontFamily: t.font["body.medium"], fontSize: 12, color: t.color.bg },
 
   editDimOverlay: {
     position: "absolute" as any, top: 0, left: 0, right: 0, bottom: 0,
@@ -2267,6 +2465,14 @@ const useStyles = makeStyles((t) => ({
   } as any,
   rightTab: { justifyContent: "center", position: "relative" } as any,
   rightTabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: t.color["text.primary"] } as any,
+  // Animated counterpart for the top tab strip — only the chrome
+  // properties (bottom, height, color). The slider primitive owns
+  // `position`, `left`, `width`, and `opacity`.
+  rightTabUnderlineAnimated: {
+    bottom: -1,
+    height: 4,
+    backgroundColor: t.color["text.primary"],
+  } as any,
   rightTabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"], letterSpacing: 0.5, textTransform: "uppercase" } as any,
   rightTabTextActive: { color: t.color["text.primary"] },
 
@@ -2305,13 +2511,28 @@ const useStyles = makeStyles((t) => ({
 
   // ADS tab — wraps the sub-tab strip + the active sub-content.
   adsWrap: { paddingTop: t.spacing.md } as any,
+  // Outer wrapper — horizontal padding + bottom spacing only.
+  // The bottom hairline that used to span this row's full width
+  // moved down to `adsSubTabsInner` so it only spans the JOURNAL /
+  // SEARCH / FEED region (2026-05-14).
   adsSubTabRow: {
-    flexDirection: "row",
-    gap: t.spacing.lg,
     paddingHorizontal: t.spacing.lg,
     paddingBottom: t.spacing.md,
+    flexDirection: "row" as any,
+    alignItems: "flex-start" as any,
+  } as any,
+  // Content-width inline cluster that holds the tabs + the slider.
+  // `alignSelf: flex-start` (via the outer's flex-start) shrinks the
+  // inner to its content width, so the borderBottom hairline ends
+  // where the rightmost tab ends — not at the row's right edge.
+  // `position: relative` anchors the absolute slider inside this
+  // coordinate space.
+  adsSubTabsInner: {
+    flexDirection: "row",
+    gap: t.spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: t.color.divider,
+    position: "relative" as any,
   } as any,
   adsSubTab: { paddingVertical: t.spacing.sm, position: "relative" } as any,
   adsSubTabText: {
@@ -2325,6 +2546,15 @@ const useStyles = makeStyles((t) => ({
     position: "absolute",
     left: 0,
     right: 0,
+    bottom: -1,
+    height: 3,
+    backgroundColor: t.color["text.primary"],
+  } as any,
+  // Animated counterpart — chrome only; the slider primitive owns
+  // position / left / width. Bar sits at `bottom: -1` of
+  // `adsSubTabsInner`, riding directly on top of the static
+  // hairline that spans the tab region.
+  adsSubTabUnderlineAnimated: {
     bottom: -1,
     height: 3,
     backgroundColor: t.color["text.primary"],
@@ -2376,7 +2606,7 @@ const useStyles = makeStyles((t) => ({
     width: t.size["avatar.xl"], height: t.size["avatar.xl"], borderRadius: t.size["avatar.xl"] / 2,
     backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center",
   } as any,
-  followerInitial: { fontFamily: t.font["body.semibold"], fontSize: 18, color: t.color["text.on-cta"] },
+  followerInitial: { fontFamily: t.font["body.semibold"], fontSize: 18, color: t.color.bg },
   followerInfo: { flex: 1, minWidth: 0 },
   followerName: { fontFamily: t.font["body.regular"], fontSize: 18, color: t.color["text.primary"] },
   followerLocationRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 } as any,

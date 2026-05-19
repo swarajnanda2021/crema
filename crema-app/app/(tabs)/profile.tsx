@@ -28,7 +28,8 @@ import { t, SHELF_LABELS, makeStyles } from "../../src/tokens/useTokens";
 type ShelfKey = "open_bags" | "on_the_list";
 
 import PostCard from "../../src/components/domain/PostCard";
-import { openPostModal, openComposePost, ConfirmDeleteModal } from "../../src/components/primitives";
+import { openPostModal, openComposePost, ConfirmDeleteModal, useTabSlider } from "../../src/components/primitives";
+import Animated from "react-native-reanimated";
 import CropGestureWrap from "../../src/components/shell/CropGestureWrap";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import ComposePost from "../../src/components/ComposePost";
@@ -211,6 +212,7 @@ export default function ProfilePage() {
     const valid: ProfileTab[] = ["posts", "shelf", "following", "analytics", "catalog"];
     return (tabParam && valid.includes(tabParam as ProfileTab)) ? (tabParam as ProfileTab) : "posts";
   });
+  const tabSlider = useTabSlider(activeTab);
   // No more sub-tab state — both shelf sections render at once
 
   // Data
@@ -795,21 +797,30 @@ export default function ProfilePage() {
       ? "SITE ANALYTICS"
       : "CATALOG OPS";
 
-  const tabChildren = visibleTabs.map((tab) => (
-    <Pressable
-      key={tab}
-      onPress={() => {
-        setActiveTab(tab);
-        setVisiblePostCount(POSTS_PER_PAGE);
-      }}
-      style={s.tab}
-    >
-      <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
-        {baseLabel(tab)}
-      </Text>
-      {activeTab === tab && <View style={s.tabUnderline} />}
-    </Pressable>
-  ));
+  const tabChildren = (
+    <>
+      {visibleTabs.map((tab) => (
+        <Pressable
+          key={tab}
+          onPress={() => {
+            tabSlider.slideTo(tab);
+            setActiveTab(tab);
+            setVisiblePostCount(POSTS_PER_PAGE);
+          }}
+          ref={tabSlider.trackTab(tab)}
+          style={s.tab}
+        >
+          <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
+            {baseLabel(tab)}
+          </Text>
+        </Pressable>
+      ))}
+      <Animated.View
+        pointerEvents="none"
+        style={[s.tabUnderlineAnimated, tabSlider.underlineStyle]}
+      />
+    </>
+  );
 
   // Mobile: tabs ride in a horizontal ScrollView so users can swipe
   // to reach tabs that overflow the viewport (POSTS / SHELF /
@@ -1391,6 +1402,13 @@ const useStyles = makeStyles((t) => ({
   tabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"], letterSpacing: 0.5, textTransform: "uppercase" },
   tabTextActive: { color: t.color["text.primary"] },
   tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: t.color["text.primary"] } as any,
+  // Animated counterpart — chrome only; `useTabSlider` owns
+  // position / left / width / opacity.
+  tabUnderlineAnimated: {
+    bottom: -1,
+    height: 4,
+    backgroundColor: t.color["text.primary"],
+  } as any,
   adminTabContent: {
     alignSelf: "center",
     width: "100%",

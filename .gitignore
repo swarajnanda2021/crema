@@ -9,6 +9,9 @@ dist/
 
 # Environment / secrets
 .env
+# MCP project-scope config — embeds the admin bearer token in env, so it's
+# per-developer rather than shared.
+.mcp.json
 
 # Database (user data, recreated on first run)
 *.db

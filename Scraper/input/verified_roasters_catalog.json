@@ -1,12 +1,12 @@
 [
   {
-    "name": "Zenforest Coffee Roasters",
+    "name": "Black Baza Coffee",
     "city": "Bengaluru",
     "state": "Karnataka",
     "lat": 0,
     "lng": 0,
-    "website": "https://zenforestcoffee.com/",
-    "shop_url": "https://zenforestcoffee.com/zenforest-shop/",
-    "platform": "woocommerce"
+    "website": "https://blackbazacoffee.com",
+    "shop_url": "https://blackbazacoffee.com/collections/coffee",
+    "platform": "shopify"
   }
 ]

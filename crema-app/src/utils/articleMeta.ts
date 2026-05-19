@@ -4,75 +4,112 @@
  * editorial surfaces don't drift on label copy or formula.
  */
 
-/** Lower-case `topic_category` enum → human-friendly label. The enum
- *  set is fixed in `services/article_enricher.TOPIC_CATEGORIES`.
+/** Lower-case `topic_category` enum → human-friendly label.
  *
- *  v3.1 (2026-05-10): the catch-all `other` bucket was subdivided
- *  into `culture` / `health` / `miscellaneous`. Legacy rows that
- *  still carry `topic_category='other'` (or NULL) collapse into
- *  "Miscellaneous" on display until they're re-enriched. The
- *  filter chip key for those rows is `miscellaneous` — see
- *  `topicBucketKey` — so they remain selectable from one chip
- *  without splitting old data across multiple chips.
+ *  v4 (2026-05-14): collapsed the prior 10-bucket scheme to 7 buckets
+ *  organized by consumer mental model. The backend enum source of
+ *  truth is `services/article_enricher.TOPIC_CATEGORIES`. The legacy
+ *  10-bucket values (`sourcing_story` / `origin_profile` /
+ *  `harvest_report` / `tasting_notes` / `brew_guide` / `culture` /
+ *  `health` / `industry_news` / `company_update` / `miscellaneous` /
+ *  `other`) are migrated in-place at boot — they no longer appear in
+ *  live data — but the legacy keys remain mapped here so any stale
+ *  client cache renders the right label until the next refetch.
  */
 export const TOPIC_LABELS: Record<string, string> = {
-  sourcing_story: "Sourcing story",
-  brew_guide: "Brew guide",
-  origin_profile: "Origin profile",
-  industry_news: "Industry news",
-  harvest_report: "Harvest report",
-  tasting_notes: "Tasting notes",
-  company_update: "Company update",
-  culture: "Culture",
-  health: "Health",
+  brew: "Brew",
+  roast: "Roast",
+  origins: "Origins",
+  taste: "Taste",
+  lifestyle: "Lifestyle",
+  news: "News",
+  misc: "Miscellaneous",
+  // Legacy v1-v3.1 keys — migrated server-side, mapped here for
+  // stale-cache safety. Maps each old value to the v4 bucket it
+  // collapses into.
+  sourcing_story: "Origins",
+  origin_profile: "Origins",
+  harvest_report: "Origins",
+  tasting_notes: "Taste",
+  brew_guide: "Brew",
+  culture: "Lifestyle",
+  health: "Lifestyle",
+  industry_news: "News",
+  company_update: "News",
   miscellaneous: "Miscellaneous",
-  // Legacy — pre-v3.1 rows; renders as "Miscellaneous" in the row
-  // meta and groups under the same chip in the filter UI.
   other: "Miscellaneous",
 };
 
 /** Resolve an article row's `topic_category` (string | null) to its
- *  display label — null collapses into "Miscellaneous" so
- *  unenriched / legacy rows still get a category in the row meta and
- *  the filter UI. Returns null only when the value is non-empty and
- *  not in the canonical set (a defensive fallback that hides garbage
- *  rather than mis-labeling).
+ *  display label. NULL collapses into "Miscellaneous" so unenriched
+ *  rows still get a category in the row meta and filter UI. Returns
+ *  null only when the value is non-empty and not in the canonical or
+ *  legacy set (a defensive fallback that hides garbage rather than
+ *  mis-labeling).
  */
 export function resolveTopicLabel(
   topic: string | null | undefined,
 ): string | null {
-  if (!topic) return TOPIC_LABELS.miscellaneous;
+  if (!topic) return TOPIC_LABELS.misc;
   const known = TOPIC_LABELS[topic];
   return known ?? null;
 }
 
-/** Canonical filter bucket key for `topic_category`. NULL + 'other'
- *  collapse into the `miscellaneous` bucket so legacy rows surface
- *  under the same chip as new rows that Haiku tagged as
- *  `miscellaneous`. */
+/** Map any topic value — current or legacy — to the canonical v4
+ *  filter bucket key. Used by the filter UI so rows surface under the
+ *  same chip whether they carry a v4 value or a stale-cache legacy
+ *  one. NULL / unknown collapses into `misc`.
+ */
 export function topicBucketKey(
   topic: string | null | undefined,
 ): string {
-  if (!topic) return "miscellaneous";
-  if (topic === "other") return "miscellaneous";
-  return TOPIC_LABELS[topic] ? topic : "miscellaneous";
+  if (!topic) return "misc";
+  switch (topic) {
+    // Already v4
+    case "brew":
+    case "roast":
+    case "origins":
+    case "taste":
+    case "lifestyle":
+    case "news":
+    case "misc":
+      return topic;
+    // Legacy → v4
+    case "sourcing_story":
+    case "origin_profile":
+    case "harvest_report":
+      return "origins";
+    case "tasting_notes":
+      return "taste";
+    case "brew_guide":
+      return "brew";
+    case "culture":
+    case "health":
+      return "lifestyle";
+    case "industry_news":
+    case "company_update":
+      return "news";
+    case "miscellaneous":
+    case "other":
+      return "misc";
+    default:
+      return "misc";
+  }
 }
 
-/** The 10 topic chips, in the order they should appear in the filter
- *  bar. Editorial topics first (Sourcing → Tasting → Harvest →
- *  Industry → Company), then the lifestyle pair (Culture → Health),
+/** The 7 topic chips, in the order they should appear in the filter
+ *  bar. Order follows the cascade priority in `_ARTICLE_SYSTEM` so
+ *  the most-distinctive subjects (brew / roast / origins / taste)
+ *  surface first, then the relational buckets (lifestyle / news),
  *  with Miscellaneous last as the catch-all. */
 export const TOPIC_CHIPS: Array<{ key: string; label: string }> = [
-  { key: "sourcing_story", label: TOPIC_LABELS.sourcing_story },
-  { key: "origin_profile", label: TOPIC_LABELS.origin_profile },
-  { key: "brew_guide", label: TOPIC_LABELS.brew_guide },
-  { key: "tasting_notes", label: TOPIC_LABELS.tasting_notes },
-  { key: "harvest_report", label: TOPIC_LABELS.harvest_report },
-  { key: "industry_news", label: TOPIC_LABELS.industry_news },
-  { key: "company_update", label: TOPIC_LABELS.company_update },
-  { key: "culture", label: TOPIC_LABELS.culture },
-  { key: "health", label: TOPIC_LABELS.health },
-  { key: "miscellaneous", label: TOPIC_LABELS.miscellaneous },
+  { key: "brew", label: TOPIC_LABELS.brew },
+  { key: "roast", label: TOPIC_LABELS.roast },
+  { key: "origins", label: TOPIC_LABELS.origins },
+  { key: "taste", label: TOPIC_LABELS.taste },
+  { key: "lifestyle", label: TOPIC_LABELS.lifestyle },
+  { key: "news", label: TOPIC_LABELS.news },
+  { key: "misc", label: TOPIC_LABELS.misc },
 ];
 
 /** Format an ISO timestamp as "5 May 2026". Returns "" when the input

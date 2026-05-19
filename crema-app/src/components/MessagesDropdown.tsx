@@ -508,5 +508,5 @@ const useStyles = makeStyles((t) => ({
     backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
   } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.on-dark"] },
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color.bg },
 }));

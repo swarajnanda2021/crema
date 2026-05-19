@@ -40,6 +40,12 @@ interface CoffeeCardProps {
    *  admin Catalog Ops carousels — they need horizontal cards on web
    *  too, not just the mobile breakpoint. */
   forceLandscape?: boolean;
+  /** Attribution context when the card renders inside an article
+   *  placement. Threads through to `trackClick` so the click_events
+   *  row carries `article_id` + `placement_source` — letting the
+   *  analytics surface pivot ad-slot clicks vs organic Buy clicks
+   *  from /coffee/[id], /roaster/[slug], the feed, etc. */
+  attribution?: { article_id: number; placement_source: "inline" | "auto" | "manual" };
 }
 
 // ── Canonical card geometry (Figma 66:6267 + 66:6268) ─────────────────
@@ -79,7 +85,7 @@ const LANDSCAPE_IMG_RATIO = 180 / 370;
 const SHELF_KEYS: ShelfKey[] = ["open_bags", "on_the_list"];
 const BTN_SIZE = 31;
 
-export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 240, height: cardH = 372, shelfMode, isOwner = true, currentShelf, onMoveShelf, onRemove, onAddToShelf, onEdit, forceLandscape = false }: CoffeeCardProps) {
+export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 240, height: cardH = 372, shelfMode, isOwner = true, currentShelf, onMoveShelf, onRemove, onAddToShelf, onEdit, forceLandscape = false, attribution }: CoffeeCardProps) {
   const router = useRouter();
   const [showShelfPicker, setShowShelfPicker] = useState(false);
   const [shelvedAs, setShelvedAs] = useState<ShelfKey | null>(currentShelf || null);
@@ -255,7 +261,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
             <CoffeeLabelPrice price_inr={coffee.price_inr} weight_grams={coffee.weight_grams} />
             <Pressable
               testID={`coffee-buy-${coffee.product_id}`}
-              onPress={() => { if (coffee.product_url) { trackClick(coffee.product_id, coffee.roaster_slug, "card_front"); openExternal(coffee.product_url); } }}
+              onPress={() => { if (coffee.product_url) { trackClick(coffee.product_id, coffee.roaster_slug, "card_front", attribution); openExternal(coffee.product_url); } }}
               accessibilityLabel="Open product page"
             >
               <CartIcon size={BTN_SIZE} />
@@ -392,7 +398,7 @@ export default function CoffeeCard({ coffee, userCount, compact, width: cardW = 
             </Pressable>
             <Pressable
               testID={`coffee-buy-${coffee.product_id}`}
-              onPress={() => { if (coffee.product_url) { trackClick(coffee.product_id, coffee.roaster_slug, "card_front"); openExternal(coffee.product_url); } }}
+              onPress={() => { if (coffee.product_url) { trackClick(coffee.product_id, coffee.roaster_slug, "card_front", attribution); openExternal(coffee.product_url); } }}
               accessibilityLabel="Open product page"
             >
               <CartIcon size={BTN_SIZE} />
@@ -628,7 +634,10 @@ const useStyles = makeStyles(() => {
   soldOutPillText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.xs"],
-    color: t.color["text.on-dark"],
+    // `bg` is the inverse-of-text.primary token — readable on the
+    // text.primary pill bg in both modes (was `text.on-dark` which
+    // is Crema White CONSTANT, same as text.primary in dark = bug).
+    color: t.color.bg,
     backgroundColor: t.color["text.primary"],
     paddingHorizontal: t.spacing.sm,
     paddingVertical: 4,

@@ -1,0 +1,34 @@
+# Journey 1 — Sign in as the canonical QA account `crema` (a coffee
+# enthusiast's morning ritual: open the app, sign in, land on the
+# feed). Every subsequent flow assumes this account is signed in.
+#
+# `crema/crema` is a real account in the dev DB (id 144). Using a
+# fixed identity (instead of registering a fresh one each run) means
+# the rest of the suite touches a stable shelf, follow graph, and
+# Aayushi DM thread.
+
+appId: com.crema.app
+---
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 30000
+
+- tapOn:
+    id: "auth-username"
+- inputText: "crema"
+
+- tapOn:
+    id: "auth-password"
+- inputText: "crema"
+
+- hideKeyboard
+- tapOn:
+    id: "auth-submit"
+
+- extendedWaitUntil:
+    visible:
+      id: "feed-screen"
+    timeout: 30000

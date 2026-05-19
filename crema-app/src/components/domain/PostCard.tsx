@@ -596,7 +596,7 @@ const useStyles = makeStyles((t) => ({
   headerNameWrapMobile: { flex: 1, minWidth: 0 } as any,
 
   avatarFb: { width: 30, height: 30, borderRadius: 15, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-cta"] },
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color.bg },
   authorName: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
   metaRow: { flexDirection: "row", alignItems: "baseline", gap: 5 } as any,
   metaTime: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.muted"] },

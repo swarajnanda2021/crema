@@ -115,6 +115,12 @@ export default function AdminRoasterPage() {
   const [productToDelete, setProductToDelete] = useState<any | null>(null);
   const [deletingProduct, setDeletingProduct] = useState(false);
 
+  // Journals — every published roaster_article row for this slug.
+  // Surfaced inline below the Coffees section so the per-roaster page
+  // shows the FULL footprint of what the Refresh-roaster pipeline
+  // produced: bio + coffees + journal articles in one view.
+  const [journalArticles, setJournalArticles] = useState<any[]>([]);
+
   // Coffees section — pending bean-enrichment proposals scoped to
   // this roaster + the in-flight job (if the admin just kicked one off
   // from this page). Proposals are fetched globally and filtered
@@ -134,6 +140,13 @@ export default function AdminRoasterPage() {
   const [regeneratePromptOnNext, setRegeneratePromptOnNext] = useState(false);
   // Optional show/hide for the (sometimes long) hint text.
   const [hintExpanded, setHintExpanded] = useState(false);
+  // Sibling state for the JOURNAL site-quirk hint — mirrors the bio
+  // hint above. The Sonnet meta-call runs after the first article
+  // scrape and writes `article_enrichment_prompt_hint`. The
+  // `article_hint_force_regenerate` flag on the profile is the
+  // perpetual server-side toggle the existing endpoint manages.
+  const [articleHintExpanded, setArticleHintExpanded] = useState(false);
+  const [articleHintRegenSaving, setArticleHintRegenSaving] = useState(false);
 
   const refetch = () => {
     if (!slug) return;
@@ -247,9 +260,23 @@ export default function AdminRoasterPage() {
     }
   }, [slug]);
 
+  const fetchJournalArticles = useCallback(async () => {
+    if (!slug) return;
+    try {
+      const res: any = await apiFetchRaw(
+        `/admin/articles?roaster_slug=${encodeURIComponent(slug)}&include_hidden=1`,
+      );
+      const rows = (res?.data ?? res) as any[];
+      setJournalArticles(Array.isArray(rows) ? rows : []);
+    } catch {
+      // Best-effort; the carousel just stays empty.
+    }
+  }, [slug]);
+
   useEffect(() => {
     fetchCatalogProducts();
-  }, [fetchCatalogProducts]);
+    fetchJournalArticles();
+  }, [fetchCatalogProducts, fetchJournalArticles]);
 
   const deleteProduct = async () => {
     if (!productToDelete) return;
@@ -475,6 +502,13 @@ export default function AdminRoasterPage() {
       if (data?.warning) setEnrichError(data.warning);
       refetch();
       await fetchCatalogProducts();
+      // Journal articles get refreshed alongside coffees. The
+      // article-scrape job runs in parallel with the catalog scrape
+      // (different job kind, separate active-job slot), so its writes
+      // land asynchronously — refetch once here on the synchronous
+      // hop and again after the catalog poll lands so any new
+      // articles surface without an explicit user click.
+      await fetchJournalArticles();
       if (job?.id) {
         setEnrichJobId(job.id);
         setRefreshPhase("scraping");
@@ -664,7 +698,7 @@ export default function AdminRoasterPage() {
                 style={({ pressed }) => [s.backFloating, pressed && s.linkBtnPressed]}
                 accessibilityLabel="Back to Catalog Ops"
               >
-                <ArrowLeft size={18} color={t.color["text.on-cta"]} strokeWidth={2} />
+                <ArrowLeft size={18} color={t.color.bg} strokeWidth={2} />
               </Pressable>
             ) : null}
             {/* Floating Remove button — top-right of the hero,
@@ -684,7 +718,7 @@ export default function AdminRoasterPage() {
               style={({ pressed }) => [s.deleteFloating, pressed && s.linkBtnPressed]}
               accessibilityLabel="Remove roaster"
             >
-              <Trash2 size={18} color={t.color["text.on-cta"]} strokeWidth={2} />
+              <Trash2 size={18} color={t.color.bg} strokeWidth={2} />
             </Pressable>
             <View style={s.heroContent}>
               <RoasterLogo
@@ -737,12 +771,12 @@ export default function AdminRoasterPage() {
               {busyAction === "publish" ? (
                 <ActivityIndicator
                   size="small"
-                  color={profile.published === 1 ? t.color["text.on-cta"] : t.color["text.primary"]}
+                  color={profile.published === 1 ? t.color.bg : t.color["text.primary"]}
                 />
               ) : (
                 <Check
                   size={14}
-                  color={profile.published === 1 ? t.color["text.on-cta"] : t.color["text.muted"]}
+                  color={profile.published === 1 ? t.color.bg : t.color["text.muted"]}
                   strokeWidth={2}
                 />
               )}
@@ -792,9 +826,9 @@ export default function AdminRoasterPage() {
               accessibilityRole="button"
             >
               {enrichBusy ? (
-                <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
+                <ActivityIndicator size="small" color={t.color.bg} />
               ) : (
-                <Sparkles size={14} color={t.color["text.on-cta"]} strokeWidth={2} />
+                <Sparkles size={14} color={t.color.bg} strokeWidth={2} />
               )}
               <Text style={s.enrichCtaText}>
                 {enrichBusy ? "Refreshing…" : "Refresh roaster"}
@@ -917,13 +951,133 @@ export default function AdminRoasterPage() {
                       {regeneratePromptOnNext ? (
                         <Check
                           size={12}
-                          color={t.color["text.on-cta"]}
+                          color={t.color.bg}
                           strokeWidth={2.4}
                         />
                       ) : null}
                     </View>
                     <Text style={s.regenLabel}>
                       Regenerate site hint on next run
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+          </View>
+
+          {/* ── Journal enrichment hint ──────────────────────────────
+             Parallel cluster to the bio hint above — same shape,
+             different field. Sonnet writes
+             `article_enrichment_prompt_hint` after the first per-
+             roaster article scrape, capturing journal-side site
+             quirks (footer noise, infographic-driven bodies, date
+             format conventions). The toggle here writes the
+             perpetual `article_hint_force_regenerate` flag via the
+             existing /article-hint/regenerate-flag endpoint — server-
+             side state shared across admins, never auto-clears.
+             Surfacing this here makes the three quirks (bio + journal
+             + diff) discoverable from one place; the Refresh tab also
+             mirrors them. */}
+          <View style={s.section}>
+            <View style={s.hintCard}>
+              <Pressable
+                onPress={() => {
+                  hapticTap();
+                  setArticleHintExpanded((v) => !v);
+                }}
+                style={s.hintHead}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  articleHintExpanded
+                    ? "Collapse journal enrichment hint"
+                    : "Expand journal enrichment hint"
+                }
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={s.hintTitle}>Journal enrichment hint</Text>
+                  <Text style={s.hintSubtitle}>
+                    {profile?.article_enrichment_prompt_hint
+                      ? `Haiku prepends this to its system prompt for every article scraped from this roaster${
+                          profile?.article_enrichment_prompt_hint_updated_at
+                            ? ` · updated ${relativeAge(profile.article_enrichment_prompt_hint_updated_at)}`
+                            : ""
+                        }.`
+                      : "Not generated yet — first article scrape will produce it."}
+                  </Text>
+                </View>
+                <Text style={s.hintToggleText}>
+                  {articleHintExpanded ? "Hide" : "Show"}
+                </Text>
+              </Pressable>
+              {articleHintExpanded ? (
+                <View style={s.hintBody}>
+                  {profile?.article_enrichment_prompt_hint ? (
+                    <ScrollView
+                      style={s.hintScroll}
+                      contentContainerStyle={s.hintScrollContent}
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator
+                    >
+                      <Text style={s.hintProse}>
+                        {profile.article_enrichment_prompt_hint}
+                      </Text>
+                    </ScrollView>
+                  ) : (
+                    <Text style={s.hintEmpty}>
+                      No journal hint generated yet — first article scrape
+                      will sample several enriched articles and ask Sonnet
+                      to write a short addendum capturing journal-side
+                      site quirks.
+                    </Text>
+                  )}
+                  <Pressable
+                    onPress={async () => {
+                      if (articleHintRegenSaving || !slug) return;
+                      hapticTap();
+                      setArticleHintRegenSaving(true);
+                      const nextValue =
+                        (profile?.article_hint_force_regenerate || 0) === 1 ? 0 : 1;
+                      try {
+                        await apiFetchRaw(
+                          `/admin/roasters/${slug}/article-hint/regenerate-flag`,
+                          {
+                            method: "POST",
+                            body: JSON.stringify({ enabled: nextValue }),
+                          },
+                        );
+                        setProfile((p) =>
+                          p ? { ...p, article_hint_force_regenerate: nextValue } : p,
+                        );
+                      } catch {
+                        // ignore — toggle just won't flip
+                      } finally {
+                        setArticleHintRegenSaving(false);
+                      }
+                    }}
+                    style={s.regenRow}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{
+                      checked: (profile?.article_hint_force_regenerate || 0) === 1,
+                    }}
+                  >
+                    <View
+                      style={[
+                        s.regenCheckbox,
+                        (profile?.article_hint_force_regenerate || 0) === 1 &&
+                          s.regenCheckboxOn,
+                      ]}
+                    >
+                      {(profile?.article_hint_force_regenerate || 0) === 1 ? (
+                        <Check
+                          size={12}
+                          color={t.color.bg}
+                          strokeWidth={2.4}
+                        />
+                      ) : null}
+                    </View>
+                    <Text style={s.regenLabel}>
+                      Regenerate journal hint on every article scrape
+                      {articleHintRegenSaving ? " · saving…" : ""}
                     </Text>
                   </Pressable>
                 </View>
@@ -1058,7 +1212,16 @@ export default function AdminRoasterPage() {
                 contentContainerStyle={s.liveCatalogCarousel}
               >
                 {catalogProducts.map((p) => (
-                  <View key={p.product_id} style={s.liveCard}>
+                  <Pressable
+                    key={p.product_id}
+                    onPress={() => {
+                      hapticTap();
+                      router.push(`/coffee/${p.product_id}` as any);
+                    }}
+                    style={s.liveCard}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${p.coffee_name} detail page`}
+                  >
                     <View style={s.liveCardImageWrap}>
                       {p.image_url ? (
                         <Image
@@ -1070,7 +1233,11 @@ export default function AdminRoasterPage() {
                         <View style={s.liveCardImagePlaceholder} />
                       )}
                       <Pressable
-                        onPress={() => {
+                        onPress={(e) => {
+                          // Stop propagation so the outer card tap
+                          // doesn't ALSO navigate to /coffee/[id]
+                          // when the admin taps the trash icon.
+                          (e as any).stopPropagation?.();
                           hapticTap();
                           setProductToDelete(p);
                         }}
@@ -1081,7 +1248,7 @@ export default function AdminRoasterPage() {
                       >
                         <Trash2
                           size={12}
-                          color={t.color["text.on-cta"]}
+                          color={t.color.bg}
                           strokeWidth={2}
                         />
                       </Pressable>
@@ -1094,7 +1261,7 @@ export default function AdminRoasterPage() {
                       {p.weight_grams && p.price_inr ? " · " : ""}
                       {p.price_inr ? `₹${Math.round(p.price_inr)}` : ""}
                     </Text>
-                  </View>
+                  </Pressable>
                 ))}
               </ScrollView>
             ) : latestPendingJobId === null && !(enrichBusy && enrichJobId) ? (
@@ -1103,6 +1270,63 @@ export default function AdminRoasterPage() {
                 to scrape this roaster's site.
               </Text>
             ) : null}
+          </View>
+
+          {/* ── 8. Journals ─────────────────────────────────────────────
+             Every roaster_article row for this slug. The combined
+             "Refresh roaster" CTA above runs bio + catalog + journal
+             in one click; this surface is where the journal output
+             lands. Cards render in a horizontal carousel mirroring the
+             Coffees section's geometry. Tap a card to open the public
+             article reader. */}
+          <View style={s.section}>
+            <Text style={s.sectionHead}>Journals</Text>
+            {journalArticles.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={s.liveCatalogCarousel}
+              >
+                {journalArticles.map((a) => (
+                  <Pressable
+                    key={a.id}
+                    onPress={() => {
+                      hapticTap();
+                      router.push(`/article/${a.id}`);
+                    }}
+                    style={s.liveCard}
+                  >
+                    <View style={s.liveCardImageWrap}>
+                      {a.image_url ? (
+                        <Image
+                          source={{ uri: resolveUploadUrl(a.image_url) }}
+                          style={s.liveCardImage}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={s.liveCardImagePlaceholder} />
+                      )}
+                      {a.published === 0 ? (
+                        <View style={s.journalHiddenPill}>
+                          <Text style={s.journalHiddenPillText}>Hidden</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={s.liveCardName} numberOfLines={2}>
+                      {a.title || "Untitled"}
+                    </Text>
+                    <Text style={s.liveCardMeta} numberOfLines={1}>
+                      {(a.topic_category || "—").replace(/_/g, " ")}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : (
+              <Text style={s.coffeesEmptyHint}>
+                No journal articles yet. Tap Refresh roaster above to
+                scrape this roaster's blog.
+              </Text>
+            )}
           </View>
 
           {error ? <Text style={s.errorText}>{error}</Text> : null}
@@ -1366,9 +1590,9 @@ function EditableField({
         accessibilityRole="button"
       >
         {saving ? (
-          <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
+          <ActivityIndicator size="small" color={t.color.bg} />
         ) : (
-          <Check size={16} color={t.color["text.on-cta"]} strokeWidth={2.2} />
+          <Check size={16} color={t.color.bg} strokeWidth={2.2} />
         )}
       </Pressable>
     </View>
@@ -1630,7 +1854,11 @@ const useStyles = makeStyles((t) => ({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  pillTextOn: { color: t.color["text.on-cta"] },
+  // Was `text.on-cta` — broken in light mode after the §2.40.19
+  // refinement made that token constant Espresso, same as the
+  // text.primary bg the pill sits on. `bg` is the true inverse of
+  // text.primary across modes.
+  pillTextOn: { color: t.color.bg },
   pillTextOff: { color: t.color["text.muted"] },
 
   // Section block
@@ -1684,7 +1912,10 @@ const useStyles = makeStyles((t) => ({
   enrichCtaText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.sm"],
-    color: t.color["text.on-cta"],
+    // `bg` is the inverse-of-text.primary token; readable on the
+    // text.primary background in both light and dark mode. Previous
+    // use of `text.on-cta` broke in light mode (both Espresso).
+    color: t.color.bg,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -2089,4 +2320,24 @@ const useStyles = makeStyles((t) => ({
     fontSize: t.size["font.md"],
     color: t.color["text.on-cta"],
   },
+  // Hidden-pill on journal cards — flags is_about_coffee=false or
+  // admin-unpublished rows so the operator sees them in this admin
+  // view (consumer JOURNAL feed already filters them out).
+  journalHiddenPill: {
+    position: "absolute",
+    top: t.spacing.xs,
+    left: t.spacing.xs,
+    paddingHorizontal: t.spacing.sm,
+    paddingVertical: 2,
+    borderRadius: t.radius.full,
+    backgroundColor: t.color["text.primary"],
+  } as any,
+  journalHiddenPillText: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.xs"],
+    // Pill bg = text.primary → use `bg` (inverse) for readable text
+    // in both modes. `text.on-cta` would be invisible in light mode
+    // (both Espresso) since text.primary bg is also Espresso in light.
+    color: t.color.bg,
+  } as any,
 }));

@@ -3,12 +3,12 @@ import { t, makeStyles } from "../tokens/useTokens";
 
 interface ChipProps {
   children: string;
-  variant?: "default" | "accent" | "dark";
+  variant?: "default" | "accent";
 }
 
 export default function Chip({ children, variant = "default" }: ChipProps) {
-  const bg = variant === "accent" ? t.color["accent.soft"] : variant === "dark" ? "rgba(255,255,255,0.12)" : t.color["tag.bg"];
-  const fg = variant === "accent" ? t.color["accent.cta"] : variant === "dark" ? t.color["text.on-cta"] : t.color["tag.text"];
+  const bg = variant === "accent" ? t.color["accent.soft"] : t.color["tag.bg"];
+  const fg = variant === "accent" ? t.color["accent.cta"] : t.color["tag.text"];
   const s = useStyles();
 
   return (

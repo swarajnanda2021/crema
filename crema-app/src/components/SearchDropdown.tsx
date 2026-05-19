@@ -479,18 +479,17 @@ const useStyles = makeStyles((t) => ({
     backgroundColor: t.color["card.info"],
     alignItems: "center", justifyContent: "center",
   } as any,
-  // Identity surface — avatar fallback. Stays `text.primary`
-  // (Espresso/Crema White) bg with `text.on-dark` (constant
-  // Crema White) initial. text.on-cta was retired here when it
-  // flipped to constant Espresso in §2.40.19 — Espresso letter on
-  // Espresso bg in light mode is invisible.
+  // Identity surface — `text.primary` bg paired with `t.color.bg`
+  // letter, the true inverse across modes (Crema White light /
+  // #2a0d00 dark). Both `text.on-cta` and `text.on-dark` are
+  // constants after §2.40.19 and go invisible in one mode.
   avatarFb: {
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: t.color["text.primary"],
     alignItems: "center", justifyContent: "center",
   } as any,
   avatarLetter: {
-    fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-dark"],
+    fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color.bg,
   },
   beanDot: {
     width: 6, height: 6, borderRadius: 3,

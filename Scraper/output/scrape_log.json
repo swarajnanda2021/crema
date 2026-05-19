@@ -1,26 +1,26 @@
 [
   {
-    "roaster": "Zenforest Coffee Roasters",
-    "website": "https://zenforestcoffee.com/",
-    "platform_catalog": "woocommerce",
-    "platform_detected": "woocommerce",
+    "roaster": "Black Baza Coffee",
+    "website": "https://blackbazacoffee.com",
+    "platform_catalog": "shopify",
+    "platform_detected": "shopify",
     "status": "success",
-    "products_found": 19,
-    "coffee_products": 17,
-    "non_coffee_excluded": 2,
+    "products_found": 18,
+    "coffee_products": 15,
+    "non_coffee_excluded": 3,
     "confidence_breakdown": {
-      "high": 0,
-      "medium": 17,
+      "high": 1,
+      "medium": 14,
       "low": 0
     },
     "flags_summary": [
-      "missing_tasting_notes: 17",
-      "weight_unknown: 17",
-      "needs_llm_review: 17",
-      "altitude_not_found: 8",
-      "missing_process: 6"
+      "missing_tasting_notes: 15",
+      "missing_roast_level: 14",
+      "altitude_not_found: 14",
+      "missing_process: 14",
+      "needs_llm_review: 14"
     ],
-    "scrape_duration_seconds": 6.78,
-    "scraped_at": "2026-05-01T13:52:51Z"
+    "scrape_duration_seconds": 0.53,
+    "scraped_at": "2026-05-19T15:40:59Z"
   }
 ]

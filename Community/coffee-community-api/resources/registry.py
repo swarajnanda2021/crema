@@ -697,6 +697,13 @@ RESOURCES = {
     },
 
     # ── Click Events (write-only) ────────────────────────────────────────
+    # `article_id` + `placement_source` are nullable — populated when
+    # a click originates from an in-article placement (the reader fires
+    # the click event with both fields), NULL for organic Buy clicks
+    # on /coffee/[id], /roaster/[slug], the feed, etc. The split lets
+    # the analytics surface pivot ad-slot vs organic clicks without
+    # joining back to a placements snapshot. See P1 attribution notes
+    # in database.py.
     "click_events": {
         "table": "click_events",
         "pk": "id",
@@ -706,6 +713,8 @@ RESOURCES = {
             "product_id": {"type": "str"},
             "roaster_slug": {"type": "str"},
             "source_page": {"type": "str"},
+            "article_id": {"type": "int"},
+            "placement_source": {"type": "str"},
             "clicked_at": {"type": "str", "ro": True, "auto": "now"},
         },
         "auth": {"create": None},

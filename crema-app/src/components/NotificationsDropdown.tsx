@@ -305,5 +305,5 @@ const useStyles = makeStyles((t) => ({
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center",
   } as any,
-  avatarInitial: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.on-dark"] },
+  avatarInitial: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color.bg },
 }));

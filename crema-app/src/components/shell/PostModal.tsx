@@ -528,7 +528,7 @@ const useStyles = makeStyles((t) => ({
   repostPreviewHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 12 } as any,
   // Identity surface — see ComposePost avatarFallback.
   repostAvatarFb: { width: 30, height: 30, borderRadius: 15, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,
-  repostAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-dark"] },
+  repostAvatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color.bg },
   repostPreviewName: { fontFamily: t.font["body.medium"], fontSize: 11.8, color: t.color["text.primary"] },
   repostPreviewSubtitle: { fontFamily: t.font["body.medium"], fontSize: 10, color: t.color["text.secondary"], marginTop: 2 },
   repostInput: {

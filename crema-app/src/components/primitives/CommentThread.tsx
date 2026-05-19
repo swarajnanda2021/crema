@@ -213,7 +213,7 @@ const useStyles = makeStyles((t) => ({
   divider: { height: 1, backgroundColor: "rgba(237,232,225,0.5)", marginVertical: 8 },
   body: { flexDirection: "row", gap: 10 } as any,
   avatarFb: { width: 28, height: 28, borderRadius: 14, backgroundColor: t.color["text.primary"], alignItems: "center", justifyContent: "center" } as any,
-  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color["text.on-cta"] },
+  avatarLetter: { fontFamily: t.font["body.semibold"], fontSize: 11, color: t.color.bg },
   content: { flex: 1 },
   nameRow: { flexDirection: "row", alignItems: "baseline", gap: 6, marginBottom: 2 } as any,
   name: { fontFamily: t.font["body.semibold"], fontSize: 12, color: t.color["text.primary"] },

@@ -576,6 +576,89 @@ it's wasted complexity until we actually have a server to run on.
 - Feed ranking beyond chronological.
 - Stamp-card UI polish (coffee-beans-as-stamps).
 
+## 3.10 Agentic ops stack — cloud + multi-provider hardening
+**Trigger:** moving the backend off localhost. The MCP server +
+`agent_runs` audit live happily at F&F scale (single-box stdio, one
+admin operator), but going cloud requires real auth + transport +
+provider abstraction.
+
+These items live here, not in §1 / §2, because the F&F deploy can run
+the agent stack locally on the admin's machine (Mac Studio + stdio
+MCP + Anthropic-only) while the backend is on Fly. Cloud-side agent
+ops only become a launch blocker when:
+- A second operator (cron, partner integration, mobile-admin) needs
+  to call MCP tools from off-host, OR
+- The org wants to swap LLM providers (cost / latency / privacy) at
+  runtime, OR
+- Compliance requires the audit trail to be queryable by external
+  reviewers (Privacy / ToS).
+
+### 3.10.1 MCP server HTTP/SSE transport `[ ]` (~1 day)
+Stdio MCP works for local Anthropic agents. To reach the server from
+anywhere else (Claude Desktop on the admin's laptop talking to the
+cloud Fly app, cron in a separate container, partner clients),
+expose `crema-catalog-ops` via streamable HTTP. Same tool registry;
+new transport handler.
+
+Auth: bearer tokens scoped per-capability (read-only, catalog-ops,
+moderation, full-admin) so we can hand out narrow tokens to specific
+agents / partners. Token mint goes through the same `sessions` table
+the web UI uses today.
+
+### 3.10.2 Agent runner provider abstraction `[ ]` (~2 days)
+Today every LLM call hits `anthropic.Anthropic(...)` directly inside
+`enrich.py::_enrich_one`, `roaster_enricher.py::enrich_roaster_from_url`,
+etc. Decouple the call from the provider — wrap with an
+`AgentRunner.invoke(system, tool_schema, user_content) → tool_input`
+interface. Two implementations on day-one:
+
+- `AnthropicRunner` — current behaviour.
+- `OpenAICompatibleRunner` — for Ollama on Mac Studio, vLLM-hosted
+  open models, OpenAI itself.
+
+Config via `agent_runner.config.toml` (per-environment): primary
+provider + endpoint + model, fallback provider + triggers
+(timeout / 5xx / explicit_admin_override / budget_exceeded), daily
+cost cap.
+
+Once this lands, Crema's agent stack stops being vendor-locked. The
+Mac-Studio-with-Llama-3.3-70B scenario from
+[[feedback_agent_first_orchestration]] becomes a config swap, not a
+rewrite.
+
+### 3.10.3 Admin "Agent activity" view `[ ]` (~1-2 days)
+Catalog Ops gets a fifth sub-tab: **AGENT ACTIVITY**. Reads from
+`agent_runs` (already populated by the v1 MCP). Surfaces:
+
+- Chronological log filtered by agent / tool / session / time
+- Per-call drill-in: args_json + result_summary + diff produced
+- Daily digest: "Yesterday `llama-3.3-70b@macstudio` ran 47
+  refreshes; 3 borderline proposals queued for your review"
+- Cost rollup per agent_identity (when runner reports tokens)
+
+### 3.10.4 Daily ops digest endpoint + scheduled cron `[ ]` (~1 day)
+`GET /admin/agent-digest?period=24h` returns aggregated stats. A
+Fly scheduled machine (or local cron on the Mac Studio in self-host
+mode) fires `crema_enrich_all(filter={has_diff:true})` overnight,
+then formats a digest, then posts it to the admin's email +
+in-app notification. The agent-first org now operates autonomously
+on routine ops; admin only sees the morning summary + the borderline
+queue.
+
+### 3.10.5 Capability-scoped MCP tokens `[ ]` (~½ day)
+Right now any admin bearer token can call any MCP tool. Add a
+`token_capabilities` join table: a token can carry the "catalog-ops"
+capability but not "destructive-approve", or vice versa. Allows
+shipping partner-facing read-only MCP tokens without exposing the
+approval surface.
+
+### 3.10.6 `data_provenance` tagging `[ ]` (~1 day)
+Every DB write the agent triggers gets an `agent_run_id` foreign key
+or a sibling `data_provenance` row, so a field on `products` knows
+which agent_run last touched it. Unlocks: replay-against-different-
+LLM A/B tests, drift detection ("the same prompt produced these
+values 6 months ago"), and per-field rollback.
+
 ---
 
 # Cost snapshot at F&F scale

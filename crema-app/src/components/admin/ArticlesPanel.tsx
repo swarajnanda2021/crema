@@ -514,11 +514,11 @@ export default function ArticlesPanel() {
             }
           >
             {liveCancelRequested ? (
-              <ActivityIndicator size="small" color={t.color["text.on-cta"]} />
+              <ActivityIndicator size="small" color={t.color.bg} />
             ) : (
               <X
                 size={t.size["icon.sm"]}
-                color={t.color["text.on-cta"]}
+                color={t.color.bg}
                 strokeWidth={2.25}
               />
             )}
@@ -1492,10 +1492,11 @@ const useStyles = makeStyles((t) => ({
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.sm"],
     // Banner bg is `text.primary` (Espresso/Crema White). Use
-    // `text.on-dark` (constant Crema White) so the label reads on
-    // the Espresso bg in light mode — text.on-cta flipped to
-    // constant Espresso in §2.40.19 and would be invisible here.
-    color: t.color["text.on-dark"],
+    // `t.color.bg` — the true inverse of text.primary across modes
+    // (Crema White light / #2a0d00 dark). Both `text.on-cta` and
+    // `text.on-dark` are constants after §2.40.19 and go invisible
+    // in one mode.
+    color: t.color.bg,
     letterSpacing: 0.3,
   } as any,
   stopPill: {
@@ -1506,7 +1507,7 @@ const useStyles = makeStyles((t) => ({
     paddingVertical: t.spacing["2xs"],
     borderRadius: t.radius.full,
     borderWidth: 1,
-    borderColor: t.color["text.on-cta"],
+    borderColor: t.color.bg,
   } as any,
   stopPillDisabled: { opacity: 0.6 } as any,
   stopPillPressed: { opacity: 0.75 } as any,
@@ -1515,7 +1516,7 @@ const useStyles = makeStyles((t) => ({
     fontSize: t.size["font.xs"],
     letterSpacing: 0.5,
     textTransform: "uppercase",
-    color: t.color["text.on-cta"],
+    color: t.color.bg,
   },
 
   // Selection strip — sits between the section header and the row

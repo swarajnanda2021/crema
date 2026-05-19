@@ -1701,7 +1701,7 @@ def empty_trash(user=Depends(get_current_user)):
 # in LAUNCH_TODO §3.8.
 
 from fastapi import BackgroundTasks, UploadFile, File, Form
-from services import catalog_ops, sca_geolocator, scrape_runner
+from services import catalog_ops, sca_geolocator, scrape_runner, sync_runner
 
 
 def _job_to_response(db, job_id: int) -> dict:
@@ -1809,6 +1809,448 @@ def admin_add_roaster_source(body: dict, user=Depends(get_current_user)):
 def _now_iso() -> str:
     import datetime as _dt
     return _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# ── Catalog Ops v2 — Sync endpoints (Tab 1 onboarding + Tab 2 refresh) ──
+#
+# Crawl the roaster's website, write a CrawlSnapshot, stage agent
+# work bundles. The actual Sonnet bio / Haiku product / Haiku article
+# agent invocations are orchestrated separately (Claude session for
+# now, scheduled routine eventually) so the endpoints are synchronous
+# and bounded — no background_tasks needed.
+
+
+@router.post("/admin/sync/{slug}", status_code=200)
+def admin_sync(slug: str, body: dict = None,
+                user=Depends(get_current_user)):
+    """Run a sync for one roaster. Two modes:
+
+      `tab1` (default for new/re-baseline) — full crawl, stage every
+                                             entity as pending.
+      `tab2` (default for steady-state)    — diff vs last snapshot,
+                                             stage only changes.
+
+    The crawl + snapshot itself is synchronous (~5-20s typical).
+    Returns the summary dict — counts of bio/product/article pending
+    bundles. The agent enrichment is a separate orchestrator step.
+    """
+    _require_admin(user)
+    body = body or {}
+    mode = (body.get("mode") or "tab1").strip().lower()
+    if mode not in ("tab1", "tab2"):
+        from fastapi import HTTPException
+        raise HTTPException(400, "mode must be 'tab1' or 'tab2'")
+    if mode == "tab1":
+        summary = sync_runner.run_tab1_sync(slug)
+    else:
+        summary = sync_runner.run_tab2_sync(slug)
+    if not summary.get("ok"):
+        from fastapi import HTTPException
+        raise HTTPException(400, summary.get("error", "sync failed"))
+    return ok(summary, resource="sync")
+
+
+@router.get("/admin/sync/{slug}/pending")
+def admin_sync_pending(slug: str, user=Depends(get_current_user)):
+    """List the pending agent bundles for a roaster. Returns
+    `{bio: [filenames], product: [...], article: [...]}` so the
+    orchestrator (or a future routine) knows what to enrich."""
+    _require_admin(user)
+    pending = sync_runner.get_pending(slug)
+    return ok(pending, resource="sync_pending")
+
+
+@router.get("/admin/sync/{slug}/snapshot")
+def admin_sync_snapshot(slug: str, user=Depends(get_current_user)):
+    """Return the current snapshot for a roaster + diff vs prev (if
+    prev exists) + a breakdown of storefront vs in-catalog counts.
+
+    The breakdown distinguishes:
+      - storefront: total items the crawl saw on the website
+      - in_catalog: items we already have as enriched rows (products
+        table for coffees, roaster_articles for journals)
+      - unknown: storefront - in_catalog; rows we'd evaluate via Haiku
+        on the next enrichment pass
+    That breakdown is what makes "135 products on the storefront" useful
+    in the UI — it tells the admin that only 3 are actual beans and the
+    other 132 are merch / gear / gift cards the catalog already ignores.
+    """
+    _require_admin(user)
+    from services.sync_runner import _snapshot_get, _diff
+    db = get_db()
+    try:
+        cur = _snapshot_get(db, slug, "current")
+        prev = _snapshot_get(db, slug, "prev")
+        if not cur:
+            return ok({
+                "slug": slug, "snapshot": None,
+                "diff": None, "breakdown": None,
+            }, resource="sync_snapshot")
+
+        payload = cur["payload"]
+        storefront_products = payload.get("products", []) or []
+        storefront_articles = payload.get("articles", []) or []
+
+        # Coffee breakdown — JOIN the snapshot product URLs/handles
+        # against our `products` table. Snapshot product entries carry
+        # `url` (always) and `handle` (Shopify). We match on URL first,
+        # fall back to handle.
+        product_urls = [p.get("url") for p in storefront_products if p.get("url")]
+        in_catalog_product_urls: set[str] = set()
+        if product_urls:
+            placeholders = ",".join("?" for _ in product_urls)
+            rows = db.execute(
+                f"SELECT product_url FROM products "
+                f"WHERE roaster_slug = ? AND product_url IN ({placeholders})",
+                (slug, *product_urls),
+            ).fetchall()
+            in_catalog_product_urls = {r["product_url"] for r in rows}
+        in_catalog_products = len(in_catalog_product_urls)
+        storefront_products_total = len(storefront_products)
+        unknown_products = max(0, storefront_products_total - in_catalog_products)
+
+        # Journal breakdown — same shape against roaster_articles.url.
+        article_urls = [a.get("url") for a in storefront_articles if a.get("url")]
+        in_catalog_article_urls: set[str] = set()
+        if article_urls:
+            placeholders = ",".join("?" for _ in article_urls)
+            rows = db.execute(
+                f"SELECT url FROM roaster_articles "
+                f"WHERE roaster_slug = ? AND url IN ({placeholders})",
+                (slug, *article_urls),
+            ).fetchall()
+            in_catalog_article_urls = {r["url"] for r in rows}
+        in_catalog_articles = len(in_catalog_article_urls)
+        storefront_articles_total = len(storefront_articles)
+        unknown_articles = max(0, storefront_articles_total - in_catalog_articles)
+
+        return ok({
+            "slug": slug,
+            "snapshot": {
+                "taken_at": cur["taken_at"],
+                "summary": {
+                    "platform":       payload.get("platform"),
+                    "bio_len":        payload.get("bio", {}).get("len"),
+                    "products_count": storefront_products_total,
+                    "articles_count": storefront_articles_total,
+                },
+            },
+            "breakdown": {
+                "products": {
+                    "storefront": storefront_products_total,
+                    "in_catalog": in_catalog_products,
+                    "unknown":    unknown_products,
+                },
+                "articles": {
+                    "storefront": storefront_articles_total,
+                    "in_catalog": in_catalog_articles,
+                    "unknown":    unknown_articles,
+                },
+            },
+            "diff": _diff(payload, prev["payload"] if prev else None),
+        }, resource="sync_snapshot")
+    finally:
+        db.close()
+
+
+@router.get("/admin/sync/all-status")
+def admin_sync_all_status(user=Depends(get_current_user)):
+    """Orchestrator dashboard payload: one row per published roaster with
+    current snapshot age + diff counts vs prev snapshot. Single round-
+    trip so the REFRESH CATALOG tab can render the whole roster with
+    diff status without N per-roaster calls.
+
+    Returns:
+      { roasters: [
+          { slug, name, city, state, platform,
+            has_snapshot, last_sync, bio_chars,
+            bio_changed,
+            products_added, products_updated, products_removed,
+            articles_added, articles_updated, articles_removed,
+            article_hint_present },
+          ...
+      ] }
+    """
+    _require_admin(user)
+    from services.sync_runner import _snapshot_get, _diff
+    db = get_db()
+    try:
+        # Pull every published roaster + its source row in one go.
+        rows = db.execute(
+            "SELECT rp.roaster_slug, rp.name, rp.city, rp.state, "
+            "       rp.article_enrichment_prompt_hint, "
+            "       rs.platform "
+            "FROM roaster_profiles rp "
+            "LEFT JOIN roaster_sources rs ON rs.website = rp.website "
+            "WHERE rp.published = 1"
+        ).fetchall()
+        out = []
+        for r in rows:
+            slug = r["roaster_slug"]
+            cur = _snapshot_get(db, slug, "current")
+            prev = _snapshot_get(db, slug, "prev")
+            entry = {
+                "slug": slug,
+                "name": r["name"],
+                "city": r["city"],
+                "state": r["state"],
+                "platform": r["platform"],
+                "article_hint_present": bool(r["article_enrichment_prompt_hint"]),
+                "has_snapshot": cur is not None,
+                "last_sync": cur["taken_at"] if cur else None,
+                "bio_chars": 0,
+                "bio_changed": False,
+                "products_added": 0, "products_updated": 0, "products_removed": 0,
+                "articles_added": 0, "articles_updated": 0, "articles_removed": 0,
+            }
+            if cur:
+                payload = cur["payload"]
+                entry["bio_chars"] = (payload.get("bio") or {}).get("len", 0)
+                diff = _diff(payload, prev["payload"] if prev else None)
+                entry["bio_changed"] = bool(diff.get("bio_changed"))
+                entry["products_added"] = len(diff["products"]["added"])
+                entry["products_updated"] = len(diff["products"]["updated"])
+                entry["products_removed"] = len(diff["products"]["removed"])
+                entry["articles_added"] = len(diff["articles"]["added"])
+                entry["articles_updated"] = len(diff["articles"]["updated"])
+                entry["articles_removed"] = len(diff["articles"]["removed"])
+            out.append(entry)
+        return ok({"roasters": out}, resource="sync_status")
+    finally:
+        db.close()
+
+
+@router.post("/admin/sync-bulk", status_code=202)
+def admin_sync_bulk(body: dict,
+                     background_tasks: BackgroundTasks = None,
+                     user=Depends(get_current_user)):
+    """Bulk Tab-2 sync orchestrator. Body: { slugs: [...] }. For each
+    slug, kicks off a background task that runs run_tab2_sync. Returns
+    immediately with the list of slugs accepted. The caller polls
+    GET /admin/sync/all-status to see diffs land."""
+    _require_admin(user)
+    body = body or {}
+    slugs = body.get("slugs") or []
+    if not isinstance(slugs, list) or not slugs:
+        from fastapi import HTTPException
+        raise HTTPException(422, "slugs[] is required")
+    mode = (body.get("mode") or "tab2").strip().lower()
+    if mode not in ("tab1", "tab2"):
+        from fastapi import HTTPException
+        raise HTTPException(400, "mode must be 'tab1' or 'tab2'")
+
+    def _run(slug: str, m: str):
+        try:
+            if m == "tab1":
+                sync_runner.run_tab1_sync(slug)
+            else:
+                sync_runner.run_tab2_sync(slug)
+        except Exception:
+            # Per-roaster failures don't poison the batch — the
+            # orchestrator polls all-status to see what landed.
+            pass
+
+    for slug in slugs:
+        background_tasks.add_task(_run, slug, mode)
+    return ok({"accepted": len(slugs), "mode": mode, "slugs": slugs},
+              resource="sync_bulk")
+
+
+@router.post("/admin/roasters/refresh-all-bulk", status_code=202)
+def admin_refresh_all_bulk(body: dict,
+                            background_tasks: BackgroundTasks = None,
+                            user=Depends(get_current_user)):
+    """Bulk orchestrator wrapper around per-roaster refresh-all. For
+    each slug, kicks off the SAME pipeline as POST /admin/roasters/
+    {slug}/refresh-all — bio Sonnet enrich (synchronous per-slug) +
+    catalog scrape job (background) + article scrape job (background).
+    Returns immediately with the list of slugs accepted; the caller
+    polls /api/jobs or /api/admin/sync/all-status for completion.
+
+    Body:
+      • slugs: list of roaster slugs to refresh (required)
+      • regenerate_prompt: forwarded per-slug to refresh-all
+      • regenerate_article_hint: forwarded per-slug to refresh-all
+
+    Per-slug failures (no website, no shop_url, missing platform, etc.)
+    don't poison the batch — they're swallowed and surfaced via the
+    polled status endpoints. The agent-orchestrator's job is to look
+    at the result, not to bubble exceptions through a sync HTTP call.
+    """
+    _require_admin(user)
+    body = body or {}
+    slugs = body.get("slugs") or []
+    if not isinstance(slugs, list) or not slugs:
+        from fastapi import HTTPException
+        raise HTTPException(422, "slugs[] is required")
+    regenerate_prompt = bool(body.get("regenerate_prompt"))
+    regenerate_article_hint = bool(body.get("regenerate_article_hint"))
+
+    def _run_one(slug: str):
+        """Reproduces the refresh-all orchestration for one slug,
+        but tolerates failure so the batch keeps moving."""
+        from services import roaster_enricher
+        db = get_db()
+        try:
+            # Step 1 — bio enrich (sync). Reuses _apply_roaster_enrichment
+            # so the COALESCE upsert + source mirror logic stays in one
+            # place. Swallow Sonnet failures so the batch keeps moving.
+            row = db.execute(
+                "SELECT website FROM roaster_profiles WHERE roaster_slug = ?",
+                (slug,),
+            ).fetchone()
+            if not row or not row["website"]:
+                return
+            website = row["website"]
+            try:
+                _apply_roaster_enrichment(db, website)
+            except Exception:
+                pass  # bio fail — continue to catalog/article scrapes
+
+            # Step 2 — verify source has shop_url + platform
+            src_row = db.execute(
+                "SELECT id, shop_url, platform FROM roaster_sources rs "
+                "JOIN roaster_profiles rp ON rp.website = rs.website "
+                "WHERE rp.roaster_slug = ?",
+                (slug,),
+            ).fetchone()
+            if not src_row or not src_row["shop_url"] or not src_row["platform"]:
+                return
+
+            # Step 3 — enqueue catalog scrape + article scrape (background).
+            try:
+                job_id = catalog_ops.enqueue_job(db, "scrape", started_by=user["id"])
+                background_tasks.add_task(
+                    catalog_ops.run_scrape_job, job_id,
+                    roaster_slug=slug, regenerate_prompt=regenerate_prompt,
+                )
+            except catalog_ops.JobConflict:
+                pass
+            try:
+                article_job_id = catalog_ops.enqueue_job(
+                    db, "article_scrape", started_by=user["id"],
+                )
+                background_tasks.add_task(
+                    catalog_ops.run_article_scrape_job, article_job_id,
+                    roaster_slug=slug,
+                    regenerate_article_hint=regenerate_article_hint,
+                )
+            except catalog_ops.JobConflict:
+                pass
+        finally:
+            db.close()
+
+    for slug in slugs:
+        background_tasks.add_task(_run_one, slug)
+    return ok(
+        {"accepted": len(slugs), "slugs": slugs,
+         "regenerate_prompt": regenerate_prompt,
+         "regenerate_article_hint": regenerate_article_hint},
+        resource="refresh_all_bulk",
+    )
+
+
+@router.post("/admin/agent-runs", status_code=201)
+def admin_record_agent_run(body: dict, user=Depends(get_current_user)):
+    """Append a row to `agent_runs`. Called by the MCP server (and
+    future agent runners) to log every tool invocation. The MCP server
+    inserts BEFORE calling the wrapped endpoint, then UPDATEs the row
+    via PUT once the wrapped call finishes — so the log captures both
+    started_at and finished_at.
+
+    Body:
+      • agent_identity: string (required) — e.g. `claude-sonnet-4-6@anthropic`
+      • tool_name: string (required) — the MCP tool name
+      • args_json: stringified JSON of input args
+      • session_id: optional — groups related calls
+      • prompt_hash / schema_hash: optional — for replay/drift detection
+    """
+    _require_admin(user)
+    body = body or {}
+    agent_identity = (body.get("agent_identity") or "").strip()
+    tool_name = (body.get("tool_name") or "").strip()
+    if not agent_identity or not tool_name:
+        from fastapi import HTTPException
+        raise HTTPException(422, "agent_identity and tool_name are required")
+    db = get_db()
+    try:
+        import datetime as _dt
+        now = _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z")
+        cur = db.execute(
+            "INSERT INTO agent_runs "
+            "(session_id, agent_identity, operator_user_id, tool_name, "
+            " args_json, started_at, prompt_hash, schema_hash) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                body.get("session_id"),
+                agent_identity,
+                user["id"],
+                tool_name,
+                body.get("args_json"),
+                now,
+                body.get("prompt_hash"),
+                body.get("schema_hash"),
+            ),
+        )
+        db.commit()
+        return ok({"id": cur.lastrowid, "started_at": now},
+                  resource="agent_runs")
+    finally:
+        db.close()
+
+
+@router.put("/admin/agent-runs/{run_id}")
+def admin_finish_agent_run(run_id: int, body: dict,
+                             user=Depends(get_current_user)):
+    """Close out an agent_runs row with finished_at + result_summary +
+    optional error. Called by the MCP server after the wrapped tool
+    finishes."""
+    _require_admin(user)
+    body = body or {}
+    db = get_db()
+    try:
+        import datetime as _dt
+        now = _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z")
+        db.execute(
+            "UPDATE agent_runs SET finished_at = ?, "
+            "result_summary = ?, error = ? WHERE id = ?",
+            (now, body.get("result_summary"), body.get("error"), run_id),
+        )
+        db.commit()
+        return ok({"id": run_id, "finished_at": now},
+                  resource="agent_runs")
+    finally:
+        db.close()
+
+
+@router.get("/admin/agent-runs")
+def admin_list_agent_runs(limit: int = 100, agent_identity: str = None,
+                            tool_name: str = None, session_id: str = None,
+                            user=Depends(get_current_user)):
+    """List recent agent runs. Filters: agent_identity, tool_name,
+    session_id. Used by the future 'Agent activity' admin view +
+    by agents that want to audit their own recent actions."""
+    _require_admin(user)
+    where = []
+    params: list = []
+    if agent_identity:
+        where.append("agent_identity = ?"); params.append(agent_identity)
+    if tool_name:
+        where.append("tool_name = ?"); params.append(tool_name)
+    if session_id:
+        where.append("session_id = ?"); params.append(session_id)
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+    params.append(min(max(int(limit or 100), 1), 1000))
+    db = get_db()
+    try:
+        rows = db.execute(
+            f"SELECT * FROM agent_runs{where_sql} "
+            f"ORDER BY started_at DESC LIMIT ?",
+            tuple(params),
+        ).fetchall()
+        return ok([dict(r) for r in rows], resource="agent_runs")
+    finally:
+        db.close()
 
 
 @router.post("/admin/standardize/run", status_code=202)
@@ -2711,15 +3153,20 @@ def admin_refresh_roaster_all(
                 "shop_url or platform. Set them manually, then run a scrape.",
             )
 
-        # Step 3 — enqueue the scrape job. Same conflict + background-
-        # task wiring as /admin/scrape/run.
+        # Step 3 — enqueue BOTH the catalog scrape AND the article
+        # scrape. Different job kinds → separate active-job slots, so
+        # they can run in parallel. The article scrape doesn't depend
+        # on catalog scrape output; both consume the roaster website
+        # directly. Running them together makes "Refresh Roaster" a
+        # true one-button operation: bio + catalog + journal.
         #
-        # On JobConflict: bio enrichment already landed; surfacing a
-        # 409 here would make the frontend treat the whole call as a
-        # failure and bury the bio's partial-success signal. Instead
-        # return 200 with `job=None` and a `scrape_blocked_by_job_id`
-        # hint so the admin sees "Bio enriched. Catalog scrape queued
-        # behind active job N — retry in a moment."
+        # On JobConflict for either kind: bio enrichment already
+        # landed; surfacing a 409 would bury that partial success.
+        # Instead return 200 with `job=None` / `article_job=None` and
+        # a `*_blocked_by_job_id` hint so the admin sees which subset
+        # ran.
+        regenerate_article_hint = bool(body.get("regenerate_article_hint"))
+
         scrape_blocked_by: Optional[int] = None
         try:
             job_id = catalog_ops.enqueue_job(db, "scrape", started_by=user["id"])
@@ -2733,6 +3180,22 @@ def admin_refresh_roaster_all(
                 regenerate_prompt=regenerate_prompt,
             )
             job_payload = _job_to_response(db, job_id)
+
+        article_blocked_by: Optional[int] = None
+        try:
+            article_job_id = catalog_ops.enqueue_job(
+                db, "article_scrape", started_by=user["id"],
+            )
+        except catalog_ops.JobConflict as e:
+            article_blocked_by = e.live_job_id
+            article_job_payload = None
+        else:
+            background_tasks.add_task(
+                catalog_ops.run_article_scrape_job, article_job_id,
+                roaster_slug=slug,
+                regenerate_article_hint=regenerate_article_hint,
+            )
+            article_job_payload = _job_to_response(db, article_job_id)
     finally:
         db.close()
 
@@ -2741,6 +3204,8 @@ def admin_refresh_roaster_all(
             "profile": bio_data,
             "job": job_payload,
             "scrape_blocked_by_job_id": scrape_blocked_by,
+            "article_job": article_job_payload,
+            "article_scrape_blocked_by_job_id": article_blocked_by,
         },
         resource="roaster_refresh",
     )
@@ -3166,6 +3631,82 @@ def admin_set_article_hint_regen_flag(slug: str, body: dict = None,
         db.close()
 
 
+@router.get("/admin/roasters/{slug}/diff-hint")
+def admin_get_diff_hint(slug: str, user=Depends(get_current_user)):
+    """Return the per-roaster diff-interpretation hint + updated_at.
+    Used by the Refresh Catalog tab's per-roaster page (admin/refresh/[slug])
+    so the admin can read what the LLM will use to interpret storefront
+    diffs (e.g. "ignore gift-card SKUs", "this roaster archives via
+    available=false").
+
+    The hint is admin-written (not Sonnet-generated like bio + article
+    hints) since the diff interpretation is a roaster-specific filter,
+    not a content-extraction quirk."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT roaster_slug, name, "
+            "  diff_prompt_hint, diff_prompt_hint_updated_at "
+            "FROM roaster_profiles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Roaster {slug} not found")
+        return ok({
+            "roaster_slug": row["roaster_slug"],
+            "roaster_name": row["name"],
+            "diff_prompt_hint": row["diff_prompt_hint"],
+            "diff_prompt_hint_updated_at": row["diff_prompt_hint_updated_at"],
+        }, resource="roaster_profiles")
+    finally:
+        db.close()
+
+
+@router.put("/admin/roasters/{slug}/diff-hint")
+def admin_set_diff_hint(slug: str, body: dict = None,
+                          user=Depends(get_current_user)):
+    """Save the per-roaster diff-interpretation hint. Body:
+    `{ "hint": "free-text hint, may be empty to clear" }`.
+
+    Stamps the updated_at to now. The hint is plain text — the LLM
+    consumes it as a system addendum when interpreting the snapshot
+    diff during a Tab 2 refresh."""
+    _require_admin(user)
+    body = body or {}
+    raw = body.get("hint")
+    hint = raw.strip() if isinstance(raw, str) else None
+    if hint == "":
+        hint = None
+    db = get_db()
+    try:
+        cur = db.execute(
+            "UPDATE roaster_profiles "
+            "SET diff_prompt_hint = ?, "
+            "    diff_prompt_hint_updated_at = ? "
+            "WHERE roaster_slug = ?",
+            (hint, _now_iso(), slug),
+        )
+        if cur.rowcount == 0:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Roaster {slug} not found")
+        db.commit()
+        row = db.execute(
+            "SELECT diff_prompt_hint, diff_prompt_hint_updated_at "
+            "FROM roaster_profiles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        return ok({
+            "roaster_slug": slug,
+            "diff_prompt_hint": row["diff_prompt_hint"],
+            "diff_prompt_hint_updated_at":
+                row["diff_prompt_hint_updated_at"],
+        }, resource="roaster_profiles")
+    finally:
+        db.close()
+
+
 @router.get("/admin/articles")
 def admin_list_articles(roaster_slug: Optional[str] = None,
                           limit: int = 100, offset: int = 0,
@@ -3304,6 +3845,11 @@ def admin_delete_article(article_id: int, user=Depends(get_current_user)):
 # placements for their JOURNAL surface. Two-column layout client-side:
 # left = article title, right = compact coffee card per matched coffee.
 # Below the threshold, an article shows with empty suggestions.
+#
+# The GET response is the EFFECTIVE state — auto-suggestions reconciled
+# with persisted owner edits (kept-auto / removed-auto / added-manual).
+# The PUT writes the delta. The public counterpart at
+# `/articles/{id}/placements` runs the same merge for consumer readers.
 
 @router.get("/roasters/{slug}/ads/journal")
 def ads_journal_suggestions(slug: str, user=Depends(get_current_user)):
@@ -3314,5 +3860,141 @@ def ads_journal_suggestions(slug: str, user=Depends(get_current_user)):
     try:
         results = suggest_journal_placements(slug, db)
         return ok(results, resource="ad_placements")
+    finally:
+        db.close()
+
+
+@router.put("/roasters/{slug}/ads/journal/{article_id}")
+def ads_journal_save(
+    slug: str,
+    article_id: int,
+    body: dict,
+    user=Depends(get_current_user),
+):
+    """Save the roaster's chosen product set for one article. Body
+    shape: `{ "product_ids": ["sku-abc", "sku-def", ...] }` — the
+    full effective list AFTER the edit, in display order. The service
+    layer diffs against auto-suggestions + the current persisted
+    state and writes the minimum delta.
+
+    Validation deliberately stays light:
+      • the (user, roaster_slug) gate is the owner check
+      • product_ids beyond the roaster's catalog get filtered inside
+        `apply_placement_delta` (they fall out of the join silently)
+      • an article belonging to a different roaster returns []
+    """
+    from services.ad_placements import apply_placement_delta
+    if (user or {}).get("roaster_slug") != slug:
+        raise HTTPException(403, "Not your roaster")
+    product_ids = body.get("product_ids") or []
+    if not isinstance(product_ids, list):
+        raise HTTPException(400, "product_ids must be a list")
+    # Defensive type-check — accept only string ids so a stray int
+    # doesn't poison the table.
+    product_ids = [pid for pid in product_ids if isinstance(pid, str) and pid]
+    db = get_db()
+    try:
+        effective = apply_placement_delta(slug, article_id, product_ids, db)
+        return ok(
+            {"article_id": article_id, "placements": effective},
+            resource="ad_placements",
+        )
+    finally:
+        db.close()
+
+
+@router.get("/articles/{article_id}/placements")
+def article_placements(article_id: int):
+    """Public reader endpoint — returns placements bucketed by
+    source so the reader can render one carousel per bucket with the
+    appropriate label. Each entry: `{product_id, source, roaster_slug}`
+    where `source` is one of 'inline' (article body links to this
+    product's product_url), 'auto' (Crema's scorer matched it), or
+    'manual' (the roaster picked it). No auth — article reading is
+    anonymous and the placement set is editorial, not private.
+    """
+    from services.ad_placements import effective_placements_for_article
+    db = get_db()
+    try:
+        entries = effective_placements_for_article(article_id, db)
+        return ok(entries, resource="article_placements")
+    finally:
+        db.close()
+
+
+# ── Ad impressions (P1 attribution) ──────────────────────────────────────────
+#
+# One impression = one render of a placement to a viewer. Per-session
+# unique on (session, article, product, source), so a user scrolling
+# past the same placement twice within a tab session counts once
+# (the right "unique impressions" reading roasters + investors care
+# about). A new session (tab close + reopen, app restart, sessionStorage
+# clear) gets fresh impressions — that's the reach-over-time number.
+#
+# Anonymous viewers count too (user_id NULL with session_id only) so
+# the analytics surface can pitch "look at the traffic we generate
+# even before login."
+
+@router.post("/ad_impressions")
+def post_ad_impression(body: dict, user=Depends(get_optional_user)):
+    """Record one impression. Idempotent — same (session, article,
+    product, source) collapses to one row via UNIQUE constraint;
+    repeat POSTs silently succeed. Returns the impression id so the
+    client can correlate with a subsequent click if needed.
+
+    Body shape:
+      {
+        "session_id": "<uuid-from-client>",
+        "article_id": 1006,
+        "product_id": "black-baza-coffee_potter-wasp",
+        "placement_source": "inline" | "auto" | "manual",
+        "roaster_slug": "black-baza-coffee"
+      }
+    """
+    import datetime as _dt
+    session_id = (body.get("session_id") or "").strip()
+    article_id = body.get("article_id")
+    product_id = (body.get("product_id") or "").strip()
+    placement_source = (body.get("placement_source") or "").strip()
+    roaster_slug = (body.get("roaster_slug") or "").strip()
+    if not session_id or not isinstance(article_id, int) or not product_id \
+            or placement_source not in {"inline", "auto", "manual"} \
+            or not roaster_slug:
+        raise HTTPException(400, "missing or invalid impression fields")
+    now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    db = get_db()
+    try:
+        # INSERT OR IGNORE — UNIQUE constraint handles dedup. If the
+        # row already exists, lastrowid is 0 and we look up the
+        # existing id so the client gets a consistent response.
+        cur = db.execute(
+            """INSERT OR IGNORE INTO ad_impressions
+               (user_id, session_id, article_id, product_id, roaster_slug,
+                placement_source, seen_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                (user or {}).get("id"),
+                session_id,
+                article_id,
+                product_id,
+                roaster_slug,
+                placement_source,
+                now,
+            ),
+        )
+        db.commit()
+        impression_id = cur.lastrowid
+        if not impression_id:
+            row = db.execute(
+                """SELECT id FROM ad_impressions
+                   WHERE session_id = ? AND article_id = ? AND product_id = ?
+                     AND placement_source = ?""",
+                (session_id, article_id, product_id, placement_source),
+            ).fetchone()
+            impression_id = row["id"] if row else None
+        return ok(
+            {"id": impression_id, "deduped": cur.lastrowid == 0},
+            resource="ad_impressions",
+        )
     finally:
         db.close()

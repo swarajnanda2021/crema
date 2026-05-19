@@ -25,7 +25,8 @@ import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t, SHELF_LABELS, makeStyles } from "../../src/tokens/useTokens";
 
 import PostCard from "../../src/components/domain/PostCard";
-import { openPostModal } from "../../src/components/primitives";
+import { openPostModal, useTabSlider } from "../../src/components/primitives";
+import Animated from "react-native-reanimated";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import SiteHeader from "../../src/components/SiteHeader";
 
@@ -155,6 +156,7 @@ export default function UserProfilePage() {
   const [profileUser, setProfileUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
+  const tabSlider = useTabSlider(activeTab);
   // No sub-tab state — both shelf sections render at once
   const [posts, setPosts] = useState<any[]>([]);
   const [shelves, setShelves] = useState<any>({ open_bags: [], on_the_list: [] });
@@ -390,14 +392,29 @@ export default function UserProfilePage() {
 
   // ── Tab bar ──
   const tabs: ProfileTab[] = isOwn ? ["posts", "shelf", "following"] : ["posts", "shelf"];
-  const tabChildren = tabs.map((tab) => (
-    <Pressable key={tab} onPress={() => { setActiveTab(tab); setVisiblePostCount(POSTS_PER_PAGE); }} style={s.tab}>
-      <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
-        {tab === "posts" ? "POSTS" : tab === "shelf" ? "COFFEE SHELF" : "FOLLOWING"}
-      </Text>
-      {activeTab === tab && <View style={s.tabUnderline} />}
-    </Pressable>
-  ));
+  const tabChildren = (
+    <>
+      {tabs.map((tab) => (
+        <Pressable
+          key={tab}
+          onPress={() => { tabSlider.slideTo(tab); setActiveTab(tab); setVisiblePostCount(POSTS_PER_PAGE); }}
+          ref={tabSlider.trackTab(tab)}
+          style={s.tab}
+        >
+          <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
+            {tab === "posts" ? "POSTS" : tab === "shelf" ? "COFFEE SHELF" : "FOLLOWING"}
+          </Text>
+        </Pressable>
+      ))}
+      {/* One animated bar inside the same coordinate space the tab
+         onLayouts report (parent is either the desktop row View or
+         the mobile ScrollView's contentContainer). */}
+      <Animated.View
+        pointerEvents="none"
+        style={[s.tabUnderlineAnimated, tabSlider.underlineStyle]}
+      />
+    </>
+  );
 
   // Mobile: horizontal ScrollView lets users swipe past tabs that
   // overflow the viewport. Wide web keeps the flat row. Layout
@@ -676,6 +693,12 @@ const useStyles = makeStyles((t) => ({
   tabText: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"], letterSpacing: 0.5, textTransform: "uppercase" } as any,
   tabTextActive: { color: t.color["text.primary"] },
   tabUnderline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 4, backgroundColor: t.color["text.primary"] } as any,
+  // Animated counterpart — chrome only.
+  tabUnderlineAnimated: {
+    bottom: -1,
+    height: 4,
+    backgroundColor: t.color["text.primary"],
+  } as any,
 
   // Tab content
   tabContent: { paddingTop: 20, alignSelf: "center", width: "100%", maxWidth: 860, minHeight: 2400, paddingBottom: 100 } as any,

@@ -130,9 +130,10 @@ const useStyles = makeStyles((t) => ({
   rowActive: {
     backgroundColor: t.color.flash,
   } as any,
-  // Status pill (e.g. "NEW") — informational badge, NOT a button.
-  // Stays on `text.primary` so it reads as Espresso in light mode
-  // rather than following the §2.40.19 accent.cta → pink rule.
+  // Status pill (e.g. "NEW", "HIDDEN") — informational badge, NOT a
+  // button. Stays on `text.primary` so it reads as the brand's primary
+  // body color in both modes (Espresso light / Crema White dark) rather
+  // than the §2.40.19 accent.cta → pink rule for actionable affordances.
   pill: {
     position: "absolute",
     top: t.spacing.xs,
@@ -145,7 +146,11 @@ const useStyles = makeStyles((t) => ({
   pillText: {
     fontFamily: t.font["body.semibold"],
     fontSize: t.size["font.xs"],
-    color: t.color["text.on-dark"],
+    // `bg` is the inverse-of-text.primary token (Crema White light /
+    // page-body dark) — readable on the pill in both modes. Previously
+    // `text.on-dark` (Crema White CONSTANT) which made the pill text
+    // invisible in dark mode where text.primary bg is also Crema White.
+    color: t.color.bg,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },

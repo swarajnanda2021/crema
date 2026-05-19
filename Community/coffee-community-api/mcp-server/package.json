@@ -1,0 +1,25 @@
+{
+  "name": "crema-catalog-ops",
+  "version": "0.1.0",
+  "description": "MCP server exposing Crema catalog ops as agent tools",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "crema-catalog-ops": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

@@ -138,7 +138,7 @@ class ArticleEnricherError(RuntimeError):
 #   2. `_ARTICLE_SYSTEM` cascade ("### topic_category" section) —
 #      the priority-ordered rules Haiku walks through. EVERY new
 #      bucket needs a cascade rule + an anchor example, otherwise
-#      Haiku will fall through to `miscellaneous` by default.
+#      Haiku will fall through to `misc` by default.
 #   3. `crema-app/src/utils/articleMeta.ts:TOPIC_LABELS` +
 #      `TOPIC_CHIPS` — the consumer-side labels and filter chips.
 #      Without an entry there, Haiku's output renders as a tag
@@ -149,34 +149,32 @@ class ArticleEnricherError(RuntimeError):
 # will pick a value the validator rejects; the row lands with
 # topic_category=NULL.
 #
-# The taxonomy is intentionally short — 10 buckets. Resist the urge
-# to add micro-categories. If a roaster's article doesn't fit, the
-# right move is usually to broaden one of the existing buckets in
-# the prompt cascade rather than spawn a new enum value.
-#
-# v3.1 (2026-05-10): the catch-all `other` bucket was subdivided into
-# `culture`, `health`, `miscellaneous`. The three reflect the actual
-# editorial shape of what was landing in `other`:
-#   * culture       — ritual, gift-giving, café-as-social-space, art,
-#                     books, music pairings, "what your order says
-#                     about you" lifestyle pieces
-#   * health        — caffeine effects, focus/productivity, fitness,
-#                     digestion, sleep, the science of brewing-and-body
-#   * miscellaneous — FAQs, commerce ("buy online"), used-grounds
-#                     hacks, drinker typologies; the genuine leftovers
-# Pre-v3.1 rows with `topic_category='other'` keep that value in the
-# DB; the frontend `resolveTopicLabel` maps legacy `other` to
-# "Miscellaneous" until they're re-enriched. New enrichments must
-# pick one of the three concrete buckets — `other` is no longer in
-# the prompt's cascade.
+# v4 (2026-05-14): collapsed the prior 10-bucket scheme into 7
+# consumer-mental-model buckets after a corpus audit (716 articles,
+# `tmp/heuristic_classifications.json`) showed the 10-bucket version
+# was over-classifying into `brew_guide` (58% of corpus) because:
+#   - `brew_guide` priority-1 absorbed recipes-using-coffee,
+#     buyer's guides, X-vs-Y terminology comparisons, and roast
+#     primers that all belonged elsewhere.
+#   - `health` + `culture` were positions 8-9 in the cascade and
+#     starved (1% combined despite the corpus carrying ~17%).
+#   - `harvest_report` had 1 article — collapsed into origins.
+#   - `company_update` + `industry_news` blurred — collapsed into
+#     `news`.
+#   - `other` + `miscellaneous` were duplicates — collapsed into
+#     `misc`.
+# Plus carved `roast` out of `brew_guide` (~52 articles in the
+# corpus share one consumer question — "how does roast level
+# affect what I drink?" — that the prior taxonomy had no home for).
+# Legacy 10-bucket values (`sourcing_story`, `origin_profile`,
+# `harvest_report`, `culture`, `health`, `industry_news`,
+# `company_update`, `tasting_notes`, `brew_guide`, `miscellaneous`,
+# `other`) are migrated in-place at boot via
+# `services.catalog_ops.migrate_topic_categories_v4`. Frontend
+# `resolveTopicLabel` does not need legacy fallback — the migration
+# guarantees no row carries an old value post-migration.
 TOPIC_CATEGORIES = (
-    "sourcing_story", "brew_guide", "origin_profile", "industry_news",
-    "harvest_report", "tasting_notes", "company_update",
-    "culture", "health", "miscellaneous",
-    # Retained for back-compat with pre-v3.1 rows. Don't pick this in
-    # new enrichments — the cascade resolves to one of the three
-    # successor buckets.
-    "other",
+    "brew", "roast", "origins", "taste", "lifestyle", "news", "misc",
 )
 
 
@@ -232,46 +230,65 @@ _ARTICLE_TOOL = {
             "topic_category": {
                 "type": "string",
                 "enum": [
-                    "sourcing_story", "brew_guide", "origin_profile",
-                    "industry_news", "harvest_report", "tasting_notes",
-                    "company_update", "culture", "health",
-                    "miscellaneous",
+                    "brew", "roast", "origins", "taste",
+                    "lifestyle", "news", "misc",
                 ],
                 "description": (
-                    "One of the ten fixed categories. Pick the "
-                    "best-fit single label.\n"
-                    "  • 'sourcing_story' — trips to origins, farmer "
-                    "profiles, supply-chain stories.\n"
-                    "  • 'brew_guide' — how-to-brew, equipment guides, "
-                    "extraction tutorials, recipes (cold drinks, "
-                    "espresso variations).\n"
-                    "  • 'origin_profile' — country / region / varietal "
-                    "deep-dives, terroir essays.\n"
-                    "  • 'industry_news' — market shifts, "
+                    "One of the seven fixed buckets. Pick the "
+                    "best-fit single label by SUBJECT (what the "
+                    "article is fundamentally about), not by "
+                    "style or shape.\n"
+                    "  • 'brew' — how to prepare a coffee drink. "
+                    "Brewing methods, recipes whose FINAL PRODUCT "
+                    "is coffee or an espresso drink, equipment "
+                    "guides (grinders, kettles, scales), extraction "
+                    "tutorials, cold brew at home, espresso "
+                    "variations, water/filter/grind technique.\n"
+                    "  • 'roast' — how coffee is roasted and how "
+                    "roast affects what's in the cup. Roast levels "
+                    "(light / medium / dark), roast profiles, "
+                    "resting/freshness, the roasting process, "
+                    "roast-flavor relationships.\n"
+                    "  • 'origins' — where the coffee comes from "
+                    "and who grew it. Country / region / varietal / "
+                    "estate / terroir / altitude / processing "
+                    "methods (washed / natural / anaerobic / honey) "
+                    "as the SUBJECT, plus farmer profiles, sourcing "
+                    "trips, supply-chain stories, harvest reports, "
+                    "and 'where coffee is grown' explainers.\n"
+                    "  • 'taste' — flavor evaluation and the "
+                    "vocabulary of cupping. Tasting notes, flavor "
+                    "wheel, acidity / body / sweetness deep-dives, "
+                    "Q-grading, cupping protocol, X-vs-Y "
+                    "terminology comparisons whose SUBJECT is how "
+                    "they taste different (espresso vs cappuccino, "
+                    "flat white vs latte).\n"
+                    "  • 'lifestyle' — coffee as it fits into a "
+                    "human's life or body. Caffeine effects, "
+                    "fitness / sleep / focus / productivity / mood "
+                    "(the body axis); ritual, gift-giving, café-"
+                    "as-social-space, books / music / art "
+                    "pairings, food pairings, recipes whose FINAL "
+                    "PRODUCT is a NON-coffee dish (brownies, "
+                    "desserts, snacks) that happens to use coffee, "
+                    "drinker typologies, seasonal traditions (the "
+                    "culture axis).\n"
+                    "  • 'news' — what's happening in the coffee "
+                    "world. Market trends, price shifts, "
                     "certifications, regulation, climate impact, "
-                    "trade developments.\n"
-                    "  • 'harvest_report' — year-specific crop / "
-                    "season summaries.\n"
-                    "  • 'tasting_notes' — cupping notes, flavor "
-                    "breakdowns, palette deep-dives.\n"
-                    "  • 'company_update' — THIS roaster's milestones, "
-                    "launches, store openings, team news.\n"
-                    "  • 'culture' — coffee-as-ritual, lifestyle, "
-                    "gift-giving, café-as-social-space, books / "
-                    "music / art pairings, drinker typologies as "
-                    "identity ('what your coffee order says about "
-                    "you'), seasonal traditions tied to coffee.\n"
-                    "  • 'health' — caffeine effects on the body, "
-                    "fitness / pre- or post-workout, focus and "
-                    "productivity, sleep / digestion / mood, science-"
-                    "of-coffee-on-humans.\n"
-                    "  • 'miscellaneous' — genuine leftovers that "
-                    "don't fit any other bucket: FAQs, generic "
-                    "'buy online' commerce posts, used-grounds "
-                    "reuse hacks, listicles that span multiple "
-                    "buckets without a primary subject. Last "
-                    "resort, NOT a default — try every other "
-                    "bucket first.\n"
+                    "trade developments, industry events, "
+                    "sustainability initiatives, AND THIS roaster's "
+                    "milestones (launches, store openings, "
+                    "awards, anniversaries, packaging changes, "
+                    "café openings, founder press, new product "
+                    "lines).\n"
+                    "  • 'misc' — genuine leftovers that don't fit "
+                    "any other bucket: FAQs, 'buy coffee online' "
+                    "commerce / SEO posts, used-grounds reuse "
+                    "hacks, primers / 'what is X?' explainers, "
+                    "listicles that span multiple buckets without "
+                    "a primary subject. LAST RESORT, NOT a "
+                    "default — try every other bucket first.\n"
                     "Required when is_about_coffee=true; may be "
                     "omitted otherwise."
                 ),
@@ -758,80 +775,101 @@ _ARTICLE_SYSTEM = (
     "     collapse: kodagu → coorg, chikkamagaluru → chikmagalur.\n"
     "  5. Take the FIRST 3-5 entries. Sort alphabetically.\n\n"
     "### topic_category (REQUIRED when is_about_coffee=true)\n"
-    "Decide via this priority cascade — pick the FIRST that matches:\n"
-    "  1. how-to-brew / equipment guide / recipe / cold-drink "
-    "     instructions → `brew_guide`\n"
-    "  2. country/region/estate/varietal as the SUBJECT → "
-    "     `origin_profile`\n"
-    "  3. cupping notes / tasting breakdown / palette deep-dive → "
-    "     `tasting_notes`\n"
-    "  4. year/season-specific harvest report → `harvest_report`\n"
-    "  5. sourcing trip / farmer profile / supply-chain story (the "
-    "     human side of where the coffee comes from) → "
-    "     `sourcing_story`\n"
-    "  6. THIS roaster's milestone — award, launch, anniversary, "
-    "     store opening → `company_update`\n"
-    "  7. coffee industry at large — market trends, regulation, "
-    "     climate impact, certifications → `industry_news`\n"
-    "  8. caffeine effects on the body, fitness / pre- or "
-    "     post-workout, focus and productivity, sleep / digestion / "
-    "     mood, science-of-coffee-on-humans → `health`\n"
-    "  9. coffee-as-ritual, lifestyle, gift-giving, café-as-"
-    "     social-space, books / music / art pairings, drinker "
-    "     typologies as identity ('what your coffee order says "
-    "     about you'), seasonal traditions tied to coffee → "
-    "     `culture`\n"
-    " 10. otherwise — FAQs, 'buy online' commerce posts, "
-    "     used-grounds hacks, multi-topic listicles without a "
-    "     primary subject → `miscellaneous`\n"
-    "Apply strictly. If both `sourcing_story` and `company_update` "
-    "could fit (e.g. a roaster reflecting on their decade of farm "
-    "visits), `sourcing_story` wins because it comes first.\n"
-    "If both `health` and `culture` could fit (e.g. \"why coffee "
-    "with friends keeps you alert\"), pick the SUBJECT — if the "
-    "article spends most of its words on the social ritual, "
-    "`culture`; if it spends them on caffeine biology, `health`.\n"
-    "`miscellaneous` is a LAST RESORT, not a default — exhaust "
-    "the other 9 buckets before falling through.\n\n"
-    "#### Anchor examples (real titles, real classifications)\n"
-    "Use these as pattern-match seeds when the cascade is "
-    "ambiguous. They're drawn from the live catalog:\n"
-    "  • `culture` →\n"
-    "      - 'The Quiet Ritual of Morning Coffee'\n"
-    "      - 'Coffee Rituals From Around The World'\n"
-    "      - 'What your coffee order says about you'\n"
-    "      - 'Family Bonding Over Coffee: Small Ritual, Big "
-    "        Impact'\n"
-    "      - 'Books and Coffee - The Perfect Companions!'\n"
-    "      - 'Coffee Gifts for Diwali: The Perfect Blend of "
-    "        Warmth and Celebration'\n"
-    "      - 'A guide on pairing music with coffee and "
-    "        chocolate'\n"
-    "      - 'How Coffee Stimulates Art?'\n"
-    "  • `health` →\n"
-    "      - 'It Starts Before the First Sip: What Coffee and "
-    "        Caffeine Actually Do to Your Body'\n"
-    "      - 'Can Coffee Improve Your Daily Productivity and "
-    "        Focus?'\n"
-    "      - 'Reasons Why You Should Drink Coffee In The "
-    "        Morning' (the body talks about energy/alertness, "
-    "        not ritual)\n"
-    "      - '7 Health Benefits of Drinking Coffee Made from "
-    "        Fresh Beans'\n"
-    "      - 'Love Coffee? Here's Why It Probably Loves You "
-    "        Back!' (article body covers caffeine biology)\n"
-    "      - 'Exploring 5 Surprising Cold Coffee Benefits'\n"
-    "  • `miscellaneous` →\n"
-    "      - 'Top 20 Most Asked Questions About Coffee' (FAQ, "
-    "        spans every other bucket without a primary "
-    "        subject)\n"
-    "      - 'Where Can I Buy the Best Coffee Beans Online in "
-    "        India?' (commerce / SEO post)\n"
-    "      - '7 Ways To Reuse Used Coffee Grounds' (utility "
-    "        listicle, not about coffee-the-drink)\n"
-    "      - 'Different Types Of Coffee Drinker' (taxonomy / "
-    "        identity quiz; can also fit `culture` if the body "
-    "        is about ritual — pick by SUBJECT)\n\n"
+    "Decide via this priority cascade — pick the FIRST that matches "
+    "by SUBJECT (what the piece is fundamentally about), not by "
+    "style. The cascade is ordered so the bucket whose subject is "
+    "the SHARPEST signal wins.\n"
+    "  1. SUBJECT is how coffee is roasted, or how roast level / "
+    "     roast profile / freshness-of-roast / roast-rest affects "
+    "     the cup → `roast`. ('Light vs Medium vs Dark', 'Why "
+    "     Freshly Roasted Coffee Matters', 'Coffee Roasting "
+    "     Process - Steps and Methods', 'Resting Roasted Coffee: "
+    "     Optimal Rest Duration', 'The Art of the Light Roast', "
+    "     'Roast profiles in specialty coffee'.)\n"
+    "  2. SUBJECT is preparing a coffee drink — how-to-brew, "
+    "     equipment, recipes whose FINAL PRODUCT IS COFFEE or an "
+    "     espresso drink, grind technique, extraction → `brew`. "
+    "     ('V60 Brew Guide', 'Cold Brew Concentrate at Home', "
+    "     'How to Make Espresso', 'Best Manual Coffee Grinders', "
+    "     'AeroPress Inverted'.) NOTE — recipes whose FINAL "
+    "     PRODUCT is a NON-coffee dish using coffee (brownies, "
+    "     ice cream, peda, snacks) go to `lifestyle`, not "
+    "     `brew`. Buyer's-criteria / 'things to consider when "
+    "     buying coffee' guides go to `misc`, not `brew`.\n"
+    "  3. SUBJECT is where the coffee comes from or who grew it — "
+    "     country / region / varietal / estate / terroir / "
+    "     altitude / processing-method-as-subject, plus farmer "
+    "     profiles, sourcing trips, supply-chain stories, year-"
+    "     specific harvest reports, 'where coffee is grown' "
+    "     explainers → `origins`. ('Why Chikmagalur Is Famous "
+    "     for Coffee', 'What Is Anaerobic Coffee?', 'Producer "
+    "     Series Lot 10', 'A Coffee Story from the Central "
+    "     Himalayas', 'Rethink Robusta: The Global Landscape', "
+    "     'Harvest 2025 Report'.)\n"
+    "  4. SUBJECT is flavor evaluation or tasting vocabulary — "
+    "     cupping notes, flavor wheel, acidity / body / "
+    "     sweetness deep-dives, Q-grading, sensory training, "
+    "     X-vs-Y terminology comparisons whose payoff is HOW THEY "
+    "     TASTE DIFFERENT → `taste`. ('Decoding Coffee Tasting "
+    "     Notes', 'Understanding Coffee Acidity', 'Espresso vs "
+    "     Cappuccino', 'The Coffee Flavour Wheel', 'How to "
+    "     Identify Flavor Notes'.)\n"
+    "  5. SUBJECT is the relationship between coffee and a "
+    "     human's body OR life → `lifestyle`. The BODY axis: "
+    "     caffeine effects, fitness / pre- or post-workout, "
+    "     focus / productivity, sleep / digestion / mood, "
+    "     science-of-coffee-on-humans. The CULTURE axis: ritual, "
+    "     gift-giving, café-as-social-space, books / music / "
+    "     art pairings, food pairings, recipes whose FINAL "
+    "     PRODUCT is a non-coffee dish that uses coffee, drinker "
+    "     typologies as identity, seasonal traditions tied to "
+    "     coffee. ('Love Coffee? Here's Why It Probably Loves "
+    "     You Back!', 'Coffee Gifts for Diwali', 'Books and "
+    "     Coffee', 'Health Benefits of Drinking Coffee', 'Family "
+    "     Bonding Over Coffee', 'Raw Cocoa & Espresso "
+    "     Brownies'.)\n"
+    "  6. SUBJECT is news about the coffee world or a specific "
+    "     roaster's milestone → `news`. INDUSTRY: market shifts, "
+    "     price trends, regulation, certifications, climate "
+    "     impact, trade developments, sustainability "
+    "     initiatives, industry-event recaps. COMPANY: launches, "
+    "     store / café openings, awards, anniversaries, packaging "
+    "     changes, new product lines, founder press, instant-"
+    "     coffee positioning. ('2025 Specialty Coffee Surpasses "
+    "     Gold', 'Tulum Coffee Turns 2', 'Mumbai Coffee Festival "
+    "     2025', 'Kruti Coffee Co-founder Awarded', 'Why Our "
+    "     Coffee Prices Are Going Up', 'All About Our "
+    "     Packaging'.)\n"
+    "  7. NONE of the above SUBJECTS — `misc`. Genuine "
+    "     leftovers: FAQs, 'buy coffee online' / SEO commerce "
+    "     posts, used-grounds reuse hacks, primers / 'what is "
+    "     X?' explainers that span multiple subjects without a "
+    "     primary one, multi-topic listicles ('A Beginner's "
+    "     Guide to Understanding Specialty Coffee', 'Top 20 "
+    "     Most Asked Questions About Coffee', 'Where to Buy "
+    "     Coffee Online', '7 Benefits of Buying Coffee Beans "
+    "     Online'). LAST RESORT — exhaust the other 6 buckets "
+    "     first.\n\n"
+    "#### Tie-breakers\n"
+    "  • Both `roast` and `brew` could fit (e.g. 'How to Brew "
+    "    Dark Roast Coffee') → `roast` wins because it's the "
+    "    sharper SUBJECT signal; brewing is the secondary topic.\n"
+    "  • Both `origins` and `news` could fit (e.g. 'Why "
+    "    Specialty Coffee from India Costs More') → pick by "
+    "    what the article spends most of its words on. If the "
+    "    body is about the bean / the region / the processing, "
+    "    `origins`. If the body is about the market dynamic, "
+    "    `news`.\n"
+    "  • Both `taste` and `roast` could fit (e.g. 'How Roast "
+    "    Levels Affect Coffee Flavor') → `roast` wins; the "
+    "    flavor outcome is downstream of the roast subject.\n"
+    "  • Both `lifestyle` and `news` could fit (e.g. 'How Cothas "
+    "    Preserved Heritage in a Fast Coffee World') → pick by "
+    "    SUBJECT. If the article frames the roaster's milestone, "
+    "    `news`. If it frames coffee-as-cultural-ritual, "
+    "    `lifestyle`.\n"
+    "  • `misc` is a LAST RESORT, not a default — exhaust the "
+    "    other 6 buckets before falling through.\n\n"
     "### Hero (`image_url`) — NEVER emit a logo\n"
     "Order of preference:\n"
     "  (a) Reject any candidate whose URL filename contains "
