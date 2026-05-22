@@ -241,7 +241,20 @@ def _call_via_queue(
     finally:
         db.close()
 
-    deadline = time.time() + timeout_seconds
+    # Drainer-fallback budget. After N seconds with the row still in
+    # `pending` (i.e. NO drainer has claimed it yet — `in_progress`
+    # means a drainer is working, just slow), the server takes over
+    # and fulfils the call via the SDK directly. Costs credits, but
+    # eliminates the deadlock where the agent forgot to spawn a
+    # drainer and the queue silently hangs for `timeout_seconds`.
+    #
+    # `in_progress` is NOT a fallback trigger — a slow but-claimed
+    # drainer should be allowed to finish.
+    fallback_after = float(
+        os.environ.get("CREMA_DRAINER_FALLBACK_AFTER_SECONDS", "60") or "60"
+    )
+    started_at = time.time()
+    deadline = started_at + timeout_seconds
     while time.time() < deadline:
         time.sleep(poll_interval_seconds)
         db = sqlite3.connect(DB_PATH, timeout=10)
@@ -260,6 +273,73 @@ def _call_via_queue(
                 f"llm_job {job_id} disappeared from queue"
             )
         status = row["status"]
+
+        # Drainer-fallback check: if still pending after fallback_after
+        # seconds, race-atomically claim the row as the server itself
+        # and fulfil via SDK. If a drainer claimed it between our SELECT
+        # and our UPDATE (rowcount=0), back off and keep polling.
+        if (
+            status == "pending"
+            and fallback_after > 0
+            and (time.time() - started_at) >= fallback_after
+        ):
+            db = sqlite3.connect(DB_PATH, timeout=10)
+            db.row_factory = sqlite3.Row
+            try:
+                cur = db.execute(
+                    "UPDATE llm_jobs "
+                    "SET status='in_progress', "
+                    "    agent_identity='server-fallback-sdk', "
+                    "    claimed_at=? "
+                    "WHERE id=? AND status='pending'",
+                    (_now_utc_iso(), job_id),
+                )
+                db.commit()
+                claimed = cur.rowcount
+            finally:
+                db.close()
+            if claimed:
+                # We own the row now. Call SDK directly, write result.
+                try:
+                    sdk_result = _call_via_sdk(
+                        system=system, tool=tool,
+                        user_content=user_content,
+                        max_tokens=max_tokens, model=model,
+                        max_retries=3,
+                    )
+                except Exception as exc:
+                    db = sqlite3.connect(DB_PATH, timeout=10)
+                    try:
+                        db.execute(
+                            "UPDATE llm_jobs "
+                            "SET status='failed', "
+                            "    error=?, completed_at=? "
+                            "WHERE id=?",
+                            (f"server-fallback-sdk: {type(exc).__name__}: {exc}",
+                             _now_utc_iso(), job_id),
+                        )
+                        db.commit()
+                    finally:
+                        db.close()
+                    raise LLMCallError(
+                        f"llm_job {job_id} server-fallback SDK call failed: {exc}"
+                    )
+                db = sqlite3.connect(DB_PATH, timeout=10)
+                try:
+                    db.execute(
+                        "UPDATE llm_jobs "
+                        "SET status='complete', "
+                        "    response_payload=?, completed_at=? "
+                        "WHERE id=?",
+                        (json.dumps(sdk_result) if sdk_result is not None else None,
+                         _now_utc_iso(), job_id),
+                    )
+                    db.commit()
+                finally:
+                    db.close()
+                return sdk_result
+            # else: drainer beat us, keep polling normally
+
         if status == "complete":
             payload = row["response_payload"]
             if not payload:

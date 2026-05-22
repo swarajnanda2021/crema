@@ -2014,6 +2014,13 @@ def admin_sync_all_status(user=Depends(get_current_user)):
                 entry["articles_added"] = len(diff["articles"]["added"])
                 entry["articles_updated"] = len(diff["articles"]["updated"])
                 entry["articles_removed"] = len(diff["articles"]["removed"])
+                # Surface scrape_status from the snapshot so the diff_sweep
+                # caller can flag crawl failures (ok | empty_retry_confirmed |
+                # failed_network | failed_http_* | failed_parse). Previously
+                # hidden — making them visible closes the "silent failures"
+                # gap (no_change_count was inflated by undetected crawl
+                # failures, e.g. 'unknown slug' / Cloudflare blocks).
+                entry["scrape_status"] = payload.get("scrape_status") or {}
             out.append(entry)
         return ok({"roasters": out}, resource="sync_status")
     finally:
@@ -4356,6 +4363,59 @@ def _completeness_violations(state: dict) -> list[str]:
     return reasons
 
 
+# Enrichment fields that should be COALESCE-merged when applying a
+# proposal whose enrichment_status='failed' — never wipe existing
+# populated values with null just because today's enrichment couldn't
+# extract them. Used by _apply_with_safe_merge below.
+_PRESERVE_ON_FAILED_ENRICH = (
+    "origin", "varietal", "process", "process_raw",
+    "altitude_masl", "tasting_notes", "flavor_notes",
+    "producer", "roaster_blurb", "roast_level_name",
+    "origin_region", "varietal_canonical", "bean_type",
+    "brew_recommendation_json",
+)
+
+
+def _apply_with_safe_merge(db, proposal_row) -> dict:
+    """Apply a proposal with the 'thin source' safety semantics:
+
+      • If proposal's enrichment_status='failed' (Haiku run errored or
+        the source genuinely lacked specs), merge with the existing live
+        row's enrichment fields so populated values aren't overwritten
+        with null. Then mark the row's enrichment_status='source_thin'
+        as the durable signal to the UI ("details unavailable") and
+        to future passes ("don't keep retrying — source is the
+        bottleneck"). For inserts (no live row), applies as-is with
+        source_thin status.
+
+      • If proposal's enrichment_status='enriched', applies via the
+        normal scrape_runner.apply_proposal path — new data IS the
+        latest correct extraction and overwrite is the right semantics.
+
+    Returns the merged state dict that was applied.
+    """
+    state = json.loads(proposal_row["proposed_state_json"] or "{}")
+    pid = proposal_row["product_id"]
+    es = state.get("enrichment_status")
+
+    if es == "failed":
+        live_row = db.execute(
+            "SELECT * FROM products WHERE product_id = ?", (pid,),
+        ).fetchone()
+        if live_row:
+            live = dict(live_row)
+            for k in _PRESERVE_ON_FAILED_ENRICH:
+                v = state.get(k)
+                if v in (None, "", []) and live.get(k) not in (None, "", []):
+                    state[k] = live[k]
+        state["enrichment_status"] = "source_thin"
+
+    modified = dict(proposal_row)
+    modified["proposed_state_json"] = json.dumps(state)
+    scrape_runner.apply_proposal(db, modified)
+    return state
+
+
 @router.post("/admin/scrape/proposals/auto-approve")
 def admin_auto_approve_proposals(body: Optional[dict] = None,
                                    user=Depends(get_current_user)):
@@ -4435,7 +4495,8 @@ def admin_auto_approve_proposals(body: Optional[dict] = None,
 
         approve_ids: list[int] = []
         reject_ids: list[int] = []
-        held: list[dict] = []
+        thin_rows: list[dict] = []  # 'failed' enrich → safe-merge + source_thin
+        held: list[dict] = []        # strict_checks violations only
         skipped = 0
 
         for r in rows:
@@ -4447,16 +4508,20 @@ def admin_auto_approve_proposals(body: Optional[dict] = None,
             # Non-coffee products are already auto-rejected at scrape time
             # (they land directly in status='rejected', not pending), so
             # pending proposals are implicitly "coffee beans". Use
-            # `enrichment_status` as the gate instead — that's what's
-            # actually stored on proposed_state_json.
+            # `enrichment_status` as the gate.
             es = state.get("enrichment_status")
             if es == "failed":
-                # Haiku enrichment failed — fields are null. Hold for
-                # re-enrich; don't apply null overwrites to live rows.
-                held.append({
+                # 2026-05-22 policy shift: don't hold for "failed"
+                # enrichment. Lack of information is NOT grounds for
+                # keeping a product out of the catalog (Panduranga-style
+                # traditional filter coffees genuinely don't expose
+                # farm-level specs; that doesn't make the product
+                # illegitimate). Apply with safe merge — preserve any
+                # existing populated enrichment fields, mark the row as
+                # enrichment_status='source_thin' so the UI knows.
+                thin_rows.append({
                     "id": r["id"],
                     "coffee_name": state.get("coffee_name"),
-                    "reasons": ["enrichment_status='failed' (Haiku run errored — re-enrich first)"],
                 })
                 continue
             if es != "enriched":
@@ -4478,30 +4543,256 @@ def admin_auto_approve_proposals(body: Optional[dict] = None,
         if dry_run:
             return ok({
                 "approved": len(approve_ids),
+                "applied_thin": len(thin_rows),
                 "rejected": len(reject_ids),
                 "held_for_review": len(held),
                 "skipped": skipped,
                 "dry_run": True,
                 "strict_checks": strict_checks,
                 "approved_ids": approve_ids,
+                "thin_ids": [t["id"] for t in thin_rows],
                 "rejected_ids": reject_ids,
                 "held": held,
+                "thin": thin_rows,
             }, resource="scrape_proposals")
 
         approved_summary = (catalog_ops.approve_proposals(db, approve_ids)
                               if approve_ids else {"applied": 0})
         rejected_summary = (catalog_ops.reject_proposals(db, reject_ids)
                               if reject_ids else {"rejected": 0})
+
+        # Apply thin (failed-enrichment) proposals with safe merge — never
+        # overwrites populated fields with null; marks the row as
+        # enrichment_status='source_thin'. Mark each proposal as applied.
+        thin_applied = 0
+        thin_skipped = 0
+        from datetime import datetime as _dt
+        now_iso = _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        for t in thin_rows:
+            row = db.execute(
+                "SELECT * FROM scrape_proposals WHERE id = ?", (t["id"],),
+            ).fetchone()
+            if not row or row["status"] != "pending":
+                thin_skipped += 1
+                continue
+            try:
+                _apply_with_safe_merge(db, dict(row))
+            except Exception:
+                thin_skipped += 1
+                continue
+            db.execute(
+                "UPDATE scrape_proposals SET status='applied', applied_at=? "
+                "WHERE id=?",
+                (now_iso, t["id"]),
+            )
+            thin_applied += 1
+        db.commit()
+
         return ok({
             "approved": len(approve_ids),
+            "applied_thin": thin_applied,
             "rejected": len(reject_ids),
             "held_for_review": len(held),
             "skipped": skipped,
+            "thin_skipped": thin_skipped,
             "dry_run": False,
             "strict_checks": strict_checks,
             "approved_summary": approved_summary,
             "rejected_summary": rejected_summary,
             "held": held,
+            "thin": thin_rows,
+        }, resource="scrape_proposals")
+    finally:
+        db.close()
+
+
+@router.post("/admin/scrape/proposals/resolve-held")
+def admin_resolve_held_proposals(body: Optional[dict] = None,
+                                   user=Depends(get_current_user)):
+    """Resolve currently-held proposals (status='pending' that were held
+    by the pre-2026-05-22 auto_approve policy or by strict_checks
+    violations the operator wants cleared).
+
+    Per held proposal:
+      1. Re-run enrichment ONCE via product_enricher (one shot through
+         the Tier 1-4 ladder — last chance to recover real data from a
+         page that may have been transiently unreachable).
+      2. If retry now produces enrichment_status='enriched', apply
+         normally (overwrite path — the new data IS the latest correct
+         extraction).
+      3. If retry still fails, apply with safe merge (preserve any
+         existing live-row enrichment fields, mark the resulting row
+         as enrichment_status='source_thin').
+      4. NEVER reject for lack of information. The policy: if a product
+         is structurally legitimate (coffee bean, has URL, has name), it
+         belongs in the catalog. Missing specs are a UI concern,
+         signalled via enrichment_status='source_thin'.
+
+    Body (all optional):
+      • slug: scope to one roaster
+      • limit: cap on proposals to process (default 50, max 200)
+      • dry_run: count only, no DB mutation
+
+    Returns: {
+      processed, succeeded_on_retry, applied_thin, errored,
+      detail: [{id, product_id, coffee_name, outcome, reason?}]
+    }
+    """
+    _require_admin(user)
+    body = body or {}
+    scope_slug = (body.get("slug") or "").strip() or None
+    dry_run = bool(body.get("dry_run"))
+    limit = max(1, min(int(body.get("limit") or 50), 200))
+
+    db = get_db()
+    try:
+        import json as _json
+        # Find held proposals = status='pending' with proposed_state's
+        # enrichment_status='failed'. Note: 'pending' proposals with
+        # enrichment_status='enriched' that landed AFTER the auto_approve
+        # run may also exist; resolve_held leaves them alone (the next
+        # auto_approve will pick them up cleanly).
+        where = ["status = 'pending'"]
+        params: list = []
+        if scope_slug:
+            where.append("product_id LIKE ?")
+            params.append(f"{scope_slug}_%")
+        where_sql = " AND ".join(where)
+        rows = db.execute(
+            f"SELECT id, product_id, proposed_state_json "
+            f"FROM scrape_proposals WHERE {where_sql} "
+            f"ORDER BY id ASC LIMIT ?",
+            tuple(params) + (limit * 4,),  # over-fetch; filter for 'failed' below
+        ).fetchall()
+
+        held_targets = []
+        for r in rows:
+            try:
+                state = _json.loads(r["proposed_state_json"] or "{}")
+            except Exception:
+                continue
+            if state.get("enrichment_status") == "failed":
+                held_targets.append(dict(r))
+                if len(held_targets) >= limit:
+                    break
+
+        if dry_run:
+            return ok({
+                "processed": 0,
+                "would_process": len(held_targets),
+                "dry_run": True,
+                "targets": [
+                    {"id": t["id"], "product_id": t["product_id"]}
+                    for t in held_targets
+                ],
+            }, resource="scrape_proposals")
+
+        succeeded_on_retry = 0
+        applied_thin = 0
+        errored = 0
+        detail: list[dict] = []
+        from datetime import datetime as _dt
+        from services.llm_router import set_pipeline_context as _set_ctx
+
+        for r in held_targets:
+            try:
+                state = _json.loads(r["proposed_state_json"] or "{}")
+            except Exception:
+                errored += 1
+                detail.append({
+                    "id": r["id"],
+                    "product_id": r["product_id"],
+                    "outcome": "errored",
+                    "reason": "proposed_state_json could not be parsed",
+                })
+                continue
+            # Stamp pipeline context so the queued llm_job has the right
+            # roaster_slug (avoids the 'unknown' bug we just fixed).
+            _set_ctx(roaster_slug=state.get("roaster_slug"))
+            try:
+                from services import product_enricher
+                # Build the input dict the way product_enricher expects.
+                # The proposal's state already has product_url, scraped
+                # fields, etc. — pass it directly.
+                enriched = product_enricher.enrich_product(state)
+            except Exception as e:
+                enriched = None
+                detail.append({
+                    "id": r["id"],
+                    "product_id": r["product_id"],
+                    "outcome": "retry_errored_apply_thin",
+                    "reason": f"{type(e).__name__}: {e}",
+                })
+
+            now_iso = _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            if enriched and enriched.get("enrichment_status") == "enriched":
+                # Retry success — apply with the freshly-enriched state.
+                modified = dict(r)
+                # Merge enriched into state so we don't drop scraped
+                # fields (image_url, price, etc.) that product_enricher
+                # may not have touched. Enriched values win.
+                merged_state = dict(state)
+                merged_state.update({k: v for k, v in enriched.items()
+                                       if v is not None})
+                modified["proposed_state_json"] = _json.dumps(merged_state)
+                try:
+                    scrape_runner.apply_proposal(db, modified)
+                    db.execute(
+                        "UPDATE scrape_proposals SET status='applied', "
+                        "applied_at=? WHERE id=?",
+                        (now_iso, r["id"]),
+                    )
+                    succeeded_on_retry += 1
+                    detail.append({
+                        "id": r["id"],
+                        "product_id": r["product_id"],
+                        "coffee_name": merged_state.get("coffee_name"),
+                        "outcome": "succeeded_on_retry",
+                    })
+                except Exception as e:
+                    errored += 1
+                    detail.append({
+                        "id": r["id"],
+                        "product_id": r["product_id"],
+                        "outcome": "errored",
+                        "reason": f"apply failed: {type(e).__name__}: {e}",
+                    })
+            else:
+                # Retry still failed (or product_enricher threw) — apply
+                # with safe merge + source_thin status.
+                try:
+                    _apply_with_safe_merge(db, r)
+                    db.execute(
+                        "UPDATE scrape_proposals SET status='applied', "
+                        "applied_at=? WHERE id=?",
+                        (now_iso, r["id"]),
+                    )
+                    applied_thin += 1
+                    detail.append({
+                        "id": r["id"],
+                        "product_id": r["product_id"],
+                        "coffee_name": state.get("coffee_name"),
+                        "outcome": "applied_thin",
+                        "reason": "ladder exhausted; preserved live row's enrichment fields, marked source_thin",
+                    })
+                except Exception as e:
+                    errored += 1
+                    detail.append({
+                        "id": r["id"],
+                        "product_id": r["product_id"],
+                        "outcome": "errored",
+                        "reason": f"safe-merge apply failed: {type(e).__name__}: {e}",
+                    })
+            db.commit()
+
+        return ok({
+            "processed": len(held_targets),
+            "succeeded_on_retry": succeeded_on_retry,
+            "applied_thin": applied_thin,
+            "errored": errored,
+            "dry_run": False,
+            "detail": detail,
         }, resource="scrape_proposals")
     finally:
         db.close()
@@ -6128,6 +6419,11 @@ def admin_log_agent_action(body: dict, user=Depends(get_current_user)):
         had real product/article deltas worth processing.").
       • metadata: optional dict — slugs touched, counts, anything
         structured.
+      • severity: optional — 'info' (default), 'warn', or 'error'.
+        Used by server-side bulk operations to highlight crawl failures,
+        drainer-fallback events, etc. Agent UIs render warn/error
+        entries prominently so the agent can scan its journal for
+        issues without parsing every reasoning prose.
     """
     _require_admin(user)
     body = body or {}
@@ -6139,14 +6435,21 @@ def admin_log_agent_action(body: dict, user=Depends(get_current_user)):
         raise HTTPException(
             422, "session_id, agent_identity, action, reasoning are required"
         )
+    severity = (body.get("severity") or "info").strip().lower()
+    if severity not in ("info", "warn", "error"):
+        raise HTTPException(
+            422, f"severity must be one of info|warn|error (got {severity!r})"
+        )
     metadata = body.get("metadata")
     metadata_json = json.dumps(metadata) if metadata is not None else None
     db = get_db()
     try:
         cur = db.execute(
             "INSERT INTO agent_actions (session_id, agent_identity, "
-            "action, reasoning, metadata_json) VALUES (?, ?, ?, ?, ?)",
-            (session_id, agent_identity, action, reasoning, metadata_json),
+            "action, reasoning, metadata_json, severity) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (session_id, agent_identity, action, reasoning, metadata_json,
+             severity),
         )
         db.commit()
         return ok({"id": cur.lastrowid}, resource="agent_actions")
@@ -6179,7 +6482,7 @@ def admin_list_agent_actions(session_id: Optional[str] = None,
     try:
         rows = db.execute(
             f"SELECT id, session_id, agent_identity, ts, action, "
-            f"reasoning, metadata_json "
+            f"reasoning, metadata_json, severity "
             f"FROM agent_actions{where_sql} "
             f"ORDER BY {order} LIMIT ?",
             tuple(params),

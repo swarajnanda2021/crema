@@ -505,6 +505,13 @@ export const logAgentActionSchema = z.object({
   agent_identity: z.string().optional().describe(
     "Optional override of the MCP server's CREMA_AGENT_IDENTITY.",
   ),
+  severity: z.enum(["info", "warn", "error"]).optional().describe(
+    "Importance level — 'info' (default) for normal progress, 'warn' " +
+    "for recoverable issues (crawl failures, drainer-fallback events, " +
+    "held proposals retried), 'error' for hard failures the operator " +
+    "should investigate. Used by UIs and crema_get_session_actions to " +
+    "highlight entries the agent should re-read.",
+  ),
 });
 export type LogAgentActionInput = z.infer<typeof logAgentActionSchema>;
 
@@ -520,6 +527,7 @@ export async function logAgentAction(input: LogAgentActionInput) {
       action: input.action,
       reasoning: input.reasoning,
       metadata: input.metadata,
+      severity: input.severity,
     },
   }));
 }
@@ -659,7 +667,51 @@ export async function autoApproveProposals(input: AutoApproveProposalsInput) {
           dry_run: input.dry_run,
         },
       })),
-    (r: any) => `approved ${r.approved}, rejected ${r.rejected}, skipped ${r.skipped}${r.dry_run ? " (dry-run)" : ""}`,
+    (r: any) =>
+      `approved ${r.approved}, applied_thin ${r.applied_thin ?? 0}, ` +
+      `rejected ${r.rejected}, held ${r.held_for_review ?? 0}, ` +
+      `skipped ${r.skipped}${r.dry_run ? " (dry-run)" : ""}`,
+  );
+}
+
+export const resolveHeldProposalsSchema = z.object({
+  slug: z.string().optional().describe(
+    "Scope to one roaster. Matches via product_id LIKE '<slug>_%'.",
+  ),
+  limit: z.number().int().min(1).max(200).default(50).describe(
+    "Cap on proposals to process per call. Default 50, max 200. " +
+    "Each held proposal triggers one re-enrich attempt through the " +
+    "Tier 1-4 ladder, so latency scales linearly with limit.",
+  ),
+  dry_run: z.boolean().default(false).describe(
+    "Return what WOULD be processed without mutating. Use to scope a " +
+    "session before committing.",
+  ),
+});
+export type ResolveHeldProposalsInput = z.infer<typeof resolveHeldProposalsSchema>;
+
+export async function resolveHeldProposals(input: ResolveHeldProposalsInput) {
+  return audited(
+    "crema_resolve_held_proposals",
+    input,
+    async () =>
+      unwrap(await call("/admin/scrape/proposals/resolve-held", {
+        method: "POST",
+        body: {
+          slug: input.slug,
+          limit: input.limit,
+          dry_run: input.dry_run,
+        },
+      })),
+    (r: any) => {
+      if (r.dry_run) return `would process ${r.would_process}`;
+      return (
+        `processed ${r.processed}: ` +
+        `${r.succeeded_on_retry} succeeded_on_retry, ` +
+        `${r.applied_thin} applied_thin, ` +
+        `${r.errored} errored`
+      );
+    },
   );
 }
 
@@ -1016,8 +1068,10 @@ export async function diffSweep(input: DiffSweepInput) {
       const all = unwrap<{ count: number; roasters: any[] }>(
         await call("/admin/sync/all-status"),
       );
-      const stale = (all.roasters || []).filter((r: any) => {
-        if (slugs && !slugs.includes(r.slug)) return false;
+      const inScope = (all.roasters || []).filter(
+        (r: any) => !slugs || slugs.includes(r.slug),
+      );
+      const stale = inScope.filter((r: any) => {
         const total =
           (r.products_added || 0) +
           (r.products_updated || 0) +
@@ -1028,10 +1082,63 @@ export async function diffSweep(input: DiffSweepInput) {
           (r.bio_changed ? 1 : 0);
         return total > 0;
       });
+
+      // Step 4 — detect crawl failures from each roaster's scrape_status.
+      // Anything other than 'ok' / 'empty_retry_confirmed' indicates the
+      // crawl couldn't be trusted (network error, HTTP 4xx/5xx, parse
+      // failure, etc.). Write one warn-level agent_actions entry per
+      // failed roaster so the agent's session journal flags them. This
+      // closes the "silent crawl failures" gap — previously these
+      // roasters just sat in the no-change bucket as if everything was
+      // fine.
+      const crawlErrors: Array<{ slug: string; product_status: string; bio_status: string }> = [];
+      for (const r of inScope) {
+        const ss = r.scrape_status || {};
+        const productStatus = ss.products || "ok";
+        const bioStatus = ss.bio || "ok";
+        const productFailed = productStatus.startsWith("failed_");
+        const bioFailed = bioStatus.startsWith("failed_");
+        if (productFailed || bioFailed) {
+          crawlErrors.push({
+            slug: r.slug,
+            product_status: productStatus,
+            bio_status: bioStatus,
+          });
+        }
+      }
+      if (crawlErrors.length > 0) {
+        const { identity: id } = await import("./client.js");
+        try {
+          await call("/admin/agent-actions", {
+            method: "POST",
+            body: {
+              session_id: id.session,
+              agent_identity: id.agent,
+              action: `crawl failures during diff_sweep (${crawlErrors.length} roasters)`,
+              reasoning:
+                "These roasters' scrape_status was non-ok. They are NOT " +
+                "in the stale list because no real diff could be computed " +
+                "from a failed crawl. Investigate: site is down, IP " +
+                "blocked, Cloudflare interstitial, schema changed. List: " +
+                crawlErrors
+                  .map((e) =>
+                    `${e.slug} (products=${e.product_status}, bio=${e.bio_status})`,
+                  )
+                  .join("; "),
+              metadata: { crawl_errors: crawlErrors },
+              severity: "warn",
+            },
+          });
+        } catch {
+          // Best-effort logging — never block the diff_sweep response.
+        }
+      }
+
       return {
         scope_count: slugs.length,
         stale_count: stale.length,
-        no_change_count: slugs.length - stale.length,
+        no_change_count: slugs.length - stale.length - crawlErrors.length,
+        crawl_error_count: crawlErrors.length,
         waited_seconds: input.wait_seconds,
         stale: stale.map((r: any) => ({
           slug: r.slug,
@@ -1046,9 +1153,14 @@ export async function diffSweep(input: DiffSweepInput) {
           articles_removed: r.articles_removed || 0,
           bio_changed: !!r.bio_changed,
         })),
+        crawl_errors: crawlErrors,
       };
     },
-    (r: any) => `${r.stale_count} stale of ${r.scope_count} swept`,
+    (r: any) =>
+      `${r.stale_count} stale of ${r.scope_count} swept` +
+      (r.crawl_error_count > 0
+        ? ` (⚠️ ${r.crawl_error_count} crawl failures logged)`
+        : ""),
   );
 }
 

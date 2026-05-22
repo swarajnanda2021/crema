@@ -60,6 +60,8 @@ import {
   listThinProductsSchema,
   // per-tier debug fetchers (Tier 1-4 ladder probes)
   fetchShopifyProductSchema, fetchPageTextSchema, renderPageSchema,
+  // held-proposal resolver (closes HITL gate)
+  resolveHeldProposalsSchema,
   // agent action log + memory
   logAgentActionSchema, getSessionActionsSchema,
   logAgentMemorySchema, getAgentMemorySchema,
@@ -80,6 +82,7 @@ import {
   getLLMJobDetail, requeueLLMJob, listScrapeRuns, testSourceURL,
   catalogStats, proposalBreakdown, freshnessReport, listThinProducts,
   fetchShopifyProduct, fetchPageText, renderPage,
+  resolveHeldProposals,
   logAgentAction, getSessionActions, logAgentMemory, getAgentMemory,
 } from "./tools.js";
 
@@ -766,6 +769,26 @@ const TOOLS: ToolDef<any>[] = [
     schema: renderPageSchema,
     handler: renderPage,
     readOnly: true,
+  },
+  // ── Held-proposal resolver (autonomy gate closer) ──────────────────────
+  {
+    name: "crema_resolve_held_proposals",
+    description:
+      "Resolve the backlog of held proposals (status='pending' with " +
+      "enrichment_status='failed'). For each: re-runs enrichment ONCE " +
+      "through the Tier 1-4 ladder. If the retry now succeeds, applies " +
+      "normally. If still failed, applies with safe merge (preserves " +
+      "existing live-row enrichment fields, marks the row as " +
+      "enrichment_status='source_thin' so the UI surfaces 'details " +
+      "unavailable'). NEVER rejects for lack of info — that's not a " +
+      "valid rejection reason. Pair with the post-2026-05-22 " +
+      "crema_auto_approve_proposals which no longer holds for failed " +
+      "enrichment (applies inline with the same safe-merge semantics). " +
+      "This tool is for the legacy backlog plus any stragglers from " +
+      "strict_checks runs.",
+    schema: resolveHeldProposalsSchema,
+    handler: resolveHeldProposals,
+    destructive: true,
   },
   // ── Agent action log + memory (working journal) ────────────────────────
   {

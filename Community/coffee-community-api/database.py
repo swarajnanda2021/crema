@@ -1394,6 +1394,7 @@ _MIGRATIONS = [
         action TEXT NOT NULL,
         reasoning TEXT NOT NULL,
         metadata_json TEXT,
+        severity TEXT NOT NULL DEFAULT 'info',
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
     )""",
     """CREATE INDEX IF NOT EXISTS idx_agent_actions_session ON agent_actions(session_id, ts)""",
@@ -1429,6 +1430,20 @@ _MIGRATIONS = [
     )""",
     """CREATE INDEX IF NOT EXISTS idx_agent_memory_scope ON agent_memory(scope, created_at DESC)""",
     """CREATE INDEX IF NOT EXISTS idx_agent_memory_last_ref ON agent_memory(last_referenced_at DESC)""",
+    # severity column for agent_actions (info | warn | error). Default 'info'
+    # keeps existing rows backwards-compatible. Server-side bulk operations
+    # (diff_sweep crawl failures, etc.) write warn/error entries so the agent
+    # can scan its journal for issues without parsing every action's
+    # reasoning prose. Surfaced via crema_get_session_actions.
+    "ALTER TABLE agent_actions ADD COLUMN severity TEXT NOT NULL DEFAULT 'info'",
+    "CREATE INDEX IF NOT EXISTS idx_agent_actions_severity ON agent_actions(severity, ts DESC)",
+    # source_thin enrichment_status — for products where the ladder
+    # exhausted all tiers and the source genuinely had no enrichment
+    # data. Signals to UI: render the product as-is, show 'details
+    # unavailable'. Distinct from 'failed' (transient errors worth
+    # retrying) and 'enriched' (proper data landed).
+    # No schema change required — enrichment_status is a free-text
+    # TEXT column. Migration list kept for documentation continuity.
 ]
 
 

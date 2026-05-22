@@ -66,6 +66,25 @@ Every read or write to catalog state goes through an MCP tool. When a needed rea
 
 The 4 aggregate-observability tools + the working-journal tools above (added 2026-05-21) were built precisely to close every SQLite-bypass that crept into earlier sessions.
 
+### Cloud portability — the hard constraint
+
+This rule is not stylistic. The whole point of building on standard MCP (JSON-RPC over stdio) is that any cloud-side agent — OpenAI's Assistants, Cursor, Gemini, a custom Python runner with MCP bindings — can drop in tomorrow and drive the catalog end-to-end without any Claude-Code-specific tools (`Bash`, `Edit`, `Read`, `Agent` subagent spawning, harness MCPs, etc.).
+
+The full happy-path catalog refresh is **provably MCP-only** after the 2026-05-22 fixes:
+
+| Phase | Tool | Notes |
+|---|---|---|
+| Discover stale | `crema_diff_sweep` | Logs `warn` agent_actions for crawl failures |
+| Re-enrich the stale set | `crema_enrich_all({filter: {has_diff: true}})` | Returns 202 + BG. Server-side llm_router has SDK fallback after 60s (`CREMA_DRAINER_FALLBACK_AFTER_SECONDS`), so the agent doesn't have to spawn a parallel drainer |
+| Optionally also drain in-session (faster, free) | `crema_haiku_next_job` / `crema_haiku_submit` loop | Pure MCP — the agent IS the drainer, no subagent spawn |
+| Apply approved | `crema_auto_approve_proposals` | Failed-enrich proposals now apply with safe merge + `enrichment_status='source_thin'`. No "held" pile-up |
+| Resolve legacy backlog | `crema_resolve_held_proposals` | One ladder retry per held proposal; applies with safe merge if still failed. Never rejects for lack of info |
+| Wrap up | `crema_log_agent_summary` + `crema_log_agent_memory` | Boss-man report + durable lessons |
+
+**Agents must not** invoke Bash/Edit/Read/file-system tools to do catalog work even if their host harness exposes them. Those tools don't exist for cloud agents. If the workflow needs something not yet in MCP, **the answer is to add a new MCP tool, not to bypass via the host's privileged surface**.
+
+Sole exception: editing this codebase to extend the MCP itself. That's a developer task, not catalog operations.
+
 ## Setup
 
 ```bash
