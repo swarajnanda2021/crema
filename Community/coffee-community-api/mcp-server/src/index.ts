@@ -58,6 +58,8 @@ import {
   // aggregate observability (MCP-purity gap closers)
   catalogStatsSchema, proposalBreakdownSchema, freshnessReportSchema,
   listThinProductsSchema,
+  // per-tier debug fetchers (Tier 1-4 ladder probes)
+  fetchShopifyProductSchema, fetchPageTextSchema, renderPageSchema,
   // agent action log + memory
   logAgentActionSchema, getSessionActionsSchema,
   logAgentMemorySchema, getAgentMemorySchema,
@@ -77,6 +79,7 @@ import {
   getProductDetail, deleteProduct, getRawSnapshot,
   getLLMJobDetail, requeueLLMJob, listScrapeRuns, testSourceURL,
   catalogStats, proposalBreakdown, freshnessReport, listThinProducts,
+  fetchShopifyProduct, fetchPageText, renderPage,
   logAgentAction, getSessionActions, logAgentMemory, getAgentMemory,
 } from "./tools.js";
 
@@ -720,6 +723,48 @@ const TOOLS: ToolDef<any>[] = [
       "what to re-enrich.",
     schema: freshnessReportSchema,
     handler: freshnessReport,
+    readOnly: true,
+  },
+  // ── Per-tier debug fetchers (probe one product, no re-enrich) ──────────
+  {
+    name: "crema_fetch_shopify_product",
+    description:
+      "Tier 1 probe — fetch one Shopify product's canonical " +
+      "/products/{handle}.json. Returns title, vendor, body_html, tags, " +
+      "variants, images, and the full raw product JSON. Resolves the " +
+      "storefront base from `slug` (via roaster_sources) or accepts " +
+      "explicit `website`. Use to verify body_html exists + has content " +
+      "before suspecting a deeper enrichment issue. Returns 404 if the " +
+      "handle doesn't exist on the store.",
+    schema: fetchShopifyProductSchema,
+    handler: fetchShopifyProduct,
+    readOnly: true,
+  },
+  {
+    name: "crema_fetch_page_text",
+    description:
+      "Tier 2-3 probe — fetch a product page, return combined JSON-LD " +
+      "structured data + cleaned visible body text (same string the " +
+      "ladder feeds to Haiku). Length is the key signal: 0 = page " +
+      "UNREACHABLE (timeout/4xx/parse error), low hundreds = sparse " +
+      "merchant copy, thousands+ = rich source the ladder can work with. " +
+      "Wix URLs auto-route through the hybrid Wix fetcher.",
+    schema: fetchPageTextSchema,
+    handler: fetchPageText,
+    readOnly: true,
+  },
+  {
+    name: "crema_render_page",
+    description:
+      "Tier 4 probe — Playwright headless render with 4s post-DOM " +
+      "settle. Bounded to 3 concurrent renders process-wide. Use SPARINGLY " +
+      "— this is the expensive escalation when Tiers 1-3 yielded thin " +
+      "content (custom JS-rendered descriptions, metafield-driven blocks). " +
+      "Returns the rendered HTML; 0 length means render failed (Playwright " +
+      "not installed, timeout, or page hard-refused). 503 if all 3 render " +
+      "slots are busy after 120s.",
+    schema: renderPageSchema,
+    handler: renderPage,
     readOnly: true,
   },
   // ── Agent action log + memory (working journal) ────────────────────────

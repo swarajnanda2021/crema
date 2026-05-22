@@ -310,6 +310,110 @@ export async function listThinProducts(input: ListThinProductsInput) {
   );
 }
 
+// ── Per-tier debug fetchers (Tier 1-4 ladder, individually probeable) ──
+//
+// The dynamic extraction ladder runs as one fused pipeline during
+// enrichment. These three tools expose each tier as a standalone
+// diagnostic surface — probe one product end-to-end without burning a
+// re-enrich cycle. Use when crema_list_thin_products surfaces a
+// silent-empty row and you need to know WHY: is the page reachable?
+// Does it have a body_html? Does Tier 4 render unlock anything Tier 3
+// missed?
+
+export const fetchShopifyProductSchema = z.object({
+  handle: z.string().describe(
+    "Shopify product handle (the slug after /products/ in the URL). " +
+    "E.g. for https://store.com/products/brown-gold the handle is 'brown-gold'.",
+  ),
+  slug: z.string().optional().describe(
+    "Roaster slug — looks up the storefront base from roaster_sources. " +
+    "Either slug OR website is required.",
+  ),
+  website: z.string().optional().describe(
+    "Explicit storefront base URL (e.g. https://store.com). " +
+    "Use when probing a roaster not yet in roaster_profiles. " +
+    "Either slug OR website is required.",
+  ),
+});
+export type FetchShopifyProductInput = z.infer<typeof fetchShopifyProductSchema>;
+
+export async function fetchShopifyProduct(input: FetchShopifyProductInput) {
+  return audited(
+    "crema_fetch_shopify_product",
+    input,
+    async () =>
+      unwrap(await call("/admin/scrape/shopify-product", {
+        query: {
+          handle: input.handle,
+          slug: input.slug,
+          website: input.website,
+        },
+      })),
+    (r: any) =>
+      `${r?.title ?? "?"} from ${r?.vendor ?? "?"}; ` +
+      `body_html=${(r?.body_html ?? "").length}ch, ` +
+      `${(r?.variants ?? []).length} variants, ` +
+      `${(r?.images ?? []).length} images`,
+  );
+}
+
+export const fetchPageTextSchema = z.object({
+  url: z.string().describe(
+    "Full product detail page URL. Runs Tier 2-3 of the ladder: " +
+    "JSON-LD extraction + cleaned visible body text. Wix URLs auto-route " +
+    "through the Wix hybrid fetcher (Playwright fallback built in there).",
+  ),
+});
+export type FetchPageTextInput = z.infer<typeof fetchPageTextSchema>;
+
+export async function fetchPageText(input: FetchPageTextInput) {
+  return audited(
+    "crema_fetch_page_text",
+    input,
+    async () =>
+      unwrap(await call("/admin/scrape/page-text", {
+        query: { url: input.url },
+      })),
+    (r: any) => {
+      const n = r?.length ?? 0;
+      const label = n === 0 ? "UNREACHABLE" :
+        n < 500 ? "sparse" :
+        n < 2000 ? "moderate" : "rich";
+      return `${n}ch (${label})`;
+    },
+  );
+}
+
+export const renderPageSchema = z.object({
+  url: z.string().describe(
+    "Full page URL. Tier 4 — Playwright headless render with 4s post-DOM " +
+    "settle. Bounded to 3 concurrent renders process-wide; a flood will " +
+    "queue. Use sparingly — this is the expensive escalation when Tiers " +
+    "1-3 yielded thin content (custom JS-rendered descriptions, " +
+    "metafield-driven blocks that don't surface in body_html).",
+  ),
+});
+export type RenderPageInput = z.infer<typeof renderPageSchema>;
+
+export async function renderPage(input: RenderPageInput) {
+  return audited(
+    "crema_render_page",
+    input,
+    async () =>
+      unwrap(await call("/admin/scrape/render-page", {
+        method: "POST",
+        body: { url: input.url },
+      })),
+    (r: any) => {
+      const n = r?.length ?? 0;
+      const label = n === 0 ? "RENDER FAILED" :
+        n < 5000 ? "small" :
+        n < 50000 ? "medium" : "large";
+      return `${n}ch HTML (${label})`;
+    },
+  );
+}
+
 export const proposalBreakdownSchema = z.object({
   group_by: z.enum([
     "roaster_slug", "change_type", "enrichment_status", "status",

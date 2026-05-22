@@ -3795,6 +3795,227 @@ def admin_list_thin_products(slug: Optional[str] = None,
         db.close()
 
 
+# ── Per-tier debug fetchers (Tier 1-4 ladder, individually probeable) ──
+#
+# The dynamic extraction ladder lives in Scraper/enrich.py and runs as
+# one fused pipeline during enrichment. These three routes expose each
+# tier as a standalone diagnostic surface — an agent can probe one
+# product without burning a full re-enrich cycle.
+#
+# Surfaced by MCP as:
+#   crema_fetch_shopify_product → Tier 1 source (canonical /products/{handle}.json)
+#   crema_fetch_page_text       → Tier 2-3 (JSON-LD + cleaned body text)
+#   crema_render_page           → Tier 4 (Playwright headless render)
+#
+# Use case: Brown Gold (panduranga) landed empty post-reenrich because
+# the page fetch timed out. Without these probes, the only way to
+# distinguish "page unreachable" from "merchant copy is sparse" was to
+# re-run enrichment and inspect the result. Now: hit fetch_page_text,
+# get "" or short text in 5s, escalate to render_page only if needed.
+
+_RENDER_SEMAPHORE = None  # initialised lazily; threading import is cheap
+
+
+def _get_render_semaphore():
+    global _RENDER_SEMAPHORE
+    if _RENDER_SEMAPHORE is None:
+        import threading
+        _RENDER_SEMAPHORE = threading.Semaphore(3)
+    return _RENDER_SEMAPHORE
+
+
+@router.get("/admin/scrape/shopify-product")
+def admin_fetch_shopify_product(handle: str,
+                                  slug: Optional[str] = None,
+                                  website: Optional[str] = None,
+                                  user=Depends(get_current_user)):
+    """Fetch one Shopify product's canonical JSON via /products/{handle}.json.
+
+    Tier 1 probe — returns the full product (including body_html,
+    variants, images, metafields if exposed). This is the same source
+    the listing /products.json crawl pulls, but for one product.
+
+    Resolves the storefront base from `slug` (roaster_sources lookup)
+    or accepts an explicit `website` override.
+
+    Returns: {body_html, title, handle, vendor, product_type, variants,
+    images, raw} where raw is the full Shopify JSON for advanced
+    inspection. Returns 404 if the product handle doesn't exist on the
+    store (Shopify returns 404 in that case).
+    """
+    _require_admin(user)
+    if not handle or not isinstance(handle, str):
+        from fastapi import HTTPException
+        raise HTTPException(422, "handle is required")
+    base = None
+    if website:
+        base = website.rstrip("/")
+    elif slug:
+        db = get_db()
+        try:
+            row = db.execute(
+                "SELECT rs.website FROM roaster_sources rs "
+                "JOIN roaster_profiles rp ON rp.website = rs.website "
+                "WHERE rp.roaster_slug = ?",
+                (slug,),
+            ).fetchone()
+            if not row or not row["website"]:
+                from fastapi import HTTPException
+                raise HTTPException(404, f"No website on file for roaster {slug}")
+            base = row["website"].rstrip("/")
+        finally:
+            db.close()
+    else:
+        from fastapi import HTTPException
+        raise HTTPException(422, "Provide either slug or website")
+
+    url = f"{base}/products/{handle}.json"
+    try:
+        import requests as _r
+        resp = _r.get(
+            url,
+            headers={"User-Agent": "CremaCatalogBot/1.0"},
+            timeout=15,
+        )
+    except (Exception,) as e:
+        from fastapi import HTTPException
+        raise HTTPException(502, f"Fetch failed: {type(e).__name__}: {e}")
+    if resp.status_code == 404:
+        from fastapi import HTTPException
+        raise HTTPException(404, f"Shopify returned 404 for {url}")
+    if resp.status_code != 200:
+        from fastapi import HTTPException
+        raise HTTPException(502, f"Shopify returned HTTP {resp.status_code}")
+    try:
+        data = resp.json()
+    except ValueError:
+        from fastapi import HTTPException
+        raise HTTPException(502, "Shopify response was not valid JSON")
+    product = data.get("product") if isinstance(data, dict) else None
+    if not isinstance(product, dict):
+        from fastapi import HTTPException
+        raise HTTPException(502, "Response missing 'product' key")
+    return ok({
+        "url": url,
+        "title": product.get("title"),
+        "handle": product.get("handle"),
+        "vendor": product.get("vendor"),
+        "product_type": product.get("product_type"),
+        "body_html": product.get("body_html"),
+        "tags": product.get("tags"),
+        "variants": product.get("variants"),
+        "images": product.get("images"),
+        "raw": product,
+    }, resource="shopify_product")
+
+
+@router.get("/admin/scrape/page-text")
+def admin_fetch_page_text(url: str, user=Depends(get_current_user)):
+    """Fetch a product detail page, run Tier 2-3 extraction, return text.
+
+    Wraps `_fetch_product_page_text` from Scraper/enrich.py. Returns
+    combined JSON-LD structured data + cleaned body text, capped at
+    PAGE_TEXT_CAP chars. Wix URLs auto-route through the Wix hybrid
+    fetcher (Playwright fallback built in there).
+
+    Returns: {url, length, text} where text is the same string the
+    ladder's Tier 2-3 step would feed to Haiku. Empty text indicates
+    the fetch failed (timeout, 4xx, parse error) — distinguishing
+    "page unreachable" from "merchant copy is sparse" requires
+    inspecting the text length: 0 = unreachable, low (~hundreds) =
+    sparse, high (thousands+) = rich.
+    """
+    _require_admin(user)
+    if not url or not isinstance(url, str):
+        from fastapi import HTTPException
+        raise HTTPException(422, "url is required")
+    if not url.startswith(("http://", "https://")):
+        from fastapi import HTTPException
+        raise HTTPException(422, "url must be http(s)")
+    import sys
+    from pathlib import Path
+    SCRAPER_DIR = (
+        Path(__file__).resolve().parent.parent.parent.parent / "Scraper"
+    )
+    if str(SCRAPER_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRAPER_DIR))
+    try:
+        import enrich as _enrich  # type: ignore
+    except ImportError as e:
+        from fastapi import HTTPException
+        raise HTTPException(503, f"Couldn't import Scraper/enrich.py: {e}")
+    try:
+        text = _enrich._fetch_product_page_text(url)  # noqa: SLF001
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(502, f"Fetch error: {type(e).__name__}: {e}")
+    return ok({
+        "url": url,
+        "length": len(text or ""),
+        "text": text or "",
+    }, resource="page_text")
+
+
+@router.post("/admin/scrape/render-page")
+def admin_render_page(body: dict = None, user=Depends(get_current_user)):
+    """Render a page via headless Playwright, return the full HTML.
+
+    Tier 4 of the ladder — bounded to 3 concurrent renders via a
+    process-wide semaphore so a flood doesn't spawn ten Chromium
+    instances. Use sparingly; this is the expensive escalation.
+
+    Body: {"url": "https://..."}
+    Returns: {url, length, html} where html is the post-DOM-settle
+    rendered HTML (4s wait after DOMContentLoaded). Empty html
+    indicates render failure (Playwright not installed, timeout,
+    or the page hard-refused).
+    """
+    _require_admin(user)
+    if not isinstance(body, dict):
+        from fastapi import HTTPException
+        raise HTTPException(422, "POST body must be JSON")
+    url = body.get("url")
+    if not url or not isinstance(url, str):
+        from fastapi import HTTPException
+        raise HTTPException(422, "url is required in body")
+    if not url.startswith(("http://", "https://")):
+        from fastapi import HTTPException
+        raise HTTPException(422, "url must be http(s)")
+    import sys
+    from pathlib import Path
+    SCRAPER_DIR = (
+        Path(__file__).resolve().parent.parent.parent.parent / "Scraper"
+    )
+    if str(SCRAPER_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRAPER_DIR))
+    try:
+        import enrich as _enrich  # type: ignore
+    except ImportError as e:
+        from fastapi import HTTPException
+        raise HTTPException(503, f"Couldn't import Scraper/enrich.py: {e}")
+    sem = _get_render_semaphore()
+    acquired = sem.acquire(timeout=120)
+    if not acquired:
+        from fastapi import HTTPException
+        raise HTTPException(
+            503,
+            "Render slot busy after 120s — 3 concurrent renders already "
+            "in flight. Retry shortly.",
+        )
+    try:
+        html = _enrich._fetch_page_via_playwright(url)  # noqa: SLF001
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(502, f"Render error: {type(e).__name__}: {e}")
+    finally:
+        sem.release()
+    return ok({
+        "url": url,
+        "length": len(html or ""),
+        "html": html or "",
+    }, resource="rendered_page")
+
+
 @router.get("/admin/scrape/proposals/breakdown")
 def admin_proposal_breakdown(group_by: str = "roaster_slug",
                               status: str = "pending",
