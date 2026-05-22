@@ -480,18 +480,22 @@ export async function freshnessReport(_input: FreshnessReportInput) {
 
 export const logAgentActionSchema = z.object({
   action: z.string().min(1).describe(
-    "Short label — what the agent did. Examples: 'diff_sweep', " +
-    "'enrich_all on 10 stale roasters', 'spawned drainer L', " +
-    "'investigated humble-express deletions'. Aim for one entry per " +
-    "meaningful phase, not per MCP tool call.",
+    "Short plain-English label — what you just did. Good: 'Refreshed " +
+    "stale roasters', 'Onboarded Kruti Coffee', 'Investigated thin " +
+    "Panduranga products'. Bad: 'diff_sweep + enrich_all over " +
+    "has_diff=true filter, spawned drainer-A and drainer-B'. One " +
+    "entry per meaningful phase, not per tool call.",
   ),
   reasoning: z.string().min(1).describe(
-    "Agent's own prose explaining WHY this action was taken. Examples: " +
-    "'Diff sweep showed 14 stale, 10 non-Wix actionable. These had real " +
-    "product/article deltas worth processing.' " +
-    "or 'Drainer K left 3 in_progress claims that blocked scrapes for 30 min. " +
-    "Requeueing to clear the bottleneck.' " +
-    "The reasoning is the value — without it the action log is just noise.",
+    "Plain English, like narrating to a colleague. What happened, " +
+    "what came out of it, anything notable. Good: 'Refreshed 12 stale " +
+    "roasters today. Three came back with no specs because their " +
+    "product pages don't list origin or altitude — those landed as " +
+    "source_thin which is fine. The other nine enriched cleanly.' " +
+    "Bad: 'Triggered enrich_all over has_diff=true; spawned 4 BG " +
+    "tasks; drainer-A processed 8 jobs, drainer-B processed 6 jobs; " +
+    "drainer-A exited on 15 empty polls...' The narrative is the " +
+    "value — without it the log is noise.",
   ),
   metadata: z.record(z.unknown()).optional().describe(
     "Optional structured payload — slugs touched, counts, decision " +
@@ -507,10 +511,10 @@ export const logAgentActionSchema = z.object({
   ),
   severity: z.enum(["info", "warn", "error"]).optional().describe(
     "Importance level — 'info' (default) for normal progress, 'warn' " +
-    "for recoverable issues (crawl failures, drainer-fallback events, " +
-    "held proposals retried), 'error' for hard failures the operator " +
-    "should investigate. Used by UIs and crema_get_session_actions to " +
-    "highlight entries the agent should re-read.",
+    "for things that went sideways but you handled (crawl failures, " +
+    "products that needed special attention), 'error' for hard " +
+    "blockers the operator must look at. UIs render warn/error " +
+    "entries prominently.",
   ),
 });
 export type LogAgentActionInput = z.infer<typeof logAgentActionSchema>;
@@ -566,13 +570,16 @@ export const logAgentMemorySchema = z.object({
     "agents can filter by scope.",
   ),
   lesson: z.string().min(1).describe(
-    "Short actionable takeaway, one or two sentences. Future agents " +
-    "read this and inherit the lesson without needing the original " +
-    "incident report. Examples: 'Shopify /products.json sometimes " +
-    "returns empty under rate-limit; retry once with 2s backoff before " +
-    "treating as authoritative.' or 'Wix homepages from this IP block " +
-    "have intermittent TLS failures — leave them for tomorrow rather " +
-    "than retrying same-day.'",
+    "One or two plain-English sentences that a future agent can act " +
+    "on. Write the takeaway, not the incident. Good: 'When Shopify " +
+    "products.json comes back empty, retry once with a 2-second wait " +
+    "— it's usually a rate-limit blip, not a real empty store.' " +
+    "Good: 'Panduranga products don't list origin / altitude / " +
+    "varietal on their pages. Don't keep re-enriching them expecting " +
+    "different output — they belong as source_thin.' Bad: 'On " +
+    "2026-05-22 the diff_sweep returned 14 stale; drainer-K processed " +
+    "8 of them; humble-express had products_removed=39...' That's a " +
+    "log entry, not a lesson.",
   ),
   tags: z.array(z.string()).optional().describe(
     "Finer-grained slicing within scope. Lower-case, short. Example " +

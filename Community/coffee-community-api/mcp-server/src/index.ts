@@ -865,10 +865,65 @@ const TOOLS: ToolDef<any>[] = [
   },
 ];
 
+const SERVER_INSTRUCTIONS = `
+Crema catalog-ops MCP. Operates the catalog for an Indian specialty
+coffee discovery platform. EVERY catalog operation goes through this
+server — no shell, no curl, no direct SQL, no file reads of catalog
+state. If a capability you need isn't surfaced as a tool here, surface
+that to the user rather than bypassing.
+
+## How the queue + drainer pattern works
+
+Enrichment routes (crema_enrich_roaster, crema_enrich_all,
+crema_sync_*, crema_reenrich_product) enqueue Haiku LLM tasks in
+llm_jobs and return quickly. You — the agent — drain those jobs.
+Spawn 3-5 drainer subagents in parallel, each capped at ~8-10 jobs,
+each looping crema_haiku_next_job → produce structured output
+matching the job's tool_schema → crema_haiku_submit. Atomic claim is
+race-safe across drainers. There is NO server-side SDK fallback —
+that path is reserved for the human admin's UI button clicks.
+Drainers must produce the FULL structured output (every schema field)
+per claim, not under-emit.
+
+## Common workflows
+
+Refresh today's catalog:
+  crema_diff_sweep → crema_enrich_all({filter:{has_diff:true}}) →
+  spawn drainers → crema_auto_approve_proposals →
+  crema_resolve_held_proposals → crema_log_agent_summary
+
+Onboard a roaster:
+  crema_onboard_roaster({website,...}) →
+  crema_enrich_roaster({slug}) → drain →
+  crema_auto_approve_proposals({slug}) → crema_publish_roaster
+
+Investigate a thin or problematic product:
+  crema_list_thin_products → crema_fetch_shopify_product or
+  crema_fetch_page_text or crema_render_page → crema_reenrich_product
+  if the source actually has recoverable data
+
+## Voice for journal entries
+
+Plain English, narrating to a colleague. Good: "Refreshed 12 stale
+roasters; three came back with no specs because their product pages
+don't list origin or altitude. The rest enriched cleanly." Bad:
+"Triggered enrich_all over has_diff=true filter; spawned 4 BG tasks;
+drainer-A processed 8 jobs..."
+
+One entry per meaningful phase, not per tool call. severity='warn'
+for crawl failures or unexpected skips; 'error' for hard blockers.
+
+## On session start
+
+Call crema_get_agent_memory({scope: "catalog-ops"}) and
+crema_get_session_actions({limit: 30}) to inherit prior work and
+durable lessons before planning your moves.
+`.trim();
+
 async function main() {
   const server = new Server(
     { name: "crema-catalog-ops", version: "0.1.0" },
-    { capabilities: { tools: {} } },
+    { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
