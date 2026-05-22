@@ -526,33 +526,31 @@ def _is_wix_url(url: str) -> bool:
 def _fetch_product_page_text(url: str) -> str:
     """Fetch the live product detail page and strip to clean text.
 
-    Why: listing endpoints (Shopify /products.json, Woo's REST output)
-    often surface only marketing-level copy — the full sourcing story,
-    altitude, varietal detail, brew guide all live on the rendered
-    detail page. Fetching once per enrichment closes that gap.
+    Tier 2-3 of the dynamic-ladder extraction (added 2026-05-21):
+      • Tier 2 = JSON-LD Product schemas extracted from the same page
+        fetch (cheap, structured, often richer than visible body text
+        when merchants use theme blocks instead of body_html).
+      • Tier 3 = cleaned visible body text via BeautifulSoup
+        (the historical behaviour).
+    Both are concatenated into the returned string with a clear
+    `[JSON-LD STRUCTURED DATA]` divider so Haiku can lean on whichever
+    source is richer per-product.
 
-    Wix sites are JS-rendered SPAs (single-page apps). Their product
-    detail tables (Producer / Variety / Notes / Process / Altitude)
-    load post-page-load via Velo XHR calls — a plain `requests.get`
-    gets only a hydration shell. Route those through the hybrid Wix
-    fetcher, which falls back to Playwright headless Chromium when
-    the cheap path doesn't yield rich content.
+    Wix sites are JS-rendered SPAs — their product detail tables load
+    via Velo XHR. Route those through the hybrid Wix fetcher (already
+    contains Playwright fallback). Tier 4 escalation for non-Wix
+    sites happens in `_enrich_one`, not here.
 
-    Returns "" on any failure (timeout, 4xx, 5xx, parse error,
-    Playwright not installed, etc.) — Haiku falls back to whatever
-    the listing endpoint provided. Capped at PAGE_TEXT_CAP chars so
-    the prompt budget stays sane.
+    Returns "" on any failure. Capped at PAGE_TEXT_CAP chars.
     """
     if not url or not url.startswith(("http://", "https://")):
         return ""
 
-    # Wix path — hybrid fetcher with headless fallback.
+    # Wix path — hybrid fetcher with headless fallback (built-in Tier 4).
     if _is_wix_url(url):
         try:
             from scraper.wix_fetcher import fetch_wix_page_text
         except ImportError:
-            # Module path differs in some packaging arrangements;
-            # try the alternate path before giving up.
             try:
                 from .wix_fetcher import fetch_wix_page_text  # type: ignore
             except ImportError:
@@ -573,10 +571,15 @@ def _fetch_product_page_text(url: str) -> str:
         if resp.status_code != 200:
             return ""
         soup = BeautifulSoup(resp.text, "html.parser")
-        # Drop chrome that pollutes the extraction with nav links and
-        # site-wide footer copy. Per-product content lives in <main> or
-        # within a `.product` / `.product-detail` container on most
-        # platforms; fall back to body if neither is present.
+
+        # Tier 2 — JSON-LD structured data. Many themes emit
+        # `<script type="application/ld+json">` with comprehensive
+        # Product schemas (name, description, brand, manufacturer,
+        # SKU, offers, weight, sometimes additional metadata). When
+        # body_html is sparse, this is often the richest source.
+        jsonld_chunks = _extract_jsonld_strings(soup)
+
+        # Drop chrome before the visible-text pass.
         for tag in soup(["script", "style", "nav", "footer", "header",
                           "aside", "noscript", "iframe", "form"]):
             tag.decompose()
@@ -587,13 +590,179 @@ def _fetch_product_page_text(url: str) -> str:
             or soup
         )
         text = target.get_text(separator="\n", strip=True)
-        # Collapse runs of blank lines so the prompt isn't padded with
-        # whitespace.
         lines = [ln for ln in (line.strip() for line in text.splitlines()) if ln]
         cleaned = "\n".join(lines)
-        return cleaned[:PAGE_TEXT_CAP]
+
+        # Combine. JSON-LD goes first because it's typically denser /
+        # better-structured per token, so the LLM scans it first.
+        combined_parts = []
+        if jsonld_chunks:
+            combined_parts.append("[JSON-LD STRUCTURED DATA]\n" + "\n".join(jsonld_chunks))
+        if cleaned:
+            combined_parts.append(cleaned)
+        combined = "\n\n".join(combined_parts)
+        return combined[:PAGE_TEXT_CAP]
     except (requests.RequestException, OSError, ValueError):
         return ""
+
+
+def _extract_jsonld_strings(soup) -> list:
+    """Pull human-readable strings from any JSON-LD Product schemas in
+    the page. Walks the JSON tree; collects values for keys likely to
+    carry product info (name, description, brand, manufacturer, sku,
+    weight, additionalProperty, etc.). Skips URLs / IDs / hash-like
+    blobs.
+
+    Returns a flat list of strings. Caller joins them.
+    """
+    out = []
+    _RELEVANT_KEYS = {
+        "name", "description", "brand", "manufacturer", "sku", "gtin",
+        "weight", "category", "productID", "color", "material",
+        "alternativeHeadline", "headline", "articleBody",
+        "additionalProperty", "value", "propertyID", "unitText",
+        "offers", "price", "priceCurrency",
+    }
+    def _walk(node):
+        if isinstance(node, str):
+            s = node.strip()
+            if 4 <= len(s) <= 2000 and not s.startswith(("http://", "https://", "data:", "blob:")):
+                out.append(s)
+        elif isinstance(node, dict):
+            for k, v in node.items():
+                if k in _RELEVANT_KEYS or k == "@graph":
+                    _walk(v)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item)
+    for tag in soup.find_all("script", type="application/ld+json"):
+        try:
+            payload = json.loads(tag.string or "")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        # Only walk Product / Article / Thing schemas (avoid SiteNavigationElement, etc.)
+        candidates = payload if isinstance(payload, list) else [payload]
+        if isinstance(payload, dict) and isinstance(payload.get("@graph"), list):
+            candidates = payload["@graph"]
+        for c in candidates:
+            if not isinstance(c, dict):
+                continue
+            typ = str(c.get("@type", "")).lower()
+            if any(t in typ for t in ("product", "article", "thing", "offer")):
+                _walk(c)
+    # Dedupe while preserving order — JSON-LD often repeats strings.
+    seen = set()
+    deduped = []
+    for s in out:
+        if s not in seen:
+            seen.add(s)
+            deduped.append(s)
+    return deduped
+
+
+def _fetch_page_via_playwright(url: str) -> str:
+    """Tier 4 — nuclear-option Playwright render for pages where Tiers
+    1–3 yielded thin content. Lazy import so the module loads on hosts
+    without Playwright. Returns '' on any failure.
+
+    Generic counterpart to wix_fetcher's Playwright path — used for
+    non-Wix SPA-ish Shopify themes (custom JS-rendered descriptions,
+    metafield-driven blocks that don't surface in body_html or visible
+    body text).
+    """
+    if not url or not url.startswith(("http://", "https://")):
+        return ""
+    try:
+        from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+    except ImportError:
+        return ""
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            try:
+                ctx = browser.new_context(
+                    viewport={"width": 1280, "height": 1024},
+                    user_agent=PAGE_FETCH_USER_AGENT,
+                )
+                page = ctx.new_page()
+                try:
+                    page.goto(url, timeout=30_000, wait_until="domcontentloaded")
+                except PWTimeout:
+                    pass
+                # Settle delay — let the post-DOMContentLoaded JS mount
+                # any metafield-driven blocks / custom theme sections.
+                page.wait_for_timeout(4000)
+                html = page.content()
+            finally:
+                browser.close()
+        soup = BeautifulSoup(html or "", "html.parser")
+        jsonld_chunks = _extract_jsonld_strings(soup)
+        for tag in soup(["script", "style", "nav", "footer", "header",
+                          "aside", "noscript", "iframe", "form"]):
+            tag.decompose()
+        target = (
+            soup.find("main")
+            or soup.find(class_=lambda c: bool(c) and "product" in c.lower())
+            or soup.body
+            or soup
+        )
+        text = target.get_text(separator="\n", strip=True)
+        lines = [ln for ln in (line.strip() for line in text.splitlines()) if ln]
+        cleaned = "\n".join(lines)
+        combined_parts = []
+        if jsonld_chunks:
+            combined_parts.append("[JSON-LD STRUCTURED DATA (rendered)]\n" + "\n".join(jsonld_chunks))
+        if cleaned:
+            combined_parts.append(cleaned)
+        return "\n\n".join(combined_parts)[:PAGE_TEXT_CAP]
+    except Exception:
+        return ""
+
+
+# Quality heuristic — keyword presence across the 5 field groups Haiku
+# would extract. When the cheap-tier output covers fewer than 3 groups,
+# escalate to Tier 4 (Playwright). Mechanical (no LLM) so the routine
+# path stays predictable.
+_QUALITY_KEYWORD_GROUPS = (
+    ("origin",   ("origin", "estate", "farm", "region", "valley",
+                    "plantation", "country of origin")),
+    ("altitude", ("altitude", "masl", "elevation", "meters above",
+                    "feet above", "1000m", "1200m", "1400m", "1600m",
+                    "1800m", "2000m")),
+    ("process",  ("washed", "natural", "honey", "anaerobic", "fermented",
+                    "monsooned", "carbonic", "lactic", "process:")),
+    ("varietal", ("arabica", "robusta", "bourbon", "typica", "geisha",
+                    "sl28", "sl 28", "caturra", "catuai", "selection 9",
+                    "variety", "varietal", "cultivar", "kent")),
+    ("tasting",  ("notes", "flavor", "flavour", "aroma", "finish",
+                    "taste", "palate", "chocolate", "caramel", "citrus",
+                    "berry", "floral", "nutty")),
+)
+
+
+def _quality_group_count(text: str) -> int:
+    """Return the count of the 5 quality keyword groups present in `text`.
+    >=3 = rich enough; <3 = thin, escalate."""
+    if not text:
+        return 0
+    lower = text.lower()
+    return sum(
+        1 for _name, kws in _QUALITY_KEYWORD_GROUPS
+        if any(kw in lower for kw in kws)
+    )
+
+
+def _is_thin_combined(product: dict, page_text: str) -> bool:
+    """Combine all cheap-tier sources and decide if Tier 4 is warranted.
+    Combines title + body_text_full + page_text + tags."""
+    parts = [
+        product.get("coffee_name") or product.get("title") or "",
+        product.get("body_text_full") or product.get("description_raw") or "",
+        page_text or "",
+        " ".join(str(t) for t in (product.get("tags") or [])),
+    ]
+    combined = "\n".join(parts)
+    return _quality_group_count(combined) < 3
 
 
 def _format_variants(variants: list) -> str:
@@ -636,7 +805,13 @@ def _build_user_content(
     title = product.get("coffee_name") or product.get("title") or ""
     product_url = product.get("product_url") or ""
     tags = ", ".join(str(t) for t in (product.get("tags") or []))
-    listing_desc = (product.get("description_raw") or "").strip()
+    # Prefer body_text_full (Tier 1 of the dynamic-ladder extraction, added
+    # 2026-05-21) — the full body_html-derived text from /products.json,
+    # capped at 20K chars instead of 2K. Falls back to description_raw for
+    # back-compat with older scraped JSON that doesn't carry the new field.
+    listing_desc_full = (product.get("body_text_full") or "").strip()
+    listing_desc_short = (product.get("description_raw") or "").strip()
+    listing_desc = listing_desc_full or listing_desc_short
     variants = product.get("variants") or []
     roaster_existing = product.get("roast_level") or ""
     process_existing = product.get("process") or ""
@@ -657,8 +832,12 @@ def _build_user_content(
             hints.append(f"  regex process hint: {process_existing}")
         parts.append("PRE-EXTRACTED HINTS (may be inaccurate):\n" + "\n".join(hints))
     if listing_desc:
+        # Cap at 12K to leave room for page_text + OCR sections; bumped from
+        # the historical 2K cap because the 2K limit was the silent-empty
+        # bottleneck for products with long merchant-written descriptions.
         parts.append(
-            "LISTING DESCRIPTION (truncated):\n" + listing_desc[:2000]
+            "LISTING DESCRIPTION (body_html from listing JSON):\n"
+            + listing_desc[:12000]
         )
     if image_ocr_text:
         parts.append(
@@ -863,7 +1042,25 @@ def _enrich_one(
             "_heuristic_skip_reason": "non_coffee_url_or_title",
         }
 
-    page_text = _fetch_product_page_text(product.get("product_url", ""))
+    product_url = product.get("product_url", "")
+    # Tiers 2-3: cheap fetch (JSON-LD + visible body text) via requests.
+    page_text = _fetch_product_page_text(product_url)
+
+    # Tier 4 — mechanical escalation. If the combined cheap-tier sources
+    # (body_text_full from listing + page_text from cheap fetch) cover
+    # fewer than 3 of the 5 quality keyword groups (origin, altitude,
+    # process, varietal, tasting), the page is "thin" and probably needs
+    # a JS render to surface metafield-driven or theme-block content.
+    # Wix pages already escalate via wix_fetcher's built-in Playwright;
+    # this guards the non-Wix SPA-ish Shopify themes we've been losing
+    # silently to enrichment_status='enriched' but empty (the Coffeeverse
+    # Yeast-Carbonic class of products).
+    if product_url and not _is_wix_url(product_url):
+        if _is_thin_combined(product, page_text):
+            pw_text = _fetch_page_via_playwright(product_url)
+            if pw_text and _quality_group_count(pw_text) > _quality_group_count(page_text):
+                # Playwright produced more keyword coverage — adopt it.
+                page_text = pw_text
 
     # Image OCR pass — some roasters (Wix users especially, but the
     # pattern recurs on any roaster that designs info cards in

@@ -57,6 +57,7 @@ import {
   testSourceURLSchema,
   // aggregate observability (MCP-purity gap closers)
   catalogStatsSchema, proposalBreakdownSchema, freshnessReportSchema,
+  listThinProductsSchema,
   // agent action log + memory
   logAgentActionSchema, getSessionActionsSchema,
   logAgentMemorySchema, getAgentMemorySchema,
@@ -75,7 +76,7 @@ import {
   getScrapeRunLog, cancelRunningJob,
   getProductDetail, deleteProduct, getRawSnapshot,
   getLLMJobDetail, requeueLLMJob, listScrapeRuns, testSourceURL,
-  catalogStats, proposalBreakdown, freshnessReport,
+  catalogStats, proposalBreakdown, freshnessReport, listThinProducts,
   logAgentAction, getSessionActions, logAgentMemory, getAgentMemory,
 } from "./tools.js";
 
@@ -690,6 +691,23 @@ const TOOLS: ToolDef<any>[] = [
       "'which roasters have held proposals?'.",
     schema: proposalBreakdownSchema,
     handler: proposalBreakdown,
+    readOnly: true,
+  },
+  {
+    name: "crema_list_thin_products",
+    description:
+      "Find products with thin information content — N+ of 10 enrichment " +
+      "fields null (origin, varietal, process, process_raw, roast_level, " +
+      "tasting_notes, flavor_notes, altitude_masl, producer, roaster_blurb). " +
+      "Surfaces the SILENT-EMPTY subset: status='enriched' rows that look " +
+      "landed but contain nothing useful, because the scraper-side source " +
+      "(body_html, page text) was too thin for Haiku to extract from. " +
+      "Pair with status='enriched' to find these; status='failed' is the " +
+      "loud subset already in crema_proposal_breakdown. Returns per-product " +
+      "detail + per-platform + per-roaster rollups. Filling the MCP-purity " +
+      "gap — earlier sessions had to SQL this directly.",
+    schema: listThinProductsSchema,
+    handler: listThinProducts,
     readOnly: true,
   },
   {

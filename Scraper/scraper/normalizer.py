@@ -10,6 +10,23 @@ from typing import Optional
 from utils import slugify, clean_price, normalize_weight, clean_image_url, strip_html
 
 
+# Caps on body text retention.
+#
+# `description_raw` (stored in products table): the historical 2000-char
+# summary. Kept tight so the table doesn't bloat — this field is displayed
+# in admin UI tooltips, etc.
+#
+# `body_text_full` (passed to enrich.py but NOT persisted): generous cap
+# so the LLM gets the full merchant-written description. Pre-2026-05-21
+# the LLM only saw the 2000-char `description_raw`, which truncated
+# substantive descriptions (single-origin lots with farm/process/altitude
+# narratives routinely exceed 2000 chars) — that was the silent-empty
+# pathology on the Coffeeverse Yeast-Carbonic class of products.
+# Tier 1 of the dynamic-ladder extraction = retain the full body.
+_DESCRIPTION_RAW_CAP = 2000
+_BODY_TEXT_FULL_CAP = 20000
+
+
 # ── Roast level ───────────────────────────────────────────────────────────────
 
 # Ordered most-specific → least-specific to avoid ambiguous matches
@@ -417,7 +434,10 @@ def normalize_shopify_product(raw: dict, roaster: dict) -> Optional[dict]:
         "available": is_available,
         "variants": normalized_variants,
         "tags": tags,
-        "description_raw": body_text[:2000],
+        "description_raw": body_text[:_DESCRIPTION_RAW_CAP],
+        # Tier 1 of dynamic-ladder extraction — pass full body to enrich.py
+        # (the LLM gets the richer source; NOT persisted to products table).
+        "body_text_full": body_text[:_BODY_TEXT_FULL_CAP],
         "scrape_confidence": compute_confidence("shopify", flags),
         "scrape_flags": flags,
         "scraped_at": _now_iso(),
@@ -580,7 +600,8 @@ def normalize_woocommerce_product(raw: dict, roaster: dict) -> Optional[dict]:
         "available": available,
         "variants": [],
         "tags": tag_names,
-        "description_raw": body_text[:2000],
+        "description_raw": body_text[:_DESCRIPTION_RAW_CAP],
+        "body_text_full": body_text[:_BODY_TEXT_FULL_CAP],
         "scrape_confidence": compute_confidence("woocommerce", flags),
         "scrape_flags": flags,
         "scraped_at": _now_iso(),
@@ -660,7 +681,8 @@ def normalize_custom_product(raw: dict, roaster: dict) -> Optional[dict]:
         "available": available,
         "variants": [],
         "tags": raw.get("tags") or [],
-        "description_raw": body_text[:2000],
+        "description_raw": body_text[:_DESCRIPTION_RAW_CAP],
+        "body_text_full": body_text[:_BODY_TEXT_FULL_CAP],
         "scrape_confidence": "low",
         "scrape_flags": flags,
         "scraped_at": _now_iso(),

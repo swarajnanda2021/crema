@@ -270,6 +270,46 @@ export async function catalogStats(input: CatalogStatsInput) {
   );
 }
 
+export const listThinProductsSchema = z.object({
+  slug: z.string().optional().describe(
+    "Filter to one roaster. Empty = catalog-wide.",
+  ),
+  min_null_count: z.number().int().min(0).max(10).default(5).describe(
+    "Threshold for 'thin' across 10 enrichment fields (origin, varietal, " +
+    "process, process_raw, roast_level, tasting_notes, flavor_notes, " +
+    "altitude_masl, producer, roaster_blurb). Default 5 = half empty. " +
+    "Bump to 6+ for majority-null, 8+ for catastrophically empty.",
+  ),
+  status: z.enum(["enriched", "failed", "pending"]).optional().describe(
+    "Filter by enrichment_status. " +
+    "'enriched' = silent empties (status looks done but row is hollow). " +
+    "'failed' = loud empties (same set crema_proposal_breakdown surfaces). " +
+    "Omit to see everything.",
+  ),
+  limit: z.number().int().min(1).max(1000).default(200),
+});
+export type ListThinProductsInput = z.infer<typeof listThinProductsSchema>;
+
+export async function listThinProducts(input: ListThinProductsInput) {
+  return audited(
+    "crema_list_thin_products",
+    input,
+    async () =>
+      unwrap(await call("/admin/catalog/thin-products", {
+        query: {
+          slug: input.slug,
+          min_null_count: input.min_null_count,
+          status: input.status,
+          limit: input.limit,
+        },
+      })),
+    (r: any) =>
+      `${r?.total ?? 0} thin products; top platforms: ` +
+      (r?.rollups?.by_platform ?? []).slice(0, 3)
+        .map((b: any) => `${b.platform}=${b.count}`).join(" "),
+  );
+}
+
 export const proposalBreakdownSchema = z.object({
   group_by: z.enum([
     "roaster_slug", "change_type", "enrichment_status", "status",

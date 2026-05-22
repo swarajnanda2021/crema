@@ -3586,6 +3586,143 @@ def admin_catalog_stats(roaster_slug: Optional[str] = None,
         db.close()
 
 
+@router.get("/admin/catalog/thin-products")
+def admin_list_thin_products(slug: Optional[str] = None,
+                              min_null_count: int = 5,
+                              status: Optional[str] = None,
+                              limit: int = 200,
+                              user=Depends(get_current_user)):
+    """Find products with thin information content.
+
+    A product is "thin" when N+ of its 10 enrichment fields are null:
+      origin, varietal, process, process_raw, roast_level, tasting_notes,
+      flavor_notes, altitude_masl, producer, roaster_blurb.
+
+    These are the silent-empty subset — proposals landed with
+    `enrichment_status='enriched'` but the resulting row has no
+    meaningful content because Haiku had nothing to work with (the
+    page text was boilerplate, body_html was sparse, scraper missed
+    the canonical source).
+
+    Without this tool, agents would bypass MCP to SQL the count
+    directly — that's the gap this closes (per the MCP-purity rule).
+
+    Params:
+      • slug: scope to one roaster
+      • min_null_count: threshold for "thin" (default 5; 6+ flags
+        majority-null products; 8+ flags catastrophically empty)
+      • status: filter by enrichment_status (default: any). Use
+        'enriched' to find SILENT empties; 'failed' to find loud
+        empties (same as crema_proposal_breakdown surfaces).
+      • limit: cap on rows (default 200).
+
+    Returns: per-product detail with null_count, null_fields[],
+    platform (joined from roaster_sources), enrichment_status.
+    """
+    _require_admin(user)
+    min_null_count = max(0, min(int(min_null_count or 5), 10))
+    limit = max(1, min(int(limit or 200), 1000))
+
+    # The 10 fields whose nullness we measure.
+    _FIELDS = [
+        "origin", "varietal", "process", "process_raw", "roast_level",
+        "tasting_notes", "flavor_notes", "altitude_masl",
+        "producer", "roaster_blurb",
+    ]
+    null_count_expr = " + ".join(
+        f"(CASE WHEN p.{f} IS NULL OR p.{f} = '' THEN 1 ELSE 0 END)"
+        for f in _FIELDS
+    )
+
+    where = [f"({null_count_expr}) >= ?"]
+    params: list = [min_null_count]
+    if slug:
+        where.append("p.roaster_slug = ?")
+        params.append(slug)
+    if status:
+        where.append("p.enrichment_status = ?")
+        params.append(status)
+    where_sql = " WHERE " + " AND ".join(where)
+    params.append(limit)
+
+    db = get_db()
+    try:
+        rows = db.execute(
+            f"""
+            SELECT p.product_id, p.coffee_name, p.roaster_slug,
+                   p.enrichment_status, p.product_url, p.image_url,
+                   p.created_at,
+                   ({null_count_expr}) AS null_count,
+                   rs.platform AS platform
+            FROM products p
+            LEFT JOIN roaster_profiles rp
+                ON rp.roaster_slug = p.roaster_slug
+            LEFT JOIN roaster_sources rs
+                ON rs.website = rp.website
+            {where_sql}
+            ORDER BY null_count DESC, p.roaster_slug, p.product_id
+            LIMIT ?
+            """,
+            tuple(params),
+        ).fetchall()
+
+        out: list[dict] = []
+        for r in rows:
+            d = dict(r)
+            # Compute the per-row null_fields list — useful for the
+            # operator to see WHICH fields are missing, not just how
+            # many. Re-fetch the row's actual field values for the
+            # boolean check (cheap since we're already in memory).
+            full = db.execute(
+                "SELECT origin, varietal, process, process_raw, "
+                "roast_level, tasting_notes, flavor_notes, "
+                "altitude_masl, producer, roaster_blurb "
+                "FROM products WHERE product_id = ?",
+                (d["product_id"],),
+            ).fetchone()
+            null_fields = [
+                f for f in _FIELDS
+                if not full[f]  # null OR empty string
+            ]
+            d["null_fields"] = null_fields
+            out.append(d)
+
+        # Per-platform + per-roaster rollups for quick pattern read.
+        platform_buckets: dict[str, int] = {}
+        roaster_buckets: dict[str, int] = {}
+        for d in out:
+            plat = (d.get("platform") or "unknown").lower()
+            platform_buckets[plat] = platform_buckets.get(plat, 0) + 1
+            slug_key = d.get("roaster_slug") or "unknown"
+            roaster_buckets[slug_key] = roaster_buckets.get(slug_key, 0) + 1
+        rollups = {
+            "by_platform": [
+                {"platform": k, "count": v}
+                for k, v in sorted(platform_buckets.items(),
+                                     key=lambda x: -x[1])
+            ],
+            "by_roaster": [
+                {"roaster_slug": k, "count": v}
+                for k, v in sorted(roaster_buckets.items(),
+                                     key=lambda x: -x[1])[:30]
+            ],
+        }
+
+        return ok({
+            "products": out,
+            "total": len(out),
+            "filter": {
+                "slug": slug,
+                "status": status,
+                "min_null_count": min_null_count,
+                "fields_checked": _FIELDS,
+            },
+            "rollups": rollups,
+        }, resource="thin_products")
+    finally:
+        db.close()
+
+
 @router.get("/admin/scrape/proposals/breakdown")
 def admin_proposal_breakdown(group_by: str = "roaster_slug",
                               status: str = "pending",
