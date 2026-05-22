@@ -3643,17 +3643,97 @@ def admin_list_thin_products(slug: Optional[str] = None,
         where.append("p.enrichment_status = ?")
         params.append(status)
     where_sql = " WHERE " + " AND ".join(where)
-    params.append(limit)
+    # params used for both the rollup query (no LIMIT) and the row query
+    # (with LIMIT). The row query reuses params + appends limit.
 
     db = get_db()
     try:
+        # ── Catalog-wide aggregations (do NOT bound by limit) ──
+        # Rollups must reflect the full filter result so a tight
+        # `limit` doesn't silently misrepresent the distribution.
+
+        total_matching = db.execute(
+            f"""
+            SELECT COUNT(*) AS c
+            FROM products p
+            LEFT JOIN roaster_profiles rp
+                ON rp.roaster_slug = p.roaster_slug
+            LEFT JOIN roaster_sources rs
+                ON rs.website = rp.website
+            {where_sql}
+            """,
+            tuple(params),
+        ).fetchone()["c"]
+
+        platform_rows = db.execute(
+            f"""
+            SELECT COALESCE(LOWER(rs.platform), 'unknown') AS platform,
+                   COUNT(*) AS c
+            FROM products p
+            LEFT JOIN roaster_profiles rp
+                ON rp.roaster_slug = p.roaster_slug
+            LEFT JOIN roaster_sources rs
+                ON rs.website = rp.website
+            {where_sql}
+            GROUP BY platform
+            ORDER BY c DESC
+            """,
+            tuple(params),
+        ).fetchall()
+
+        roaster_rows = db.execute(
+            f"""
+            SELECT COALESCE(p.roaster_slug, 'unknown') AS roaster_slug,
+                   COALESCE(LOWER(rs.platform), 'unknown') AS platform,
+                   COUNT(*) AS c
+            FROM products p
+            LEFT JOIN roaster_profiles rp
+                ON rp.roaster_slug = p.roaster_slug
+            LEFT JOIN roaster_sources rs
+                ON rs.website = rp.website
+            {where_sql}
+            GROUP BY p.roaster_slug, platform
+            ORDER BY c DESC
+            LIMIT 30
+            """,
+            tuple(params),
+        ).fetchall()
+
+        # by_null_field — for each of the 10 fields, count how many
+        # of the matched products have it null. Tells the operator
+        # WHICH fields are most often empty across the silent-empty
+        # subset (altitude/producer almost always null; tasting/blurb
+        # are the recoverable ones).
+        null_field_counts: dict[str, int] = {}
+        for f in _FIELDS:
+            n = db.execute(
+                f"""
+                SELECT COUNT(*) AS c
+                FROM products p
+                LEFT JOIN roaster_profiles rp
+                    ON rp.roaster_slug = p.roaster_slug
+                LEFT JOIN roaster_sources rs
+                    ON rs.website = rp.website
+                {where_sql}
+                AND (p.{f} IS NULL OR p.{f} = '')
+                """,
+                tuple(params),
+            ).fetchone()["c"]
+            null_field_counts[f] = n
+
+        # ── Detail rows (bounded by limit) ──
+        # Select all 10 nullable fields up-front to compute null_fields
+        # without N+1 round-trips.
+        sel_fields = ", ".join(f"p.{f}" for f in _FIELDS)
+        row_params = list(params) + [limit]
         rows = db.execute(
             f"""
             SELECT p.product_id, p.coffee_name, p.roaster_slug,
                    p.enrichment_status, p.product_url, p.image_url,
                    p.created_at,
                    ({null_count_expr}) AS null_count,
-                   rs.platform AS platform
+                   COALESCE(LOWER(rs.platform), 'unknown') AS platform,
+                   {sel_fields}
             FROM products p
             LEFT JOIN roaster_profiles rp
                 ON rp.roaster_slug = p.roaster_slug
@@ -3663,54 +3743,46 @@ def admin_list_thin_products(slug: Optional[str] = None,
             ORDER BY null_count DESC, p.roaster_slug, p.product_id
             LIMIT ?
             """,
-            tuple(params),
+            tuple(row_params),
         ).fetchall()
 
         out: list[dict] = []
         for r in rows:
             d = dict(r)
-            # Compute the per-row null_fields list — useful for the
-            # operator to see WHICH fields are missing, not just how
-            # many. Re-fetch the row's actual field values for the
-            # boolean check (cheap since we're already in memory).
-            full = db.execute(
-                "SELECT origin, varietal, process, process_raw, "
-                "roast_level, tasting_notes, flavor_notes, "
-                "altitude_masl, producer, roaster_blurb "
-                "FROM products WHERE product_id = ?",
-                (d["product_id"],),
-            ).fetchone()
-            null_fields = [
-                f for f in _FIELDS
-                if not full[f]  # null OR empty string
-            ]
+            null_fields = [f for f in _FIELDS if not d.get(f)]
             d["null_fields"] = null_fields
+            # Strip the raw field values from the response — the
+            # null_fields list carries the relevant signal and the raw
+            # values bloat the payload.
+            for f in _FIELDS:
+                d.pop(f, None)
             out.append(d)
 
-        # Per-platform + per-roaster rollups for quick pattern read.
-        platform_buckets: dict[str, int] = {}
-        roaster_buckets: dict[str, int] = {}
-        for d in out:
-            plat = (d.get("platform") or "unknown").lower()
-            platform_buckets[plat] = platform_buckets.get(plat, 0) + 1
-            slug_key = d.get("roaster_slug") or "unknown"
-            roaster_buckets[slug_key] = roaster_buckets.get(slug_key, 0) + 1
         rollups = {
             "by_platform": [
-                {"platform": k, "count": v}
-                for k, v in sorted(platform_buckets.items(),
-                                     key=lambda x: -x[1])
+                {"platform": r["platform"], "count": r["c"]}
+                for r in platform_rows
             ],
             "by_roaster": [
-                {"roaster_slug": k, "count": v}
-                for k, v in sorted(roaster_buckets.items(),
-                                     key=lambda x: -x[1])[:30]
+                {"roaster_slug": r["roaster_slug"],
+                 "platform": r["platform"],
+                 "count": r["c"]}
+                for r in roaster_rows
+            ],
+            "by_null_field": [
+                {"field": f, "count": null_field_counts[f],
+                 "pct_of_matching": round(
+                     100 * null_field_counts[f] / total_matching, 1
+                 ) if total_matching else 0.0}
+                for f in sorted(_FIELDS,
+                                  key=lambda x: -null_field_counts[x])
             ],
         }
 
         return ok({
             "products": out,
-            "total": len(out),
+            "total": total_matching,
+            "returned": len(out),
             "filter": {
                 "slug": slug,
                 "status": status,
