@@ -4563,6 +4563,11 @@ def admin_re_enrich_roaster(slug: str, user=Depends(get_current_user)):
             raise HTTPException(404, f"No website on file for roaster {slug}")
         website = row["website"]
 
+        # Stamp pipeline context so any downstream call_llm queues with
+        # the correct roaster_slug. Mirrors _orchestrate_refresh_all.
+        from services.llm_router import set_pipeline_context
+        set_pipeline_context(roaster_slug=slug)
+
         try:
             applied = _apply_roaster_enrichment(db, website)
         except roaster_enricher.RoasterEnricherError as e:
@@ -4917,6 +4922,11 @@ def admin_re_enrich_product(product_id: str, user=Depends(get_current_user)):
             from fastapi import HTTPException
             raise HTTPException(404, f"Product {product_id} not found")
         product = dict(row)
+        # Stamp pipeline context so llm_router queues the job with the
+        # correct roaster_slug instead of "unknown". Mirrors the
+        # _orchestrate_refresh_all pattern above.
+        from services.llm_router import set_pipeline_context
+        set_pipeline_context(roaster_slug=product.get("roaster_slug"))
         try:
             from services import product_enricher
             merged = product_enricher.enrich_product(product)
