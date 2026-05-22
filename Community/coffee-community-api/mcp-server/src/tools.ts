@@ -709,8 +709,49 @@ export async function resolveHeldProposals(input: ResolveHeldProposalsInput) {
         `processed ${r.processed}: ` +
         `${r.succeeded_on_retry} succeeded_on_retry, ` +
         `${r.applied_thin} applied_thin, ` +
+        `${r.skipped_live_enriched ?? 0} skipped_live_enriched, ` +
         `${r.errored} errored`
       );
+    },
+  );
+}
+
+export const revertProposalsAppliedSinceSchema = z.object({
+  applied_at_after: z.string().describe(
+    "ISO8601 timestamp. Every proposal with applied_at >= this is " +
+    "reverted: prev_state_json replayed onto the products row (or " +
+    "INSERT undone), proposal flipped back to status='pending', " +
+    "applied_at cleared. Use to undo a bad bulk apply.",
+  ),
+  slug: z.string().optional().describe(
+    "Optional roaster slug filter (matches product_id LIKE '<slug>_%').",
+  ),
+  limit: z.number().int().min(1).max(5000).default(1000).describe(
+    "Cap on rows to revert per call. Default 1000, max 5000.",
+  ),
+  dry_run: z.boolean().default(false).describe(
+    "List candidates without mutating.",
+  ),
+});
+export type RevertProposalsAppliedSinceInput = z.infer<typeof revertProposalsAppliedSinceSchema>;
+
+export async function revertProposalsAppliedSince(input: RevertProposalsAppliedSinceInput) {
+  return audited(
+    "crema_revert_proposals_applied_since",
+    input,
+    async () =>
+      unwrap(await call("/admin/scrape/proposals/revert-applied-since", {
+        method: "POST",
+        body: {
+          applied_at_after: input.applied_at_after,
+          slug: input.slug,
+          limit: input.limit,
+          dry_run: input.dry_run,
+        },
+      })),
+    (r: any) => {
+      if (r.dry_run) return `would revert ${r.would_revert}`;
+      return `reverted ${r.reverted} of ${r.total_processed} (skipped ${r.skipped})`;
     },
   );
 }

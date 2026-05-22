@@ -62,6 +62,8 @@ import {
   fetchShopifyProductSchema, fetchPageTextSchema, renderPageSchema,
   // held-proposal resolver (closes HITL gate)
   resolveHeldProposalsSchema,
+  // bulk-apply revert (undo bad auto_approve runs)
+  revertProposalsAppliedSinceSchema,
   // agent action log + memory
   logAgentActionSchema, getSessionActionsSchema,
   logAgentMemorySchema, getAgentMemorySchema,
@@ -82,7 +84,7 @@ import {
   getLLMJobDetail, requeueLLMJob, listScrapeRuns, testSourceURL,
   catalogStats, proposalBreakdown, freshnessReport, listThinProducts,
   fetchShopifyProduct, fetchPageText, renderPage,
-  resolveHeldProposals,
+  resolveHeldProposals, revertProposalsAppliedSince,
   logAgentAction, getSessionActions, logAgentMemory, getAgentMemory,
 } from "./tools.js";
 
@@ -788,6 +790,19 @@ const TOOLS: ToolDef<any>[] = [
       "strict_checks runs.",
     schema: resolveHeldProposalsSchema,
     handler: resolveHeldProposals,
+    destructive: true,
+  },
+  {
+    name: "crema_revert_proposals_applied_since",
+    description:
+      "Revert every proposal with applied_at >= the given timestamp. " +
+      "For each: replays prev_state_json onto the products row (or " +
+      "deletes the row if it was an insert), flips the proposal back " +
+      "to status='pending', clears applied_at. Use to undo a bad bulk " +
+      "auto_approve run that downgraded enriched rows. Pair with " +
+      "dry_run=true first to preview targets.",
+    schema: revertProposalsAppliedSinceSchema,
+    handler: revertProposalsAppliedSince,
     destructive: true,
   },
   // ── Agent action log + memory (working journal) ────────────────────────
