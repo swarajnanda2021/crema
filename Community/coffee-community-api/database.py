@@ -1314,6 +1314,121 @@ _MIGRATIONS = [
     """CREATE INDEX IF NOT EXISTS idx_agent_runs_started ON agent_runs(started_at DESC)""",
     """CREATE INDEX IF NOT EXISTS idx_agent_runs_session ON agent_runs(session_id)""",
     """CREATE INDEX IF NOT EXISTS idx_agent_runs_tool ON agent_runs(tool_name)""",
+    # LLM-jobs queue — the agent-fallback execution path. When the
+    # FastAPI runner is invoked by a Claude operator (via the MCP
+    # server with CREMA_AGENT_IDENTITY=claude-*), each enricher
+    # enqueues a row here instead of calling the Anthropic SDK
+    # directly. Claude polls `/admin/llm-jobs/next`, produces the
+    # structured output, and POSTs `/admin/llm-jobs/{id}/respond` to
+    # wake the awaiting enricher. Same prompt + same tool schema as
+    # the SDK path — only the executor differs.
+    # See: services/llm_router.py + mcp-server tools crema_haiku_*.
+    """CREATE TABLE IF NOT EXISTS llm_jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        roaster_slug TEXT NOT NULL,
+        step TEXT NOT NULL,
+        target_id TEXT,
+        parent_run_id INTEGER,
+        model TEXT NOT NULL,
+        system_prompt TEXT NOT NULL,
+        tool_name TEXT NOT NULL,
+        tool_schema_json TEXT NOT NULL,
+        user_content TEXT NOT NULL,
+        max_tokens INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        response_payload TEXT,
+        error TEXT,
+        agent_identity TEXT,
+        created_at TEXT NOT NULL,
+        claimed_at TEXT,
+        completed_at TEXT
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_llm_jobs_status_created ON llm_jobs(status, created_at)""",
+    """CREATE INDEX IF NOT EXISTS idx_llm_jobs_slug ON llm_jobs(roaster_slug)""",
+    """CREATE INDEX IF NOT EXISTS idx_llm_jobs_parent ON llm_jobs(parent_run_id)""",
+
+    # ── agent_summaries — explicit session-log for autonomous agents.
+    # Every agent that performs catalog ops (drainer, orchestrator,
+    # auto-approve runner, hint-regen, etc.) calls
+    # `crema_log_agent_summary` at exit with a free-text task_label +
+    # 3-5-sentence summary in its own voice + outcome + the roaster
+    # slugs it touched. The UI digest reads this table.
+    #
+    # task_label is free-text by design — agents describe what they
+    # actually did, searchable later. outcome is a closed enum so the
+    # UI can color-code (success / partial / failed / aborted).
+    # metrics is a free-form JSON object — agents can stash counters
+    # like {"jobs_processed": 12, "approved": 9, "rejected": 0}.
+    """CREATE TABLE IF NOT EXISTS agent_summaries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_identity TEXT NOT NULL,
+        task_label TEXT NOT NULL,
+        prompt_excerpt TEXT,
+        summary TEXT NOT NULL,
+        outcome TEXT,
+        tool_calls_count INTEGER,
+        scope_slugs TEXT,
+        metrics TEXT,
+        started_at TEXT,
+        ended_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_agent_summaries_ended ON agent_summaries(ended_at DESC)""",
+    """CREATE INDEX IF NOT EXISTS idx_agent_summaries_agent ON agent_summaries(agent_identity, ended_at DESC)""",
+    """CREATE INDEX IF NOT EXISTS idx_agent_summaries_outcome ON agent_summaries(outcome)""",
+
+    # ── agent_actions — timestamped per-phase log within an agent session.
+    # Granularity is INTENTIONALLY coarser than agent_runs (which captures
+    # every MCP tool call). Each action represents a meaningful decision
+    # or phase: "ran diff_sweep", "fired enrich_all on 10 stale roasters",
+    # "spawned drainer L", "auto-approved 23 proposals", "investigated
+    # humble-express deletions". The `reasoning` field is the agent's
+    # own explanation in plain prose — WHY did it do this. This is the
+    # human-readable activity timeline: 10-20 entries per session, not
+    # the 250 MCP tool calls underneath.
+    """CREATE TABLE IF NOT EXISTS agent_actions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        agent_identity TEXT NOT NULL,
+        ts TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        action TEXT NOT NULL,
+        reasoning TEXT NOT NULL,
+        metadata_json TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_agent_actions_session ON agent_actions(session_id, ts)""",
+    """CREATE INDEX IF NOT EXISTS idx_agent_actions_ts ON agent_actions(ts DESC)""",
+
+    # ── agent_memory — durable lessons learned across sessions. This is
+    # the "experience" surface. When an agent encounters something
+    # surprising (a noise mode, a workaround, a discovered constraint
+    # in the system), it can log a memory entry. Future agents reading
+    # this scope at session start inherit the lesson without needing
+    # the original incident report.
+    #
+    # `scope` groups lessons by domain (catalog-ops, scrape-noise,
+    # wix-routing, drainer-discipline). Tags add finer slicing.
+    #
+    # `lesson` is the actionable takeaway, kept short — like a
+    # one-line postmortem item: "When a Shopify /products.json returns
+    # empty, retry once with backoff — Shopify rate-limit clears in
+    # ~2s." Future agents can grep these for relevant context.
+    #
+    # `reference_count` and `last_referenced_at` track which lessons
+    # are actually load-bearing vs vestigial — pruning candidates.
+    """CREATE TABLE IF NOT EXISTS agent_memory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scope TEXT NOT NULL,
+        lesson TEXT NOT NULL,
+        tags_json TEXT,
+        source_session_id TEXT,
+        source_summary_id INTEGER REFERENCES agent_summaries(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        last_referenced_at TEXT,
+        reference_count INTEGER NOT NULL DEFAULT 0
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_agent_memory_scope ON agent_memory(scope, created_at DESC)""",
+    """CREATE INDEX IF NOT EXISTS idx_agent_memory_last_ref ON agent_memory(last_referenced_at DESC)""",
 ]
 
 

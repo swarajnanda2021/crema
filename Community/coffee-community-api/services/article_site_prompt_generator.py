@@ -40,7 +40,7 @@ from typing import Optional
 SAMPLE_TARGET = 5
 PAGE_TEXT_CAP_PER_SAMPLE = 1500
 ADDENDUM_MAX_CHARS = 10_000
-META_MODEL = "claude-sonnet-4-6"
+META_MODEL = "claude-haiku-4-5-20251001"
 # Tuned to allow ~3K-char addendums without truncation; same shape
 # as services/site_prompt_generator.py.
 META_MAX_TOKENS = 2000
@@ -185,13 +185,15 @@ def generate_article_site_prompt_hint(
 
     user_content = _build_user_content(roaster_name, samples)
 
+    # Routed through services.llm_router (SDK or queue per provider).
+    # Prompt caching: cache_control on the system block keeps the
+    # static rules hot across back-to-back per-roaster runs. The
+    # queue path serialises the list to a joined string —
+    # cache_control is SDK-only.
+    from services.llm_router import call_llm
     try:
-        client = anthropic.Anthropic(max_retries=2)
-        # Prompt caching: mark the system block as cacheable so back-
-        # to-back per-roaster runs reuse the static instructions.
-        resp = client.messages.create(
-            model=META_MODEL,
-            max_tokens=META_MAX_TOKENS,
+        input_dict = call_llm(
+            step="journal_hint",
             system=[
                 {
                     "type": "text",
@@ -199,25 +201,21 @@ def generate_article_site_prompt_hint(
                     "cache_control": {"type": "ephemeral"},
                 }
             ],
-            tools=[_TOOL],
-            tool_choice={"type": "tool",
-                         "name": "write_article_site_addendum"},
-            messages=[{"role": "user", "content": user_content}],
-        )
+            tool=_TOOL,
+            user_content=user_content,
+            max_tokens=META_MAX_TOKENS,
+            model=META_MODEL,
+        ) or {}
     except Exception:
-        # Per the failure-mode contract: any Sonnet hiccup leaves the
+        # Per the failure-mode contract: any LLM hiccup leaves the
         # hint null and the next run retries. Don't crash the parent
         # article scrape job.
         return None
 
-    for block in resp.content:
-        if getattr(block, "type", None) == "tool_use":
-            input_dict = getattr(block, "input", {}) or {}
-            addendum = (input_dict.get("site_addendum") or "").strip()
-            if not addendum:
-                return ""
-            return addendum[:ADDENDUM_MAX_CHARS]
-    return None
+    addendum = (input_dict.get("site_addendum") or "").strip()
+    if not addendum:
+        return ""
+    return addendum[:ADDENDUM_MAX_CHARS]
 
 
 # ── Helpers ───────────────────────────────────────────────────────

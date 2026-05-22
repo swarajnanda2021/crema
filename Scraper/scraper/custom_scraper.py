@@ -19,6 +19,29 @@ from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
 from utils import extract_domain
 
+# Wix catalog pages are JS-rendered SPAs — the static HTML from
+# `requests.get` is a hydration shell with no product cards. Route the
+# catalog index through Playwright via wix_fetcher when Wix markers
+# are detected. Lazy import so the module loads on hosts without
+# Playwright installed.
+try:
+    from wix_fetcher import fetch_wix_html
+    _WIX_FETCHER_AVAILABLE = True
+except ImportError:
+    _WIX_FETCHER_AVAILABLE = False
+
+# Substrings that identify a page as Wix-rendered (any one match
+# triggers the Playwright re-fetch). Conservative — we want zero
+# false positives because Playwright is slow.
+_WIX_MARKERS = (
+    "wixstatic.com",
+    "static.parastorage.com",
+    "viewerModel",
+    "_wixCIDX",
+    "data-thunderbolt",
+    "wix-viewer",
+)
+
 HEADERS = {
     "User-Agent": "CoffeeAggregator/1.0 (product catalog; contact@example.com)"
 }
@@ -76,6 +99,16 @@ _PRICE_PATTERNS = [
     r"INR\s*([\d,]+(?:\.\d+)?)",
 ]
 
+# Weight matcher — finds "250g", "1 kg", "100 grams" etc. in free text.
+# Mirrors the parser in scraper/utils.py:normalize_weight; same patterns
+# kept in one place so the regex stays consistent. Used by the custom
+# (Wix / unknown-platform) scraper since those paths don't expose a
+# Shopify-style variant.grams field.
+_WEIGHT_PATTERN = re.compile(
+    r"\b(\d+(?:\.\d+)?)\s*(?:kgs?|kilograms?|kilos?|grams?|gms?|g)\b",
+    re.IGNORECASE,
+)
+
 # Keywords in a URL path that suggest a product page
 _PRODUCT_URL_SEGMENTS = [
     "/product/", "/products/", "/product-page/", "/coffee/",
@@ -129,6 +162,17 @@ def _is_spa(html: str) -> bool:
     return False
 
 
+def _is_wix(html: str) -> bool:
+    """Return True if the page is Wix-rendered. Catches the SPA shell
+    case (plain requests.get returns hydration HTML with no products)
+    AND the rendered case (Playwright output still has Wix markers in
+    inline scripts) — important so we can distinguish 'already
+    rendered' from 'needs rendering'."""
+    if not html:
+        return False
+    return any(m in html for m in _WIX_MARKERS)
+
+
 def _extract_price(text: str) -> Optional[float]:
     for pattern in _PRICE_PATTERNS:
         m = re.search(pattern, text)
@@ -137,6 +181,53 @@ def _extract_price(text: str) -> Optional[float]:
                 return float(m.group(1).replace(",", ""))
             except ValueError:
                 pass
+    return None
+
+
+def _extract_weight_text(*texts: str) -> Optional[str]:
+    """Find a weight-like substring in any of the provided text bodies.
+
+    Returns the matched substring (e.g. "250g", "1kg", "100 grams") which
+    the normalizer's `normalize_weight()` parses to integer grams. We
+    return the raw match rather than the parsed integer so the
+    normalizer remains the single owner of the gram-conversion logic.
+    None when no weight-shaped substring is found.
+    """
+    for text in texts:
+        if not text:
+            continue
+        m = _WEIGHT_PATTERN.search(text)
+        if m:
+            return m.group(0)
+    return None
+
+
+def _ld_weight_to_raw(ld: dict, offers) -> Optional[str]:
+    """Pull a weight string out of a JSON-LD Product (or its Offers).
+
+    schema.org's Product can expose `weight` directly OR nest it in
+    `offers.weight` as a QuantitativeValue ({value, unitCode|unitText}).
+    Wix sometimes uses plain numerics or string blobs. Returns a string
+    the normalizer can parse, or None.
+    """
+    candidates = [ld.get("weight")]
+    if isinstance(offers, dict):
+        candidates.append(offers.get("weight"))
+    for c in candidates:
+        if c is None:
+            continue
+        if isinstance(c, dict):
+            val = c.get("value")
+            unit = c.get("unitCode") or c.get("unitText") or "g"
+            if val is not None:
+                return f"{val} {unit}".strip()
+        elif isinstance(c, (int, float)):
+            # Bare number — assume grams (schema.org's KGM unitCode is
+            # what we'd expect but Wix often skips it; bare integers
+            # carry their natural unit from the page surrounding text).
+            return f"{c} g"
+        elif isinstance(c, str) and c.strip():
+            return c.strip()
     return None
 
 
@@ -322,6 +413,14 @@ def _product_from_jsonld(
     elif isinstance(images, str):
         image_url = images
 
+    # Weight: try JSON-LD's weight first, fall back to text regex on
+    # the name + description. Wix often emits weight in the JSON-LD
+    # offers block; when it doesn't, the description copy almost
+    # always mentions it (e.g. "250g bag").
+    weight_raw = _ld_weight_to_raw(ld, offers)
+    if not weight_raw:
+        weight_raw = _extract_weight_text(name, desc)
+
     return {
         "_roaster": roaster,
         "_domain": domain,
@@ -330,6 +429,7 @@ def _product_from_jsonld(
         "title": name,
         "body_html": desc,
         "price_raw": price,
+        "weight_raw": weight_raw,
         "image_raw": image_url,
         "tags": [],
         "product_type": "",
@@ -391,6 +491,14 @@ def _scrape_product_page(url: str, roaster: dict, domain: str) -> Optional[dict]
                 image_url = urljoin(url, src)
                 break
 
+    # Weight — scan title + description + whole-body text for any
+    # "<n>g" / "<n> grams" / "<n>kg" substring. The whole-body fallback
+    # catches sites that put weight in a sidebar widget instead of the
+    # main description block (Wix detail tables, e-comm theme specs).
+    weight_raw = _extract_weight_text(
+        name, desc_text, soup.get_text(separator=" ", strip=True),
+    )
+
     return {
         "_roaster": roaster,
         "_domain": domain,
@@ -399,6 +507,7 @@ def _scrape_product_page(url: str, roaster: dict, domain: str) -> Optional[dict]
         "title": name,
         "body_html": desc_text,
         "price_raw": price,
+        "weight_raw": weight_raw,
         "image_raw": image_url,
         "tags": [],
         "product_type": "",
@@ -412,6 +521,13 @@ def scrape_custom(roaster: dict) -> list:
     """
     Scrape a custom-platform site via HTML parsing.
     Returns a list of raw product dicts (or empty list on failure).
+
+    Wix routing: when the cheap `requests.get` returns a Wix hydration
+    shell (no products), re-fetch via Playwright headless Chromium so
+    the product-list widget mounts before we parse. The diff sweep on
+    2026-05-21 showed 8/8 Wix roasters returning 0 products via the
+    plain-HTML path — the SPA-abort branch killed coverage. With the
+    re-fetch we can actually discover the product cards.
     """
     start = time.time()
     shop_url = roaster.get("shop_url") or roaster["website"]
@@ -421,8 +537,21 @@ def scrape_custom(roaster: dict) -> list:
     if not html:
         return []
 
-    # Detect JS-only SPA early — no point parsing further
-    if _is_spa(html):
+    # Wix re-render path: if the cheap fetch returned a Wix shell,
+    # promote to Playwright so the product widget renders. Skip the
+    # SPA-abort below — we just paid to render, the result IS the
+    # rendered DOM. We allow the downstream selectors to do their work.
+    rendered_via_playwright = False
+    if _is_wix(html) and _WIX_FETCHER_AVAILABLE:
+        rendered = fetch_wix_html(shop_url)
+        if rendered:
+            html = rendered
+            rendered_via_playwright = True
+
+    # SPA abort only fires when we did NOT render via Playwright.
+    # Rendered Wix pages keep their SPA markers in inline scripts
+    # (data-reactroot etc.) — we shouldn't trip on those.
+    if not rendered_via_playwright and _is_spa(html):
         raise RuntimeError("requires_js_rendering")
 
     soup = BeautifulSoup(html, "lxml")

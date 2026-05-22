@@ -104,6 +104,14 @@ export default function AdminRefreshPage() {
   const [diffHintSaving, setDiffHintSaving] = useState(false);
   const [diffHintError, setDiffHintError] = useState<string | null>(null);
 
+  // Held-proposals state — fetched via the auto-approve dry-run, scoped
+  // to this slug. Surfaces *why* each pending proposal failed completeness
+  // checks (species-in-varietal, missing roast level, etc.) so the admin
+  // can decide whether to re-enrich, edit, or override per card.
+  type HeldItem = { id: number; coffee_name: string | null; reasons: string[] };
+  const [heldItems, setHeldItems] = useState<HeldItem[] | null>(null);
+  const [heldLoading, setHeldLoading] = useState(false);
+
   const fetchProfile = useCallback(async () => {
     if (!slug) return;
     try {
@@ -126,13 +134,33 @@ export default function AdminRefreshPage() {
     }
   }, [slug]);
 
+  const fetchHeldItems = useCallback(async () => {
+    if (!slug) return;
+    setHeldLoading(true);
+    try {
+      const res: any = await apiFetchRaw(
+        `/admin/scrape/proposals/auto-approve`,
+        {
+          method: "POST",
+          body: JSON.stringify({ slug, dry_run: true }),
+        },
+      );
+      const data = res?.data ?? res;
+      setHeldItems((data?.held as HeldItem[]) || []);
+    } catch {
+      setHeldItems([]);
+    } finally {
+      setHeldLoading(false);
+    }
+  }, [slug]);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await Promise.all([fetchProfile(), fetchSnapshot()]);
+      await Promise.all([fetchProfile(), fetchSnapshot(), fetchHeldItems()]);
       setLoading(false);
     })();
-  }, [fetchProfile, fetchSnapshot]);
+  }, [fetchProfile, fetchSnapshot, fetchHeldItems]);
 
   const runRefresh = async () => {
     if (!slug) return;
@@ -226,7 +254,8 @@ export default function AdminRefreshPage() {
           contentContainerStyle={s.scrollInner}
           showsVerticalScrollIndicator={false}
         >
-          {/* Back affordance */}
+          {/* Back affordance — sitewide pattern: icon only, no label.
+              Back is contextual; users don't need the destination spelled out. */}
           {isMobile ? (
             <Pressable
               onPress={() => {
@@ -234,12 +263,11 @@ export default function AdminRefreshPage() {
                 if (router.canGoBack()) router.back();
                 else router.replace("/profile?tab=catalog");
               }}
-              hitSlop={8}
+              hitSlop={12}
               style={({ pressed }) => [s.backBtn, pressed && s.pressed]}
-              accessibilityLabel="Back to Catalog Ops"
+              accessibilityLabel="Back"
             >
-              <ArrowLeft size={18} color={t.color["text.primary"]} strokeWidth={2} />
-              <Text style={s.backText}>Catalog Ops</Text>
+              <ArrowLeft size={20} color={t.color["text.primary"]} strokeWidth={2} />
             </Pressable>
           ) : null}
 
@@ -265,11 +293,11 @@ export default function AdminRefreshPage() {
                 hapticTap();
                 router.push(`/admin/roaster/${slug}` as any);
               }}
+              hitSlop={10}
               style={({ pressed }) => [s.altLink, pressed && s.pressed]}
               accessibilityLabel="Open full admin page for this roaster"
             >
-              <Text style={s.altLinkText}>Full admin</Text>
-              <ExternalLink size={14} color={t.color["text.secondary"]} strokeWidth={1.8} />
+              <ExternalLink size={18} color={t.color["text.primary"]} strokeWidth={1.8} />
             </Pressable>
           </View>
 
@@ -385,6 +413,40 @@ export default function AdminRefreshPage() {
                   produce the first prev snapshot.
                 </Text>
               )}
+            </View>
+          ) : null}
+
+          {/* Held proposals — proposals that passed scrape-time
+              non-coffee filter but failed downstream completeness
+              checks (species in varietal field, missing roast level,
+              etc.). The admin needs to know WHAT is held and WHY
+              before re-running the refresh. */}
+          {heldLoading ? null : heldItems && heldItems.length > 0 ? (
+            <View style={s.card}>
+              <Text style={s.cardTitle}>
+                Held for review ({heldItems.length})
+              </Text>
+              <Text style={s.cardHint}>
+                These proposals were enriched but flagged by completeness
+                checks. Re-enrich this roaster (with the patched prompt)
+                to attempt fresh extractions, or review each card below to
+                approve / edit / reject manually.
+              </Text>
+              <View style={s.heldList}>
+                {heldItems.map((h) => (
+                  <View key={h.id} style={s.heldItem}>
+                    <Text style={s.heldName} numberOfLines={1}>
+                      {h.coffee_name || `proposal #${h.id}`}
+                    </Text>
+                    {h.reasons.map((r, i) => (
+                      <View key={i} style={s.heldReason}>
+                        <Text style={s.heldReasonBullet}>•</Text>
+                        <Text style={s.heldReasonText}>{r}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
             </View>
           ) : null}
 
@@ -613,18 +675,9 @@ const useStyles = makeStyles((t) => ({
   } as any,
 
   backBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: t.spacing.xs,
     alignSelf: "flex-start",
-    paddingVertical: t.spacing.xs,
-    paddingHorizontal: t.spacing.sm,
+    padding: t.spacing.xs,
     borderRadius: t.radius.full,
-  } as any,
-  backText: {
-    fontFamily: t.font["body.semibold"],
-    fontSize: t.size["font.sm"],
-    color: t.color["text.primary"],
   } as any,
   pressed: { opacity: 0.7 } as any,
 
@@ -647,19 +700,10 @@ const useStyles = makeStyles((t) => ({
     marginTop: 2,
   } as any,
   altLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: t.spacing.sm,
-    paddingVertical: t.spacing.xs,
+    padding: t.spacing.xs,
     borderRadius: t.radius.full,
     borderWidth: 1,
     borderColor: t.color["border.light"],
-  } as any,
-  altLinkText: {
-    fontFamily: t.font["body.semibold"],
-    fontSize: t.size["font.xs"],
-    color: t.color["text.secondary"],
   } as any,
 
   card: {
@@ -692,6 +736,43 @@ const useStyles = makeStyles((t) => ({
     color: t.color["text.muted"],
     lineHeight: 20,
     marginTop: t.spacing.xs,
+  } as any,
+
+  // ── Held-proposals list ────────────────────────────────────────
+  heldList: {
+    marginTop: t.spacing.md,
+    gap: t.spacing.sm,
+  } as any,
+  heldItem: {
+    padding: t.spacing.sm,
+    borderRadius: t.radius.md,
+    borderWidth: 1,
+    borderColor: t.color.border,
+    backgroundColor: t.color["card.subtle"],
+    gap: t.spacing["2xs"],
+  } as any,
+  heldName: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.primary"],
+  } as any,
+  heldReason: {
+    flexDirection: "row",
+    gap: t.spacing.xs,
+    paddingLeft: t.spacing.xs,
+  } as any,
+  heldReasonBullet: {
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.secondary"],
+    lineHeight: 18,
+  } as any,
+  heldReasonText: {
+    flex: 1,
+    fontFamily: t.font["body.regular"],
+    fontSize: t.size["font.sm"],
+    color: t.color["text.secondary"],
+    lineHeight: 18,
   } as any,
 
   // ── Breakdown ──────────────────────────────────────────────────

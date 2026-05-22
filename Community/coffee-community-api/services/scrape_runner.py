@@ -39,14 +39,62 @@ SCRAPER_OUTPUT = SCRAPER_DIR / "output" / "products.json"
 SCRAPER_LOG = SCRAPER_DIR / "output" / "scrape_log.json"
 SCRAPER_ENTRYPOINT = SCRAPER_DIR / "scraper" / "main.py"
 
+# Per-roaster workspace root. Each refresh creates an isolated dir under
+# this so concurrent scrapes don't race on the legacy global I/O paths.
+SCRAPE_WORKSPACES_ROOT = Path("/tmp") / "crema-scrape"
+
 SCRAPE_TIMEOUT_SECONDS = 30 * 60  # 30 min
+
+
+class ScrapeWorkspace:
+    """Per-roaster scrape workspace — isolated input + output paths so
+    multiple scrapes can run concurrently without colliding on the
+    legacy global files (Scraper/input/*, Scraper/output/*).
+
+    Layout:
+        /tmp/crema-scrape/{slug}-{ts}/
+            input.json              — catalog row(s) the scraper reads
+            output/products.json    — what the scraper writes
+            output/scrape_log.json
+            output/images_manifest.json
+
+    The subprocess receives `SCRAPER_INPUT_PATH` + `SCRAPER_OUTPUT_DIR`
+    env vars pointing at these paths (see Scraper/scraper/main.py).
+    """
+
+    def __init__(self, slug: str):
+        ts = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%S")
+        self.slug = slug
+        self.root = SCRAPE_WORKSPACES_ROOT / f"{slug}-{ts}"
+        self.input_path = self.root / "input.json"
+        self.output_dir = self.root / "output"
+        self.output_products_path = self.output_dir / "products.json"
+        self.output_log_path = self.output_dir / "scrape_log.json"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def env_overrides(self) -> dict:
+        """Env vars to pass to the scraper subprocess."""
+        return {
+            "SCRAPER_INPUT_PATH": str(self.input_path),
+            "SCRAPER_OUTPUT_DIR": str(self.output_dir),
+        }
+
+    def cleanup(self) -> None:
+        """Remove the workspace dir after the scrape is fully consumed.
+        Best-effort — failures don't crash the pipeline."""
+        try:
+            import shutil
+            shutil.rmtree(self.root, ignore_errors=True)
+        except Exception:
+            pass
 
 
 def _now() -> str:
     return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def write_input_catalog(db, *, roaster_slug: str | None = None) -> int:
+def write_input_catalog(db, *, roaster_slug: str | None = None,
+                          workspace: Optional[ScrapeWorkspace] = None) -> int:
     """Render every scrapable `roaster_sources` row into the JSON file the
     scraper reads. Returns the number of sources written.
 
@@ -96,8 +144,11 @@ def write_input_catalog(db, *, roaster_slug: str | None = None) -> int:
             "shop_url": r["shop_url"] or r["website"],
             "platform": r["platform"] or "custom",
         })
-    SCRAPER_INPUT.parent.mkdir(parents=True, exist_ok=True)
-    with open(SCRAPER_INPUT, "w", encoding="utf-8") as f:
+    # Per-roaster path when workspace is set; fall back to the legacy
+    # global path otherwise (so the old jobs-table flow still works).
+    target_path = workspace.input_path if workspace else SCRAPER_INPUT
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(target_path, "w", encoding="utf-8") as f:
         json.dump(catalog, f, indent=2, ensure_ascii=False)
     return len(catalog)
 
@@ -106,6 +157,7 @@ def invoke_scraper(
     *,
     timeout: int = SCRAPE_TIMEOUT_SECONDS,
     on_line: Optional[Callable[[str], None]] = None,
+    workspace: Optional[ScrapeWorkspace] = None,
 ) -> tuple[int, str]:
     """Spawn the scraper and stream stdout line by line.
 
@@ -123,6 +175,15 @@ def invoke_scraper(
             "Confirm the Scraper/ directory is intact."
         )
 
+    # When a workspace is provided, pass SCRAPER_INPUT_PATH +
+    # SCRAPER_OUTPUT_DIR env vars so the subprocess writes its output
+    # to the per-roaster workspace instead of the legacy global paths.
+    # See Scraper/scraper/main.py — it reads these env vars at module
+    # load and falls back to the global paths when unset.
+    env = os.environ.copy()
+    if workspace is not None:
+        env.update(workspace.env_overrides())
+
     proc = subprocess.Popen(
         [sys.executable, "-u", str(SCRAPER_ENTRYPOINT.relative_to(SCRAPER_DIR))],
         cwd=str(SCRAPER_DIR),
@@ -130,6 +191,7 @@ def invoke_scraper(
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,  # line-buffered
+        env=env,
     )
 
     # We pump the child's stdout in a separate thread so the join /
@@ -343,7 +405,8 @@ def _canonicalize(p: dict, lookup: dict[str, str]) -> None:
 def stage_scrape_proposals(db, job_id: int,
                              *, log: Callable[[str], None] | None = None,
                              roaster_slug: str | None = None,
-                             regenerate_prompt: bool = False) -> dict:
+                             regenerate_prompt: bool = False,
+                             workspace: Optional[ScrapeWorkspace] = None) -> dict:
     """Read `Scraper/output/products.json` and stage proposals — never
     touches the `products` table directly.
 
@@ -376,10 +439,15 @@ def stage_scrape_proposals(db, job_id: int,
     the existing row — so a no-op re-scrape won't fill the queue with
     "approve this trivially-identical row" requests.
     """
-    if not SCRAPER_OUTPUT.exists():
+    # Per-roaster workspace path takes precedence; legacy global path
+    # is the fallback for jobs-table callers that pre-date the refactor.
+    products_path = (
+        workspace.output_products_path if workspace else SCRAPER_OUTPUT
+    )
+    if not products_path.exists():
         return _empty_summary()
 
-    with open(SCRAPER_OUTPUT) as f:
+    with open(products_path) as f:
         scraped = json.load(f)
 
     # Pre-resolve the canonical slug per scraped roaster website, in one
@@ -432,6 +500,7 @@ def stage_scrape_proposals(db, job_id: int,
     scraped_pids: set[str] = set()
     scraped_slugs: set[str] = set()
 
+    heuristic_skipped_total = 0
     for p in scraped:
         # Canonicalize slug + product_id BEFORE any further processing so
         # the in-DB lookup keys stay stable across runs.
@@ -449,8 +518,32 @@ def stage_scrape_proposals(db, job_id: int,
                     enrichment_failures += 1
                 else:
                     p = merged
+                    # Pre-LLM heuristic skip — the row never reached
+                    # Haiku because the URL slug + title made it obvious
+                    # this isn't a coffee bean (workshop, t-shirt, gift
+                    # hamper, etc.). Stage it as an auto-rejected
+                    # proposal so the audit trail survives — the admin
+                    # can see WHICH rows the heuristic filtered out and
+                    # un-reject any false positives. The reason is
+                    # stashed in `proposed_state_json` (no dedicated
+                    # rejection_reason column yet) under a private
+                    # `_rejection_reason` key.
+                    skip_reason = p.get("_heuristic_skip_reason")
+                    if skip_reason:
+                        pid = p.get("product_id")
+                        if pid:
+                            _insert_heuristic_rejection(
+                                db, job_id, pid, p, skip_reason, now,
+                            )
+                            heuristic_skipped_total += 1
+                        else:
+                            skipped_count += 1
+                        continue
                     # If the LLM rules this isn't a coffee bean, drop it
-                    # — no proposal even gets staged.
+                    # — no proposal even gets staged. (Same behaviour as
+                    # before: only the *heuristic* path stages a
+                    # rejected proposal; the LLM-side is_coffee_bean
+                    # ruling is treated as a confident filter.)
                     if p.get("is_coffee_bean") is False:
                         skipped_count += 1
                         continue
@@ -638,6 +731,7 @@ def stage_scrape_proposals(db, job_id: int,
     return {
         "scraped": len(scraped),
         "skipped": skipped_count,
+        "heuristic_skipped": heuristic_skipped_total,
         "new_products": new_items,
         "new_products_total": new_total,
         "updated": updated_items,
@@ -706,7 +800,7 @@ def _row_diff(existing: dict, proposed: dict) -> bool:
 
 def _empty_summary() -> dict:
     return {
-        "scraped": 0, "skipped": 0,
+        "scraped": 0, "skipped": 0, "heuristic_skipped": 0,
         "new_products": [], "new_products_total": 0,
         "updated": [], "updated_total": 0,
         "missing": [], "missing_total": 0,
@@ -741,6 +835,56 @@ def _insert_proposal(db, job_id: int, product_id: str, change_type: str,
             job_id, product_id, change_type,
             json.dumps(proposed_state) if proposed_state is not None else None,
             json.dumps(prev_state) if prev_state is not None else None,
+            now,
+        ),
+    )
+    db.commit()
+
+
+def _insert_heuristic_rejection(
+    db,
+    job_id: int,
+    product_id: str,
+    product: dict,
+    reason: str,
+    now: str,
+) -> None:
+    """Stage an auto-rejected proposal for a row the pre-LLM heuristic
+    filtered out.
+
+    Lands directly as `status='rejected'` (skipping `staging`/`pending`)
+    so it doesn't clutter the admin's "needs review" queue, but the row
+    is still visible in the proposals history with the rejection reason
+    in `proposed_state_json._rejection_reason`. The admin can search
+    the rejected proposals later to verify the heuristic's recall —
+    any false positive can be un-rejected and re-enriched.
+
+    Why stuff the reason inside `proposed_state_json` instead of a
+    dedicated column: the `scrape_proposals` schema doesn't have a
+    `rejection_reason` column, and adding one for the heuristic alone
+    is more invasive than this minimal-blast-radius approach. The key
+    is private (`_rejection_reason` — leading underscore signals "not
+    part of the row's normal payload") so downstream JSON consumers
+    that strictly type-check the proposed-state schema skip it.
+    """
+    payload = {
+        "_rejection_reason": reason,
+        "product_id": product_id,
+        "title": product.get("title") or product.get("coffee_name") or "",
+        "product_url": product.get("product_url") or "",
+        "roaster_slug": product.get("roaster_slug") or "",
+    }
+    db.execute(
+        "INSERT INTO scrape_proposals "
+        "(job_id, product_id, change_type, proposed_state_json, "
+        " prev_state_json, status, rejected_at, created_at) "
+        "VALUES (?, ?, ?, ?, NULL, 'rejected', ?, ?)",
+        (
+            job_id,
+            product_id,
+            "heuristic_reject",
+            json.dumps(payload),
+            now,
             now,
         ),
     )

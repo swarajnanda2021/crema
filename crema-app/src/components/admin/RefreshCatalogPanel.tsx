@@ -181,6 +181,30 @@ export default function RefreshCatalogPanel() {
     return Array.from(set).sort();
   }, [status]);
 
+  // ── Quick-filter aggregate counts ───────────────────────────────────
+  //
+  // Pre-compute total / stale / clean counts across the ENTIRE published
+  // roaster set (ignoring any active filters) so the quick-filter chips
+  // show useful at-a-glance numbers regardless of what's currently
+  // selected. Search + region + platform filters still apply ON TOP of
+  // whichever quick-filter the operator picks.
+  const quickCounts = useMemo(() => {
+    const rows = (roasters.data || []).filter((r) => r.published === 1);
+    let stale = 0;
+    let clean = 0;
+    let no_snap = 0;
+    for (const r of rows) {
+      const st = statusBySlug[r.roaster_slug];
+      if (!st || !st.has_snapshot) {
+        no_snap++;
+        continue;
+      }
+      if (totalDiff(st) > 0) stale++;
+      else clean++;
+    }
+    return { total: rows.length, stale, clean, no_snap };
+  }, [roasters.data, statusBySlug]);
+
   // Apply filters ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -287,6 +311,46 @@ export default function RefreshCatalogPanel() {
           re-baselining (regenerates bio + re-crawls the whole catalog and
           journal).
         </Text>
+      </View>
+
+      {/* ── Quick-filter chip row — one-tap presets ──────────────────
+          Three chips for the most common ways an operator filters the
+          roster: All (no diff filter), Stale (has_diff=true — the
+          ones that changed since last snapshot, the agent's daily
+          priority list), Clean (synced + no changes detected). Setting
+          a chip overrides the full filter drawer's diff-status field,
+          so the operator gets a one-tap path to "show me what needs
+          work today" without opening the drawer. The bulk Refresh CTA
+          below operates on whichever set the active chip + other
+          filters resolved to. */}
+      <View style={s.quickFilterRow}>
+        {([
+          { key: "any" as DiffStatus, label: "All", count: quickCounts.total },
+          { key: "has_diff" as DiffStatus, label: "Stale", count: quickCounts.stale },
+          { key: "clean" as DiffStatus, label: "Clean", count: quickCounts.clean },
+        ]).map((opt) => {
+          const active = diffStatus === opt.key;
+          return (
+            <Pressable
+              key={opt.key}
+              onPress={() => { hapticTap(); setDiffStatus(opt.key); }}
+              style={({ pressed }) => [
+                s.quickChip,
+                active && s.quickChipActive,
+                pressed && { opacity: 0.7 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Filter ${opt.label}: ${opt.count} roasters`}
+            >
+              <Text style={[s.quickChipText, active && s.quickChipTextActive]}>
+                {opt.label}
+              </Text>
+              <Text style={[s.quickChipCount, active && s.quickChipCountActive]}>
+                {opt.count}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* ── Bulk Refresh CTA — orchestrator's one-button sweep ─────── */}
@@ -659,6 +723,47 @@ const useStyles = makeStyles((t) => ({
     color: t.color["text.on-cta"],
     letterSpacing: 0.3,
   } as any,
+
+  // ── Quick-filter chips ─────────────────────────────────────────
+  // Three at-a-glance presets above the Bulk Refresh CTA: All / Stale
+  // / Clean. Token-safe in both modes: active chip uses text.primary
+  // bg + `bg` token text (inverts opposite to text.primary so it stays
+  // legible in Espresso-light AND Crema-White-dark). Inactive chips
+  // use border.light outline on the page bg.
+  quickFilterRow: {
+    flexDirection: "row",
+    gap: t.spacing.xs,
+  } as any,
+  quickChip: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+    paddingHorizontal: t.spacing.md,
+    paddingVertical: t.spacing.xs,
+    borderRadius: t.radius.full,
+    borderWidth: 1,
+    borderColor: t.color["border.light"],
+    backgroundColor: t.color.bg,
+  } as any,
+  quickChipActive: {
+    backgroundColor: t.color["text.primary"],
+    borderColor: t.color["text.primary"],
+  } as any,
+  quickChipText: {
+    fontFamily: t.font["body.semibold"],
+    fontSize: t.size["font.xs"],
+    color: t.color["text.primary"],
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  } as any,
+  quickChipTextActive: { color: t.color.bg } as any,
+  quickChipCount: {
+    fontFamily: t.font.display,
+    fontSize: t.size["font.md"],
+    color: t.color["text.muted"],
+    fontVariant: ["tabular-nums"],
+  } as any,
+  quickChipCountActive: { color: t.color.bg } as any,
 
   sectionHeader: {
     flexDirection: "row",

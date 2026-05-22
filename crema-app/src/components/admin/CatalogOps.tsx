@@ -29,16 +29,19 @@ import RoastersPanel from "./RoastersPanel";
 import StandardizationPanel from "./StandardizationPanel";
 import ArticlesPanel from "./ArticlesPanel";
 import RefreshCatalogPanel from "./RefreshCatalogPanel";
+import AgentLogPanel from "./AgentLogPanel";
 
 export type CatalogOpsSection =
   | "roasters"
   | "refresh"
+  | "log"
   | "standardization"
   | "articles";
 
 const SECTIONS: CatalogOpsSection[] = [
   "roasters",
   "refresh",
+  "log",
   "standardization",
   "articles",
 ];
@@ -46,6 +49,7 @@ const SECTIONS: CatalogOpsSection[] = [
 const SECTION_LABEL: Record<CatalogOpsSection, string> = {
   roasters: "ROASTERS & BEANS",
   refresh: "REFRESH CATALOG",
+  log: "AGENT LOG",
   standardization: "STANDARDIZATION",
   articles: "JOURNAL OPS",
 };
@@ -53,6 +57,7 @@ const SECTION_LABEL: Record<CatalogOpsSection, string> = {
 const SECTION_TITLE: Record<CatalogOpsSection, string> = {
   roasters: "Roasters & Beans",
   refresh: "Refresh Catalog",
+  log: "Agent Log",
   standardization: "Catalog Standardization",
   articles: "Roaster Journal",
 };
@@ -60,6 +65,7 @@ const SECTION_TITLE: Record<CatalogOpsSection, string> = {
 const SECTION_BLURB: Record<CatalogOpsSection, string> = {
   roasters: "Manage roaster identities + run per-roaster bean enrichment from the same surface.",
   refresh: "Diff each roaster's website against the last snapshot — re-enrich only what changed. Cheap maintenance refresh, distinct from the full re-baseline that Roasters & Beans triggers.",
+  log: "Daily journal of what the autonomous catalog-ops agents did. Each row is one agent session — task, narrative summary, outcome, roasters touched. Click into an entry for the underlying MCP tool-call trail.",
   standardization: "Five sequential Haiku passes that map tasting notes, origins, varietals, roast levels, and processes onto Crema canonical references.",
   articles: "Discover, refresh, and curate the blog articles each roaster publishes. Tap a row to expand its site-quirk hint and per-article controls. Multi-select rows to scope a refresh.",
 };
@@ -119,6 +125,8 @@ export default function CatalogOps() {
           <RoastersPanel />
         ) : section === "refresh" ? (
           <RefreshCatalogPanel />
+        ) : section === "log" ? (
+          <AgentLogPanel />
         ) : section === "articles" ? (
           <ArticlesPanel />
         ) : (

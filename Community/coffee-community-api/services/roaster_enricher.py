@@ -65,7 +65,7 @@ from urllib.parse import urljoin, urlparse
 # we want the rest of the API process to start clean even if the
 # scraper venv hasn't been pip-installed.
 
-MODEL = "claude-sonnet-4-6"
+MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 2000
 HTTP_TIMEOUT = 15
 HEADERS = {
@@ -264,7 +264,46 @@ def slugify(name: str) -> str:
 
 # ── HTTP fetch ─────────────────────────────────────────────────────────────
 
+_WIX_HTML_SIGNATURES = (
+    "wixstatic.com",
+    "wix-warmup-data",
+    "viewerModel",
+    "static.parastorage.com",  # Wix's static asset CDN
+)
+
+
+def _looks_like_wix_shell(html: str) -> bool:
+    """Detect a Wix-served page by HTML signatures, regardless of the
+    domain. Roasters use custom domains (e.g. 729grams.coffee) that
+    point at Wix — we can't tell from URL alone. The HTML body has
+    fingerprints though: it loads from wixstatic.com / parastorage,
+    embeds a viewerModel global, and inlines a wix-warmup-data block.
+    Two or more signatures = high-confidence Wix."""
+    if not html:
+        return False
+    hits = sum(1 for s in _WIX_HTML_SIGNATURES if s in html)
+    return hits >= 2
+
+
 def _fetch(url: str, *, accept_xml: bool = False) -> Optional[str]:
+    """Fetch a page and return its HTML body.
+
+    Wix sites are JS-rendered SPAs — plain requests gets a hydration
+    shell with the meaningful content (bio prose, contact strip,
+    embedded social handles) loaded post-DOMContentLoaded via Velo
+    XHRs. Plain requests works fine for the BYTES, but the bio /
+    about-text extraction downstream gets near-empty because the
+    rendered content isn't in the static HTML.
+
+    Strategy:
+      1. Plain `requests.get` — fast, works for Shopify/WooCommerce.
+      2. Check the response for Wix HTML signatures. If detected
+         AND we're fetching an HTML page (not XML/sitemap), retry
+         through Playwright via wix_fetcher.fetch_wix_html so the
+         rendered DOM lands in the return value.
+      3. On any error in stage 2, return the stage-1 HTML as a
+         fallback — partial is better than empty.
+    """
     try:
         import requests
     except ImportError as e:
@@ -273,19 +312,45 @@ def _fetch(url: str, *, accept_xml: bool = False) -> Optional[str]:
             "in the FastAPI server's Python env."
         ) from e
 
+    html: Optional[str] = None
     try:
         resp = requests.get(url, headers=HEADERS, timeout=HTTP_TIMEOUT,
                               allow_redirects=True)
-        if resp.status_code != 200:
-            return None
-        ct = resp.headers.get("content-type", "")
-        if "text/html" in ct or "application/xhtml" in ct:
-            return resp.text
-        if accept_xml and ("xml" in ct or url.endswith(".xml")):
-            return resp.text
-        return None
+        if resp.status_code == 200:
+            ct = resp.headers.get("content-type", "")
+            is_html = "text/html" in ct or "application/xhtml" in ct
+            is_xml = "xml" in ct or url.endswith(".xml")
+            if is_html or (accept_xml and is_xml):
+                html = resp.text
     except Exception:
-        return None
+        html = None
+
+    # Wix detection + Playwright escalation. Two paths trigger the
+    # escalation:
+    #   (a) requests succeeded but the HTML body has Wix signatures —
+    #       the static HTML is the JS shell; rendering will reveal
+    #       the actual body content.
+    #   (b) requests FAILED (None) — the roaster's hostname may be
+    #       blocking our default UA outright. Playwright with a real
+    #       Chromium UA often gets through. We can't peek at HTML
+    #       signatures yet, so we try anyway.
+    # XML fetches (sitemap) skip the escalation — JS rendering
+    # doesn't help with XML.
+    if not accept_xml and (html is None or _looks_like_wix_shell(html)):
+        try:
+            import sys
+            from pathlib import Path
+            scraper_root = Path(__file__).resolve().parent.parent.parent.parent / "Scraper"
+            if str(scraper_root) not in sys.path:
+                sys.path.insert(0, str(scraper_root))
+            from scraper.wix_fetcher import fetch_wix_html  # type: ignore
+            rendered = fetch_wix_html(url)
+            if rendered:
+                return rendered
+        except Exception:
+            pass  # fall through to whatever stage-1 produced
+
+    return html
 
 
 def _try_about_page(base_url: str) -> str:
@@ -432,23 +497,26 @@ def _call_sonnet(*, base_url: str, platform_hint: Optional[str],
         f"product-listing pages):\n{sitemap_block}"
     )
 
-    client = anthropic.Anthropic(max_retries=3)
+    # Routed through services.llm_router — SDK when a human operator
+    # is driving (LLM_PROVIDER=anthropic), queue when a Claude agent
+    # is driving (CREMA_AGENT_IDENTITY starts with "claude-" or
+    # LLM_PROVIDER=claude_code_agent). Same prompt + same tool schema
+    # either way.
+    from services.llm_router import call_llm, LLMCallError
     try:
-        resp = client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
+        result = call_llm(
+            step="bio",
             system=_ROASTER_SYSTEM,
-            tools=[_ROASTER_TOOL],
-            tool_choice={"type": "tool", "name": "extract_roaster_profile"},
-            messages=[{"role": "user", "content": user_content}],
+            tool=_ROASTER_TOOL,
+            user_content=user_content,
+            max_tokens=MAX_TOKENS,
+            model=MODEL,
         )
-    except anthropic.APIError as e:
-        raise RoasterEnricherError(f"Sonnet call failed: {e}") from e
-
-    for block in resp.content:
-        if block.type == "tool_use":
-            return block.input  # type: ignore[return-value]
-    raise RoasterEnricherError("Sonnet returned no tool_use block")
+    except LLMCallError as e:
+        raise RoasterEnricherError(f"LLM call failed: {e}") from e
+    if result is None:
+        raise RoasterEnricherError("LLM returned no tool_use block")
+    return result  # type: ignore[return-value]
 
 
 # ── Public entry point ─────────────────────────────────────────────────────

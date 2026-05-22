@@ -272,15 +272,28 @@ def get_active_job(db, kind: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
-def enqueue_job(db, kind: str, started_by: int) -> int:
+def enqueue_job(db, kind: str, started_by: int,
+                  *, bypass_mutex: bool = False) -> int:
     """Insert a new job row in `queued` state. Raises `JobConflict` if a
-    job of the same kind is already live."""
-    active = get_active_job(db, kind)
-    if active:
-        raise JobConflict(
-            f"A {kind} job is already {active['status']} (id={active['id']}).",
-            live_job_id=active["id"],
-        )
+    job of the same kind is already live.
+
+    `bypass_mutex=True` (refactored per-roaster flow): skip the
+    same-kind-already-running check entirely. Used by the new
+    orchestrator path which runs each roaster's scrape in its own
+    isolated workspace (`/tmp/crema-scrape/{slug}-{ts}/`), so the
+    file-collision concern that motivated the original mutex doesn't
+    apply. Multiple scrapes can run concurrently — the jobs row is
+    kept purely for visibility (admin UI's "Recent Enrichment Runs")
+    and for the `scrape_proposals.job_id` FK that ties proposals to
+    their parent run.
+    """
+    if not bypass_mutex:
+        active = get_active_job(db, kind)
+        if active:
+            raise JobConflict(
+                f"A {kind} job is already {active['status']} (id={active['id']}).",
+                live_job_id=active["id"],
+            )
     cur = db.execute(
         "INSERT INTO jobs (kind, status, started_by, created_at) "
         "VALUES (?, 'queued', ?, ?)",
@@ -346,6 +359,19 @@ def run_scrape_job(
     Haiku prepends it to its system prompt on every subsequent run
     for that roaster.
     """
+    # Re-stamp the pipeline contextvar — threading.Thread doesn't
+    # inherit contextvars from the parent task, so without this
+    # every call_llm enqueued from this thread would label its
+    # llm_jobs row with roaster_slug='unknown'. Without this, the
+    # observability surface (filter llm_jobs by slug) is broken for
+    # the scrape pipeline. See routes/specific.py:_orchestrate_refresh_all
+    # for the parent contextvar setter.
+    if roaster_slug:
+        try:
+            from services.llm_router import set_pipeline_context
+            set_pipeline_context(roaster_slug=roaster_slug)
+        except Exception:
+            pass  # best-effort — router import shouldn't block the scrape
     db = get_db()
     log_lines: list[str] = []
     pending_lines: list[str] = []
@@ -472,6 +498,217 @@ def run_scrape_job(
             )
         except Exception:
             pass
+    finally:
+        db.close()
+
+
+# ── Agent-first per-roaster runners (no scrape mutex) ──────────────────────
+#
+# These bypass the global `scrape` / `article_scrape` kind mutex by passing
+# `bypass_mutex=True` to enqueue_job, and isolate the subprocess workspace
+# under /tmp/crema-scrape/{slug}-{ts}/ so concurrent runs don't collide on
+# the legacy Scraper/input/ + Scraper/output/ files. The visibility jobs
+# row + the scrape_proposals.job_id FK are preserved so the admin's
+# "Recent Enrichment Runs" panel keeps working.
+#
+# Compared to `run_scrape_job`:
+#   - No live log_tail streaming (the per-roaster run is short — ~30-120s);
+#     the final log lines land in the jobs row at completion only.
+#   - No JobConflict possible — the mutex is bypassed.
+#   - Per-roaster scrape workspace prevents file-collision races.
+#   - Uses set_pipeline_context() at the top so every call_llm inside the
+#     thread's scope labels its llm_jobs row with the right roaster_slug.
+
+def scrape_one_roaster(
+    *,
+    roaster_slug: str,
+    user_id: int,
+    regenerate_prompt: bool = False,
+) -> dict:
+    """Run a catalog scrape for ONE roaster in an isolated workspace.
+
+    Owns its own DB connection (intended to be called as the target of
+    a threading.Thread, where the parent's db is already closed by the
+    time this runs).
+
+    Concurrency-safe vs. other roasters' scrapes — the subprocess
+    writes to `/tmp/crema-scrape/{slug}-{ts}/output/`, not the shared
+    `Scraper/output/`.
+
+    Returns the final result_summary dict (same shape as run_scrape_job
+    persists into jobs.result_summary). On failure, returns a dict with
+    an `error` key set; the visibility row is still marked finished so
+    the admin sees the failure.
+    """
+    from services.llm_router import set_pipeline_context
+    set_pipeline_context(roaster_slug=roaster_slug)
+
+    db = get_db()
+    workspace = scrape_runner.ScrapeWorkspace(roaster_slug)
+    log_lines: list[str] = []
+
+    def log(line: str) -> None:
+        ts = datetime.datetime.utcnow().strftime("%H:%M:%S")
+        log_lines.append(f"[{ts}] {line}")
+
+    log(f"per-roaster scrape (workspace={workspace.root})")
+
+    # Visibility row — bypass the mutex; proposals reference its id.
+    try:
+        job_id = enqueue_job(
+            db, "scrape", started_by=user_id, bypass_mutex=True,
+        )
+    except Exception as e:
+        log(f"failed to enqueue visibility row: {type(e).__name__}: {e}")
+        workspace.cleanup()
+        return {"error": f"enqueue failed: {e}"}
+
+    mark_running(db, job_id)
+
+    try:
+        sources_count = scrape_runner.write_input_catalog(
+            db, roaster_slug=roaster_slug, workspace=workspace,
+        )
+        log(f"wrote {sources_count} source(s) to {workspace.input_path}")
+
+        if sources_count == 0:
+            mark_finished(
+                db, job_id, status="succeeded",
+                log_tail="\n".join(log_lines + ["no enabled sources"]),
+                result_summary={
+                    "scraped": 0, "skipped": 0,
+                    "new_products": [], "new_products_total": 0,
+                    "updated": [], "updated_total": 0,
+                    "missing": [], "missing_total": 0,
+                    "sources": 0,
+                },
+            )
+            workspace.cleanup()
+            return {"sources": 0}
+
+        try:
+            returncode, _ = scrape_runner.invoke_scraper(
+                workspace=workspace,
+            )
+        except subprocess.TimeoutExpired as e:
+            log("scraper timed out after 30 min")
+            mark_finished(
+                db, job_id, status="failed",
+                error_message="Scraper timed out after 30 min.",
+                log_tail=scrape_runner.truncate_log("\n".join(log_lines)),
+            )
+            workspace.cleanup()
+            return {"error": "scraper timeout"}
+
+        if returncode != 0:
+            log(f"scraper exited with returncode={returncode}")
+            mark_finished(
+                db, job_id, status="failed",
+                error_message=f"Scraper subprocess exited with code {returncode}",
+                log_tail=scrape_runner.truncate_log("\n".join(log_lines)),
+            )
+            workspace.cleanup()
+            return {"error": f"scraper exit {returncode}"}
+
+        log("scraper completed; staging proposals + per-product enrichment")
+        upsert_summary = scrape_runner.stage_scrape_proposals(
+            db, job_id, log=log,
+            roaster_slug=roaster_slug,
+            regenerate_prompt=regenerate_prompt,
+            workspace=workspace,
+        )
+        log(
+            f"staged: scraped={upsert_summary['scraped']} "
+            f"new={upsert_summary['new_products_total']} "
+            f"updated={upsert_summary['updated_total']} "
+            f"restoring={upsert_summary.get('restoring_total', 0)} "
+            f"missing={upsert_summary['missing_total']} "
+            f"skipped={upsert_summary['skipped']}"
+        )
+        if upsert_summary.get("enrichment_setup_error"):
+            log(f"note: {upsert_summary['enrichment_setup_error']}")
+        stamped = scrape_runner.stamp_sources_scraped(
+            db, roaster_slug=roaster_slug,
+        )
+        log(f"stamped {stamped} sources with last_scraped_at")
+
+        mark_finished(
+            db, job_id, status="succeeded",
+            log_tail=scrape_runner.truncate_log("\n".join(log_lines)),
+            result_summary={**upsert_summary, "sources": sources_count},
+        )
+        return {**upsert_summary, "sources": sources_count}
+    except Exception as e:
+        log(f"unexpected error: {type(e).__name__}: {e}")
+        try:
+            mark_finished(
+                db, job_id, status="failed",
+                error_message=f"{type(e).__name__}: {e}",
+                log_tail="\n".join(log_lines)[-10_000:],
+            )
+        except Exception:
+            pass
+        return {"error": str(e)}
+    finally:
+        workspace.cleanup()
+        db.close()
+
+
+def article_scrape_one_roaster(
+    *,
+    roaster_slug: str,
+    user_id: int,
+    regenerate_article_hint: bool = False,
+) -> dict:
+    """Run an article scrape for ONE roaster, bypassing the mutex.
+
+    Articles don't use a subprocess (`article_scraper.upsert_article`
+    runs in-process) so there's no file-collision concern — the mutex
+    on `article_scrape` was purely for symmetry with `scrape`. This
+    runner just delegates to the existing `run_article_scrape_job`
+    helper via a bypass-mutex enqueue.
+
+    Returns the result_summary dict.
+    """
+    from services.llm_router import set_pipeline_context
+    set_pipeline_context(roaster_slug=roaster_slug)
+
+    db = get_db()
+    try:
+        try:
+            job_id = enqueue_job(
+                db, "article_scrape", started_by=user_id, bypass_mutex=True,
+            )
+        except Exception as e:
+            return {"error": f"enqueue failed: {e}"}
+    finally:
+        db.close()
+
+    # Reuse the full per-job runner — it already handles in-process
+    # article discovery + enrichment + hint regen + jobs-row lifecycle
+    # (and opens its own DB connection internally). The mutex bypass
+    # above is the only refactor needed for articles since they don't
+    # use a subprocess.
+    run_article_scrape_job(
+        job_id,
+        roaster_slug=roaster_slug,
+        regenerate_article_hint=regenerate_article_hint,
+    )
+
+    # Re-fetch the row to surface the final summary.
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT status, result_summary FROM jobs WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        if not row:
+            return {"error": "article job row vanished"}
+        try:
+            summary = json.loads(row["result_summary"]) if row["result_summary"] else {}
+        except Exception:
+            summary = {}
+        return {**summary, "job_id": job_id, "status": row["status"]}
     finally:
         db.close()
 
@@ -2059,6 +2296,19 @@ def run_article_scrape_job(job_id: int, *,
     `empty_skipped`, `hints_generated`, `hints_regenerated`,
     `hints_failed`, `errors` (list of `{slug, message}`).
     """
+    # Re-stamp the pipeline contextvar — threading.Thread doesn't
+    # inherit contextvars, so this thread's call_llm enqueues would
+    # otherwise label rows with roaster_slug='unknown'. Mirror of the
+    # set in run_scrape_job. When the run is scoped to one slug we
+    # use that; for multi-roaster runs we set None and the per-
+    # iteration loop is responsible for re-stamping per roaster.
+    if roaster_slug:
+        try:
+            from services.llm_router import set_pipeline_context
+            set_pipeline_context(roaster_slug=roaster_slug)
+        except Exception:
+            pass
+
     from services import (
         article_scraper, article_enricher, article_site_prompt_generator,
     )

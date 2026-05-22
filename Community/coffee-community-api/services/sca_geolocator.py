@@ -35,6 +35,25 @@ from collections import Counter
 from pathlib import Path
 from typing import Iterable
 
+from services.llm_router import call_llm, LLMCallError
+
+# Tool wrapper for routing free-text JSON Haiku calls through the
+# provider-routed `call_llm`. The system prompt already instructs
+# Haiku on the exact JSON shape to emit; the tool's input_schema
+# stays permissive so the existing prompt design carries the
+# shape contract instead.
+_GENERIC_RESULT_TOOL = {
+    "name": "emit_result",
+    "description": (
+        "Emit the structured result as a JSON object whose shape exactly "
+        "matches what the system prompt describes."
+    ),
+    "input_schema": {
+        "type": "object",
+        "additionalProperties": True,
+    },
+}
+
 # ── Canonical SCA flavor tree ───────────────────────────────────────────────
 # Mirrors `tag_resolver_test.TREE`. The on-disk seed is loaded from this
 # constant the first time `database.init_db()` runs; subsequent runs read
@@ -357,66 +376,22 @@ class GeolocatorError(RuntimeError):
 
 def classify_tags(tags: list[str], tree: dict, exemplars: list[dict],
                    *, log=None) -> dict:
-    """Single batched Haiku call. Returns a dict {tag: address|None}.
+    """Legacy single-batch tasting classifier — routes through `call_llm`
+    via `_haiku_call_json`. Returns a dict {tag: address|None}.
 
-    Raises GeolocatorError with a clear message if the env / SDK / API
-    is unavailable so the admin tab can surface a 503 instead of a stack
-    trace.
+    Kept for the legacy `geolocate` job kind in catalog_ops; the
+    5-task standardize path uses `classify_tasting` etc. directly.
     """
     if not tags:
         return {}
-
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise GeolocatorError(
-            "ANTHROPIC_API_KEY is not set. Export it in the shell that runs "
-            "the FastAPI server (export ANTHROPIC_API_KEY=sk-...)."
-        )
-
-    try:
-        import anthropic  # local import — same pattern as tag_resolver_test
-    except ImportError as e:
-        raise GeolocatorError(
-            "anthropic SDK isn't installed. `pip install anthropic` in the "
-            "Python env that runs the FastAPI server."
-        ) from e
-
-    client = anthropic.Anthropic(max_retries=SDK_MAX_RETRIES)
-    user_msg = json.dumps({"tags": tags}, ensure_ascii=False)
-    system_prompt = build_system_prompt(tree, exemplars)
-
     if log:
         log(f"calling Haiku with {len(tags)} unique tags...")
-    t0 = time.time()
-    with client.messages.stream(
-        model=MODEL_VERSION,
-        max_tokens=MAX_TOKENS,
-        temperature=0,
-        system=[{
-            "type": "text",
-            "text": system_prompt,
-            "cache_control": {"type": "ephemeral"},
-        }],
-        messages=[{"role": "user", "content": user_msg}],
-    ) as stream:
-        for _ in stream.text_stream:
-            pass
-        msg = stream.get_final_message()
-
-    text = next((b.text for b in msg.content if b.type == "text"), "")
-    if log:
-        cache_read = getattr(msg.usage, "cache_read_input_tokens", 0)
-        log(
-            f"Haiku returned in {time.time() - t0:.1f}s | "
-            f"input={msg.usage.input_tokens} cache_read={cache_read} "
-            f"output={msg.usage.output_tokens}"
-        )
-
-    try:
-        parsed = json.loads(extract_json(text))
-    except json.JSONDecodeError as e:
-        raise GeolocatorError(
-            f"Haiku response wasn't valid JSON: {e.msg}. First 200 chars: {text[:200]!r}"
-        ) from e
+    parsed = _haiku_call_json(
+        "geolocate_tasting",
+        build_system_prompt(tree, exemplars),
+        {"tags": tags},
+        log=log,
+    )
 
     out: dict[str, list[str] | None] = {}
     invalid: list[tuple[str, list]] = []
@@ -1239,53 +1214,45 @@ REFERENCE EXAMPLES (already classified — match this style)
 
 # ── Per-task Haiku callers ──────────────────────────────────────────────────
 
-def _haiku_call_json(system_prompt: str, user_payload: dict, *, log=None) -> dict:
-    """Shared Haiku-call shell — handles env / SDK guards, streams the
-    response, parses JSON. Returns the parsed dict. Raises
-    `GeolocatorError` on caller-actionable failures."""
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise GeolocatorError(
-            "ANTHROPIC_API_KEY is not set. Export it in the shell that runs "
-            "the FastAPI server (export ANTHROPIC_API_KEY=sk-...)."
-        )
-    try:
-        import anthropic
-    except ImportError as e:
-        raise GeolocatorError(
-            "anthropic SDK isn't installed. `pip install anthropic` in the "
-            "Python env that runs the FastAPI server."
-        ) from e
-    client = anthropic.Anthropic(max_retries=SDK_MAX_RETRIES)
+def _haiku_call_json(step: str, system_prompt: str, user_payload: dict, *, log=None) -> dict:
+    """Shared Haiku-call shell — routes through `call_llm` so the
+    standardize pipeline honours `LLM_PROVIDER` (SDK direct vs.
+    agent-fallback queue). Returns the parsed result dict. Raises
+    `GeolocatorError` on caller-actionable failures.
+
+    The `step` name (e.g. 'standardize_tasting', 'standardize_origin')
+    is stamped on the llm_jobs row when routing via the queue path —
+    lets drainers filter by task.
+    """
     user_msg = json.dumps(user_payload, ensure_ascii=False)
     t0 = time.time()
-    with client.messages.stream(
-        model=MODEL_VERSION,
-        max_tokens=MAX_TOKENS,
-        temperature=0,
-        system=[{
-            "type": "text",
-            "text": system_prompt,
-            "cache_control": {"type": "ephemeral"},
-        }],
-        messages=[{"role": "user", "content": user_msg}],
-    ) as stream:
-        for _ in stream.text_stream:
-            pass
-        msg = stream.get_final_message()
-    text = next((b.text for b in msg.content if b.type == "text"), "")
-    if log:
-        cache_read = getattr(msg.usage, "cache_read_input_tokens", 0)
-        log(
-            f"Haiku returned in {time.time() - t0:.1f}s | "
-            f"input={msg.usage.input_tokens} cache_read={cache_read} "
-            f"output={msg.usage.output_tokens}"
-        )
     try:
-        return json.loads(extract_json(text))
-    except json.JSONDecodeError as e:
+        result = call_llm(
+            step=step,
+            system=[{
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            tool=_GENERIC_RESULT_TOOL,
+            user_content=user_msg,
+            max_tokens=MAX_TOKENS,
+            model=MODEL_VERSION,
+        )
+    except LLMCallError as e:
+        raise GeolocatorError(f"Haiku call failed ({step}): {e}") from e
+    except Exception as e:
+        # Anthropic SDK errors (credit exhaustion, rate limit, etc.)
+        # propagate through call_llm's SDK path; we wrap them so the
+        # admin tab gets a clean 503 instead of a raw stack trace.
+        raise GeolocatorError(f"Haiku call errored ({step}): {e}") from e
+    if log:
+        log(f"Haiku returned in {time.time() - t0:.1f}s")
+    if result is None:
         raise GeolocatorError(
-            f"Haiku response wasn't valid JSON: {e.msg}. First 200 chars: {text[:200]!r}"
-        ) from e
+            f"Haiku returned no tool_use result for {step}"
+        )
+    return result
 
 
 def classify_tasting(tags: list[str], sca_tree: dict, exemplars: list[dict],
@@ -1298,6 +1265,7 @@ def classify_tasting(tags: list[str], sca_tree: dict, exemplars: list[dict],
     if log:
         log(f"calling Haiku — {len(tags)} tasting tags")
     parsed = _haiku_call_json(
+        "standardize_tasting",
         build_tasting_prompt(sca_tree, exemplars),
         {"tags": tags},
         log=log,
@@ -1328,6 +1296,7 @@ def classify_origins(origins: list[str], exemplars: list[dict],
     if log:
         log(f"calling Haiku — {len(origins)} origins")
     parsed = _haiku_call_json(
+        "standardize_origin",
         build_origin_prompt(exemplars),
         {"origins": origins},
         log=log,
@@ -1352,6 +1321,7 @@ def classify_varietals(varietals: list[str], variety_tree: dict,
     if log:
         log(f"calling Haiku — {len(varietals)} varietals")
     parsed = _haiku_call_json(
+        "standardize_varietal",
         build_varietal_prompt(variety_tree, exemplars),
         {"varietals": varietals},
         log=log,
@@ -1576,6 +1546,7 @@ def classify_roasts(inputs: list[str], exemplars: list[dict],
     if log:
         log(f"calling Haiku — {len(inputs)} roasts")
     parsed = _haiku_call_json(
+        "standardize_roast",
         build_roast_prompt(exemplars),
         {"roasts": inputs},
         log=log,
@@ -1604,6 +1575,7 @@ def classify_processes(inputs: list[str], exemplars: list[dict],
     if log:
         log(f"calling Haiku — {len(inputs)} processes")
     parsed = _haiku_call_json(
+        "standardize_process",
         build_process_prompt(exemplars),
         {"processes": inputs},
         log=log,

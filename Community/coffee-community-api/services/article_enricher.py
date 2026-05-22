@@ -1110,26 +1110,26 @@ def enrich_article(
     else:
         system_param = _ARTICLE_SYSTEM
 
-    client = anthropic.Anthropic(max_retries=2)
+    # Routed through services.llm_router (SDK or queue per provider).
+    # The queue path serialises `system_param` (list-with-cache_control
+    # or string) to a joined string — cache_control is SDK-only.
+    from services.llm_router import call_llm, LLMCallError
     try:
-        resp = client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
+        payload = call_llm(
+            step="article_enrich",
             system=system_param,
-            tools=[_ARTICLE_TOOL],
-            tool_choice={"type": "tool", "name": "extract_roaster_article"},
-            messages=[{"role": "user", "content": user_content}],
+            tool=_ARTICLE_TOOL,
+            user_content=user_content,
+            max_tokens=MAX_TOKENS,
+            model=MODEL,
+            target_id=url,
         )
-    except anthropic.APIError:
+    except LLMCallError:
         # Transient — caller falls back to bs4 + stamps 'failed'.
         return None
 
-    for block in resp.content:
-        if block.type == "tool_use":
-            payload = block.input  # type: ignore[attr-defined]
-            if isinstance(payload, dict):
-                return _normalise(payload)
-            return None
+    if isinstance(payload, dict):
+        return _normalise(payload)
     return None
 
 

@@ -49,8 +49,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
+from typing import Literal
 
 import anthropic
 import requests
@@ -262,10 +264,62 @@ _EXTRACT_TOOL = {
             "varietal": {
                 "type": ["string", "null"],
                 "description": (
-                    "Coffee variety / cultivar. E.g. 'SLN 795', 'SLN 9', 'Cauvery', "
-                    "'Chandragiri', 'Bourbon', 'Typica', 'Catimor', 'Selection 5', "
-                    "'Selection 6', 'Geisha', 'SL28'. If multiple are listed, "
-                    "join with ' + '. Null if not mentioned."
+                    "Coffee plant CULTIVAR — the specific botanical variety. "
+                    "E.g. 'SLN 795', 'SLN 9', 'Cauvery', 'Chandragiri', "
+                    "'Bourbon', 'Typica', 'Catimor', 'Selection 5', "
+                    "'Selection 6', 'Geisha', 'SL28', 'Catuai'. If multiple "
+                    "are listed, join with ' + '. Null if not mentioned.\n"
+                    "DISAMBIGUATION — CRITICAL, READ CAREFULLY:\n"
+                    "  • 'Arabica' / 'Robusta' / 'Liberica' / 'Excelsa' / "
+                    "'Blend' are SPECIES (the `bean_type` field), NOT "
+                    "varietals. NEVER put a species name in `varietal` — "
+                    "this is the most common extraction mistake and the "
+                    "single rule that matters most. The `varietal` field "
+                    "is ONLY for specific cultivar names (Catuai, "
+                    "Chandragiri, SLN 9, Bourbon-the-plant, Geisha, etc.).\n"
+                    "  • Worked example A — page says '100% Arabica' only: "
+                    "varietal=NULL, bean_type='Arabica'. The species "
+                    "information goes in bean_type. varietal stays null.\n"
+                    "  • Worked example B — page says 'Arabica, washed' only: "
+                    "varietal=NULL, bean_type='Arabica', process='Washed'. "
+                    "Same rule — Arabica is the species, not a cultivar.\n"
+                    "  • Worked example C — page says '70% Arabica + 30% "
+                    "Robusta blend': varietal=NULL, bean_type='Blend'. The "
+                    "ratio is interesting prose but neither species is a "
+                    "varietal.\n"
+                    "  • Worked example D — page says 'SLN 9 Arabica, "
+                    "natural processed at Ratnagiri Estate': "
+                    "varietal='SLN 9', bean_type='Arabica'. SLN 9 is a "
+                    "real cultivar (Indian Selection 9, an Arabica), so "
+                    "it goes in varietal; Arabica goes in bean_type.\n"
+                    "  • Worked example E — page says 'Catuai + Bourbon, "
+                    "Arabica from Mysore': varietal='Catuai + Bourbon', "
+                    "bean_type='Arabica'. Two cultivars + the species.\n"
+                    "  • If the source says NOTHING beyond 'Arabica' or "
+                    "'Robusta' or 'Blend' — leave varietal NULL. Don't "
+                    "guess. Don't recycle the species name. NULL is the "
+                    "correct answer.\n"
+                    "  • Barrel-aging context: phrases like 'Bourbon "
+                    "Barrel Aged', 'Whiskey Barrel Aged', 'Rum Barrel "
+                    "Aged', 'Wine Barrel Aged', 'Agave Barrel Aged' refer "
+                    "to the SPIRIT/WINE/SPIRIT used in the wooden barrel "
+                    "that ages the coffee — NOT to a coffee varietal. "
+                    "When 'Bourbon' / 'Whiskey' / 'Rum' / etc. appears "
+                    "ONLY in barrel-aging context, varietal = NULL "
+                    "(unless the underlying coffee's cultivar is "
+                    "separately disclosed elsewhere on the page — e.g. "
+                    "'Catuai aged in Bourbon barrels' → varietal = "
+                    "'Catuai'). The barrel-aging method itself belongs "
+                    "in process_raw ('Bourbon Barrel Aged', 'Whiskey "
+                    "Barrel Aged Natural', etc.).\n"
+                    "  • 'Bourbon' AS A REAL VARIETAL is legitimate (a "
+                    "coffee cultivar grown in Nicaragua, El Salvador, "
+                    "Brazil, parts of India). Use varietal = 'Bourbon' "
+                    "ONLY when the page describes the COFFEE PLANT — "
+                    "e.g. 'Nicaraguan Bourbon at 1500 masl', 'old "
+                    "Bourbon trees', 'planted with Bourbon varietal', "
+                    "'classic Bourbon cultivar'. The signal is "
+                    "agronomic/botanical context, not culinary/spirits."
                 ),
             },
             "bean_type": {
@@ -385,8 +439,28 @@ _EXTRACT_TOOL = {
                     "  • Third person.\n"
                     "  • Don't repeat tasting notes (those have their own field).\n"
                     "  • Don't include marketing slogans verbatim — distill into prose.\n"
-                    "  • Skip and return null if the page only has bullet-point specs "
-                    "with no narrative beyond the structured fields. Don't invent."
+                    "Thin-source fallback — DO NOT return null when ANY of these "
+                    "are present:\n"
+                    "  • The product page has structured spec fields you extracted "
+                    "(roast_level, bean_type, origin, process_raw, varietal, "
+                    "altitude_masl, producer, weight_grams).\n"
+                    "  • The page lists tasting notes, even if the surrounding prose "
+                    "is sparse.\n"
+                    "In that case, construct a brief one-sentence blurb from the "
+                    "extracted fields. Templates:\n"
+                    "  • '[Roast level] [bean_type] from [origin], [process_raw] "
+                    "processed[ at [altitude_masl]m][, by [producer]].'\n"
+                    "  • 'A [roast_level] [varietal] from [origin], showing "
+                    "[2-3 flavor notes].'\n"
+                    "  • If only species and brand are known: 'A "
+                    "[roast_level] [bean_type] blend from [roaster name in "
+                    "field's natural place].' (Use roaster name from the user "
+                    "message ROASTER section.)\n"
+                    "Only return null when there is genuinely nothing to work "
+                    "with — no structured fields, no tasting prose, no body copy. "
+                    "An empty or one-line product page warrants a constructed "
+                    "blurb, not null. Don't invent details (estate names, "
+                    "altitudes, fermentation specifics) that aren't in the source."
                 ),
             },
         },
@@ -426,6 +500,29 @@ Field-specific guidance is in each field's schema description.
 
 # ── Live page-fetch helper ────────────────────────────────────────────────────
 
+def _is_wix_url(url: str) -> bool:
+    """Detect whether a product URL is hosted on Wix.
+
+    Two reliable signals:
+      • `*.wix.com` / `*.wixsite.com` direct hostnames.
+      • A `/product-page/<slug>` path — Wix Stores' canonical product
+        URL pattern, used on custom domains like 729grams.coffee that
+        run on Wix under the hood.
+
+    A false-positive risks a 5-10s headless render where a plain
+    requests.get would have sufficed; a false-negative leaves the
+    table content un-extracted. We bias toward catching Wix.
+    """
+    if not url:
+        return False
+    lower = url.lower()
+    return (
+        ".wix.com" in lower
+        or ".wixsite.com" in lower
+        or "/product-page/" in lower
+    )
+
+
 def _fetch_product_page_text(url: str) -> str:
     """Fetch the live product detail page and strip to clean text.
 
@@ -434,12 +531,39 @@ def _fetch_product_page_text(url: str) -> str:
     altitude, varietal detail, brew guide all live on the rendered
     detail page. Fetching once per enrichment closes that gap.
 
-    Returns "" on any failure (timeout, 4xx, 5xx, parse error, etc.) —
-    Sonnet falls back to whatever the listing endpoint provided.
-    Capped at PAGE_TEXT_CAP chars so the prompt budget stays sane.
+    Wix sites are JS-rendered SPAs (single-page apps). Their product
+    detail tables (Producer / Variety / Notes / Process / Altitude)
+    load post-page-load via Velo XHR calls — a plain `requests.get`
+    gets only a hydration shell. Route those through the hybrid Wix
+    fetcher, which falls back to Playwright headless Chromium when
+    the cheap path doesn't yield rich content.
+
+    Returns "" on any failure (timeout, 4xx, 5xx, parse error,
+    Playwright not installed, etc.) — Haiku falls back to whatever
+    the listing endpoint provided. Capped at PAGE_TEXT_CAP chars so
+    the prompt budget stays sane.
     """
     if not url or not url.startswith(("http://", "https://")):
         return ""
+
+    # Wix path — hybrid fetcher with headless fallback.
+    if _is_wix_url(url):
+        try:
+            from scraper.wix_fetcher import fetch_wix_page_text
+        except ImportError:
+            # Module path differs in some packaging arrangements;
+            # try the alternate path before giving up.
+            try:
+                from .wix_fetcher import fetch_wix_page_text  # type: ignore
+            except ImportError:
+                return ""
+        try:
+            return fetch_wix_page_text(url)
+        except Exception:
+            return ""
+
+    # Default path — plain requests + BeautifulSoup. Covers Shopify,
+    # WooCommerce, Magento, and any other SSR'd platform.
     try:
         resp = requests.get(
             url,
@@ -494,13 +618,20 @@ def _format_variants(variants: list) -> str:
     return "Variants:\n" + "\n".join(lines) + (("\n" + suffix) if suffix else "")
 
 
-def _build_user_content(product: dict, page_text: str) -> str:
+def _build_user_content(
+    product: dict,
+    page_text: str,
+    image_ocr_text: str = "",
+) -> str:
     """Assemble the layered context the LLM sees per product.
 
     Order matters: title and URL come first because they're the highest
     information density per token. Page text comes last so the LLM can
     use the structured prefix as scaffolding while skimming the long
-    body.
+    body. Image OCR text — when present — slots between the listing
+    description and page text, since on platforms like 729-Grams the
+    image card is the AUTHORITATIVE source for the structured fields
+    (page text is sparse, image card has the full table).
     """
     title = product.get("coffee_name") or product.get("title") or ""
     product_url = product.get("product_url") or ""
@@ -529,11 +660,158 @@ def _build_user_content(product: dict, page_text: str) -> str:
         parts.append(
             "LISTING DESCRIPTION (truncated):\n" + listing_desc[:2000]
         )
+    if image_ocr_text:
+        parts.append(
+            "IMAGE OCR (extracted from product image — info-card content "
+            "the roaster encoded as pixels, not HTML. Often the "
+            "AUTHORITATIVE source for Producer / Variety / Notes / "
+            "Process / Altitude on roasters that design Canva/Figma "
+            "cards):\n" + image_ocr_text
+        )
     if page_text:
         parts.append(
             "PAGE TEXT (live fetch, cleaned — RICHEST SOURCE):\n" + page_text
         )
     return "\n\n".join(parts)
+
+
+# ── Pre-LLM heuristic ────────────────────────────────────────────────────────
+#
+# Cheap regex pass that classifies a storefront row as `skip` (obviously
+# not a coffee bean — workshop, t-shirt, gift hamper, equipment), `send`
+# (looks unambiguously like a bean — explicit roast / origin / Arabica
+# mention), or `uncertain` (neither signal fired — let Haiku decide).
+#
+# Why: roaster storefronts routinely ship 40-60% non-coffee SKUs
+# (training, merch, brewers, gift packs). Sending every one of them
+# to Haiku burns the same per-call cost as a real bean even though
+# the answer is foregone. A regex pre-filter trims the Haiku budget
+# 50-70% on a typical Shopify catalog with zero added risk: `skip`
+# is gated to URL paths + title patterns whose negative signal is
+# unambiguous (`/workshops/`, `\bT-Shirt\b`, `\bGrinder\b`, etc.),
+# and `uncertain` rows still flow to Haiku unchanged.
+
+# L1 — URL path fragments that mark a product as obviously not a bean.
+# Substring match on the lowercased URL. Tight set — only fragments
+# that no roaster uses for actual bean listings.
+_HEURISTIC_URL_NEGATIVES: tuple[str, ...] = (
+    "/merch/",
+    "/equipment/",
+    "/training/",
+    "/workshops/",
+    "/workshop",
+    "/courses/",
+    "/course/",
+    "/gift-cards/",
+    "/consultation",
+    "/lesson",
+)
+
+# L2 — title regex patterns that mark a product as obviously not a bean.
+# Case-insensitive. Each pattern is anchored on word boundaries so
+# substring noise doesn't cause spurious skips ("Course" matches "Course"
+# but not "Coursey"). A handful use negative lookahead to avoid catching
+# the (rare) legitimate bean: `Indian Filter` is the device unless
+# followed by " Coffee" (the real bean is called "Indian Filter Coffee"
+# on the 93-degrees catalog and elsewhere); `Mug` is merch unless
+# followed by " Cake" (defensive — no Mug Cake in the current corpus
+# but cheap to keep).
+_HEURISTIC_TITLE_NEGATIVES: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\bT-?[Ss]hirt\b",
+        r"\bWorkshop\b",
+        r"\bCourse\b",
+        r"\bConsultation\b",
+        r"\bSubscription\b",
+        r"\bTumbler\b",
+        r"\bMug\b(?! Cake)",
+        r"\bFrench Press\b",
+        r"\bMokapot\b",
+        r"\bMoka [Pp]ot\b",
+        r"\bPlunger\b",
+        r"\bDrip Filter\b",
+        r"\bIndian Filter\b(?! Coffee)",
+        r"\bCatering\b",
+        r"\bLesson\b",
+        r"\bGrinder\b",
+        r"\bAero-?[Pp]ress\b",
+        r"\bPour-?[Oo]ver Box\b",
+        r"\bGift (?:Box|Parcel|Basket|Hamper)\b",
+        r"\bMini [A-Z]{2}\b",
+        r"\bGift Card\b",
+        r"\bSensory (?:Workshop|Skills)\b",
+        r"\bSCA Intro\b",
+        r"\bBarista (?:Lesson|Training)\b",
+        r"\bFoundation Course\b",
+        r"\bIntermediate Course\b",
+        r"\bProfessional Course\b",
+        r"\bCherry Tea\b",
+        r"\bCascara\b",
+    )
+)
+
+# L3 — title regex patterns that mark a product as obviously a bean.
+# Same case-insensitive ladder. Origin / region patterns lean Indian
+# (Karnataka, Coorg, Chikmagalur, Araku, Wayanad, Tamil Nadu) plus the
+# common African specialty regions (Ethiopia, Yirgacheffe, Sidamo,
+# Guji) — the audience is Indian-specialty-first, but those African
+# regions show up in Indian roasters' lineups often enough to be worth
+# matching. `\bEspresso\b` only fires as a positive when NOT modified
+# by Workshop / Course (those L2 negatives short-circuit first).
+_HEURISTIC_TITLE_POSITIVES: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\bRoast(?:ed)?\b",
+        r"\bBeans?\b",
+        r"\bEspresso\b",
+        r"\bSingle Origin\b",
+        r"\bArabica\b",
+        r"\bRobusta\b",
+        # Origin / region — Indian specialty regions first, then a few
+        # well-known global origins commonly featured by Indian roasters.
+        r"\bEthiopian?\b",
+        r"\bYirgacheffe\b",
+        r"\bSidamo\b",
+        r"\bGuji\b",
+        r"\bChikmagalur\b",
+        r"\bKarnataka\b",
+        r"\bCoorg\b",
+        r"\bAraku\b",
+        r"\bWayanad\b",
+        r"\bTamil Nadu\b",
+    )
+)
+
+
+def _likely_coffee_bean(product: dict) -> Literal["skip", "send", "uncertain"]:
+    """Pre-Haiku classifier — return `skip` / `send` / `uncertain`.
+
+    Cheap regex-only pass over title + URL. `skip` rows never reach the
+    LLM; the runner stages them as auto-rejected proposals so the audit
+    trail is preserved without burning a Haiku call. `send` and
+    `uncertain` both flow to Haiku as today — `uncertain` is the safe
+    default, used whenever neither the negative nor the positive ladder
+    has a confident answer.
+
+    Layer order:
+      L1: URL path negatives → skip
+      L2: title regex negatives → skip
+      L3: title regex positives → send
+      L4: default → uncertain
+    """
+    url = (product.get("product_url") or "").lower()
+    if any(frag in url for frag in _HEURISTIC_URL_NEGATIVES):
+        return "skip"
+
+    title = product.get("title") or product.get("coffee_name") or ""
+    if title:
+        for pat in _HEURISTIC_TITLE_NEGATIVES:
+            if pat.search(title):
+                return "skip"
+        for pat in _HEURISTIC_TITLE_POSITIVES:
+            if pat.search(title):
+                return "send"
+
+    return "uncertain"
 
 
 # ── Core enrichment call ──────────────────────────────────────────────────────
@@ -558,9 +836,61 @@ def _enrich_one(
     Also re-fetches `page_text` for caller-side hint generation,
     surfaced via the returned dict's `_page_text` key (private
     convention) so the runner can sample without fetching twice.
+
+    Pre-LLM heuristic: rows that `_likely_coffee_bean` flags as
+    `"skip"` (URL contains `/workshops/` / `/merch/` / etc., or the
+    title matches one of the unambiguous-non-bean patterns — t-shirt,
+    workshop, gift hamper, mokapot, …) are short-circuited here
+    with a stub dict that carries `is_coffee_bean=False` plus a
+    `_heuristic_skip_reason` marker. No HTTP fetch, no LLM call.
+    `"send"` and `"uncertain"` both flow through to the LLM
+    unchanged — `"uncertain"` is the safe default whenever neither
+    ladder fired confidently.
     """
+    heuristic = _likely_coffee_bean(product)
+    if heuristic == "skip":
+        # Stub matches the shape `_merge` expects — `is_coffee_bean=False`
+        # is the only field downstream consumers care about for a
+        # rejected row, plus the private `_heuristic_skip_reason` flag so
+        # the runner can stage this as an auto-rejected proposal rather
+        # than dropping it silently (preserves audit trail).
+        return {
+            "is_coffee_bean": False,
+            "coffee_name_clean": (
+                product.get("title") or product.get("coffee_name")
+                or product.get("product_name")
+            ),
+            "_heuristic_skip_reason": "non_coffee_url_or_title",
+        }
+
     page_text = _fetch_product_page_text(product.get("product_url", ""))
-    user_content = _build_user_content(product, page_text)
+
+    # Image OCR pass — some roasters (Wix users especially, but the
+    # pattern recurs on any roaster that designs info cards in
+    # Canva/Figma) encode Producer / Variety / Notes / Process /
+    # Altitude as text RENDERED INTO A PNG, not as HTML. The page
+    # text fetch sees the <img> tag but not the table content. Run
+    # OCR on the product's primary image so Haiku has those fields
+    # to extract from. Tesseract handles most cases for free; if
+    # we ever wire Haiku-vision as an escalation it goes through
+    # the haiku_vision_callback parameter.
+    image_ocr_text = ""
+    image_url = product.get("image_url") or product.get("image_raw") or ""
+    if image_url:
+        try:
+            from scraper.image_ocr import ocr_product_image
+        except ImportError:
+            try:
+                from .image_ocr import ocr_product_image  # type: ignore
+            except ImportError:
+                ocr_product_image = None  # type: ignore
+        if ocr_product_image is not None:
+            try:
+                image_ocr_text = ocr_product_image(image_url)
+            except Exception:
+                image_ocr_text = ""
+
+    user_content = _build_user_content(product, page_text, image_ocr_text)
 
     system_prompt = _SYSTEM
     if system_addendum and system_addendum.strip():
@@ -570,6 +900,41 @@ def _enrich_one(
             + system_addendum.strip()
         )
 
+    # Route through services.llm_router when the FastAPI runtime is
+    # in scope (under FastAPI, services/ is on sys.path; standalone
+    # scraper, it isn't). The router internally picks SDK or queue
+    # per provider env. Standalone scraper falls back to the legacy
+    # SDK retry loop below.
+    try:
+        from services.llm_router import call_llm, LLMCallError  # type: ignore
+        _has_router = True
+    except ImportError:
+        call_llm = None  # type: ignore
+        LLMCallError = Exception  # type: ignore
+        _has_router = False
+
+    if _has_router:
+        try:
+            out = call_llm(
+                step="product_enrich",
+                system=system_prompt,
+                tool=_EXTRACT_TOOL,
+                user_content=user_content,
+                max_tokens=MAX_TOKENS,
+                model=MODEL,
+                target_id=product.get("product_url", ""),
+            )
+        except LLMCallError as exc:
+            print(f"    [llm_router] {exc}", flush=True)
+            return None
+        if out is None:
+            return None
+        out = dict(out)
+        if page_text:
+            out["_page_text"] = page_text[:1500]
+        return out
+
+    # Standalone scraper path — SDK direct with manual retries.
     for attempt in range(MAX_RETRIES):
         try:
             resp = client.messages.create(
@@ -682,6 +1047,19 @@ def _merge(product: dict, llm: dict) -> dict:
     # `scrape_proposals` by `_product_lite_from_scraped`.
     if llm.get("_page_text"):
         out["_page_text"] = llm["_page_text"]
+
+    # Pre-LLM heuristic skip flag (private convention — runner uses it
+    # to stage the row as an auto-rejected proposal rather than dropping
+    # it silently). Stripped before the row lands in the `products`
+    # table — the heuristic stub doesn't carry the full schema, so it
+    # would pollute the catalog if applied. Same shape as `_page_text`
+    # — the runner reads it, then `_product_lite_from_scraped` ignores
+    # it.
+    if llm.get("_heuristic_skip_reason"):
+        out["_heuristic_skip_reason"] = llm["_heuristic_skip_reason"]
+        out["llm_enriched"] = False
+        out["enrichment_status"] = "heuristic_skip"
+        return out
 
     out["llm_enriched"] = True
     out["enrichment_status"] = "enriched"

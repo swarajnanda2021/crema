@@ -16,25 +16,55 @@ Same backend, two clients:
    (humans)             (agents — Claude / cron / future LLMs)
 ```
 
-## Tools (v1)
+## Tools
 
-| Tool | Purpose | Read-only |
-|---|---|---|
-| `crema_list_roasters` | Substring search across published roasters | yes |
-| `crema_get_all_status` | Orchestrator dashboard: snapshot age + diffs per roaster | yes |
-| `crema_get_snapshot` | Drill into one roaster's snapshot + diff | yes |
-| `crema_list_proposals` | List scrape proposals (pending / applied / rejected) | yes |
-| `crema_get_hints` | Read all 3 site quirks for one roaster | yes |
-| `crema_list_jobs` | Recent catalog-ops jobs | yes |
-| `crema_list_agent_runs` | Read the audit log (filter by agent/tool/session) | yes |
-| `crema_sync_roaster` | Crawl + snapshot ONE roaster (no LLM) | idempotent |
-| `crema_sync_all` | Bulk crawl + snapshot every roaster | idempotent |
-| `crema_enrich_roaster` | Full pipeline: bio + catalog + article (Sonnet + Haiku) | no |
-| `crema_enrich_all` | Bulk full-pipeline refresh | no |
-| `crema_approve_proposals` | Approve proposals by id (merge to live products) | no |
-| `crema_reject_proposals` | Reject proposals by id | no |
-| `crema_set_diff_hint` | Admin-write the diff quirk for one roaster | idempotent |
-| `crema_regenerate_hint` | Flag bio or journal hint for regeneration | idempotent |
+**56 tools** across the catalog-ops surface (as of 2026-05-21). Grouped
+by verb-class; full per-tool catalog in
+[`specs/CATALOG_OPS_AGENT_WORKPLAN.md`](../../../specs/CATALOG_OPS_AGENT_WORKPLAN.md)
+§2.
+
+| Group | Count | Examples |
+|---|---:|---|
+| **Discovery (read-only)** | 7 | `crema_list_roasters`, `crema_get_all_status`, `crema_get_snapshot`, `crema_list_proposals`, `crema_get_hints`, `crema_list_jobs`, `crema_list_agent_runs` |
+| **Sync (LLM-free, cheap)** | 3 | `crema_sync_roaster`, `crema_sync_all`, `crema_diff_sweep` (daily heartbeat) |
+| **Enrichment (LLM)** | 2 | `crema_enrich_roaster`, `crema_enrich_all` |
+| **Proposals** | 4 | `crema_auto_approve_proposals`, `crema_approve_proposals`, `crema_reject_proposals`, `crema_undo_scrape_job` |
+| **Hints** | 2 | `crema_set_diff_hint`, `crema_regenerate_hint` |
+| **Drainer-only** (`llm_jobs` queue) | 3 | `crema_haiku_next_job`, `crema_haiku_submit`, `crema_list_llm_jobs` |
+| **Roaster lifecycle** | 5 | `crema_onboard_roaster`, `crema_delete_roaster`, `crema_publish_roaster`, `crema_update_scrape_settings`, `crema_test_source_url` |
+| **Standardization** | 4 | `crema_standardize_stats`, `crema_standardize_exemplars`, `crema_standardize_run`, `crema_regenerate_exemplars` |
+| **Flavor schemas** | 3 | `crema_list_flavor_schemas`, `crema_upload_flavor_schema`, `crema_activate_flavor_schema` |
+| **Journal/articles** | 5 | `crema_bulk_scrape_articles`, `crema_scrape_roaster_articles`, `crema_list_articles`, `crema_set_article_published`, `crema_delete_article` |
+| **Per-product** | 3 | `crema_get_product_detail`, `crema_reenrich_product`, `crema_mark_product_sold_out`, `crema_delete_product` |
+| **Job inspect/control** | 6 | `crema_get_scrape_run_log`, `crema_cancel_running_job`, `crema_get_raw_snapshot`, `crema_get_llm_job_detail`, `crema_requeue_llm_job`, `crema_list_scrape_runs` |
+| **Aggregate observability** | 3 | `crema_catalog_stats`, `crema_proposal_breakdown`, `crema_freshness_report` |
+| **Agent working journal** | 4 | `crema_log_agent_action`, `crema_get_session_actions`, `crema_log_agent_memory`, `crema_get_agent_memory` |
+| **Agent summaries** | 1 | `crema_log_agent_summary` (boss-man end-of-session report) |
+
+## The agent's working pattern
+
+A session typically follows this shape:
+
+```
+START → crema_get_agent_memory({scope: "catalog-ops"})    # institutional knowledge
+       → crema_get_session_actions({limit: 20})           # what did previous agents do?
+
+DURING → crema_diff_sweep / crema_enrich_all / drainer rounds / auto-approve
+       → crema_log_agent_action(...) after each meaningful phase  # 10-20 entries per session
+
+END   → crema_log_agent_summary(...)                       # boss-man report
+       → crema_log_agent_memory(...) × N (optional)        # new lessons worth keeping
+```
+
+The action log is INTENTIONALLY coarser-grain than `agent_runs` (which logs every tool call). One `log_agent_action` per phase — `"diff_sweep"`, `"enrich_all on 10 stale roasters"`, `"spawned drainer L"`, `"investigated humble-express deletions"`. The `reasoning` field is the human-readable WHY, not just what happened.
+
+Memory entries are durable lessons across sessions: `"Shopify /products.json sometimes returns empty under rate-limit; retry once with 2s backoff."` Future agents read these at session start and inherit the lesson without needing the original incident report.
+
+## The MCP-purity rule
+
+Every read or write to catalog state goes through an MCP tool. When a needed read isn't surfaced, **add a new MCP tool first**, then use it. Direct SQL, ad-hoc Bash, file reads of saved tool output are not allowed for catalog ops — they break provider portability (a different LLM operator drops in and can't replicate the workflow).
+
+The 4 aggregate-observability tools + the working-journal tools above (added 2026-05-21) were built precisely to close every SQLite-bypass that crept into earlier sessions.
 
 ## Setup
 
@@ -118,9 +148,9 @@ Each row carries `agent_identity` (which LLM ran the call), `operator_user_id` (
 These are LAUNCH_TODO items, not today's work:
 
 - **HTTP/SSE transport.** stdio only for now; cloud deployment + bearer-token auth come when the backend moves to cloud.
-- **Provider abstraction.** Anthropic-first. Adding Ollama / local Llama / OpenAI-compatible runners happens when we wire the agent_runner config layer.
-- **Admin "Agent activity" UI.** The data lands in `agent_runs`; the admin tab that visualizes it is the next clone of the orchestrator surface pattern.
-- **Daily ops digest endpoint.** Aggregated per-day stats for the morning email.
+- **Provider abstraction.** Anthropic-first via the agent-fallback queue (`LLM_PROVIDER=claude_code_agent` routes enrichment to `llm_jobs`; drainers running as Claude Code agents answer). Adding Ollama / local Llama / OpenAI-compatible drainers is a drainer-side change — the MCP surface stays the same.
+- **Origin/varietal/roast/process tree mutation tools.** Those four trees are hardcoded Python enums in `services/sca_geolocator.py`. Mutating them needs a backend write API first. The flavor (SCA) tree IS mutable today (`crema_upload_flavor_schema` + `_activate_*`).
+- **Daily ops digest endpoint.** The agent journal (`agent_actions` + `agent_memory` + `agent_summaries`) is the substrate. The morning-email aggregator on top of it is still to build.
 
 ## Architectural decisions
 

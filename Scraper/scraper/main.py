@@ -45,8 +45,18 @@ from utils import variants_to_display
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_INPUT_PATH = os.path.join(_BASE_DIR, "input", "verified_roasters_catalog.json")
-_OUTPUT_DIR = os.path.join(_BASE_DIR, "output")
+# Per-roaster parallelism: when SCRAPER_INPUT_PATH / SCRAPER_OUTPUT_DIR
+# are set (by the FastAPI orchestrator's per-slug workspace), use them.
+# Otherwise fall back to the legacy global paths so standalone CLI runs
+# still work (`python scraper/main.py` from the Scraper/ dir).
+_INPUT_PATH = os.environ.get(
+    "SCRAPER_INPUT_PATH",
+    os.path.join(_BASE_DIR, "input", "verified_roasters_catalog.json"),
+)
+_OUTPUT_DIR = os.environ.get(
+    "SCRAPER_OUTPUT_DIR",
+    os.path.join(_BASE_DIR, "output"),
+)
 
 # ── Excel formatting constants ────────────────────────────────────────────────
 

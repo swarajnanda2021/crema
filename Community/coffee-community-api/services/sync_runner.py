@@ -67,10 +67,36 @@ def _stable_hash(payload: str) -> str:
 
 
 def _canonical_text(s: str) -> str:
-    """Strip per-line whitespace + collapse blank-line runs. Idempotent
-    across consecutive crawls of unchanged HTML."""
+    """Strip per-line whitespace + collapse blank-line runs + scrub
+    high-churn ephemera so the resulting hash is stable across
+    consecutive fetches of effectively-unchanged pages.
+
+    Without ephemera-scrubbing, the May 19 -> May 21 diff sweep
+    showed `bio_changed=true` on 90+ of 96 roasters even though no
+    real bio updates had happened — homepages carry a rotating
+    "latest articles" carousel + cart count + cookie date + featured
+    product slider, any of which flips the byte-identity hash on
+    every fetch. We can't strip those by selector alone (they live
+    in <main>, not <nav>/<footer>), so we redact common patterns at
+    the canonicalization layer."""
     if not s:
         return ""
+    # Redact obvious ephemera BEFORE hashing.
+    # 1. Cart-count widget: "Cart (3)", "Cart 0", "(3) items" etc.
+    s = re.sub(r"\bCart\s*[\(:]?\s*\d+\s*\)?", "Cart", s, flags=re.IGNORECASE)
+    s = re.sub(r"\(\s*\d+\s*\)\s*item[s]?", "items", s, flags=re.IGNORECASE)
+    # 2. ISO + numeric dates that update per-fetch (timestamps,
+    #    "last updated", "as of").
+    s = re.sub(r"\b\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}[Z\-+\d:]*)?\b", "<date>", s)
+    s = re.sub(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b", "<date>", s)
+    # 3. © year — flips at most yearly; redact so the year boundary
+    #    doesn't trigger a bio_changed.
+    s = re.sub(r"©\s*\d{4}", "© <year>", s)
+    s = re.sub(r"\bCopyright\s+\d{4}\b", "Copyright <year>", s, flags=re.IGNORECASE)
+    # 4. CSRF / nonce / build-hash blobs (16+ hex chars or
+    #    underscore-separated tokens).
+    s = re.sub(r"\b[a-f0-9]{16,}\b", "<hex>", s, flags=re.IGNORECASE)
+
     lines = [ln.strip() for ln in s.split("\n")]
     out: list[str] = []
     prev_blank = False
@@ -114,7 +140,46 @@ def _crawl_bio(website: str) -> dict:
     for el in soup.select("[aria-hidden='true']"):
         el.decompose()
 
+    # Strip high-churn body widgets — these are the actual cause of
+    # universal bio_changed=true in diff sweeps. Featured-product
+    # sliders, recent-blog carousels, "you may also like" rails, and
+    # promo banners all rotate per-fetch even when the actual roaster
+    # bio hasn't changed. Class-name substring matching covers the
+    # naming conventions across Shopify themes (Dawn / Debut), Wix
+    # widgets, and WooCommerce blocks.
+    _CHURN_SELECTORS = (
+        # Carousels / sliders of any kind.
+        "[class*='carousel']", "[class*='slider']", "[class*='slideshow']",
+        # Latest / recent / featured anything.
+        "[class*='latest']", "[class*='recent']", "[class*='featured']",
+        # Blog / news widgets that surface the latest N posts.
+        "[class*='blog-card']", "[class*='blog-post']", "[class*='blog-grid']",
+        "[class*='news-grid']", "[class*='post-card']",
+        # Product widgets that show featured / new arrivals.
+        "[class*='product-card']", "[class*='product-grid']",
+        "[class*='product-list']", "[class*='product-rail']",
+        "[class*='related-products']", "[class*='product-recommendations']",
+        # Wix-specific data-hook widgets that mount dynamic content.
+        "[data-hook*='product-list']", "[data-hook*='product-grid']",
+        "[data-hook*='product-card']", "[data-hook*='blog-post']",
+        # Cookie banner / promo bar.
+        "[class*='cookie']", "[class*='announcement']", "[class*='promo-bar']",
+        # Cart widget (item counts flip per-session).
+        "[class*='cart-count']", "[class*='cart-item-count']",
+        "[id*='cart-count']", "[data-hook*='cart-count']",
+    )
+    for sel in _CHURN_SELECTORS:
+        for el in soup.select(sel):
+            el.decompose()
+
     text = _canonical_text(soup.get_text("\n", strip=True))
+    # Truncate to the first 2000 chars — homepage hero + intro text
+    # lives at the top; anything past 2000 chars is invariably
+    # newsletter signup / shipping copy / FAQ / footer-ish chrome
+    # that we already mostly stripped but want to belt-and-suspender
+    # cap. Caps stabilize the hash against later-page additions that
+    # don't reflect a real bio update.
+    text = text[:2000]
     return {
         "hash":      _stable_hash(text),
         "text":      text,
@@ -123,16 +188,74 @@ def _crawl_bio(website: str) -> dict:
     }
 
 
-def _crawl_products_shopify(website: str) -> list[dict]:
-    """Hit Shopify's /products.json (stable IDs)."""
-    try:
-        r = requests.get(f"{website.rstrip('/')}/products.json?limit=250",
-                         headers={"User-Agent": UA}, timeout=TIMEOUT)
+def _crawl_products_shopify(website: str) -> tuple[list[dict], str]:
+    """Hit Shopify's /products.json (stable IDs).
+
+    Returns (products, status) where status is:
+      - "ok": the fetch succeeded; products list (possibly empty) is
+        authoritative
+      - "empty_retry_confirmed": the first fetch returned 0 products;
+        a retry confirmed empty (most likely a real "store is paused"
+        scenario worth flagging to admin)
+      - "failed_network": connection error (DNS, TLS, timeout, refused).
+        Products list is NOT authoritative — caller should suppress
+        the diff to avoid false-positive "everything removed" signals
+      - "failed_http_<code>": got a non-200 response (rate-limit, 5xx,
+        Cloudflare interstitial). Same as failed_network — don't trust.
+      - "failed_parse": got 200 but JSON didn't decode — likely a CF
+        challenge HTML page returned as 200. Don't trust.
+
+    The pre-2026-05-21 behaviour was to return [] on ALL of these,
+    which made transient scraper failures masquerade as catalog wipes
+    (e.g. the diff sweep on 2026-05-21 reported humble-express as
+    "products_removed: 39" when the products were still there — the
+    one bad fetch in between two good ones produced a false delete
+    signal).
+    """
+    url = f"{website.rstrip('/')}/products.json?limit=250"
+
+    def _fetch_once() -> tuple[list, str]:
+        try:
+            r = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
+        except (requests.RequestException, OSError) as e:
+            return [], f"failed_network: {type(e).__name__}"
         if r.status_code != 200:
-            return []
-        data = r.json()
-    except Exception:
-        return []
+            return [], f"failed_http_{r.status_code}"
+        try:
+            data = r.json()
+        except ValueError as e:
+            return [], f"failed_parse: {type(e).__name__}"
+        if not isinstance(data, dict):
+            return [], "failed_parse: not_a_dict"
+        return data.get("products", []) or [], "ok"
+
+    raw, status = _fetch_once()
+
+    # Retry once on success-but-empty — Shopify occasionally returns
+    # an empty product list under rate-limit before serving the real
+    # response. The retry usually clears the throttle.
+    if status == "ok" and not raw:
+        import time as _time
+        _time.sleep(2.0)
+        retry_raw, retry_status = _fetch_once()
+        if retry_status == "ok":
+            if retry_raw:
+                raw, status = retry_raw, "ok"
+            else:
+                # Confirmed empty after retry. Probably real (store has
+                # no products listed). Flag distinctly so the diff layer
+                # can still treat the result as authoritative but the
+                # operator can spot the pattern across roasters.
+                status = "empty_retry_confirmed"
+        else:
+            # Retry hit a network/HTTP error — keep the original "ok"
+            # but trust nothing; mark as failed.
+            status = retry_status
+
+    if status not in ("ok", "empty_retry_confirmed"):
+        return [], status
+
+    data = {"products": raw}
     out: list[dict] = []
     for p in data.get("products", []):
         prices = sorted(v.get("price", "") for v in (p.get("variants") or []))
@@ -149,19 +272,101 @@ def _crawl_products_shopify(website: str) -> list[dict]:
             "hash":       _stable_hash(identity),
         })
     out.sort(key=lambda x: x.get("id") or 0)
-    return out
+    return out, status
+
+
+_PRODUCT_PATH_SEGMENTS = (
+    "/product/", "/products/", "/product-page/",
+    "/shop/", "/store/", "/coffee/",
+)
 
 
 def _crawl_products_generic(website: str) -> list[dict]:
-    """Scrape known product-listing paths for non-Shopify roasters.
-    Returns URL-only entries (hash = url). Coverage gap: hard-coded
-    paths only — Wix's `/category/coffee` style needs platform-
-    specific work, surfaced as a follow-up."""
+    """Scrape product-listing URLs for non-Shopify roasters.
+
+    Three sources tried in order, returning at the first non-empty hit:
+      1. Sitemap (`/sitemap.xml`, `/store-products-sitemap.xml`)
+      2. Known listing paths (`/shop`, `/coffee`, etc.)
+      3. Wix-specific: re-render the listing page via Playwright if
+         the static HTML matches Wix markers, then re-parse hrefs.
+
+    Pre-fix this returned [] for every Wix roaster — `/shop` etc.
+    didn't exist, the static HTML had no product links (SPA shell),
+    sitemap.xml wasn't probed. The diff sweep on 2026-05-21 showed
+    8/8 Wix roasters at 0 products as a result. The sitemap path
+    catches most Wix stores (the standard /store-products-sitemap.xml
+    is emitted by Wix Stores automatically). Playwright is the
+    last-resort path for Wix stores that gate the sitemap.
+
+    Returns URL-only entries (hash = url). Per-product content hashes
+    happen later during enrichment.
+    """
     base = website.rstrip("/")
-    paths = ["/shop", "/coffee", "/product", "/products",
-             "/product-category/coffee", "/category/coffee"]
     seen: set[str] = set()
     out: list[dict] = []
+
+    def _add_link(abs_url: str, title: Optional[str] = None) -> None:
+        if not abs_url:
+            return
+        clean = abs_url.split("?")[0].rstrip("/")
+        path = urlparse(clean).path.lower()
+        if not any(seg in path for seg in _PRODUCT_PATH_SEGMENTS):
+            return
+        if clean in seen:
+            return
+        seen.add(clean)
+        out.append({
+            "id":     None,
+            "url":    clean,
+            "handle": urlparse(clean).path.rsplit("/", 1)[-1],
+            "title":  (title or "")[:120] or None,
+            "hash":   _stable_hash(clean),
+        })
+
+    # 1. Sitemap discovery — covers Wix Stores
+    #    (`/store-products-sitemap.xml`), most WooCommerce installs,
+    #    and any large Shopify-but-misclassified store.
+    sitemap_candidates = [
+        f"{base}/store-products-sitemap.xml",
+        f"{base}/sitemap.xml",
+    ]
+    sitemap_queue = list(sitemap_candidates)
+    sitemap_seen: set[str] = set()
+    while sitemap_queue and len(sitemap_seen) < 20:
+        sm_url = sitemap_queue.pop(0)
+        if sm_url in sitemap_seen:
+            continue
+        sitemap_seen.add(sm_url)
+        try:
+            r = requests.get(sm_url, headers={"User-Agent": UA},
+                             timeout=TIMEOUT, allow_redirects=True)
+            if r.status_code != 200:
+                continue
+            soup = BeautifulSoup(r.text, "lxml-xml")
+            # Sitemap-index: enqueue child sitemaps.
+            if soup.find("sitemap"):
+                for child in soup.find_all("sitemap"):
+                    loc = child.find("loc")
+                    if loc:
+                        child_url = loc.get_text(strip=True)
+                        if child_url and child_url not in sitemap_seen:
+                            sitemap_queue.append(child_url)
+                continue
+            # Leaf sitemap: extract product URLs.
+            for loc in soup.find_all("loc"):
+                _add_link(loc.get_text(strip=True))
+        except Exception:
+            continue
+
+    if out:
+        return out
+
+    # 2. Listing-page discovery — the original path.
+    paths = ["/shop", "/coffee", "/product", "/products",
+             "/product-category/coffee", "/category/coffee",
+             "/store", "/store/coffee"]
+    listing_html: Optional[str] = None
+    listing_resp_url: Optional[str] = None
     for path in paths:
         try:
             r = requests.get(f"{base}{path}", headers={"User-Agent": UA},
@@ -170,23 +375,91 @@ def _crawl_products_generic(website: str) -> list[dict]:
                 continue
             soup = BeautifulSoup(r.text, "html.parser")
             for a in soup.find_all("a", href=True):
-                href = a["href"]
-                if "/product/" in href or "/products/" in href:
-                    abs_url = urljoin(r.url, href.split("?")[0].rstrip("/"))
-                    if abs_url not in seen:
-                        seen.add(abs_url)
-                        out.append({
-                            "id":     None,
-                            "url":    abs_url,
-                            "handle": urlparse(abs_url).path.rsplit("/", 1)[-1],
-                            "title":  a.get_text(strip=True)[:120] or None,
-                            "hash":   _stable_hash(abs_url),
-                        })
+                _add_link(urljoin(r.url, a["href"]),
+                          title=a.get_text(strip=True))
             if out:
-                break
+                return out
+            # Remember the first reachable listing page for the
+            # Playwright fallback below.
+            if listing_html is None:
+                listing_html = r.text
+                listing_resp_url = r.url
         except Exception:
             continue
+
+    # 3. Playwright fallback for Wix-rendered storefronts where
+    #    sitemap discovery missed and the static HTML had no links.
+    if listing_html and _looks_wix(listing_html):
+        rendered = _render_wix_html(listing_resp_url or base)
+        if rendered:
+            soup = BeautifulSoup(rendered, "html.parser")
+            for a in soup.find_all("a", href=True):
+                _add_link(urljoin(listing_resp_url or base, a["href"]),
+                          title=a.get_text(strip=True))
+
     return out
+
+
+# Wix marker substrings — matches the rendered SPA shell.
+_WIX_MARKERS = (
+    "wixstatic.com",
+    "static.parastorage.com",
+    "viewerModel",
+    "_wixCIDX",
+    "data-thunderbolt",
+    "wix-viewer",
+)
+
+
+def _looks_wix(html: str) -> bool:
+    if not html:
+        return False
+    return any(m in html for m in _WIX_MARKERS)
+
+
+def _render_wix_html(url: str) -> str:
+    """Headless Chromium render for Wix listings. Lazy-imports
+    Playwright so the sync runner still loads on hosts without the
+    package installed (e.g. CI). Returns "" on any failure — caller
+    treats "" as "couldn't render, no fallback work".
+
+    Same constraints as Scraper/scraper/wix_fetcher: `domcontentloaded`
+    is the only Wix-compatible wait state (`load` and `networkidle`
+    both wait forever for Wix's BI long-poll sockets); a 4s settle
+    delay after DOM-ready lets the Velo XHR cycle mount the product
+    grid widget.
+    """
+    try:
+        from playwright.sync_api import (
+            sync_playwright,
+            TimeoutError as PWTimeout,
+        )
+    except ImportError:
+        return ""
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            try:
+                ctx = browser.new_context(
+                    viewport={"width": 1280, "height": 1024},
+                    user_agent=(
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                )
+                page = ctx.new_page()
+                try:
+                    page.goto(url, timeout=30_000,
+                              wait_until="domcontentloaded")
+                except PWTimeout:
+                    pass
+                page.wait_for_timeout(4000)
+                return page.content() or ""
+            finally:
+                browser.close()
+    except Exception:
+        return ""
 
 
 def _crawl_articles(website: str, platform: Optional[str]) -> list[dict]:
@@ -244,15 +517,35 @@ def _snapshot_get(conn: sqlite3.Connection, slug: str,
 def _snapshot_set(conn: sqlite3.Connection, slug: str,
                    payload: dict) -> None:
     """Roll current → prev, write new current. N-1 retention by
-    construction; older snapshots dropped."""
+    construction; older snapshots dropped.
+
+    Refusal rule (added 2026-05-21): if `payload.scrape_status.products`
+    indicates a network/HTTP/parse failure (`failed_*`), DO NOT rotate
+    prev → newer-but-bad. Preserve the last good snapshot as the diff
+    anchor. We still UPDATE crawl_snapshots so the operator sees the
+    fresh `taken_at` + `scrape_status`, but we don't overwrite the prev
+    with a known-bad current. This prevents a cascade where two
+    consecutive bad scrapes lose the historical comparison frame
+    entirely.
+    """
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     blob = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+    products_status = (payload.get("scrape_status") or {}).get("products") or "ok"
+    bio_status = (payload.get("scrape_status") or {}).get("bio") or "ok"
+    is_failed_scrape = (
+        products_status.startswith("failed")
+        or bio_status.startswith("failed")
+    )
 
     cur = conn.execute(
         "SELECT taken_at, payload_json FROM crawl_snapshots WHERE roaster_slug=?",
         (slug,),
     ).fetchone()
-    if cur:
+    if cur and not is_failed_scrape:
+        # Only rotate prev when the new current is trustworthy. Failed
+        # scrapes get overlaid on current (the timestamp updates, the
+        # status is recorded) but the prev anchor is preserved.
         conn.execute(
             "INSERT OR REPLACE INTO crawl_snapshots_prev "
             "(roaster_slug, taken_at, payload_json) VALUES (?, ?, ?)",
@@ -268,7 +561,21 @@ def _snapshot_set(conn: sqlite3.Connection, slug: str,
 
 def _diff(cur: dict, prev: Optional[dict]) -> dict:
     """Structured diff between current and prev snapshot payloads.
-    No prev means everything is new (Tab 1 cold-start)."""
+    No prev means everything is new (Tab 1 cold-start).
+
+    Refusal rules (added 2026-05-21):
+      - If `cur.scrape_status.products` is a `failed_*` value, suppress
+        the products diff entirely and carry prev's product list
+        forward. Rationale: a TLS/timeout/CF failure produces an empty
+        list, and treating that as authoritative reports "everything
+        removed" when nothing was actually removed (humble-express
+        symptom from the diff sweep audit).
+      - `empty_retry_confirmed` and `empty_unknown` ARE treated as
+        authoritative (the store really might have nothing, e.g. the
+        roaster paused inventory) — but flagged in the response so
+        the operator can see the pattern.
+      - Same logic for bio: a failed bio fetch suppresses bio_changed.
+    """
     if not prev:
         return {
             "has_prev":     False,
@@ -277,28 +584,55 @@ def _diff(cur: dict, prev: Optional[dict]) -> dict:
                               "updated": [], "removed": []},
             "articles":    {"added": cur.get("articles", []),
                               "updated": [], "removed": []},
+            "scrape_status": cur.get("scrape_status") or {},
         }
-    bio_changed = (cur.get("bio", {}).get("hash") !=
-                    prev.get("bio", {}).get("hash"))
+
+    cur_status = cur.get("scrape_status") or {}
+    bio_status = cur_status.get("bio") or "ok"
+    products_status = cur_status.get("products") or "ok"
+
+    # Bio diff (suppressed on failure).
+    if bio_status.startswith("failed"):
+        bio_changed = False  # don't trust empty bio hash
+        bio_diff_suppressed = True
+    else:
+        bio_changed = (cur.get("bio", {}).get("hash") !=
+                        prev.get("bio", {}).get("hash"))
+        bio_diff_suppressed = False
 
     def index(items: list, key: str) -> dict:
         return {it[key]: it for it in items if it.get(key) is not None}
 
-    cp_prods = cur.get("products", [])
-    pp_prods = prev.get("products", [])
-    prod_key = "id" if (cp_prods and cp_prods[0].get("id") is not None) else "url"
-    ci = index(cp_prods, prod_key)
-    pi = index(pp_prods, prod_key)
-
-    return {
-        "has_prev":    True,
-        "bio_changed": bio_changed,
-        "products": {
+    # Products diff (suppressed on failure — caller sees empty added /
+    # updated / removed and a `suppressed` flag).
+    if products_status.startswith("failed"):
+        products_diff = {
+            "added": [], "updated": [], "removed": [],
+            "suppressed": True,
+            "suppressed_reason": products_status,
+        }
+    else:
+        cp_prods = cur.get("products", [])
+        pp_prods = prev.get("products", [])
+        prod_key = "id" if (cp_prods and cp_prods[0].get("id") is not None) else "url"
+        ci = index(cp_prods, prod_key)
+        pi = index(pp_prods, prod_key)
+        products_diff = {
             "added":   [ci[k] for k in ci if k not in pi],
             "updated": [ci[k] for k in ci if k in pi
                           and ci[k].get("hash") != pi[k].get("hash")],
             "removed": [pi[k] for k in pi if k not in ci],
-        },
+        }
+        # Flag suspicious-but-not-suppressed states so the dashboard
+        # can highlight them. The data IS authoritative, just unusual.
+        if products_status == "empty_retry_confirmed":
+            products_diff["status_note"] = "empty_after_retry"
+
+    return {
+        "has_prev":    True,
+        "bio_changed": bio_changed,
+        "bio_diff_suppressed": bio_diff_suppressed,
+        "products": products_diff,
         "articles": {
             "added":   [cur_a for cur_a in cur.get("articles", [])
                           if cur_a["url"] not in {a["url"] for a in prev.get("articles", [])}],
@@ -306,6 +640,7 @@ def _diff(cur: dict, prev: Optional[dict]) -> dict:
             "removed": [prev_a for prev_a in prev.get("articles", [])
                           if prev_a["url"] not in {a["url"] for a in cur.get("articles", [])}],
         },
+        "scrape_status": cur_status,
     }
 
 
@@ -337,12 +672,27 @@ def _clear_pending(slug: str) -> None:
 
 
 def _crawl(slug: str, website: str, platform: Optional[str]) -> dict:
-    """Single full crawl. Returns the snapshot payload."""
+    """Single full crawl. Returns the snapshot payload.
+
+    The payload now carries `scrape_status` so the diff layer can
+    distinguish a real empty-storefront state ("ok" / "empty_retry_confirmed")
+    from a transient scrape failure ("failed_network" / "failed_http_*"
+    / "failed_parse"). Pre-2026-05-21 every failure mode collapsed to
+    an empty list, causing the diff layer to report false-positive
+    "everything removed" signals during transient outages.
+    """
     bio = _crawl_bio(website)
+    bio_status = "ok" if bio.get("hash") else "failed"
     if platform and "shopify" in (platform or "").lower():
-        products = _crawl_products_shopify(website)
+        products, products_status = _crawl_products_shopify(website)
     else:
         products = _crawl_products_generic(website)
+        # Generic path doesn't differentiate failure modes yet — assume
+        # "ok" when products list non-empty, "empty_unknown" otherwise.
+        # This is conservative: the diff layer will accept the result
+        # but the operator can spot the bucket if many roasters land
+        # here.
+        products_status = "ok" if products else "empty_unknown"
     articles = _crawl_articles(website, platform)
     return {
         "platform": platform,
@@ -350,6 +700,10 @@ def _crawl(slug: str, website: str, platform: Optional[str]) -> dict:
                       "image_url": bio["image_url"]},
         "products": products,
         "articles": articles,
+        "scrape_status": {
+            "bio":      bio_status,
+            "products": products_status,
+        },
         # Keep the bio text alongside the snapshot for the Sonnet
         # bio agent's later consumption; it's not part of the hash.
         "_bio_text": bio["text"],

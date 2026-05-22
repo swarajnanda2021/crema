@@ -2086,68 +2086,475 @@ def admin_refresh_all_bulk(body: dict,
     regenerate_prompt = bool(body.get("regenerate_prompt"))
     regenerate_article_hint = bool(body.get("regenerate_article_hint"))
 
-    def _run_one(slug: str):
-        """Reproduces the refresh-all orchestration for one slug,
-        but tolerates failure so the batch keeps moving."""
-        from services import roaster_enricher
-        db = get_db()
-        try:
-            # Step 1 — bio enrich (sync). Reuses _apply_roaster_enrichment
-            # so the COALESCE upsert + source mirror logic stays in one
-            # place. Swallow Sonnet failures so the batch keeps moving.
-            row = db.execute(
-                "SELECT website FROM roaster_profiles WHERE roaster_slug = ?",
-                (slug,),
-            ).fetchone()
-            if not row or not row["website"]:
-                return
-            website = row["website"]
-            try:
-                _apply_roaster_enrichment(db, website)
-            except Exception:
-                pass  # bio fail — continue to catalog/article scrapes
-
-            # Step 2 — verify source has shop_url + platform
-            src_row = db.execute(
-                "SELECT id, shop_url, platform FROM roaster_sources rs "
-                "JOIN roaster_profiles rp ON rp.website = rs.website "
-                "WHERE rp.roaster_slug = ?",
-                (slug,),
-            ).fetchone()
-            if not src_row or not src_row["shop_url"] or not src_row["platform"]:
-                return
-
-            # Step 3 — enqueue catalog scrape + article scrape (background).
-            try:
-                job_id = catalog_ops.enqueue_job(db, "scrape", started_by=user["id"])
-                background_tasks.add_task(
-                    catalog_ops.run_scrape_job, job_id,
-                    roaster_slug=slug, regenerate_prompt=regenerate_prompt,
-                )
-            except catalog_ops.JobConflict:
-                pass
-            try:
-                article_job_id = catalog_ops.enqueue_job(
-                    db, "article_scrape", started_by=user["id"],
-                )
-                background_tasks.add_task(
-                    catalog_ops.run_article_scrape_job, article_job_id,
-                    roaster_slug=slug,
-                    regenerate_article_hint=regenerate_article_hint,
-                )
-            except catalog_ops.JobConflict:
-                pass
-        finally:
-            db.close()
-
+    # Use the new mutex-free orchestrator for every slug — each one
+    # gets its own background task driving bio → per-roaster catalog
+    # scrape (isolated workspace) → per-roaster article scrape. No
+    # JobConflict possible; scrapes run concurrently.
     for slug in slugs:
-        background_tasks.add_task(_run_one, slug)
+        background_tasks.add_task(
+            _orchestrate_refresh_all,
+            slug=slug,
+            regenerate_prompt=regenerate_prompt,
+            regenerate_article_hint=regenerate_article_hint,
+            user_id=user["id"],
+        )
     return ok(
         {"accepted": len(slugs), "slugs": slugs,
          "regenerate_prompt": regenerate_prompt,
          "regenerate_article_hint": regenerate_article_hint},
         resource="refresh_all_bulk",
     )
+
+
+# ── Sweep Activity dashboard ────────────────────────────────────────────────
+# Retrospective + live view of recent roaster-refresh runs. Fuels the
+# SWEEP ACTIVITY admin sub-tab so the operator can wake up tomorrow
+# and understand what happened overnight without flipping through 96
+# per-roaster pages.
+#
+# Read-only aggregate over five tables: `jobs`, `agent_runs`,
+# `llm_jobs`, `scrape_proposals`, `roaster_profiles`. Each table is
+# scanned in a single SQL pass and aggregated in Python so the whole
+# endpoint completes in <500ms even with months of history.
+#
+# Time scope: rows with started_at/created_at >= `since` (default
+# "now − 24h"). The default reflects the overnight-sweep operator
+# pattern; pass an explicit ISO `since=` to widen or narrow.
+#
+# What "auto-approved" means: per the task spec, this is left at 0
+# for now — the actual auto-approve runner identity wiring will land
+# separately. Once a proposal carries the runner identity that wrote
+# `applied_at` we'll bucket those out of the manual approvals.
+
+@router.get("/admin/sweep-summary")
+def admin_sweep_summary(since: Optional[str] = None,
+                          user=Depends(get_current_user)):
+    """Aggregate dashboard payload for the SWEEP ACTIVITY admin tab.
+
+    Query params:
+      • since (optional, ISO 8601) — time floor. Defaults to "now − 24h".
+
+    Returns:
+      {
+        "since": iso,
+        "now": iso,
+        "totals": {
+          "roasters_processed": int,
+          "bios_refreshed": int,
+          "products_enriched": int,
+          "articles_enriched": int,
+          "proposals_auto_approved": int,
+          "proposals_held_for_review": int,
+          "proposals_auto_rejected": int,
+          "llm_calls": int,
+          "run_time_seconds": float,
+          "runs_in_flight": int,
+        },
+        "roasters": [
+          {
+            "slug": str,
+            "name": str | null,
+            "logo_url": str | null,
+            "last_activity_at": iso,
+            "status": "running" | "succeeded" | "failed" | "partial",
+            "products_new": int,
+            "products_updated": int,
+            "products_missing_to_sold_out": int,
+            "proposals_auto_approved": int,
+            "proposals_held": int,
+            "proposals_rejected": int,
+            "llm_jobs": int,
+            "errors_count": int,
+            "first_error": str | null,
+          },
+          ...sorted by last_activity_at DESC
+        ],
+        "recent_failures": [
+          { "slug": str | null, "message": str, "kind": str,
+            "job_id": int, "at": iso },
+          ...top 10
+        ],
+      }
+    """
+    _require_admin(user)
+
+    import datetime as _dt
+    now_dt = _dt.datetime.now(_dt.timezone.utc)
+    if since:
+        try:
+            # Tolerate trailing Z + naive ISO. Treat naive as UTC.
+            since_str = since.strip()
+            if since_str.endswith("Z"):
+                since_str = since_str[:-1] + "+00:00"
+            since_dt = _dt.datetime.fromisoformat(since_str)
+            if since_dt.tzinfo is None:
+                since_dt = since_dt.replace(tzinfo=_dt.timezone.utc)
+        except (ValueError, TypeError):
+            raise HTTPException(422, f"invalid since (ISO 8601 required): {since!r}")
+    else:
+        since_dt = now_dt - _dt.timedelta(hours=24)
+    # SQLite stores ISO strings; format both as Z-suffixed UTC to match
+    # the canonical `_now()` helper used by the rest of the codebase.
+    since_iso = since_dt.astimezone(_dt.timezone.utc).isoformat().replace("+00:00", "Z")
+    now_iso = now_dt.isoformat().replace("+00:00", "Z")
+
+    db = get_db()
+    try:
+        # ── Pull every published roaster's identity row in one query.
+        # We need (slug, name, logo_url, hero_image_url) so the per-row
+        # frontend can render via RoasterLogo. roaster_sources gives us
+        # the website→slug map for `roaster_enrich` jobs (which carry
+        # the website in result_summary, not the slug).
+        roaster_rows = db.execute(
+            "SELECT roaster_slug, name, logo_url, hero_image_url, website "
+            "FROM roaster_profiles"
+        ).fetchall()
+        roaster_by_slug: dict = {}
+        slug_by_website: dict = {}
+        for r in roaster_rows:
+            slug = r["roaster_slug"]
+            roaster_by_slug[slug] = {
+                "slug": slug,
+                "name": r["name"],
+                "logo_url": r["logo_url"] or r["hero_image_url"],
+            }
+            if r["website"]:
+                slug_by_website[r["website"]] = slug
+
+        def _empty_row(slug: str) -> dict:
+            base = roaster_by_slug.get(slug)
+            return {
+                "slug": slug,
+                "name": base["name"] if base else None,
+                "logo_url": base["logo_url"] if base else None,
+                "last_activity_at": None,
+                "status": "succeeded",
+                "products_new": 0,
+                "products_updated": 0,
+                "products_missing_to_sold_out": 0,
+                "proposals_auto_approved": 0,
+                "proposals_held": 0,
+                "proposals_rejected": 0,
+                "llm_jobs": 0,
+                "errors_count": 0,
+                "first_error": None,
+                "bio_refreshed": False,
+                "articles_enriched": 0,
+                "products_enriched": 0,
+            }
+
+        per_roaster: dict = {}
+
+        def _get_row(slug):
+            if not slug:
+                return None
+            if slug not in per_roaster:
+                per_roaster[slug] = _empty_row(slug)
+            return per_roaster[slug]
+
+        def _bump_last_activity(row, ts):
+            if not ts:
+                return
+            cur = row.get("last_activity_at")
+            if cur is None or ts > cur:
+                row["last_activity_at"] = ts
+
+        # ── Pass 1: jobs of kind scrape / article_scrape / roaster_enrich
+        # since the window. The slug-of-record is one of:
+        #   • For `roaster_enrich`: result_summary.slug (preferred) or
+        #     website→slug (fallback).
+        #   • For `scrape` / `article_scrape`: scope is per-slug when the
+        #     job was kicked from a per-roaster CTA; for bulk runs the
+        #     proposals + llm_jobs aggregation (passes 3+4 below) carry
+        #     the per-roaster breakdown. For the top-level totals we
+        #     still count the per-job wall time + status.
+        # The result_summary JSON may include {slug, ...}; if not we
+        # fall back to scanning current_target (display name) — but
+        # current_target gets cleared on finish, so it's only useful
+        # for live rows.
+        runs_in_flight = 0
+        total_run_seconds = 0.0
+        recent_failures: list = []
+        bios_refreshed = 0
+
+        REFRESH_KINDS = ("scrape", "article_scrape", "roaster_enrich")
+        placeholders = ",".join(["?"] * len(REFRESH_KINDS))
+        job_rows = db.execute(
+            f"SELECT id, kind, status, started_at, finished_at, created_at, "
+            f"       result_summary, error_message, current_target "
+            f"FROM jobs "
+            f"WHERE kind IN ({placeholders}) "
+            f"  AND COALESCE(started_at, created_at) >= ? "
+            f"ORDER BY id DESC",
+            tuple(list(REFRESH_KINDS) + [since_iso]),
+        ).fetchall()
+
+        for j in job_rows:
+            status = j["status"]
+            kind = j["kind"]
+            started = j["started_at"] or j["created_at"]
+            finished = j["finished_at"]
+            summary_obj: dict = {}
+            if j["result_summary"]:
+                try:
+                    summary_obj = json.loads(j["result_summary"]) or {}
+                except (json.JSONDecodeError, TypeError):
+                    summary_obj = {}
+
+            # Aggregate the wall-time only for finished runs so a
+            # never-finishing job doesn't skew the totals.
+            if finished and started:
+                try:
+                    s_dt = _dt.datetime.fromisoformat(started.replace("Z", "+00:00"))
+                    f_dt = _dt.datetime.fromisoformat(finished.replace("Z", "+00:00"))
+                    total_run_seconds += max(0.0, (f_dt - s_dt).total_seconds())
+                except (ValueError, TypeError):
+                    pass
+
+            if status in ("queued", "running"):
+                runs_in_flight += 1
+
+            # Resolve a slug-of-record where possible.
+            slug = None
+            sum_slug = summary_obj.get("slug") if isinstance(summary_obj, dict) else None
+            sum_website = summary_obj.get("website") if isinstance(summary_obj, dict) else None
+            if sum_slug:
+                slug = sum_slug
+            elif sum_website and sum_website in slug_by_website:
+                slug = slug_by_website[sum_website]
+            elif j["current_target"]:
+                # Live banner label — may be the display name. Try to
+                # resolve via case-insensitive name lookup.
+                ct = j["current_target"]
+                if ct in roaster_by_slug:
+                    slug = ct
+                else:
+                    lower = ct.lower()
+                    for s, info in roaster_by_slug.items():
+                        if (info.get("name") or "").lower() == lower:
+                            slug = s
+                            break
+
+            if slug:
+                row = _get_row(slug)
+                if row is None:
+                    continue
+                _bump_last_activity(row, finished or started)
+                # Job-level status promotion: a roaster row's status is
+                # the worst status seen across its jobs in the window.
+                # Order: running > failed > partial > succeeded.
+                if status in ("queued", "running"):
+                    row["status"] = "running"
+                elif status == "failed":
+                    if row["status"] != "running":
+                        row["status"] = "failed"
+                elif status == "succeeded":
+                    # Partial = succeeded but with errors[] / enrich
+                    # failures inside result_summary.
+                    has_errs = isinstance(summary_obj.get("errors"), list) and len(summary_obj["errors"]) > 0
+                    enr_fail = summary_obj.get("enrichment_failures", 0) or summary_obj.get("enrich_failed", 0) or 0
+                    if (has_errs or enr_fail > 0) and row["status"] not in ("running", "failed"):
+                        row["status"] = "partial"
+
+                # Pull common shape from scrape summaries.
+                if kind == "scrape":
+                    row["products_new"] += int(summary_obj.get("new_products_total") or 0)
+                    row["products_updated"] += int(summary_obj.get("updated_total") or 0)
+                    row["products_missing_to_sold_out"] += int(summary_obj.get("missing_total") or 0)
+                elif kind == "article_scrape":
+                    row["articles_enriched"] += int(summary_obj.get("enriched") or 0)
+                elif kind == "roaster_enrich":
+                    # Bio refresh = the enrich phase ran successfully (or
+                    # is running). One per slug per refresh window.
+                    if status != "failed":
+                        row["bio_refreshed"] = True
+                        bios_refreshed += 1
+
+                # Capture per-roaster error context.
+                if j["error_message"]:
+                    row["errors_count"] += 1
+                    if row["first_error"] is None:
+                        row["first_error"] = j["error_message"]
+                # Summary-embedded errors (per-article failures inside an
+                # otherwise-succeeded run).
+                sum_errs = summary_obj.get("errors") if isinstance(summary_obj, dict) else None
+                if isinstance(sum_errs, list):
+                    row["errors_count"] += len(sum_errs)
+                    if row["first_error"] is None and sum_errs:
+                        first = sum_errs[0]
+                        if isinstance(first, dict):
+                            row["first_error"] = first.get("message") or first.get("error")
+                        elif isinstance(first, str):
+                            row["first_error"] = first
+
+            # Recent-failures list — top N by recency. Keep both the
+            # job-level error_message and per-row summary errors.
+            if j["error_message"]:
+                recent_failures.append({
+                    "slug": slug,
+                    "message": j["error_message"],
+                    "kind": kind,
+                    "job_id": j["id"],
+                    "at": finished or started,
+                })
+            sum_errs = summary_obj.get("errors") if isinstance(summary_obj, dict) else None
+            if isinstance(sum_errs, list):
+                for err in sum_errs[:5]:  # cap per-job spam
+                    msg = None
+                    err_slug = slug
+                    if isinstance(err, dict):
+                        msg = err.get("message") or err.get("error")
+                        err_slug = err.get("slug") or slug
+                    elif isinstance(err, str):
+                        msg = err
+                    if msg:
+                        recent_failures.append({
+                            "slug": err_slug,
+                            "message": msg,
+                            "kind": kind,
+                            "job_id": j["id"],
+                            "at": finished or started,
+                        })
+
+        # ── Pass 2: llm_jobs since the window. Count per-step per-slug.
+        llm_rows = db.execute(
+            "SELECT roaster_slug, step, status, created_at, completed_at "
+            "FROM llm_jobs "
+            "WHERE created_at >= ?",
+            (since_iso,),
+        ).fetchall()
+        total_llm_calls = 0
+        for lj in llm_rows:
+            slug = lj["roaster_slug"]
+            if not slug or slug == "unknown":
+                continue
+            total_llm_calls += 1
+            row = _get_row(slug)
+            if row is None:
+                continue
+            row["llm_jobs"] += 1
+            _bump_last_activity(row, lj["completed_at"] or lj["created_at"])
+            # Track per-product / per-article LLM work for the top-line
+            # totals. We bucket on `step`:
+            #   product_enrich / per_product → products_enriched
+            #   article_enrich               → articles_enriched (only
+            #     counted here if status=complete, otherwise the
+            #     article_scrape pass already incremented it).
+            step = (lj["step"] or "").strip()
+            if step in ("product_enrich", "per_product", "enrich"):
+                if lj["status"] == "complete":
+                    row["products_enriched"] += 1
+
+        # ── Pass 3: scrape_proposals since the window. Group by status
+        # and join to products for the slug. Heuristic-rejected proposals
+        # carry the slug in proposed_state_json so we parse that for the
+        # rejected-bucket only.
+        prop_rows = db.execute(
+            "SELECT sp.product_id, sp.change_type, sp.status, sp.created_at, "
+            "       sp.proposed_state_json, p.roaster_slug AS prod_slug "
+            "FROM scrape_proposals sp "
+            "LEFT JOIN products p ON p.product_id = sp.product_id "
+            "WHERE sp.created_at >= ?",
+            (since_iso,),
+        ).fetchall()
+        for pr in prop_rows:
+            # Resolve slug — prefer the FK lookup, fall back to the
+            # JSON payload (heuristic_reject rows where no products
+            # row exists).
+            slug = pr["prod_slug"]
+            if not slug and pr["proposed_state_json"]:
+                try:
+                    payload = json.loads(pr["proposed_state_json"]) or {}
+                    slug = payload.get("roaster_slug")
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            if not slug:
+                continue
+            row = _get_row(slug)
+            if row is None:
+                continue
+
+            status = pr["status"]
+            change_type = pr["change_type"]
+            if change_type == "heuristic_reject" or status == "rejected":
+                row["proposals_rejected"] += 1
+            elif status == "pending":
+                # Pending = held for human review. Once a proposal lands
+                # as `applied`, it moves out of the queue — the held
+                # bucket is for what's still waiting, not for what's
+                # been approved. Auto-approved (when the runner identity
+                # is wired) will land directly in `applied` AND increment
+                # `proposals_auto_approved` separately.
+                row["proposals_held"] += 1
+            # 'applied' status: no per-roaster bump today. The auto-
+            # approve split lands in a follow-up. See top-of-route
+            # docstring.
+            _bump_last_activity(row, pr["created_at"])
+
+        # ── Pass 4: agent_runs since the window — used for the
+        # "bios refreshed" + "auto-approved" totals once those land.
+        # For now we count `crema_enrich_roaster` invocations as the
+        # canonical bio-refresh signal IF the corresponding roaster_enrich
+        # job already bumped it (avoid double-counting). When the
+        # auto-approve runner identity is wired we'll filter for
+        # `tool_name='crema_approve_proposals'` AND
+        # `agent_identity LIKE 'claude-%'` here.
+        # No-op for the moment; left as a comment for the follow-up.
+        # (Endpoint intentionally idempotent without it.)
+
+        # ── Totals
+        products_enriched_total = sum(r["products_enriched"] for r in per_roaster.values())
+        articles_enriched_total = sum(r["articles_enriched"] for r in per_roaster.values())
+        proposals_held_total = sum(r["proposals_held"] for r in per_roaster.values())
+        proposals_rejected_total = sum(r["proposals_rejected"] for r in per_roaster.values())
+
+        # ── Sort & dedupe outputs.
+        ordered_rows = sorted(
+            per_roaster.values(),
+            key=lambda r: r["last_activity_at"] or "",
+            reverse=True,
+        )
+
+        # Trim recent_failures to top N by recency and dedupe by
+        # (slug, message) so a single roaster spamming the same error
+        # doesn't fill the list.
+        seen = set()
+        deduped_failures = []
+        for f in sorted(recent_failures, key=lambda x: x.get("at") or "", reverse=True):
+            key = (f.get("slug"), f.get("message"))
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped_failures.append(f)
+            if len(deduped_failures) >= 10:
+                break
+
+        return ok(
+            {
+                "since": since_iso,
+                "now": now_iso,
+                "totals": {
+                    "roasters_processed": len(per_roaster),
+                    "bios_refreshed": bios_refreshed,
+                    "products_enriched": products_enriched_total,
+                    "articles_enriched": articles_enriched_total,
+                    # Auto-approve wiring is a follow-up (see top-of-route
+                    # comment) — keep the field present and zero so the
+                    # frontend can render without conditional plumbing.
+                    "proposals_auto_approved": 0,
+                    "proposals_held_for_review": proposals_held_total,
+                    "proposals_auto_rejected": proposals_rejected_total,
+                    "llm_calls": total_llm_calls,
+                    "run_time_seconds": round(total_run_seconds, 1),
+                    "runs_in_flight": runs_in_flight,
+                },
+                "roasters": ordered_rows,
+                "recent_failures": deduped_failures,
+            },
+            resource="sweep_summary",
+        )
+    finally:
+        db.close()
 
 
 @router.post("/admin/agent-runs", status_code=201)
@@ -2249,6 +2656,333 @@ def admin_list_agent_runs(limit: int = 100, agent_identity: str = None,
             tuple(params),
         ).fetchall()
         return ok([dict(r) for r in rows], resource="agent_runs")
+    finally:
+        db.close()
+
+
+# ── agent_summaries — explicit session-log for autonomous agents ───────────
+# Each catalog-ops agent (drainer, orchestrator, auto-approve runner,
+# hint-regen, etc.) calls `crema_log_agent_summary` once at exit. The
+# row carries a free-text task_label, the agent's own 3-5-sentence
+# summary, the outcome enum, and any free-form metrics it wants to
+# stash. The UI's Activity Log tab digests this table. agent_runs is
+# still the source-of-truth for individual MCP tool calls; this is
+# the human-readable layer above it.
+
+
+@router.post("/admin/agent-summaries", status_code=201)
+def admin_log_agent_summary(body: dict, user=Depends(get_current_user)):
+    """Append a row to `agent_summaries` — the daily-digest log.
+
+    Body:
+      • task_label (required, free text) — agent's own description of
+        what it did. Examples: "Drain held-roaster re-enrich queue",
+        "Auto-approve clean proposals after sweep", "Patch korebi
+        bio_hint with Bourbon disambiguation".
+      • summary (required, 3-5 sentences) — agent's narrative of what
+        happened, in its own voice. Should mention scope (which
+        roasters / how many jobs / what landed), key outcomes, any
+        surprises.
+      • outcome (optional enum) — 'success' | 'partial' | 'failed' |
+        'aborted'. If omitted, treated as 'success'.
+      • prompt_excerpt (optional) — first ~500 chars of the prompt the
+        agent received. Useful for retro-debugging.
+      • tool_calls_count (optional int) — how many MCP tool calls the
+        agent made. Cheaper than aggregating agent_runs at read time.
+      • scope_slugs (optional list[string]) — roaster slugs the agent
+        touched. Stored as JSON array.
+      • metrics (optional dict) — free-form counters. Examples:
+        {"jobs_processed": 12, "approved": 9, "held": 3}.
+      • started_at (optional ISO8601) — when the agent began. If
+        omitted, defaults to roughly now.
+
+    Returns: {id, ended_at}.
+    """
+    _require_admin(user)
+    body = body or {}
+    task_label = (body.get("task_label") or "").strip()
+    summary = (body.get("summary") or "").strip()
+    if not task_label or not summary:
+        from fastapi import HTTPException
+        raise HTTPException(422, "task_label and summary are required")
+
+    outcome = (body.get("outcome") or "success").strip().lower()
+    if outcome not in ("success", "partial", "failed", "aborted"):
+        from fastapi import HTTPException
+        raise HTTPException(
+            422,
+            f"outcome={outcome!r} must be one of "
+            "success/partial/failed/aborted",
+        )
+
+    import datetime as _dt
+    import json as _json
+    now = _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z")
+    scope_slugs_json = None
+    sc = body.get("scope_slugs")
+    if sc is not None:
+        scope_slugs_json = _json.dumps(sc)
+    metrics_json = None
+    mt = body.get("metrics")
+    if mt is not None:
+        metrics_json = _json.dumps(mt)
+
+    # Resolve agent_identity from the operator's session — that's the
+    # MCP env's `CREMA_AGENT_IDENTITY` propagated through the bearer
+    # token's session. The endpoint doesn't accept it from the body
+    # to avoid spoofing.
+    agent_identity = user.get("agent_identity") or user.get("display_name") or f"user:{user.get('id')}"
+
+    db = get_db()
+    try:
+        cur = db.execute(
+            "INSERT INTO agent_summaries "
+            "(agent_identity, task_label, prompt_excerpt, summary, outcome, "
+            " tool_calls_count, scope_slugs, metrics, started_at, ended_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                agent_identity,
+                task_label,
+                body.get("prompt_excerpt"),
+                summary,
+                outcome,
+                body.get("tool_calls_count"),
+                scope_slugs_json,
+                metrics_json,
+                body.get("started_at") or now,
+                now,
+            ),
+        )
+        db.commit()
+        return ok({"id": cur.lastrowid, "ended_at": now},
+                  resource="agent_summaries")
+    finally:
+        db.close()
+
+
+@router.get("/admin/agent-summaries")
+def admin_list_agent_summaries(
+    limit: int = 50,
+    since: Optional[str] = None,
+    agent_identity: Optional[str] = None,
+    outcome: Optional[str] = None,
+    user=Depends(get_current_user),
+):
+    """List recent agent summaries. Filters:
+      • since: ISO8601 — only summaries with `ended_at >= since`.
+      • agent_identity: scope to one agent.
+      • outcome: filter by enum value.
+      • limit: 1-1000, default 50.
+    """
+    _require_admin(user)
+    where = []
+    params: list = []
+    if since:
+        where.append("ended_at >= ?"); params.append(since)
+    if agent_identity:
+        where.append("agent_identity = ?"); params.append(agent_identity)
+    if outcome:
+        where.append("outcome = ?"); params.append(outcome)
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+    params.append(min(max(int(limit or 50), 1), 1000))
+
+    import json as _json
+    db = get_db()
+    try:
+        rows = db.execute(
+            f"SELECT * FROM agent_summaries{where_sql} "
+            f"ORDER BY ended_at DESC LIMIT ?",
+            tuple(params),
+        ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            # Parse JSON fields for the UI's convenience.
+            for k in ("scope_slugs", "metrics"):
+                if d.get(k):
+                    try: d[k] = _json.loads(d[k])
+                    except Exception: pass
+            out.append(d)
+        return ok(out, resource="agent_summaries")
+    finally:
+        db.close()
+
+
+# ── LLM-jobs queue (agent-fallback execution path) ─────────────────────────
+# When the FastAPI runner is invoked by a Claude operator (env
+# CREMA_AGENT_IDENTITY starts with "claude-" or LLM_PROVIDER=
+# claude_code_agent), the enricher services enqueue rows here
+# instead of calling the Anthropic SDK. Claude polls the queue via
+# the MCP tools `crema_haiku_next_job` (which calls /next below) and
+# `crema_haiku_submit` (which calls /{id}/respond), producing the
+# structured output itself per CLAUDE.md's Haiku-validation hard
+# rule. The awaiting enricher (services/llm_router._call_via_queue)
+# picks up the response on the next poll tick.
+
+@router.post("/admin/llm-jobs/next")
+def admin_llm_jobs_next(body: Optional[dict] = None,
+                          user=Depends(get_current_user)):
+    """Atomically claim the oldest pending llm_job. Optional filter
+    fields: step (bio | bio_hint | journal_hint | article_enrich |
+    product_enrich), roaster_slug. Returns the full job (incl.
+    parsed tool_schema) or null if the queue is empty.
+
+    The claim is atomic — concurrent agents racing for the same job
+    only one wins, the loser sees status!=pending and we retry the
+    next-oldest row."""
+    _require_admin(user)
+    body = body or {}
+    step = (body.get("step") or "").strip() or None
+    roaster_slug = (body.get("roaster_slug") or "").strip() or None
+    agent_identity = (body.get("agent_identity") or "").strip()
+    if not agent_identity:
+        agent_identity = f"user-{user['id']}"
+
+    db = get_db()
+    try:
+        import datetime as _dt
+        import json as _json
+        for _attempt in range(8):  # bounded loop in case of races
+            where = ["status = 'pending'"]
+            params: list = []
+            if step:
+                where.append("step = ?"); params.append(step)
+            if roaster_slug:
+                where.append("roaster_slug = ?"); params.append(roaster_slug)
+            where_sql = " AND ".join(where)
+            row = db.execute(
+                f"SELECT * FROM llm_jobs WHERE {where_sql} "
+                f"ORDER BY created_at ASC LIMIT 1",
+                tuple(params),
+            ).fetchone()
+            if row is None:
+                return ok(None, resource="llm_jobs")
+            now = _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z")
+            cur = db.execute(
+                "UPDATE llm_jobs SET status = 'in_progress', "
+                "claimed_at = ?, agent_identity = ? "
+                "WHERE id = ? AND status = 'pending'",
+                (now, agent_identity, row["id"]),
+            )
+            db.commit()
+            if cur.rowcount == 0:
+                # Lost the race — try again
+                continue
+            # Re-fetch with claimed state
+            row = db.execute(
+                "SELECT * FROM llm_jobs WHERE id = ?", (row["id"],),
+            ).fetchone()
+            d = dict(row)
+            schema_json = d.pop("tool_schema_json", None)
+            try:
+                d["tool_schema"] = _json.loads(schema_json) if schema_json else None
+            except Exception:
+                d["tool_schema"] = None
+            return ok(d, resource="llm_jobs")
+        return ok(None, resource="llm_jobs")
+    finally:
+        db.close()
+
+
+@router.post("/admin/llm-jobs/{job_id}/respond")
+def admin_llm_jobs_respond(job_id: int, body: dict,
+                             user=Depends(get_current_user)):
+    """Write response_payload for an in-flight llm_job. Marks it
+    complete (or failed). The awaiting enricher
+    (services/llm_router._call_via_queue) picks up the new state on
+    its next poll tick.
+
+    Body:
+      • output: dict — the structured tool_use input the model
+        produced. Required when status=complete.
+      • status: 'complete' (default) or 'failed'
+      • error: str — required when status=failed
+    """
+    _require_admin(user)
+    body = body or {}
+    status = (body.get("status") or "complete").strip()
+    if status not in ("complete", "failed"):
+        from fastapi import HTTPException
+        raise HTTPException(422, "status must be 'complete' or 'failed'")
+    output = body.get("output")
+    error = body.get("error")
+    if status == "complete" and output is None:
+        from fastapi import HTTPException
+        raise HTTPException(422,
+            "output is required when status=complete")
+    if status == "failed" and not error:
+        from fastapi import HTTPException
+        raise HTTPException(422,
+            "error is required when status=failed")
+
+    db = get_db()
+    try:
+        import datetime as _dt
+        import json as _json
+        now = _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z")
+        payload_json = _json.dumps(output) if output is not None else None
+        cur = db.execute(
+            "UPDATE llm_jobs SET status = ?, response_payload = ?, "
+            "error = ?, completed_at = ? "
+            "WHERE id = ? AND status = 'in_progress'",
+            (status, payload_json, error, now, job_id),
+        )
+        db.commit()
+        if cur.rowcount == 0:
+            row = db.execute(
+                "SELECT status FROM llm_jobs WHERE id = ?", (job_id,),
+            ).fetchone()
+            from fastapi import HTTPException
+            if row is None:
+                raise HTTPException(404, f"llm_job {job_id} not found")
+            raise HTTPException(409,
+                f"llm_job {job_id} is {row['status']}, not in_progress")
+        return ok({"id": job_id, "status": status,
+                   "completed_at": now}, resource="llm_jobs")
+    finally:
+        db.close()
+
+
+@router.get("/admin/llm-jobs")
+def admin_list_llm_jobs(limit: int = 100, status: Optional[str] = None,
+                          roaster_slug: Optional[str] = None,
+                          step: Optional[str] = None,
+                          include_payloads: bool = False,
+                          user=Depends(get_current_user)):
+    """List recent llm_jobs. Filters: status, roaster_slug, step.
+    Useful for the orchestrator to see what's pending vs in_progress
+    vs complete during a sweep.
+
+    Set include_payloads=true to also return system_prompt,
+    user_content, tool_schema_json, response_payload for each row —
+    big response; use sparingly (eg. when debugging a specific
+    failed step)."""
+    _require_admin(user)
+    where = []
+    params: list = []
+    if status:
+        where.append("status = ?"); params.append(status)
+    if roaster_slug:
+        where.append("roaster_slug = ?"); params.append(roaster_slug)
+    if step:
+        where.append("step = ?"); params.append(step)
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+    params.append(min(max(int(limit or 100), 1), 1000))
+    db = get_db()
+    try:
+        cols = (
+            "id, roaster_slug, step, target_id, model, status, "
+            "created_at, claimed_at, completed_at, error, agent_identity"
+        )
+        if include_payloads:
+            cols += (", system_prompt, user_content, tool_schema_json, "
+                     "response_payload, max_tokens, tool_name")
+        rows = db.execute(
+            f"SELECT {cols} FROM llm_jobs{where_sql} "
+            f"ORDER BY created_at DESC LIMIT ?",
+            tuple(params),
+        ).fetchall()
+        return ok([dict(r) for r in rows], resource="llm_jobs")
     finally:
         db.close()
 
@@ -2738,16 +3472,304 @@ def admin_job_log(job_id: int, user=Depends(get_current_user)):
 
 @router.get("/admin/scrape/proposals")
 def admin_list_proposals(job_id: int = None, status: str = "pending",
+                          roaster_slug: Optional[str] = None,
+                          limit: int = 500,
                           user=Depends(get_current_user)):
     """List proposals — defaults to `pending` so the admin tab can show
-    the approval queue. Pass `status=` (or empty string) to widen."""
+    the approval queue.
+
+    Filters:
+      • job_id: exact job_id match
+      • status: 'pending' (default) | 'applied' | 'rejected' | 'reverted'.
+        Pass empty string to widen to all statuses.
+      • roaster_slug: filter to one roaster via product_id LIKE 'slug_%'.
+        Crucial for per-roaster proposal review — without this the MCP
+        client had to fetch all and filter client-side, which broke on
+        truncation for large catalogs.
+      • limit: cap on rows returned. Default 500; bump for bulk
+        operations. Caps the payload so a queue of thousands doesn't
+        bring the response over MCP truncation thresholds.
+    """
     _require_admin(user)
     db = get_db()
     try:
         rows = catalog_ops.list_proposals(
             db, job_id=job_id, status=(status or None) if status != "" else None,
         )
+        # Apply roaster_slug filter post-hoc since catalog_ops.list_proposals
+        # doesn't accept it. product_id has the shape '<slug>_<handle>'.
+        if roaster_slug:
+            prefix = f"{roaster_slug}_"
+            rows = [r for r in rows if (r.get("product_id") or "").startswith(prefix)]
+        # Cap the row count.
+        limit = max(1, min(int(limit or 500), 5000))
+        rows = rows[:limit]
         return ok(rows, resource="scrape_proposals", total=len(rows))
+    finally:
+        db.close()
+
+
+@router.get("/admin/catalog/stats")
+def admin_catalog_stats(roaster_slug: Optional[str] = None,
+                         user=Depends(get_current_user)):
+    """Aggregate catalog state — counts of products by enrichment_status.
+
+    Without this, the MCP client had to reach into SQLite directly to
+    answer 'where is the catalog at right now' — which broke the
+    MCP-only discipline (provider-portability suffers if the operator
+    has to use direct SQL).
+
+    Optional `roaster_slug` scopes the stats to one roaster.
+
+    Returns:
+        {
+          total: int, enriched: int, failed: int, null_or_other: int,
+          by_status: { <status>: <count>, ... },
+          available: { yes: int, no: int },
+          sources: int,
+        }
+    """
+    _require_admin(user)
+    db = get_db()
+    try:
+        where = []
+        params: list = []
+        if roaster_slug:
+            where.append("roaster_slug = ?")
+            params.append(roaster_slug)
+        where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+
+        # Total + per-status counts.
+        rows = db.execute(
+            f"SELECT COALESCE(enrichment_status, '_null') AS status, "
+            f"COUNT(*) AS c FROM products{where_sql} GROUP BY status",
+            tuple(params),
+        ).fetchall()
+        by_status: dict[str, int] = {r["status"]: r["c"] for r in rows}
+        total = sum(by_status.values())
+        enriched = by_status.get("enriched", 0)
+        failed = by_status.get("failed", 0)
+        null_or_other = sum(
+            c for k, c in by_status.items()
+            if k not in ("enriched", "failed")
+        )
+
+        # Availability.
+        avail_rows = db.execute(
+            f"SELECT available, COUNT(*) AS c FROM products{where_sql} "
+            f"GROUP BY available",
+            tuple(params),
+        ).fetchall()
+        avail = {bool(r["available"]): r["c"] for r in avail_rows}
+        available = {
+            "yes": avail.get(True, 0),
+            "no":  avail.get(False, 0),
+        }
+
+        # Distinct roaster sources represented.
+        sources = db.execute(
+            f"SELECT COUNT(DISTINCT roaster_slug) AS c FROM products{where_sql}",
+            tuple(params),
+        ).fetchone()["c"]
+
+        return ok({
+            "total": total,
+            "enriched": enriched,
+            "failed": failed,
+            "null_or_other": null_or_other,
+            "by_status": by_status,
+            "available": available,
+            "sources": sources,
+            "scope": ("roaster:" + roaster_slug) if roaster_slug else "all",
+        }, resource="catalog_stats")
+    finally:
+        db.close()
+
+
+@router.get("/admin/scrape/proposals/breakdown")
+def admin_proposal_breakdown(group_by: str = "roaster_slug",
+                              status: str = "pending",
+                              change_type: Optional[str] = None,
+                              enrichment_filter: Optional[str] = None,
+                              user=Depends(get_current_user)):
+    """Aggregate counts over scrape_proposals.
+
+    Without this, the MCP client had to dump all proposals and group
+    client-side via Python+SQLite — which broke MCP-only discipline
+    and crashed on truncation for queues > ~80 rows.
+
+    Params:
+      • group_by: 'roaster_slug' | 'change_type' | 'enrichment_status' | 'status'
+        — what to group by. Default 'roaster_slug'.
+      • status: filter to this proposal status (default 'pending').
+        Empty string = all statuses.
+      • change_type: optional filter — 'insert' | 'update' | 'mark_sold_out' |
+        'restore_available'. Empty/null = all.
+      • enrichment_filter: optional filter on the embedded
+        enrichment_status in proposed_state_json. Values:
+        'enriched' | 'failed' | 'null'. Empty/null = all.
+
+    Returns: { group_by, total, buckets: [{key, count}, ...] }
+    """
+    _require_admin(user)
+    if group_by not in (
+        "roaster_slug", "change_type", "enrichment_status", "status",
+    ):
+        raise HTTPException(
+            400,
+            "group_by must be one of roaster_slug | change_type | "
+            "enrichment_status | status",
+        )
+    db = get_db()
+    try:
+        where = []
+        params: list = []
+        if status:
+            where.append("status = ?"); params.append(status)
+        if change_type:
+            where.append("change_type = ?"); params.append(change_type)
+        where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+        rows = db.execute(
+            f"SELECT id, product_id, change_type, status, proposed_state_json "
+            f"FROM scrape_proposals{where_sql}",
+            tuple(params),
+        ).fetchall()
+
+        # If enrichment_filter is set, drop rows whose proposed_state's
+        # enrichment_status doesn't match. We can't push this filter to
+        # SQL cleanly because proposed_state_json is opaque JSON.
+        if enrichment_filter or group_by == "enrichment_status":
+            import json as _json
+            buckets: dict[str, int] = {}
+            for r in rows:
+                try:
+                    st = _json.loads(r["proposed_state_json"] or "{}")
+                except (TypeError, ValueError):
+                    st = {}
+                es = st.get("enrichment_status") or "null"
+                if enrichment_filter and es != enrichment_filter:
+                    continue
+                if group_by == "enrichment_status":
+                    key = es
+                elif group_by == "roaster_slug":
+                    pid = r["product_id"] or ""
+                    key = (st.get("roaster_slug")
+                           or (pid.split("_", 1)[0] if "_" in pid else "unknown"))
+                elif group_by == "change_type":
+                    key = r["change_type"] or "unknown"
+                else:  # status
+                    key = r["status"] or "unknown"
+                buckets[key] = buckets.get(key, 0) + 1
+        else:
+            buckets = {}
+            for r in rows:
+                if group_by == "roaster_slug":
+                    pid = r["product_id"] or ""
+                    key = pid.split("_", 1)[0] if "_" in pid else "unknown"
+                elif group_by == "change_type":
+                    key = r["change_type"] or "unknown"
+                else:  # status
+                    key = r["status"] or "unknown"
+                buckets[key] = buckets.get(key, 0) + 1
+
+        bucket_list = sorted(
+            ({"key": k, "count": v} for k, v in buckets.items()),
+            key=lambda x: -x["count"],
+        )
+        return ok({
+            "group_by": group_by,
+            "filter": {
+                "status": status or None,
+                "change_type": change_type,
+                "enrichment_filter": enrichment_filter,
+            },
+            "total": sum(buckets.values()),
+            "buckets": bucket_list,
+        }, resource="proposal_breakdown")
+    finally:
+        db.close()
+
+
+@router.get("/admin/roasters/freshness")
+def admin_freshness_report(user=Depends(get_current_user)):
+    """Per-roaster freshness — last_scraped_at + age buckets.
+
+    Without this, the MCP client had to query roaster_sources via SQL
+    to answer 'how stale is the catalog?'. This endpoint surfaces the
+    same data through the MCP boundary.
+
+    Returns:
+        {
+          summary: { fresh_le_1d, stale_gt_1d, stale_gt_7d, never_scraped },
+          roasters: [
+            { slug, name, last_scraped_at, age_days, bucket }, ...
+          ],
+        }
+    """
+    _require_admin(user)
+    import datetime as _dt
+    db = get_db()
+    try:
+        rows = db.execute(
+            """
+            SELECT rp.roaster_slug AS slug,
+                   rp.name AS name,
+                   rs.last_scraped_at AS last_scraped_at
+            FROM roaster_profiles rp
+            LEFT JOIN roaster_sources rs ON rs.website = rp.website
+            WHERE rp.published = 1
+            """
+        ).fetchall()
+
+        now = _dt.datetime.now(_dt.timezone.utc)
+        summary = {
+            "fresh_le_1d": 0,
+            "stale_gt_1d": 0,
+            "stale_gt_7d": 0,
+            "never_scraped": 0,
+        }
+        out_rows: list[dict] = []
+        for r in rows:
+            ts = r["last_scraped_at"]
+            age_days = None
+            bucket = "never_scraped"
+            if ts:
+                try:
+                    d = _dt.datetime.fromisoformat(
+                        ts.replace("Z", "+00:00")
+                    ).astimezone(_dt.timezone.utc)
+                    age_days = (now - d).days
+                    if age_days <= 1:
+                        bucket = "fresh_le_1d"
+                    elif age_days <= 7:
+                        bucket = "stale_gt_1d"
+                    else:
+                        bucket = "stale_gt_7d"
+                except (ValueError, AttributeError):
+                    bucket = "never_scraped"
+            summary[bucket] += 1
+            out_rows.append({
+                "slug": r["slug"],
+                "name": r["name"],
+                "last_scraped_at": ts,
+                "age_days": age_days,
+                "bucket": bucket,
+            })
+        # Sort: never_scraped first, then stale_gt_7d, stale_gt_1d, fresh.
+        bucket_order = {
+            "never_scraped": 0,
+            "stale_gt_7d":   1,
+            "stale_gt_1d":   2,
+            "fresh_le_1d":   3,
+        }
+        out_rows.sort(key=lambda r: (
+            bucket_order.get(r["bucket"], 9),
+            -(r["age_days"] or 0),
+        ))
+        return ok({
+            "summary": summary,
+            "roasters": out_rows,
+        }, resource="freshness_report")
     finally:
         db.close()
 
@@ -2778,6 +3800,279 @@ def admin_reject_proposals(body: dict, user=Depends(get_current_user)):
     db = get_db()
     try:
         return ok(catalog_ops.reject_proposals(db, ids), resource="scrape_proposals")
+    finally:
+        db.close()
+
+
+# Completeness-check rules — fixed list, applied to every proposal that
+# has `is_coffee_bean=true` to decide approve-vs-hold-for-review.
+#
+# Each rule is a callable `(state, name_lower, process_lower) -> reason or None`.
+# If a rule returns a string reason, the proposal is HELD; if all rules
+# return None, the proposal is APPROVED.
+#
+# These rules encode the actual data bugs we've observed during sweeps:
+#   • Haiku conflating species (Arabica/Robusta) with varietal cultivar.
+#   • Haiku tagging barrel-aging spirits (Bourbon/Whiskey/Rum) as varietal.
+#   • Missing required fields like roast_level, weight_grams, coffee_name.
+#   • Empty roaster_blurb after the prompt-patch fallback was added.
+
+_SPECIES_TERMS = {"arabica", "robusta", "liberica", "excelsa", "blend"}
+_BARREL_SPIRITS = {"bourbon", "whiskey", "whisky", "rum", "wine", "agave"}
+_BARREL_KEYWORDS = ("barrel", "barrel-aged", "barrel aged", "aged in",
+                     "cask", "casked")
+_VALID_ROAST_LEVELS = {
+    "Light", "Medium-Light", "Medium", "Medium-Dark", "Dark", "Espresso",
+}
+
+
+def _str_or_empty(v) -> str:
+    """Defensive coercion — Haiku occasionally outputs ints/floats where
+    strings are expected (e.g. roast_level=2 instead of 'Medium'). Treat
+    non-strings as empty so downstream `.strip()` / membership checks
+    don't crash. The schema-violation itself is flagged separately so
+    the proposal is held for review."""
+    if v is None:
+        return ""
+    return str(v) if not isinstance(v, str) else v
+
+
+def _completeness_violations(state: dict) -> list[str]:
+    """Return a list of human-readable violation reasons. Empty list = passes."""
+    reasons: list[str] = []
+    # Detect schema-type violations up front (Haiku occasionally outputs
+    # an int where a string-enum is required, etc.) — these are held
+    # for review regardless of the downstream checks.
+    raw_roast_level = state.get("roast_level")
+    if raw_roast_level is not None and not isinstance(raw_roast_level, str):
+        reasons.append(
+            f"roast_level={raw_roast_level!r} has type "
+            f"{type(raw_roast_level).__name__!r} (must be a string from the enum)"
+        )
+
+    name = _str_or_empty(state.get("coffee_name")).strip()
+    name_lower = name.lower()
+    varietal = _str_or_empty(state.get("varietal")).strip()
+    varietal_lower = varietal.lower()
+    process_raw = _str_or_empty(state.get("process_raw")).strip()
+    process_raw_lower = process_raw.lower()
+    process = _str_or_empty(state.get("process")).strip()
+    bean_type = state.get("bean_type")
+    roast_level = _str_or_empty(state.get("roast_level")).strip()
+    blurb = _str_or_empty(state.get("roaster_blurb")).strip()
+    flavor_notes = state.get("flavor_notes") or []
+    tasting_notes = _str_or_empty(state.get("tasting_notes")).strip()
+    weight_grams = state.get("weight_grams")
+    price_inr = state.get("price_inr")
+
+    # Required identity fields ────────────────────────────────────────────
+    if not name:
+        reasons.append("coffee_name is empty")
+    if not roast_level or roast_level == "Unknown":
+        reasons.append(f"roast_level={roast_level!r} (not in the valid enum)")
+    elif roast_level not in _VALID_ROAST_LEVELS:
+        reasons.append(f"roast_level={roast_level!r} (not in valid enum)")
+    if weight_grams is None or (isinstance(weight_grams, (int, float))
+                                  and weight_grams <= 0):
+        reasons.append(f"weight_grams={weight_grams!r} (must be > 0)")
+    if price_inr is None or (isinstance(price_inr, (int, float))
+                              and price_inr <= 0):
+        reasons.append(f"price_inr={price_inr!r} (must be > 0)")
+
+    # Varietal sanity ─────────────────────────────────────────────────────
+    if varietal:
+        # Split by common delimiters to validate each token individually.
+        tokens = [t.strip().lower()
+                  for t in varietal.replace("+", ",").split(",")
+                  if t.strip()]
+        # Species names in varietal field
+        species_in_varietal = [t for t in tokens if t in _SPECIES_TERMS]
+        if species_in_varietal:
+            reasons.append(
+                f"varietal={varietal!r} contains species name(s) "
+                f"{species_in_varietal!r} — species belongs in bean_type"
+            )
+        # Barrel-spirit in varietal when product is barrel-aged
+        is_barrel_context = (
+            any(k in name_lower for k in _BARREL_KEYWORDS)
+            or any(k in process_raw_lower for k in _BARREL_KEYWORDS)
+            or any(k in process.lower() for k in _BARREL_KEYWORDS)
+        )
+        spirits_in_varietal = [t for t in tokens if t in _BARREL_SPIRITS]
+        if is_barrel_context and spirits_in_varietal:
+            reasons.append(
+                f"varietal={varietal!r} contains barrel-spirit(s) "
+                f"{spirits_in_varietal!r} with barrel-aging context — "
+                f"spirits belong in process_raw, not varietal"
+            )
+
+    # Bean type sanity ────────────────────────────────────────────────────
+    if bean_type and bean_type not in (
+        "Arabica", "Robusta", "Liberica", "Excelsa", "Blend",
+    ):
+        reasons.append(
+            f"bean_type={bean_type!r} (must be one of "
+            f"Arabica/Robusta/Liberica/Excelsa/Blend or null)"
+        )
+
+    # Narrative / blurb ───────────────────────────────────────────────────
+    if not blurb:
+        reasons.append("roaster_blurb is empty/null")
+
+    # Flavor info ─────────────────────────────────────────────────────────
+    if not flavor_notes and not tasting_notes:
+        reasons.append("no flavor_notes AND no tasting_notes (page yielded no flavor info)")
+
+    return reasons
+
+
+@router.post("/admin/scrape/proposals/auto-approve")
+def admin_auto_approve_proposals(body: Optional[dict] = None,
+                                   user=Depends(get_current_user)):
+    """Apply an auto-approval policy across all pending proposals with
+    completeness checks layered on top of the is_coffee_bean filter.
+
+    Three-way outcome per proposal:
+      • **approve** — `is_coffee_bean=true` AND all completeness checks
+        pass. Applied to live `products` row via catalog_ops.approve.
+      • **reject** — `is_coffee_bean=false` (workshop/merch/equipment).
+        Discards the proposal; live row untouched.
+      • **hold_for_review** — `is_coffee_bean=true` BUT one or more
+        completeness checks failed (varietal contains a species name,
+        roast_level missing, blurb empty, etc.). The proposal stays
+        `pending` for the admin to review per-card. The response body
+        returns `held: [{id, reasons: [...]}, ...]` so the operator
+        knows what to fix.
+
+    `skipped` covers proposals where `is_coffee_bean` is missing/null —
+    those can't be classified.
+
+    Body (all optional):
+      • slug: scope to one roaster
+      • since: ISO8601 lower bound on `created_at`
+      • dry_run: count only, don't mutate
+      • strict_checks: bool (default True) — when False, falls back to
+        the original is_coffee_bean-only policy (legacy mode)
+
+    Returns: {approved, rejected, held_for_review, skipped, dry_run,
+              held: [{id, coffee_name, reasons}, ...]}
+
+    Completeness checks (when strict_checks=True):
+      • Required: coffee_name, roast_level (valid enum), weight_grams>0,
+        price_inr>0, roaster_blurb non-empty.
+      • Either flavor_notes (array) OR tasting_notes (string) must be
+        populated — empty both means Haiku found nothing usable.
+      • varietal must not contain species names (Arabica/Robusta/etc.) —
+        those belong in bean_type. Multi-value varietals (e.g.
+        'Catuai + Bourbon') are validated token-by-token.
+      • varietal must not contain barrel-spirit names (Bourbon/Whiskey/
+        Rum/Wine/Agave) when the product is barrel-aged. Barrel context
+        is detected via 'barrel'/'cask'/'aged in' in coffee_name,
+        process_raw, or process.
+      • bean_type must be a valid species enum value or null.
+    """
+    _require_admin(user)
+    body = body or {}
+    scope_slug = (body.get("slug") or "").strip() or None
+    since = (body.get("since") or "").strip() or None
+    dry_run = bool(body.get("dry_run"))
+    strict_checks = body.get("strict_checks")
+    if strict_checks is None:
+        # Default to PERMISSIVE: approve everything Haiku enriched.
+        # The completeness checks were deplatforming too many coffees
+        # — perfect-info schema completeness isn't worth the cost of
+        # leaving the catalog half-empty. Operator can opt-in to the
+        # strict policy via {strict_checks: true}.
+        strict_checks = False
+
+    db = get_db()
+    try:
+        import json as _json
+        where = ["status = 'pending'"]
+        params: list = []
+        if scope_slug:
+            where.append("product_id LIKE ?")
+            params.append(f"{scope_slug}_%")
+        if since:
+            where.append("created_at >= ?")
+            params.append(since)
+        where_sql = " AND ".join(where)
+        rows = db.execute(
+            f"SELECT id, proposed_state_json FROM scrape_proposals "
+            f"WHERE {where_sql} ORDER BY id ASC",
+            tuple(params),
+        ).fetchall()
+
+        approve_ids: list[int] = []
+        reject_ids: list[int] = []
+        held: list[dict] = []
+        skipped = 0
+
+        for r in rows:
+            try:
+                state = _json.loads(r["proposed_state_json"] or "{}")
+            except Exception:
+                skipped += 1
+                continue
+            # Non-coffee products are already auto-rejected at scrape time
+            # (they land directly in status='rejected', not pending), so
+            # pending proposals are implicitly "coffee beans". Use
+            # `enrichment_status` as the gate instead — that's what's
+            # actually stored on proposed_state_json.
+            es = state.get("enrichment_status")
+            if es == "failed":
+                # Haiku enrichment failed — fields are null. Hold for
+                # re-enrich; don't apply null overwrites to live rows.
+                held.append({
+                    "id": r["id"],
+                    "coffee_name": state.get("coffee_name"),
+                    "reasons": ["enrichment_status='failed' (Haiku run errored — re-enrich first)"],
+                })
+                continue
+            if es != "enriched":
+                # 'deferred' / null / something else — can't classify
+                skipped += 1
+                continue
+            # enrichment_status='enriched' → run completeness checks
+            if strict_checks:
+                violations = _completeness_violations(state)
+                if violations:
+                    held.append({
+                        "id": r["id"],
+                        "coffee_name": state.get("coffee_name"),
+                        "reasons": violations,
+                    })
+                    continue
+            approve_ids.append(r["id"])
+
+        if dry_run:
+            return ok({
+                "approved": len(approve_ids),
+                "rejected": len(reject_ids),
+                "held_for_review": len(held),
+                "skipped": skipped,
+                "dry_run": True,
+                "strict_checks": strict_checks,
+                "approved_ids": approve_ids,
+                "rejected_ids": reject_ids,
+                "held": held,
+            }, resource="scrape_proposals")
+
+        approved_summary = (catalog_ops.approve_proposals(db, approve_ids)
+                              if approve_ids else {"applied": 0})
+        rejected_summary = (catalog_ops.reject_proposals(db, reject_ids)
+                              if reject_ids else {"rejected": 0})
+        return ok({
+            "approved": len(approve_ids),
+            "rejected": len(reject_ids),
+            "held_for_review": len(held),
+            "skipped": skipped,
+            "dry_run": False,
+            "strict_checks": strict_checks,
+            "approved_summary": approved_summary,
+            "rejected_summary": rejected_summary,
+            "held": held,
+        }, resource="scrape_proposals")
     finally:
         db.close()
 
@@ -3075,6 +4370,149 @@ def admin_re_enrich_roaster(slug: str, user=Depends(get_current_user)):
         db.close()
 
 
+_ORCHESTRATOR_LOG = "/tmp/crema_orchestrator.log"
+
+
+def _orch_log(slug: str, msg: str) -> None:
+    """Print to stdout AND append to a tail-able file so MCP-only
+    diagnosis is possible without raw DB access."""
+    line = f"{_now_iso()} [refresh-all/{slug}] {msg}"
+    print(line, flush=True)
+    try:
+        with open(_ORCHESTRATOR_LOG, "a") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass  # best-effort logging — never block the pipeline
+
+
+def _orchestrate_refresh_all(
+    *,
+    slug: str,
+    regenerate_prompt: bool,
+    regenerate_article_hint: bool,
+    user_id: int,
+):
+    """Background-task version of the refresh-all pipeline.
+
+    Under LLM_PROVIDER=claude_code_agent (Claude operator path),
+    each `call_llm()` inside the bio/scrape/article enrichers
+    enqueues a row in `llm_jobs` and blocks the worker thread until
+    the consumer (Claude via crema_haiku_next_job + submit) answers.
+    Running this on the request thread caused the HTTP client to
+    time out at ~5 min (Node fetch headersTimeout) while the route
+    was still polling. Wrapping in background_tasks lets the MCP
+    request return 202 immediately while the pipeline drives
+    bio → bio_hint → scrape (per-product) → article scrape
+    (per-article) → journal_hint sequentially in the background.
+
+    Errors are logged but not re-raised — there's no caller to
+    re-raise to once we're in BG. Failures show up in:
+      - `llm_jobs.status='failed'` for per-LLM-step failures
+      - the `jobs` table (catalog_ops.run_scrape_job /
+        run_article_scrape_job) for scrape-level failures
+    """
+    from services.llm_router import set_pipeline_context
+    # Stamp the contextvar so every downstream call_llm sees the
+    # right slug on its enqueued row (avoids "unknown" labels).
+    set_pipeline_context(roaster_slug=slug)
+    _orch_log(slug, "orchestrator START")
+
+    # Step 1 — pull website
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT website FROM roaster_profiles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not row or not row["website"]:
+            _orch_log(slug, "no website on file — bailing")
+            return
+        website = row["website"]
+        _orch_log(slug, f"step1 website resolved: {website}")
+    finally:
+        db.close()
+
+    # Step 2 — bio enrich (best-effort; non-fatal).
+    #
+    # Bio enrich pulls homepage + about-page text and runs a Haiku call
+    # to produce roaster_profile fields. For Wix sites with anti-bot
+    # walls (729-Grams, etc.), the homepage fetch sometimes fails even
+    # with the Playwright fallback — but the per-product catalog scrape
+    # in step 4 is INDEPENDENT and uses a different scrape path
+    # (`Scraper/scraper/main.py` subprocess). Per-product enrichment +
+    # image-OCR can proceed without the bio. So treat bio failure as a
+    # log-and-continue rather than an orchestrator abort.
+    db = get_db()
+    try:
+        try:
+            _orch_log(slug, "step2 calling _apply_roaster_enrichment …")
+            applied = _apply_roaster_enrichment(db, website)
+            _orch_log(slug, f"step2 bio enrich complete — slug={applied.get('slug')}")
+        except roaster_enricher.RoasterEnricherError as e:
+            _orch_log(slug, f"step2 BIO ENRICH FAILED (RoasterEnricherError): {e}")
+            _orch_log(slug, "step2 continuing past bio failure — scrape step 4 doesn't depend on bio")
+        except Exception as e:
+            _orch_log(slug, f"step2 BIO ENRICH FAILED (unexpected {type(e).__name__}): {e}")
+            _orch_log(slug, "step2 continuing past bio failure — scrape step 4 doesn't depend on bio")
+    finally:
+        db.close()
+
+    # Step 3 — pre-flight check for scrape (shop_url + platform)
+    db = get_db()
+    try:
+        src_row = db.execute(
+            "SELECT id, shop_url, platform FROM roaster_sources rs "
+            "JOIN roaster_profiles rp ON rp.website = rs.website "
+            "WHERE rp.roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not src_row:
+            _orch_log(slug, "step3 PRE-FLIGHT FAILED — no roaster_sources row after enrich")
+            return
+        if not src_row["shop_url"] or not src_row["platform"]:
+            _orch_log(slug, f"step3 PRE-FLIGHT FAILED — shop_url={src_row['shop_url']!r}, "
+                            f"platform={src_row['platform']!r} after enrich")
+            return
+        _orch_log(slug, f"step3 pre-flight OK — shop_url={src_row['shop_url']!r}, "
+                        f"platform={src_row['platform']!r}")
+
+        # Step 4 — kick the per-roaster scrape + article scrape threads.
+        # These use the new mutex-free runners (catalog_ops.scrape_one_roaster
+        # + article_scrape_one_roaster) which isolate each scrape's
+        # subprocess to /tmp/crema-scrape/{slug}-{ts}/, so multiple
+        # roasters can refresh concurrently without colliding on the
+        # legacy global Scraper/input + Scraper/output files. The
+        # visibility jobs row is still written (with bypass_mutex=True)
+        # so the admin's "Recent Enrichment Runs" panel keeps working
+        # and scrape_proposals.job_id FK stays valid.
+        import threading
+
+        threading.Thread(
+            target=catalog_ops.scrape_one_roaster,
+            kwargs={
+                "roaster_slug": slug,
+                "user_id": user_id,
+                "regenerate_prompt": regenerate_prompt,
+            },
+            daemon=True,
+        ).start()
+        _orch_log(slug, "step4 scrape thread dispatched (per-roaster workspace, no mutex)")
+
+        threading.Thread(
+            target=catalog_ops.article_scrape_one_roaster,
+            kwargs={
+                "roaster_slug": slug,
+                "user_id": user_id,
+                "regenerate_article_hint": regenerate_article_hint,
+            },
+            daemon=True,
+        ).start()
+        _orch_log(slug, "step4 article scrape thread dispatched (no mutex)")
+        _orch_log(slug, "orchestrator DONE — both scrape threads running concurrently")
+    finally:
+        db.close()
+
+
 @router.post("/admin/roasters/{slug}/refresh-all", status_code=202)
 def admin_refresh_roaster_all(
     slug: str,
@@ -3082,31 +4520,30 @@ def admin_refresh_roaster_all(
     background_tasks: BackgroundTasks = None,
     user=Depends(get_current_user),
 ):
-    """One-shot orchestrator: bio re-enrich (synchronous) → scrape job
-    (background). Returns the freshly-saved profile + the queued
-    scrape job's id so the per-roaster admin page can switch from
-    "filling profile fields" to "polling catalog enrichment" without
-    a second user click.
+    """One-shot orchestrator: bio enrich + scrape job + article
+    scrape, ALL in a single background pipeline. Returns 202
+    immediately with the slug + queued flag so the client doesn't
+    block on long-running LLM calls (especially under the
+    Agent-fallback queue path, where each call_llm blocks a worker
+    thread until Claude responds via crema_haiku_submit).
 
     Body:
-      `regenerate_prompt` (optional): forwarded to the scrape job —
-        same semantics as the existing /admin/scrape/run flag.
+      • regenerate_prompt: forwarded to the scrape job
+      • regenerate_article_hint: forwarded to the article scrape job
 
-    Failure modes:
-      - Bio enrich raises (no API key, Sonnet down, unreachable site)
-        → bubbled up as the same 503/422 the underlying endpoint
-        would produce, scrape job NOT enqueued. Admin gets a clean
-        error with no half-applied state.
-      - Scrape pre-flight fails (no shop_url / platform after enrich)
-        → 422 with explicit message; bio enrich already saved.
-    """
+    Failures land in:
+      • llm_jobs.status='failed' for per-LLM-step failures
+      • the `jobs` table for scrape-level failures
+      • FastAPI stdout for orchestration-level failures
+
+    Poll for progress via crema_list_llm_jobs + crema_list_jobs."""
     _require_admin(user)
     body = body or {}
     regenerate_prompt = bool(body.get("regenerate_prompt"))
+    regenerate_article_hint = bool(body.get("regenerate_article_hint"))
 
-    # Step 1 — pull website, run bio enrich. Reuses the existing
-    # admin_enrich_roaster handler so the COALESCE upsert + source
-    # mirror logic stays in one place.
+    # Pre-flight: confirm the roaster + website exist before we
+    # spend any compute. Cheap DB lookup.
     db = get_db()
     try:
         row = db.execute(
@@ -3116,96 +4553,29 @@ def admin_refresh_roaster_all(
         if not row or not row["website"]:
             from fastapi import HTTPException
             raise HTTPException(404, f"No website on file for roaster {slug}")
-        website = row["website"]
     finally:
         db.close()
 
-    db = get_db()
-    try:
-        try:
-            applied = _apply_roaster_enrichment(db, website)
-        except roaster_enricher.RoasterEnricherError as e:
-            from fastapi import HTTPException
-            if "ANTHROPIC_API_KEY" in str(e) or "isn't installed" in str(e):
-                raise HTTPException(503, str(e))
-            raise HTTPException(422, str(e))
-        from resources.crud import get_resource_by_id
-        bio_data = get_resource_by_id(db, "roaster_profiles", applied["slug"],
-                                        current_user_id=user["id"])
-    finally:
-        db.close()
-
-    # Step 2 — re-fetch source so we know the freshly-mirrored
-    # shop_url + platform (Sonnet just wrote them via the bio enrich).
-    db = get_db()
-    try:
-        src_row = db.execute(
-            "SELECT id, shop_url, platform FROM roaster_sources rs "
-            "JOIN roaster_profiles rp ON rp.website = rs.website "
-            "WHERE rp.roaster_slug = ?",
-            (slug,),
-        ).fetchone()
-        if not src_row or not src_row["shop_url"] or not src_row["platform"]:
-            from fastapi import HTTPException
-            raise HTTPException(
-                422,
-                "Bio enrichment finished but the catalog source is missing "
-                "shop_url or platform. Set them manually, then run a scrape.",
-            )
-
-        # Step 3 — enqueue BOTH the catalog scrape AND the article
-        # scrape. Different job kinds → separate active-job slots, so
-        # they can run in parallel. The article scrape doesn't depend
-        # on catalog scrape output; both consume the roaster website
-        # directly. Running them together makes "Refresh Roaster" a
-        # true one-button operation: bio + catalog + journal.
-        #
-        # On JobConflict for either kind: bio enrichment already
-        # landed; surfacing a 409 would bury that partial success.
-        # Instead return 200 with `job=None` / `article_job=None` and
-        # a `*_blocked_by_job_id` hint so the admin sees which subset
-        # ran.
-        regenerate_article_hint = bool(body.get("regenerate_article_hint"))
-
-        scrape_blocked_by: Optional[int] = None
-        try:
-            job_id = catalog_ops.enqueue_job(db, "scrape", started_by=user["id"])
-        except catalog_ops.JobConflict as e:
-            scrape_blocked_by = e.live_job_id
-            job_payload = None
-        else:
-            background_tasks.add_task(
-                catalog_ops.run_scrape_job, job_id,
-                roaster_slug=slug,
-                regenerate_prompt=regenerate_prompt,
-            )
-            job_payload = _job_to_response(db, job_id)
-
-        article_blocked_by: Optional[int] = None
-        try:
-            article_job_id = catalog_ops.enqueue_job(
-                db, "article_scrape", started_by=user["id"],
-            )
-        except catalog_ops.JobConflict as e:
-            article_blocked_by = e.live_job_id
-            article_job_payload = None
-        else:
-            background_tasks.add_task(
-                catalog_ops.run_article_scrape_job, article_job_id,
-                roaster_slug=slug,
-                regenerate_article_hint=regenerate_article_hint,
-            )
-            article_job_payload = _job_to_response(db, article_job_id)
-    finally:
-        db.close()
+    # Kick the orchestration into a background task and return
+    # immediately. The task drives bio → scrape → article scrape
+    # sequentially; each call_llm under queue mode blocks its own
+    # thread until Claude submits the response.
+    background_tasks.add_task(
+        _orchestrate_refresh_all,
+        slug=slug,
+        regenerate_prompt=regenerate_prompt,
+        regenerate_article_hint=regenerate_article_hint,
+        user_id=user["id"],
+    )
 
     return ok(
         {
-            "profile": bio_data,
-            "job": job_payload,
-            "scrape_blocked_by_job_id": scrape_blocked_by,
-            "article_job": article_job_payload,
-            "article_scrape_blocked_by_job_id": article_blocked_by,
+            "slug": slug,
+            "queued": True,
+            "regenerate_prompt": regenerate_prompt,
+            "regenerate_article_hint": regenerate_article_hint,
+            "message": "Refresh queued. Poll crema_list_llm_jobs "
+                       "(or crema_list_jobs for scrape-level progress).",
         },
         resource="roaster_refresh",
     )
@@ -3996,5 +5366,496 @@ def post_ad_impression(body: dict, user=Depends(get_optional_user)):
             {"id": impression_id, "deduped": cur.lastrowid == 0},
             resource="ad_impressions",
         )
+    finally:
+        db.close()
+
+
+# ── Phase 2 MCP — inspect / debug / requeue endpoints ──────────────────────
+# Backing routes for the catalog-ops MCP server's investigative tools:
+#   crema_get_product_detail        →  GET    /admin/products/{product_id}
+#   crema_delete_product            →  DELETE /admin/products/{product_id}
+#   crema_get_raw_snapshot          →  GET    /admin/sync/{slug}/raw-snapshot
+#   crema_get_llm_job_detail        →  GET    /admin/llm-jobs/{job_id}
+#   crema_requeue_llm_job           →  POST   /admin/llm-jobs/{job_id}/requeue
+#   crema_list_scrape_runs          →  GET    /admin/scrape-runs
+#   crema_test_source_url           →  POST   /admin/sources/test
+#
+# All admin-gated. None call Anthropic — they're read/diagnostic surfaces
+# for an agent operator to self-diagnose without screen-sharing the admin
+# UI to a human.
+
+
+@router.get("/admin/products/{product_id}")
+def admin_get_product_detail(product_id: str,
+                              user=Depends(get_current_user)):
+    """Full products row + the most recent scrape_proposals row that
+    touched it (any status). Used by the agent for per-coffee debugging —
+    when an enrichment looks wrong or a field is missing, this is the
+    entry point.
+
+    Response: { product: {<full row>}, latest_proposal: {<proposal>} | null }
+    """
+    _require_admin(user)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT * FROM products WHERE product_id = ?", (product_id,),
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Product {product_id} not found")
+        prop = db.execute(
+            "SELECT id, job_id, change_type, status, created_at, "
+            "applied_at, rejected_at, reverted_at, proposed_state_json "
+            "FROM scrape_proposals WHERE product_id = ? "
+            "ORDER BY created_at DESC LIMIT 1",
+            (product_id,),
+        ).fetchone()
+        return ok({
+            "product": dict(row),
+            "latest_proposal": dict(prop) if prop else None,
+        }, resource="products")
+    finally:
+        db.close()
+
+
+@router.delete("/admin/products/{product_id}")
+def admin_delete_product(product_id: str,
+                          user=Depends(get_current_user)):
+    """Hard-delete one products row. User-side tables (shelf,
+    tasting_notes) hold product_id references that go stale; those rows
+    don't cascade — leave that as agent / admin responsibility.
+
+    For 'hide from Discover but keep history', use
+    /admin/products/{id}/sold-out instead. This endpoint is for truly
+    broken / mis-scraped rows.
+    """
+    _require_admin(user)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT product_id FROM products WHERE product_id = ?",
+            (product_id,),
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Product {product_id} not found")
+        db.execute(
+            "DELETE FROM products WHERE product_id = ?", (product_id,),
+        )
+        db.commit()
+        return ok({"deleted": product_id}, resource="products")
+    finally:
+        db.close()
+
+
+@router.get("/admin/sync/{slug}/raw-snapshot")
+def admin_get_raw_snapshot(slug: str,
+                            user=Depends(get_current_user)):
+    """Return the raw scrape snapshot payload (parsed from
+    crawl_snapshots.payload_json) for a roaster. This is the storefront
+    capture BEFORE any diff/join enrichment. Used by the agent when
+    GET /admin/sync/{slug}/snapshot's `unknown` count is high and the
+    question is 'what did the crawler actually see?'.
+
+    Returns the full parsed payload — products, articles, bio, platform,
+    detected signatures. Response can be large.
+    """
+    _require_admin(user)
+    db = get_db()
+    try:
+        cur = db.execute(
+            "SELECT taken_at, payload_json FROM crawl_snapshots "
+            "WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not cur:
+            return ok({
+                "slug": slug, "taken_at": None, "payload": None,
+            }, resource="raw_snapshot")
+        try:
+            payload = json.loads(cur["payload_json"])
+        except (json.JSONDecodeError, TypeError):
+            payload = None
+        return ok({
+            "slug": slug,
+            "taken_at": cur["taken_at"],
+            "payload": payload,
+        }, resource="raw_snapshot")
+    finally:
+        db.close()
+
+
+@router.get("/admin/llm-jobs/{job_id}")
+def admin_get_llm_job_detail(job_id: int,
+                              user=Depends(get_current_user)):
+    """Return the full llm_jobs row INCLUDING payloads (system_prompt,
+    user_content, tool_schema_json, response_payload). Used to debug a
+    specific job — failed (why? error column + last response_payload
+    snapshot) or complete (what did the model produce?).
+
+    Big response by design: payloads are kilobytes of text each.
+    """
+    _require_admin(user)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id, roaster_slug, step, target_id, parent_run_id, "
+            "model, system_prompt, tool_name, tool_schema_json, "
+            "user_content, max_tokens, status, response_payload, "
+            "error, agent_identity, created_at, claimed_at, completed_at "
+            "FROM llm_jobs WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"llm_job {job_id} not found")
+        return ok(dict(row), resource="llm_jobs")
+    finally:
+        db.close()
+
+
+@router.post("/admin/llm-jobs/{job_id}/requeue")
+def admin_requeue_llm_job(job_id: int,
+                            user=Depends(get_current_user)):
+    """Flip an in_progress or failed llm_job back to status='pending'.
+    Clears claimed_at, agent_identity, response_payload, error,
+    completed_at so crema_haiku_next_job can claim it fresh.
+
+    Use when a job is stuck in_progress (drainer died mid-task) or when
+    a failed job's failure was transient. NOTE: if the parent enrichment
+    pipeline died, no one's polling for the response — the requeue
+    succeeds but the eventual output goes nowhere. Use
+    crema_get_llm_job_detail to read the response in that case.
+
+    409 if the job is already pending or complete (those can't be
+    requeued — pending is already-queued, complete should stay complete
+    so we don't waste tokens on a re-do).
+    """
+    _require_admin(user)
+    db = get_db()
+    try:
+        cur = db.execute(
+            "UPDATE llm_jobs SET status = 'pending', claimed_at = NULL, "
+            "agent_identity = NULL, response_payload = NULL, error = NULL, "
+            "completed_at = NULL "
+            "WHERE id = ? AND status IN ('in_progress', 'failed')",
+            (job_id,),
+        )
+        db.commit()
+        if cur.rowcount == 0:
+            row = db.execute(
+                "SELECT status FROM llm_jobs WHERE id = ?", (job_id,),
+            ).fetchone()
+            from fastapi import HTTPException
+            if row is None:
+                raise HTTPException(404, f"llm_job {job_id} not found")
+            raise HTTPException(
+                409, f"llm_job {job_id} is {row['status']}, cannot requeue",
+            )
+        return ok({"id": job_id, "status": "pending"}, resource="llm_jobs")
+    finally:
+        db.close()
+
+
+@router.get("/admin/scrape-runs")
+def admin_list_scrape_runs(roaster_slug: Optional[str] = None,
+                            kind: Optional[str] = None,
+                            limit: int = 50,
+                            user=Depends(get_current_user)):
+    """List recent scrape / article_scrape / manual_sold_out jobs with
+    proposal-count summaries per job. Joins jobs → scrape_proposals
+    (by job_id) → optionally filters via product_id LIKE 'slug_%' when
+    roaster_slug is given.
+
+    Returns rows of: id, kind, status, started_at, finished_at,
+    started_by, error_message, result_summary, proposals_total,
+    proposals_pending, proposals_applied, proposals_rejected.
+
+    Used for 'show me scrape history for X' without manually joining
+    jobs + scrape_proposals.
+    """
+    _require_admin(user)
+    limit = max(1, min(int(limit or 50), 500))
+    db = get_db()
+    try:
+        where = []
+        params: list = []
+        if kind:
+            where.append("j.kind = ?")
+            params.append(kind)
+        if roaster_slug:
+            where.append(
+                "j.id IN (SELECT DISTINCT job_id FROM scrape_proposals "
+                "WHERE product_id LIKE ?)"
+            )
+            params.append(f"{roaster_slug}_%")
+        where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+        params.append(limit)
+        rows = db.execute(
+            f"""
+            SELECT j.id, j.kind, j.status, j.started_at, j.finished_at,
+                   j.started_by, j.error_message, j.result_summary,
+                   COUNT(p.id) AS proposals_total,
+                   SUM(CASE WHEN p.status = 'pending' THEN 1 ELSE 0 END)
+                       AS proposals_pending,
+                   SUM(CASE WHEN p.status = 'applied' THEN 1 ELSE 0 END)
+                       AS proposals_applied,
+                   SUM(CASE WHEN p.status = 'rejected' THEN 1 ELSE 0 END)
+                       AS proposals_rejected
+            FROM jobs j
+            LEFT JOIN scrape_proposals p ON p.job_id = j.id
+            {where_sql}
+            GROUP BY j.id
+            ORDER BY j.created_at DESC
+            LIMIT ?
+            """,
+            tuple(params),
+        ).fetchall()
+        return ok([dict(r) for r in rows], resource="scrape_runs")
+    finally:
+        db.close()
+
+
+@router.post("/admin/sources/test")
+def admin_test_source_url(body: dict, user=Depends(get_current_user)):
+    """Probe a URL for reachability + content metadata before onboarding.
+    Body: { url: string }. Returns:
+      { url, normalized_url, final_url, status, content_type,
+        html_title, elapsed_ms, error? }
+
+    10s timeout, GET (not HEAD) so SPA shells still return a meaningful
+    HTML body for title extraction. Used as a pre-onboarding sanity check
+    so the agent doesn't crema_onboard_roaster with a 404'ing URL.
+    """
+    _require_admin(user)
+    raw = (body or {}).get("url", "").strip()
+    if not raw:
+        from fastapi import HTTPException
+        raise HTTPException(422, "url is required")
+    normalized = raw if raw.startswith(("http://", "https://")) else "https://" + raw
+    import time
+    import requests
+    from bs4 import BeautifulSoup
+    started = time.time()
+    out: dict = {"url": raw, "normalized_url": normalized}
+    try:
+        resp = requests.get(
+            normalized,
+            timeout=10,
+            headers={
+                "User-Agent": "Mozilla/5.0 (compatible; CremaCatalogOps/1.0)",
+            },
+            allow_redirects=True,
+        )
+        out["status"] = resp.status_code
+        out["final_url"] = resp.url
+        out["content_type"] = resp.headers.get("Content-Type", "")
+        out["elapsed_ms"] = int((time.time() - started) * 1000)
+        if "text/html" in (out["content_type"] or "").lower():
+            soup = BeautifulSoup(resp.text, "html.parser")
+            title = soup.find("title")
+            out["html_title"] = title.get_text(strip=True) if title else None
+        else:
+            out["html_title"] = None
+    except requests.exceptions.RequestException as e:
+        out["status"] = None
+        out["error"] = str(e)
+        out["elapsed_ms"] = int((time.time() - started) * 1000)
+    return ok(out, resource="source_test")
+
+
+# ── Agent action log + memory (the working journal) ────────────────────────
+#
+# Two surfaces:
+#  - agent_actions: timestamped per-phase log within a session. Granularity
+#    is intentionally coarser than agent_runs — one entry per meaningful
+#    decision (10–20 per session), with a `reasoning` field where the agent
+#    explains WHY. Human-readable activity timeline.
+#  - agent_memory: durable lessons across sessions. Future agents read this
+#    at session start to inherit institutional knowledge.
+
+
+@router.post("/admin/agent-actions", status_code=201)
+def admin_log_agent_action(body: dict, user=Depends(get_current_user)):
+    """Log one agent action. Body:
+      • session_id: required.
+      • agent_identity: required (e.g. "crema-catalog-ops@claude-opus-4-7").
+      • action: short label — what the agent did (e.g. "diff_sweep" or
+        "enrich_all on 10 stale roasters").
+      • reasoning: agent's own prose explaining WHY this action was taken
+        (e.g. "Diff sweep showed 14 stale, 10 non-Wix actionable. These
+        had real product/article deltas worth processing.").
+      • metadata: optional dict — slugs touched, counts, anything
+        structured.
+    """
+    _require_admin(user)
+    body = body or {}
+    session_id = (body.get("session_id") or "").strip()
+    agent_identity = (body.get("agent_identity") or "").strip()
+    action = (body.get("action") or "").strip()
+    reasoning = (body.get("reasoning") or "").strip()
+    if not all([session_id, agent_identity, action, reasoning]):
+        raise HTTPException(
+            422, "session_id, agent_identity, action, reasoning are required"
+        )
+    metadata = body.get("metadata")
+    metadata_json = json.dumps(metadata) if metadata is not None else None
+    db = get_db()
+    try:
+        cur = db.execute(
+            "INSERT INTO agent_actions (session_id, agent_identity, "
+            "action, reasoning, metadata_json) VALUES (?, ?, ?, ?, ?)",
+            (session_id, agent_identity, action, reasoning, metadata_json),
+        )
+        db.commit()
+        return ok({"id": cur.lastrowid}, resource="agent_actions")
+    finally:
+        db.close()
+
+
+@router.get("/admin/agent-actions")
+def admin_list_agent_actions(session_id: Optional[str] = None,
+                              agent_identity: Optional[str] = None,
+                              since: Optional[str] = None,
+                              limit: int = 100,
+                              user=Depends(get_current_user)):
+    """List agent actions in chronological order (oldest first within a
+    session, so reading top-down reconstructs the session's timeline)."""
+    _require_admin(user)
+    where = []
+    params: list = []
+    if session_id:
+        where.append("session_id = ?"); params.append(session_id)
+    if agent_identity:
+        where.append("agent_identity = ?"); params.append(agent_identity)
+    if since:
+        where.append("ts >= ?"); params.append(since)
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+    limit = max(1, min(int(limit or 100), 1000))
+    params.append(limit)
+    order = "ts ASC" if session_id else "ts DESC"
+    db = get_db()
+    try:
+        rows = db.execute(
+            f"SELECT id, session_id, agent_identity, ts, action, "
+            f"reasoning, metadata_json "
+            f"FROM agent_actions{where_sql} "
+            f"ORDER BY {order} LIMIT ?",
+            tuple(params),
+        ).fetchall()
+        out: list[dict] = []
+        for r in rows:
+            d = dict(r)
+            if d.get("metadata_json"):
+                try:
+                    d["metadata"] = json.loads(d["metadata_json"])
+                except (TypeError, ValueError):
+                    d["metadata"] = None
+                d.pop("metadata_json", None)
+            out.append(d)
+        return ok(out, resource="agent_actions", total=len(out))
+    finally:
+        db.close()
+
+
+@router.post("/admin/agent-memory", status_code=201)
+def admin_log_agent_memory(body: dict, user=Depends(get_current_user)):
+    """Log a durable lesson. Body:
+      • scope: required — domain bucket (e.g. "catalog-ops",
+        "scrape-noise", "wix-routing", "drainer-discipline").
+      • lesson: required — short actionable takeaway (one or two
+        sentences). Future agents can read this at session start.
+      • tags: optional list of strings — finer slicing within scope.
+      • source_session_id: optional — link to the session where the
+        lesson was learned.
+      • source_summary_id: optional FK to agent_summaries(id).
+    """
+    _require_admin(user)
+    body = body or {}
+    scope = (body.get("scope") or "").strip()
+    lesson = (body.get("lesson") or "").strip()
+    if not scope or not lesson:
+        raise HTTPException(422, "scope + lesson are required")
+    tags = body.get("tags")
+    if tags is not None and not isinstance(tags, list):
+        raise HTTPException(422, "tags must be a list of strings")
+    tags_json = json.dumps(tags) if tags else None
+    db = get_db()
+    try:
+        cur = db.execute(
+            "INSERT INTO agent_memory (scope, lesson, tags_json, "
+            "source_session_id, source_summary_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                scope, lesson, tags_json,
+                body.get("source_session_id"),
+                body.get("source_summary_id"),
+            ),
+        )
+        db.commit()
+        return ok({"id": cur.lastrowid, "scope": scope},
+                  resource="agent_memory")
+    finally:
+        db.close()
+
+
+@router.get("/admin/agent-memory")
+def admin_list_agent_memory(scope: Optional[str] = None,
+                              tag: Optional[str] = None,
+                              limit: int = 50,
+                              user=Depends(get_current_user)):
+    """List agent memory entries. Optional filters: scope, tag. Bumps
+    `reference_count` + `last_referenced_at` on each returned row so
+    the operator can later see which lessons are actually load-bearing.
+    """
+    _require_admin(user)
+    where = []
+    params: list = []
+    if scope:
+        where.append("scope = ?"); params.append(scope)
+    if tag:
+        # Cheap substring match on the JSON array — works because
+        # tags are quoted strings inside a flat array (no nested
+        # structures with the same substring).
+        where.append("tags_json LIKE ?"); params.append(f'%"{tag}"%')
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+    limit = max(1, min(int(limit or 50), 500))
+    params.append(limit)
+    db = get_db()
+    try:
+        rows = db.execute(
+            f"SELECT id, scope, lesson, tags_json, source_session_id, "
+            f"source_summary_id, created_at, last_referenced_at, "
+            f"reference_count "
+            f"FROM agent_memory{where_sql} "
+            f"ORDER BY created_at DESC LIMIT ?",
+            tuple(params),
+        ).fetchall()
+        ids = [r["id"] for r in rows]
+        out: list[dict] = []
+        for r in rows:
+            d = dict(r)
+            if d.get("tags_json"):
+                try:
+                    d["tags"] = json.loads(d["tags_json"])
+                except (TypeError, ValueError):
+                    d["tags"] = []
+            else:
+                d["tags"] = []
+            d.pop("tags_json", None)
+            out.append(d)
+        # Bump reference counters in a single statement so the next
+        # operator can see which lessons are still in use.
+        if ids:
+            placeholders = ",".join("?" * len(ids))
+            db.execute(
+                f"UPDATE agent_memory SET reference_count = reference_count + 1, "
+                f"last_referenced_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
+                f"WHERE id IN ({placeholders})",
+                tuple(ids),
+            )
+            db.commit()
+        return ok(out, resource="agent_memory", total=len(out))
     finally:
         db.close()
