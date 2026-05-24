@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef, ReactNode } from "react";
 import { apiFetchRaw } from "../api/client";
+import { useRoasterProfiles } from "./useRoasterProfiles";
 
 // Bundled fallback data
 import fallbackProducts from "../data/products.json";
@@ -74,18 +75,31 @@ export function CoffeeDataProvider({ children }: { children: ReactNode }) {
     return p;
   }), [products]);
 
+  // Profile lookup overlays the canonical name/city/state onto the
+  // products-derived roasters map. Without this, `roasters[].name`
+  // is whatever the scraper wrote into `products.roaster_name` — a
+  // denormalized snapshot of `roaster_profiles.name` that drifts
+  // whenever the scraper extracts a messy HTML <title> (e.g. "Buy X
+  // | Brand" or trailing `&ndash;`). The profile is the source of
+  // truth (cleaned by Haiku bio enrichment); products.* are a
+  // fallback for the brief window between a scrape landing and the
+  // bio enrich completing, OR for legacy rows that pre-date the
+  // scrape_runner `_canonicalize` fix.
+  const { getBySlug: getProfile } = useRoasterProfiles();
+
   const derived = useMemo(() => {
     const roasterMap = new Map();
     normalisedProducts.forEach((p) => {
       if (!roasterMap.has(p.roaster_slug)) {
+        const profile = getProfile(p.roaster_slug);
         roasterMap.set(p.roaster_slug, {
           slug: p.roaster_slug,
-          name: p.roaster_name,
-          city: p.roaster_city,
-          state: p.roaster_state,
+          name: profile?.name || p.roaster_name,
+          city: profile?.city || p.roaster_city,
+          state: profile?.state || p.roaster_state,
           lat: p.roaster_lat,
           lng: p.roaster_lng,
-          website: p.roaster_website,
+          website: profile?.website || p.roaster_website,
           coffeeCount: 0,
         });
       }
@@ -101,7 +115,7 @@ export function CoffeeDataProvider({ children }: { children: ReactNode }) {
     const processes = [...new Set(normalisedProducts.map((p) => p.process).filter(Boolean))].sort();
     const productMap = new Map(normalisedProducts.map((p) => [p.product_id, p]));
     return { roasters, roastLevels, origins, processes, productMap };
-  }, [normalisedProducts]);
+  }, [normalisedProducts, getProfile]);
 
   return (
     <CoffeeDataContext.Provider value={{ products: normalisedProducts, loading, fetchProducts, appendProducts, removeProduct, ...derived }}>

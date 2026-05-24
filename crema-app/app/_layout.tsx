@@ -355,8 +355,8 @@ export default function RootLayout() {
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <ThemeProvider>
         <AuthProvider>
-          <CoffeeDataProvider>
-            <RoasterProfilesProvider>
+          <RoasterProfilesProvider>
+            <CoffeeDataProvider>
               <RoasterArticlesProvider>
                 <NotificationsProvider>
                   <DirectInboxProvider>
@@ -366,8 +366,8 @@ export default function RootLayout() {
                   </DirectInboxProvider>
                 </NotificationsProvider>
               </RoasterArticlesProvider>
-            </RoasterProfilesProvider>
-          </CoffeeDataProvider>
+            </CoffeeDataProvider>
+          </RoasterProfilesProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
