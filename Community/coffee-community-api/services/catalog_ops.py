@@ -2281,7 +2281,8 @@ def run_resolve_held_job(
             params.append(f"{scope_slug}_%")
         where_sql = " AND ".join(where)
         rows = db.execute(
-            f"SELECT id, product_id, proposed_state_json "
+            f"SELECT id, product_id, change_type, prev_state_json, "
+            f"proposed_state_json "
             f"FROM scrape_proposals WHERE {where_sql} "
             f"ORDER BY id ASC LIMIT ?",
             tuple(params) + (limit * 4,),

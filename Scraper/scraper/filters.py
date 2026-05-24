@@ -74,8 +74,20 @@ _HARD_EXCLUDE_TYPE = {
     "gift", "gifting", "apparel", "drinkware", "tool", "tools",
 }
 
-# Tags that prove it's NOT beans (e.g. Blue Tokai cold brew cans)
-_HARD_EXCLUDE_TAGS = {"can", "cold brew cans", "cans"}
+# Tags that prove it's NOT beans. CONSERVATIVE list — only tags that
+# semantically mean "this product is the named non-bean thing" go
+# here, NOT tags that are used as storefront-filter conventions
+# regardless of the product's actual identity. Project Kaapi tags
+# every product (including bean SKUs like "Chandragiri Crown",
+# "God Bean", "Magic Potion") with both `bottle` and `Cans` for
+# their UI filter chip — a single tag-only reject would (and did)
+# kill their entire catalog. Cold-brew cans are still caught by
+# the title check (`cold brew can`, `ready to drink`, etc.) so
+# Blue Tokai's legitimate cans stay rejected without us needing a
+# noisy tag rule. Leave this set empty for now; re-introduce
+# specific tags here ONLY when a roaster's storefront proves the
+# tag is a reliable non-bean signal across their whole catalog.
+_HARD_EXCLUDE_TAGS: set[str] = set()
 
 
 def _tag_to_str(tag) -> str:

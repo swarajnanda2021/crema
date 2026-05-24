@@ -5476,14 +5476,20 @@ def _apply_roaster_enrichment(db, website: str) -> dict:
             ),
         )
     else:
-        # COALESCE here too — admin edits to shop_url / platform
-        # win over an inconclusive re-enrich.
+        # COALESCE here — admin edits to shop_url / platform / city /
+        # state on `roaster_sources` win over a re-enrich, so that
+        # operator-curated values aren't clobbered when Sonnet
+        # re-picks. SQL note: COALESCE(existing, new) returns
+        # `existing` whenever it's NOT NULL, falling back to the new
+        # Sonnet value only when the column was empty. For brand-new
+        # source rows (the INSERT path above) Sonnet's pick wins
+        # naturally because the column had no prior value.
         db.execute(
             "UPDATE roaster_sources SET "
-            " shop_url = COALESCE(?, shop_url), "
-            " platform = COALESCE(?, platform), "
-            " city = COALESCE(?, city), "
-            " state = COALESCE(?, state) "
+            " shop_url = COALESCE(shop_url, ?), "
+            " platform = COALESCE(platform, ?), "
+            " city = COALESCE(city, ?), "
+            " state = COALESCE(state, ?) "
             "WHERE id = ?",
             (
                 source.get("shop_url"),
