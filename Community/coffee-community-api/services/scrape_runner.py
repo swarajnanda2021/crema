@@ -1218,14 +1218,51 @@ def truncate_log(text: str, max_bytes: int = 10_240) -> str:
     return "...[truncated]...\n" + tail.decode("utf-8", errors="replace")
 
 
+def _clean_html_title(raw: str) -> str:
+    """Turn a raw <title> like
+        "Buy Nespresso Coffee Capsules, Pods &amp; Machines in India | Caramelly"
+    into a brand-cleanish "Caramelly".
+
+    Two passes:
+      1. `html.unescape` — kill `&amp;`, `&#39;`, `&quot;`, etc. (this is
+         what made Caramelly's name read literally as `&amp;` in the DB).
+      2. SEO-suffix strip — Shopify et al format titles as
+         "Marketing phrase | Brand" or "Marketing phrase - Brand"
+         or "Brand: Marketing phrase". Pick the shortest non-empty
+         segment when the separator is `|` (almost always the brand);
+         leave `-` and `:` titles alone (too ambiguous — they can
+         appear inside legitimate brand names like "Subko: Speciality").
+      3. Final cleanup — collapse repeated whitespace, trim.
+
+    Returns the cleaned title, or the raw string if cleaning would
+    blank it (defensive — better an ugly title than no title).
+    """
+    import html as _html
+    import re as _re
+
+    if not raw:
+        return ""
+    cleaned = _html.unescape(raw).strip()
+    if "|" in cleaned:
+        # Common SEO pattern: "long marketing phrase | Brand". Brand
+        # is usually the shortest segment. Picking shortest is more
+        # robust than always-last (some sites flip the order).
+        segs = [s.strip() for s in cleaned.split("|") if s.strip()]
+        if segs:
+            cleaned = min(segs, key=len)
+    cleaned = _re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned or raw.strip()
+
+
 def fetch_roaster_title(url: str) -> str:
     """Cheap HTML-only fetch to populate the `name` column when the admin
     adds a new source via the URL input. Imports `urllib` from the stdlib
     so we don't pull in `requests` for the API process.
 
-    Returns the raw <title> stripped, or '' on any failure. Falls through
-    silently — if we can't read a title, the admin can edit the row by
-    hand later.
+    Returns the cleaned <title> (HTML entities decoded, SEO-suffix
+    stripped — see `_clean_html_title`), or the hostname as a fallback,
+    or '' on any fetch failure. Falls through silently — if we can't
+    read a title, the admin can edit the row by hand later.
     """
     import re as _re
     import urllib.request
@@ -1241,7 +1278,7 @@ def fetch_roaster_title(url: str) -> str:
             html = resp.read(50_000).decode("utf-8", errors="ignore")
         m = _re.search(r"<title[^>]*>([^<]+)</title>", html, _re.I)
         if m:
-            return m.group(1).strip()
+            return _clean_html_title(m.group(1))
         return urlparse(url).netloc.replace("www.", "")
     except Exception:
         return ""

@@ -71,6 +71,12 @@ def link_preview(url: str = ""):
         if not title:
             m = _re.search(r"<title[^>]*>([^<]+)</title>", html, _re.I)
             title = m.group(1).strip() if m else ""
+        # Decode HTML entities (`&amp;` → `&`, `&#39;` → `'`, etc.)
+        # so link-preview titles read naturally. Both OG meta and
+        # <title> can carry entity-encoded ampersands and apostrophes.
+        if title:
+            import html as _html
+            title = _html.unescape(title)
 
         image_url = og("image")
         if not image_url:
