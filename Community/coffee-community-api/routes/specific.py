@@ -1761,11 +1761,38 @@ def admin_scrape_run(body: dict = None, background_tasks: BackgroundTasks = None
         db.close()
 
 
-@router.post("/admin/scrape/sources", status_code=201)
-def admin_add_roaster_source(body: dict, user=Depends(get_current_user)):
-    """Add a new roaster source. The admin types (or pastes) a website
-    URL; we do a best-effort `<title>` fetch to pre-fill the `name`
-    column. Platform / city / state stay null until the admin edits."""
+@router.post("/admin/scrape/sources", status_code=202)
+def admin_add_roaster_source(
+    body: dict,
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_current_user),
+):
+    """Onboard a roaster from a website URL.
+
+    Async pattern (matches `/admin/roasters/enrich`):
+      1. Inserts a `roaster_sources` row immediately if no source
+         already exists for this website (so the URL is on file
+         even if Sonnet enrichment fails downstream).
+      2. Enqueues a `roaster_enrich` job in the `jobs` table.
+      3. Adds a BackgroundTask that runs `_apply_roaster_enrichment`
+         (Sonnet bio enrich → upsert into `roaster_profiles` +
+         `roaster_sources`) AND chains a `scrape` job for the
+         catalog automatically when shop_url + platform get picked.
+
+    Returns 202 with `{source_id, job_id, status: "queued",
+    website, source_created}`. The caller polls `/api/jobs/{job_id}`
+    for completion; the result summary contains `{slug, name,
+    website, scrape_job_id?}` once the bio enrich finishes. Under
+    the Agent-fallback queue path (LLM_PROVIDER=claude_code_agent),
+    the agent must drain the LLM queue via `crema_haiku_next_job`
+    + `crema_haiku_submit` while polling, otherwise the BG task
+    sits waiting for a drainer to handle the bio Sonnet call.
+
+    Idempotent on website — re-onboarding the same URL won't
+    409 and won't duplicate rows. The bio enrich upserts both
+    tables in place, so this is the right call to repair orphan
+    source rows left over from a prior incomplete attempt.
+    """
     _require_admin(user)
     website = (body or {}).get("website", "").strip()
     if not website:
@@ -1773,35 +1800,68 @@ def admin_add_roaster_source(body: dict, user=Depends(get_current_user)):
         raise HTTPException(422, "website is required")
     if not website.startswith(("http://", "https://")):
         website = "https://" + website
-    name = (body or {}).get("name", "").strip()
-    if not name:
-        name = scrape_runner.fetch_roaster_title(website) or website
     db = get_db()
     try:
+        # Step 1 — make sure the source row exists, so the URL is on
+        # file even if the BG enrichment trips.
         existing = db.execute(
             "SELECT id FROM roaster_sources WHERE website = ?", (website,)
         ).fetchone()
         if existing:
+            source_id = existing["id"]
+            source_created = False
+        else:
+            name = (body or {}).get("name", "").strip()
+            if not name:
+                name = scrape_runner.fetch_roaster_title(website) or website
+            cur = db.execute(
+                "INSERT INTO roaster_sources "
+                "(name, website, shop_url, platform, city, state, "
+                " enabled, added_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
+                (
+                    name, website,
+                    (body or {}).get("shop_url"),
+                    (body or {}).get("platform"),
+                    (body or {}).get("city"),
+                    (body or {}).get("state"),
+                    _now_iso(),
+                ),
+            )
+            db.commit()
+            source_id = cur.lastrowid
+            source_created = True
+
+        # Step 2 — enqueue the bio + scrape job.
+        try:
+            job_id = catalog_ops.enqueue_job(
+                db, "roaster_enrich", started_by=user["id"],
+            )
+        except catalog_ops.JobConflict as e:
             from fastapi import HTTPException
-            raise HTTPException(409, "A source with this website already exists.")
-        cur = db.execute(
-            "INSERT INTO roaster_sources "
-            "(name, website, shop_url, platform, city, state, enabled, added_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
-            (
-                name, website,
-                (body or {}).get("shop_url"),
-                (body or {}).get("platform"),
-                (body or {}).get("city"),
-                (body or {}).get("state"),
-                _now_iso(),
-            ),
+            raise HTTPException(
+                409, str(e),
+                headers={"X-Live-Job-Id": str(e.live_job_id)},
+            )
+        # Stash website in log_tail so the runner (which uses its
+        # own DB connection in the BG thread) can pick it up.
+        db.execute(
+            "UPDATE jobs SET log_tail = ? WHERE id = ?",
+            (json.dumps({"website": website}), job_id),
         )
         db.commit()
-        row = db.execute(
-            "SELECT * FROM roaster_sources WHERE id = ?", (cur.lastrowid,)
-        ).fetchone()
-        return ok(dict(row), resource="roaster_sources")
+        background_tasks.add_task(
+            catalog_ops.run_roaster_enrich_job,
+            job_id, website=website,
+        )
+
+        return ok({
+            "source_id": source_id,
+            "source_created": source_created,
+            "website": website,
+            "job_id": job_id,
+            "status": "queued",
+        }, resource="roaster_sources")
     finally:
         db.close()
 
@@ -1809,6 +1869,102 @@ def admin_add_roaster_source(body: dict, user=Depends(get_current_user)):
 def _now_iso() -> str:
     import datetime as _dt
     return _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@router.get("/admin/scrape/sources")
+def admin_list_roaster_sources(
+    enabled: Optional[bool] = None,
+    has_profile: Optional[bool] = None,
+    search: Optional[str] = None,
+    limit: int = 200,
+    user=Depends(get_current_user),
+):
+    """List `roaster_sources` rows for admin / orphan-detection.
+
+    Filters:
+      • enabled: true|false to narrow
+      • has_profile: true → only sources with a linked profile;
+                      false → orphan source rows (no profile yet)
+      • search: substring match on name + website + shop_url
+      • limit: cap on rows returned (default 200, max 1000)
+
+    Joins `roaster_profiles` on website to surface `roaster_slug`
+    + `published` per row. Sources without a matching profile show
+    those fields as null — that's the orphan-detection signal.
+    """
+    _require_admin(user)
+    limit = max(1, min(limit, 1000))
+    db = get_db()
+    try:
+        clauses: list[str] = []
+        params: list = []
+        if enabled is not None:
+            clauses.append("rs.enabled = ?")
+            params.append(1 if enabled else 0)
+        if search:
+            clauses.append(
+                "(rs.name LIKE ? OR rs.website LIKE ? OR rs.shop_url LIKE ?)"
+            )
+            wildcard = f"%{search}%"
+            params.extend([wildcard, wildcard, wildcard])
+        where_sql = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+
+        rows = db.execute(
+            f"SELECT rs.*, rp.roaster_slug, rp.published "
+            f"FROM roaster_sources rs "
+            f"LEFT JOIN roaster_profiles rp ON rp.website = rs.website "
+            f"{where_sql} "
+            f"ORDER BY rs.added_at DESC "
+            f"LIMIT ?",
+            tuple(params) + (limit,),
+        ).fetchall()
+
+        result = [dict(r) for r in rows]
+        if has_profile is True:
+            result = [r for r in result if r.get("roaster_slug")]
+        elif has_profile is False:
+            result = [r for r in result if not r.get("roaster_slug")]
+
+        return ok(result, resource="roaster_sources")
+    finally:
+        db.close()
+
+
+@router.delete("/admin/scrape/sources/{source_id}", status_code=200)
+def admin_delete_roaster_source(
+    source_id: int, user=Depends(get_current_user),
+):
+    """Hard-delete a `roaster_sources` row by id.
+
+    Use this to clean up orphan source rows from incomplete onboards.
+    Does NOT touch `roaster_profiles` or `products` — the source is
+    the scraper's entry point and removing it just disables BEANS-tab
+    scraping for that website. If a linked profile exists, it stays
+    intact (the profile lookup keys on website, not source-id).
+
+    Returns `{deleted: 1, source_id, website, name}` on success or
+    404 if no source matches the id.
+    """
+    _require_admin(user)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id, name, website FROM roaster_sources WHERE id = ?",
+            (source_id,),
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"No roaster_sources row with id={source_id}")
+        db.execute("DELETE FROM roaster_sources WHERE id = ?", (source_id,))
+        db.commit()
+        return ok({
+            "deleted": 1,
+            "source_id": source_id,
+            "website": row["website"],
+            "name": row["name"],
+        }, resource="roaster_sources")
+    finally:
+        db.close()
 
 
 # ── Catalog Ops v2 — Sync endpoints (Tab 1 onboarding + Tab 2 refresh) ──
@@ -2033,8 +2189,20 @@ def admin_sync_bulk(body: dict,
                      user=Depends(get_current_user)):
     """Bulk Tab-2 sync orchestrator. Body: { slugs: [...] }. For each
     slug, kicks off a background task that runs run_tab2_sync. Returns
-    immediately with the list of slugs accepted. The caller polls
-    GET /admin/sync/all-status to see diffs land."""
+    immediately with the list of slugs accepted + the list of
+    unknown_slugs (slugs that have no `roaster_profiles` row to sync
+    against — those are silently dropped from the BG task queue, but
+    surfaced in the response so the caller knows). The caller polls
+    GET /admin/sync/all-status to see diffs land.
+
+    Slug validation (2026-05-24 fix): previously any string in the
+    `slugs[]` array was accepted and counted in `scope_count`, even
+    if it didn't exist in `roaster_profiles`. The runner would silently
+    swallow the unknown-slug error, producing a false-positive
+    "no_change_count" report. Now we look up each slug against
+    `roaster_profiles` upfront and split into `accepted` (will run)
+    vs `unknown_slugs` (won't run, surfaced to caller).
+    """
     _require_admin(user)
     body = body or {}
     slugs = body.get("slugs") or []
@@ -2045,6 +2213,24 @@ def admin_sync_bulk(body: dict,
     if mode not in ("tab1", "tab2"):
         from fastapi import HTTPException
         raise HTTPException(400, "mode must be 'tab1' or 'tab2'")
+
+    # Slug validation: keep only slugs that have a profile row.
+    # roaster_profiles is the authoritative slug source — sync_runner
+    # internally uses it to find the website + the previous snapshot.
+    db = get_db()
+    try:
+        placeholders = ",".join("?" for _ in slugs)
+        known_rows = db.execute(
+            f"SELECT roaster_slug FROM roaster_profiles "
+            f"WHERE roaster_slug IN ({placeholders})",
+            tuple(slugs),
+        ).fetchall()
+        known = {r["roaster_slug"] for r in known_rows}
+    finally:
+        db.close()
+
+    accepted = [s for s in slugs if s in known]
+    unknown_slugs = [s for s in slugs if s not in known]
 
     def _run(slug: str, m: str):
         try:
@@ -2057,10 +2243,14 @@ def admin_sync_bulk(body: dict,
             # orchestrator polls all-status to see what landed.
             pass
 
-    for slug in slugs:
+    for slug in accepted:
         background_tasks.add_task(_run, slug, mode)
-    return ok({"accepted": len(slugs), "mode": mode, "slugs": slugs},
-              resource="sync_bulk")
+    return ok({
+        "accepted": len(accepted),
+        "mode": mode,
+        "slugs": accepted,
+        "unknown_slugs": unknown_slugs,
+    }, resource="sync_bulk")
 
 
 @router.post("/admin/roasters/refresh-all-bulk", status_code=202)
@@ -3405,6 +3595,61 @@ def admin_standardize_exemplars_regen(body: Optional[dict] = None,
         db.close()
 
 
+@router.get("/admin/jobs/summary")
+def admin_list_jobs_summary(
+    kind: Optional[str] = None,
+    status: Optional[str] = None,
+    since: Optional[str] = None,
+    limit: int = 200,
+    user=Depends(get_current_user),
+):
+    """Lean list of jobs — drops `log_tail` and `result_summary` so
+    responses stay small even for 200+ jobs. Default registry CRUD
+    on `/jobs` returns full rows including those two large columns,
+    which blows the MCP truncation threshold (113 KB for 20 rows in
+    the prior test).
+
+    Filters:
+      • kind: scrape | article_scrape | roaster_enrich | resolve_held
+        | standardize | geolocate. Pass empty / null to widen.
+      • status: queued | running | succeeded | failed | cancelled
+      • since: ISO8601 — only jobs with started_at >= this value
+      • limit: cap on rows (default 200, max 1000)
+
+    Returns each job as: `{id, kind, status, started_by, started_at,
+    finished_at, error_message, created_at}`. To inspect a single
+    job's `log_tail` + `result_summary`, hit `/api/jobs/{id}` (full
+    registry CRUD).
+    """
+    _require_admin(user)
+    limit = max(1, min(limit, 1000))
+    db = get_db()
+    try:
+        clauses: list[str] = []
+        params: list = []
+        if kind:
+            clauses.append("kind = ?")
+            params.append(kind)
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        if since:
+            clauses.append("started_at >= ?")
+            params.append(since)
+        where_sql = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        rows = db.execute(
+            f"SELECT id, kind, status, started_by, started_at, "
+            f"finished_at, error_message, created_at "
+            f"FROM jobs {where_sql} "
+            f"ORDER BY id DESC LIMIT ?",
+            tuple(params) + (limit,),
+        ).fetchall()
+        return ok([dict(r) for r in rows],
+                  resource="jobs", total=len(rows), summary=True)
+    finally:
+        db.close()
+
+
 @router.post("/admin/jobs/{job_id}/cancel")
 def admin_cancel_job(job_id: int, user=Depends(get_current_user)):
     """Sticky-flag cancel. Sets `jobs.cancel_requested = 1`; the runner
@@ -3481,6 +3726,7 @@ def admin_job_log(job_id: int, user=Depends(get_current_user)):
 def admin_list_proposals(job_id: int = None, status: str = "pending",
                           roaster_slug: Optional[str] = None,
                           limit: int = 500,
+                          summary: bool = False,
                           user=Depends(get_current_user)):
     """List proposals — defaults to `pending` so the admin tab can show
     the approval queue.
@@ -3496,6 +3742,12 @@ def admin_list_proposals(job_id: int = None, status: str = "pending",
       • limit: cap on rows returned. Default 500; bump for bulk
         operations. Caps the payload so a queue of thousands doesn't
         bring the response over MCP truncation thresholds.
+      • summary: when true, project each row down to lean fields only
+        (id, job_id, product_id, change_type, status, created_at,
+        roaster_slug, coffee_name, enrichment_status). Drops the full
+        `proposed_state_json` + `prev_state_json` blobs. Lets an agent
+        bucket 1000+ proposals inline without writing parsing scripts
+        against saved files.
     """
     _require_admin(user)
     db = get_db()
@@ -3511,6 +3763,31 @@ def admin_list_proposals(job_id: int = None, status: str = "pending",
         # Cap the row count.
         limit = max(1, min(int(limit or 500), 5000))
         rows = rows[:limit]
+
+        if summary:
+            import json as _json
+            lean: list[dict] = []
+            for r in rows:
+                ps_raw = r.get("proposed_state_json")
+                state = {}
+                if ps_raw:
+                    try:
+                        state = _json.loads(ps_raw)
+                    except Exception:
+                        state = {}
+                lean.append({
+                    "id": r.get("id"),
+                    "job_id": r.get("job_id"),
+                    "product_id": r.get("product_id"),
+                    "change_type": r.get("change_type"),
+                    "status": r.get("status"),
+                    "created_at": r.get("created_at"),
+                    "roaster_slug": state.get("roaster_slug"),
+                    "coffee_name": state.get("coffee_name"),
+                    "enrichment_status": state.get("enrichment_status"),
+                })
+            return ok(lean, resource="scrape_proposals",
+                      total=len(lean), summary=True)
         return ok(rows, resource="scrape_proposals", total=len(rows))
     finally:
         db.close()
@@ -4492,7 +4769,8 @@ def admin_auto_approve_proposals(body: Optional[dict] = None,
             params.append(since)
         where_sql = " AND ".join(where)
         rows = db.execute(
-            f"SELECT id, proposed_state_json FROM scrape_proposals "
+            f"SELECT id, product_id, change_type, proposed_state_json "
+            f"FROM scrape_proposals "
             f"WHERE {where_sql} ORDER BY id ASC",
             tuple(params),
         ).fetchall()
@@ -4631,13 +4909,28 @@ def admin_auto_approve_proposals(body: Optional[dict] = None,
 
 
 @router.post("/admin/scrape/proposals/resolve-held")
-def admin_resolve_held_proposals(body: Optional[dict] = None,
-                                   user=Depends(get_current_user)):
+def admin_resolve_held_proposals(
+    body: Optional[dict] = None,
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_current_user),
+):
     """Resolve currently-held proposals (status='pending' that were held
     by the pre-2026-05-22 auto_approve policy or by strict_checks
     violations the operator wants cleared).
 
-    Per held proposal:
+    Two modes:
+      • `dry_run: true` (sync) — counts the held targets and returns
+        immediately with no DB mutation. Cheap.
+      • non-dry-run (ASYNC) — enqueues a `resolve_held` job and adds a
+        BackgroundTask. Returns 202 with `{job_id, status: "queued"}`.
+        The caller polls `/api/jobs/{job_id}` for completion; the
+        result_summary contains the full disposition counts + detail
+        list. This is the 2026-05-24 rewrite — the prior sync path
+        timed out at the proxy because per-proposal re-enrichment
+        runs Sonnet through the LLM queue, which can take 30s each
+        for 50+ proposals.
+
+    Per held proposal (BG runner):
       1. Re-run enrichment ONCE via product_enricher (one shot through
          the Tier 1-4 ladder — last chance to recover real data from a
          page that may have been transiently unreachable).
@@ -4655,18 +4948,79 @@ def admin_resolve_held_proposals(body: Optional[dict] = None,
     Body (all optional):
       • slug: scope to one roaster
       • limit: cap on proposals to process (default 50, max 200)
-      • dry_run: count only, no DB mutation
-
-    Returns: {
-      processed, succeeded_on_retry, applied_thin, errored,
-      detail: [{id, product_id, coffee_name, outcome, reason?}]
-    }
+      • dry_run: count only, no DB mutation, sync response
     """
     _require_admin(user)
     body = body or {}
     scope_slug = (body.get("slug") or "").strip() or None
     dry_run = bool(body.get("dry_run"))
     limit = max(1, min(int(body.get("limit") or 50), 200))
+
+    # Non-dry-run path delegates to BG task. We do a quick scope-count
+    # under dry_run semantics first so the response carries "would
+    # process N targets" — useful for the caller to know what they're
+    # about to spend.
+    if not dry_run:
+        db = get_db()
+        try:
+            # Count targets the same way the runner will
+            import json as _json
+            where = ["status = 'pending'"]
+            params: list = []
+            if scope_slug:
+                where.append("product_id LIKE ?")
+                params.append(f"{scope_slug}_%")
+            where_sql = " AND ".join(where)
+            rows = db.execute(
+                f"SELECT id, proposed_state_json FROM scrape_proposals "
+                f"WHERE {where_sql} ORDER BY id ASC LIMIT ?",
+                tuple(params) + (limit * 4,),
+            ).fetchall()
+            held_count = 0
+            for r in rows:
+                try:
+                    s = _json.loads(r["proposed_state_json"] or "{}")
+                except Exception:
+                    continue
+                if s.get("enrichment_status") == "failed":
+                    held_count += 1
+                    if held_count >= limit:
+                        break
+
+            try:
+                job_id = catalog_ops.enqueue_job(
+                    db, "resolve_held", started_by=user["id"],
+                )
+            except catalog_ops.JobConflict as e:
+                from fastapi import HTTPException
+                raise HTTPException(
+                    409, str(e),
+                    headers={"X-Live-Job-Id": str(e.live_job_id)},
+                )
+            db.execute(
+                "UPDATE jobs SET log_tail = ? WHERE id = ?",
+                (json.dumps({
+                    "scope_slug": scope_slug,
+                    "limit": limit,
+                    "held_count_at_enqueue": held_count,
+                }), job_id),
+            )
+            db.commit()
+            background_tasks.add_task(
+                catalog_ops.run_resolve_held_job,
+                job_id,
+                scope_slug=scope_slug,
+                limit=limit,
+            )
+            return ok({
+                "job_id": job_id,
+                "status": "queued",
+                "held_count_at_enqueue": held_count,
+                "scope_slug": scope_slug,
+                "limit": limit,
+            }, resource="scrape_proposals")
+        finally:
+            db.close()
 
     db = get_db()
     try:

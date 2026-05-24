@@ -232,6 +232,14 @@ export const listProposalsSchema = z.object({
   limit: z.number().int().min(1).max(5000).default(100).describe(
     "Cap on rows. Default 100; max 5000. Now actually honored by backend.",
   ),
+  summary: z.boolean().default(false).describe(
+    "When true, project each row to lean fields only (id, job_id, " +
+    "product_id, change_type, status, created_at, roaster_slug, " +
+    "coffee_name, enrichment_status). Drops the full proposed_state_json " +
+    "+ prev_state_json blobs that bloat the response. Use this for " +
+    "bucketing / counting workflows — fetch the full row via /api/" +
+    "scrape_proposals/{id} once you've picked the IDs to act on.",
+  ),
 });
 export type ListProposalsInput = z.infer<typeof listProposalsSchema>;
 
@@ -242,6 +250,7 @@ export async function listProposals(input: ListProposalsInput) {
       limit: input.limit,
     };
     if (input.slug) q.roaster_slug = input.slug;
+    if (input.summary) q.summary = "true";
     const rows = unwrap<any[]>(await call("/admin/scrape/proposals", { query: q }));
     return rows;
   });
@@ -858,14 +867,43 @@ export async function regenerateHint(input: RegenerateHintInput) {
 // ── Jobs (in-flight scrape/enrichment polling) ─────────────────────────────
 
 export const listJobsSchema = z.object({
-  limit: z.number().int().min(1).max(200).default(50),
+  limit: z.number().int().min(1).max(1000).default(50),
+  kind: z.string().optional().describe(
+    "Filter by job kind: scrape | article_scrape | roaster_enrich | " +
+    "resolve_held | standardize | geolocate. Empty = all kinds. " +
+    "Only honored when summary=true (the lean route supports it).",
+  ),
+  status: z.string().optional().describe(
+    "Filter by status: queued | running | succeeded | failed | cancelled. " +
+    "Only honored when summary=true.",
+  ),
+  since: z.string().optional().describe(
+    "ISO8601 — only jobs with started_at >= this value. " +
+    "Only honored when summary=true.",
+  ),
+  summary: z.boolean().default(false).describe(
+    "When true, hit the lean /admin/jobs/summary endpoint that drops " +
+    "log_tail + result_summary (the two heavy columns). Returns " +
+    "{id, kind, status, started_by, started_at, finished_at, " +
+    "error_message, created_at}. Use this for orchestrator-style " +
+    "polling over 100s of jobs without blowing the MCP response " +
+    "truncation threshold. Fetch the full row via /api/jobs/{id} " +
+    "once you've picked one to inspect.",
+  ),
 });
 export type ListJobsInput = z.infer<typeof listJobsSchema>;
 
 export async function listJobs(input: ListJobsInput) {
-  return audited("crema_list_jobs", input, async () =>
-    unwrap(await call("/jobs", { query: { limit: input.limit } })),
-  );
+  return audited("crema_list_jobs", input, async () => {
+    if (input.summary) {
+      const q: Record<string, string | number> = { limit: input.limit };
+      if (input.kind) q.kind = input.kind;
+      if (input.status) q.status = input.status;
+      if (input.since) q.since = input.since;
+      return unwrap(await call("/admin/jobs/summary", { query: q }));
+    }
+    return unwrap(await call("/jobs", { query: { limit: input.limit } }));
+  });
 }
 
 // ── LLM-jobs queue (agent-fallback execution path) ─────────────────────────
@@ -1101,10 +1139,24 @@ export async function diffSweep(input: DiffSweepInput) {
           .filter((r: any) => r.published === 1)
           .map((r: any) => r.roaster_slug);
       }
-      await call("/admin/sync-bulk", {
-        method: "POST",
-        body: { slugs, mode: "tab2" },
-      });
+      const bulkResp = unwrap<{
+        accepted: number;
+        slugs: string[];
+        unknown_slugs: string[];
+        mode: string;
+      }>(
+        await call("/admin/sync-bulk", {
+          method: "POST",
+          body: { slugs, mode: "tab2" },
+        }),
+      );
+      // Use the server's filtered `slugs` (= the ones that actually
+      // ran) for everything downstream. `unknown_slugs` is surfaced
+      // separately in the response so the agent knows what was
+      // dropped (e.g. a typo, or an orphan source row without a
+      // profile — re-onboard the URL to fix).
+      const acceptedSlugs = bulkResp.slugs || [];
+      const unknownSlugs = bulkResp.unknown_slugs || [];
 
       // Step 2 — wait for the BG tasks to settle. Each roaster's
       // sync is ~10-30s; default wait of 45s covers small batches.
@@ -1117,7 +1169,7 @@ export async function diffSweep(input: DiffSweepInput) {
         await call("/admin/sync/all-status"),
       );
       const inScope = (all.roasters || []).filter(
-        (r: any) => !slugs || slugs.includes(r.slug),
+        (r: any) => acceptedSlugs.includes(r.slug),
       );
       const stale = inScope.filter((r: any) => {
         const total =
@@ -1183,9 +1235,10 @@ export async function diffSweep(input: DiffSweepInput) {
       }
 
       return {
-        scope_count: slugs.length,
+        scope_count: acceptedSlugs.length,
+        unknown_slugs: unknownSlugs,
         stale_count: stale.length,
-        no_change_count: slugs.length - stale.length - crawlErrors.length,
+        no_change_count: acceptedSlugs.length - stale.length - crawlErrors.length,
         crawl_error_count: crawlErrors.length,
         waited_seconds: input.wait_seconds,
         stale: stale.map((r: any) => ({
@@ -1206,6 +1259,9 @@ export async function diffSweep(input: DiffSweepInput) {
     },
     (r: any) =>
       `${r.stale_count} stale of ${r.scope_count} swept` +
+      (r.unknown_slugs && r.unknown_slugs.length > 0
+        ? ` (⚠️ ${r.unknown_slugs.length} unknown slugs dropped: ${r.unknown_slugs.slice(0, 3).join(", ")}${r.unknown_slugs.length > 3 ? "…" : ""})`
+        : "") +
       (r.crawl_error_count > 0
         ? ` (⚠️ ${r.crawl_error_count} crawl failures logged)`
         : ""),
@@ -1246,7 +1302,10 @@ export async function onboardRoaster(input: OnboardRoasterInput) {
     input,
     async () =>
       unwrap(await call("/admin/scrape/sources", { method: "POST", body: input })),
-    (r: any) => `onboarded ${r?.name || r?.website} (source id=${r?.id})`,
+    (r: any) =>
+      r?.job_id != null
+        ? `onboarding queued — source ${r?.source_id} (created=${r?.source_created}), enrich job ${r?.job_id}; poll /api/jobs/${r?.job_id} for slug`
+        : `onboarded ${r?.name || r?.website} (source id=${r?.source_id || r?.id})`,
   );
 }
 
@@ -1264,6 +1323,54 @@ export async function deleteRoaster(input: DeleteRoasterInput) {
         method: "DELETE",
       })),
     (r: any) => `deleted ${r?.deleted}`,
+  );
+}
+
+export const listSourcesSchema = z.object({
+  enabled: z.boolean().optional().describe(
+    "Filter to enabled / disabled sources only. Omit for all.",
+  ),
+  has_profile: z.boolean().optional().describe(
+    "true → only sources with a linked roaster_profiles row " +
+    "(joined by website). false → orphan source rows (no profile " +
+    "yet — typically incomplete onboards). Omit for all.",
+  ),
+  search: z.string().optional().describe(
+    "Substring match on name + website + shop_url.",
+  ),
+  limit: z.number().int().min(1).max(1000).default(200),
+});
+export type ListSourcesInput = z.infer<typeof listSourcesSchema>;
+
+export async function listSources(input: ListSourcesInput) {
+  return audited("crema_list_sources", input, async () => {
+    const q: Record<string, string | number> = { limit: input.limit };
+    if (input.enabled !== undefined) q.enabled = input.enabled ? "true" : "false";
+    if (input.has_profile !== undefined) q.has_profile = input.has_profile ? "true" : "false";
+    if (input.search) q.search = input.search;
+    return unwrap(await call("/admin/scrape/sources", { query: q }));
+  });
+}
+
+export const deleteSourceSchema = z.object({
+  source_id: z.number().int().positive().describe(
+    "Numeric `roaster_sources.id` to delete. Use crema_list_sources " +
+    "to find ids. Hard-deletes the source row — does NOT touch " +
+    "roaster_profiles or products. Safe to call on orphan source " +
+    "rows from incomplete onboards.",
+  ),
+});
+export type DeleteSourceInput = z.infer<typeof deleteSourceSchema>;
+
+export async function deleteSource(input: DeleteSourceInput) {
+  return audited(
+    "crema_delete_source",
+    input,
+    async () =>
+      unwrap(await call(`/admin/scrape/sources/${input.source_id}`, {
+        method: "DELETE",
+      })),
+    (r: any) => `deleted source ${r?.source_id} (${r?.website})`,
   );
 }
 

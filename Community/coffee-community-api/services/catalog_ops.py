@@ -2241,6 +2241,212 @@ def run_roaster_enrich_job(job_id: int, *, website: str,
         db.close()
 
 
+def run_resolve_held_job(
+    job_id: int,
+    *,
+    scope_slug: Optional[str] = None,
+    limit: int = 50,
+) -> None:
+    """Background runner for `/admin/scrape/proposals/resolve-held`.
+
+    Same 4-branch decision rule as the prior sync implementation:
+      1. Re-run enrichment ONCE per held proposal (Tier 1-4 ladder via
+         product_enricher.enrich_product).
+      2. retry success → apply normally with merged state.
+      3. retry still fails AND live row is already enriched →
+         skip_live_enriched (never downgrade).
+      4. retry still fails AND no enriched live → apply as
+         source_thin with LLM fields nulled.
+
+    Progress writes to `jobs.log_tail` every ~5 proposals so the
+    admin's poll can see live ticks. The full disposition lands in
+    `jobs.result_summary` on completion.
+    """
+    db = get_db()
+    try:
+        mark_running(db, job_id)
+        # Late imports for circular-avoidance
+        from routes.specific import (
+            _should_skip_failed_proposal,
+            _apply_failed_as_thin,
+        )
+        from services.llm_router import set_pipeline_context as _set_ctx
+        from services import product_enricher, scrape_runner
+
+        # Find held targets the same way the sync route did
+        where = ["status = 'pending'"]
+        params: list = []
+        if scope_slug:
+            where.append("product_id LIKE ?")
+            params.append(f"{scope_slug}_%")
+        where_sql = " AND ".join(where)
+        rows = db.execute(
+            f"SELECT id, product_id, proposed_state_json "
+            f"FROM scrape_proposals WHERE {where_sql} "
+            f"ORDER BY id ASC LIMIT ?",
+            tuple(params) + (limit * 4,),
+        ).fetchall()
+
+        held_targets = []
+        for r in rows:
+            try:
+                state = json.loads(r["proposed_state_json"] or "{}")
+            except Exception:
+                continue
+            if state.get("enrichment_status") == "failed":
+                held_targets.append(dict(r))
+                if len(held_targets) >= limit:
+                    break
+
+        succeeded_on_retry = 0
+        applied_thin = 0
+        skipped_live_enriched = 0
+        errored = 0
+        detail: list[dict] = []
+        total = len(held_targets)
+
+        def _tick(i: int):
+            # Tick progress every 5 processed proposals.
+            if i % 5 == 0 or i == total:
+                try:
+                    db.execute(
+                        "UPDATE jobs SET log_tail = ? WHERE id = ?",
+                        (json.dumps({
+                            "processed": i,
+                            "total": total,
+                            "succeeded_on_retry": succeeded_on_retry,
+                            "applied_thin": applied_thin,
+                            "skipped_live_enriched": skipped_live_enriched,
+                            "errored": errored,
+                        }), job_id),
+                    )
+                    db.commit()
+                except Exception:
+                    pass
+
+        from datetime import datetime as _dt
+        for idx, r in enumerate(held_targets, start=1):
+            try:
+                state = json.loads(r["proposed_state_json"] or "{}")
+            except Exception:
+                errored += 1
+                detail.append({
+                    "id": r["id"],
+                    "product_id": r["product_id"],
+                    "outcome": "errored",
+                    "reason": "proposed_state_json could not be parsed",
+                })
+                _tick(idx)
+                continue
+
+            _set_ctx(roaster_slug=state.get("roaster_slug"))
+            enriched = None
+            try:
+                enriched = product_enricher.enrich_product(state)
+            except Exception as e:
+                detail.append({
+                    "id": r["id"],
+                    "product_id": r["product_id"],
+                    "outcome": "retry_errored_apply_thin",
+                    "reason": f"{type(e).__name__}: {e}",
+                })
+
+            now_iso = _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            if enriched and enriched.get("enrichment_status") == "enriched":
+                # Retry success path
+                modified = dict(r)
+                merged_state = dict(state)
+                merged_state.update({k: v for k, v in enriched.items()
+                                       if v is not None})
+                modified["proposed_state_json"] = json.dumps(merged_state)
+                try:
+                    scrape_runner.apply_proposal(db, modified)
+                    db.execute(
+                        "UPDATE scrape_proposals SET status='applied', "
+                        "applied_at=? WHERE id=?",
+                        (now_iso, r["id"]),
+                    )
+                    succeeded_on_retry += 1
+                    detail.append({
+                        "id": r["id"],
+                        "product_id": r["product_id"],
+                        "coffee_name": merged_state.get("coffee_name"),
+                        "outcome": "succeeded_on_retry",
+                    })
+                    db.commit()
+                except Exception as e:
+                    errored += 1
+                    detail.append({
+                        "id": r["id"],
+                        "product_id": r["product_id"],
+                        "outcome": "errored",
+                        "reason": f"apply failed: {type(e).__name__}: {e}",
+                    })
+            else:
+                # Retry still failed (or threw)
+                if _should_skip_failed_proposal(db, r["product_id"]):
+                    skipped_live_enriched += 1
+                    detail.append({
+                        "id": r["id"],
+                        "product_id": r["product_id"],
+                        "coffee_name": state.get("coffee_name"),
+                        "outcome": "skipped_live_enriched",
+                        "reason": "live row already enriched; never downgrade",
+                    })
+                else:
+                    try:
+                        _apply_failed_as_thin(db, r)
+                        db.execute(
+                            "UPDATE scrape_proposals SET status='applied', "
+                            "applied_at=? WHERE id=?",
+                            (now_iso, r["id"]),
+                        )
+                        applied_thin += 1
+                        detail.append({
+                            "id": r["id"],
+                            "product_id": r["product_id"],
+                            "coffee_name": state.get("coffee_name"),
+                            "outcome": "applied_thin",
+                            "reason": "ladder exhausted + no enriched live",
+                        })
+                        db.commit()
+                    except Exception as e:
+                        errored += 1
+                        detail.append({
+                            "id": r["id"],
+                            "product_id": r["product_id"],
+                            "outcome": "errored",
+                            "reason": f"apply_failed_as_thin error: {type(e).__name__}: {e}",
+                        })
+            _tick(idx)
+
+        result_summary = {
+            "processed": total,
+            "succeeded_on_retry": succeeded_on_retry,
+            "applied_thin": applied_thin,
+            "skipped_live_enriched": skipped_live_enriched,
+            "errored": errored,
+            "detail": detail[:200],  # Cap detail rows in summary
+            "detail_total": len(detail),
+        }
+        mark_finished(
+            db, job_id, status="succeeded",
+            log_tail=None, result_summary=result_summary,
+        )
+    except Exception as e:
+        try:
+            mark_finished(
+                db, job_id, status="failed",
+                error_message=f"{type(e).__name__}: {e}",
+                log_tail=None,
+            )
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
 def run_article_scrape_job(job_id: int, *,
                               roaster_slug: str | None = None,
                               roaster_slugs: Optional[list[str]] = None,

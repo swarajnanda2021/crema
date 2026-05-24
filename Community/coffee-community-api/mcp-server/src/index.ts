@@ -40,6 +40,7 @@ import {
   haikuNextJobSchema, haikuSubmitSchema, listLLMJobsSchema,
   // lifecycle
   onboardRoasterSchema, deleteRoasterSchema, publishRoasterSchema, updateScrapeSettingsSchema,
+  listSourcesSchema, deleteSourceSchema,
   // standardization
   standardizeStatsSchema, standardizeExemplarsSchema, standardizeRunSchema, regenerateExemplarsSchema,
   // flavor schemas
@@ -74,6 +75,7 @@ import {
   listAgentRuns,
   haikuNextJob, haikuSubmit, listLLMJobs,
   onboardRoaster, deleteRoaster, publishRoaster, updateScrapeSettings,
+  listSources, deleteSource,
   standardizeStats, standardizeExemplars, standardizeRun, regenerateExemplars,
   listFlavorSchemas, uploadFlavorSchema, activateFlavorSchema,
   bulkScrapeArticles, scrapeRoasterArticles, listArticles,
@@ -256,7 +258,11 @@ const TOOLS: ToolDef<any>[] = [
       "OR articles added/updated/removed OR bio_changed). Zero LLM cost — " +
       "this is the cheap heartbeat that decides which roasters need an " +
       "actual `crema_enrich_*` pass. Default wait is 45s (good for small " +
-      "batches); bump `wait_seconds` to 120-180 for a full 96-roaster sweep.",
+      "batches); bump `wait_seconds` to 120-180 for a full 96-roaster sweep. " +
+      "Slug validation (2026-05-24 fix): unknown slugs (no roaster_profiles " +
+      "row) are dropped upfront and surfaced in the response's " +
+      "`unknown_slugs[]` array — `scope_count` now reflects only slugs that " +
+      "actually ran, not the raw input length.",
     schema: diffSweepSchema,
     handler: diffSweep,
     destructive: false,  // snapshot writes are idempotent; rolls forward
@@ -350,12 +356,19 @@ const TOOLS: ToolDef<any>[] = [
   {
     name: "crema_onboard_roaster",
     description:
-      "Onboard a new roaster by website URL. Creates a roaster_sources row " +
-      "(natural key on website). Best-effort <title> fetch fills the name if " +
-      "you don't provide one. Newly-onboarded sources start at enabled=false — " +
-      "use crema_update_scrape_settings to flip enabled=true when ready, then " +
-      "crema_enrich_roaster to populate the profile. Returns 409 if the website " +
-      "already exists.",
+      "Onboard a roaster by website URL. ASYNC pattern (2026-05-24 fix): " +
+      "the route inserts a roaster_sources row immediately (if not already " +
+      "on file), then enqueues a `roaster_enrich` background job that runs " +
+      "Sonnet bio enrichment AND chains a catalog scrape job. Returns 202 " +
+      "with {source_id, source_created, website, job_id, status: 'queued'}. " +
+      "Poll /api/jobs/{job_id} for completion — the result_summary " +
+      "contains {slug, name, website, scrape_job_id?}. Under the agent-" +
+      "queue path (LLM_PROVIDER=claude_code_agent), the caller MUST also " +
+      "drain crema_haiku_next_job / crema_haiku_submit while polling — the " +
+      "BG task's Sonnet bio call queues a `bio` step llm_job that needs the " +
+      "agent to respond. Idempotent on website — re-onboarding the same URL " +
+      "no longer 409s; the bridge upserts both tables in place, repairing " +
+      "any orphan source rows from prior incomplete attempts.",
     schema: onboardRoasterSchema,
     handler: onboardRoaster,
     destructive: false,
@@ -370,6 +383,33 @@ const TOOLS: ToolDef<any>[] = [
       "published=false instead if you just want to hide them from Discover.",
     schema: deleteRoasterSchema,
     handler: deleteRoaster,
+    destructive: true,
+  },
+  {
+    name: "crema_list_sources",
+    description:
+      "List `roaster_sources` rows for admin / orphan-detection. " +
+      "Joins roaster_profiles by website so each row carries its " +
+      "linked slug + published flag (null when no profile is linked " +
+      "— the orphan signal). Filters: enabled, has_profile " +
+      "(true = profiled, false = orphan), search (substring on name " +
+      "+ website + shop_url). Use this to find orphan source rows " +
+      "from incomplete onboards before crema_delete_source.",
+    schema: listSourcesSchema,
+    handler: listSources,
+    readOnly: true,
+  },
+  {
+    name: "crema_delete_source",
+    description:
+      "Hard-delete a `roaster_sources` row by numeric id. Does NOT " +
+      "touch roaster_profiles or products. Use to clean up orphan " +
+      "source rows from incomplete onboards (find them via " +
+      "crema_list_sources with has_profile=false). For a full " +
+      "roaster delete (profile + source + soft-archive), use " +
+      "crema_delete_roaster instead.",
+    schema: deleteSourceSchema,
+    handler: deleteSource,
     destructive: true,
   },
   {
@@ -777,17 +817,19 @@ const TOOLS: ToolDef<any>[] = [
     name: "crema_resolve_held_proposals",
     description:
       "Resolve the backlog of held proposals (status='pending' with " +
-      "enrichment_status='failed'). For each: re-runs enrichment ONCE " +
-      "through the Tier 1-4 ladder. If the retry now succeeds, applies " +
-      "normally. If still failed, applies with safe merge (preserves " +
-      "existing live-row enrichment fields, marks the row as " +
-      "enrichment_status='source_thin' so the UI surfaces 'details " +
-      "unavailable'). NEVER rejects for lack of info — that's not a " +
-      "valid rejection reason. Pair with the post-2026-05-22 " +
-      "crema_auto_approve_proposals which no longer holds for failed " +
-      "enrichment (applies inline with the same safe-merge semantics). " +
-      "This tool is for the legacy backlog plus any stragglers from " +
-      "strict_checks runs.",
+      "enrichment_status='failed'). ASYNC pattern (2026-05-24 fix): " +
+      "non-dry-run calls enqueue a `resolve_held` BG job and return 202 " +
+      "with {job_id, status: 'queued', held_count_at_enqueue}. The " +
+      "runner re-runs enrichment ONCE per held proposal through the Tier " +
+      "1-4 ladder. Retry success → apply normally. Retry still fails AND " +
+      "live row already enriched → skip (never downgrade). Retry still " +
+      "fails AND no enriched live → apply as source_thin with LLM fields " +
+      "nulled. NEVER rejects for lack of info. Poll /api/jobs/{job_id} " +
+      "for completion; result_summary carries the full disposition + " +
+      "detail list. dry_run: true still returns synchronously with the " +
+      "target count. Under the agent-queue path, the agent must drain " +
+      "crema_haiku_next_job while polling — the per-proposal " +
+      "product_enrich llm_jobs need responses.",
     schema: resolveHeldProposalsSchema,
     handler: resolveHeldProposals,
     destructive: true,
