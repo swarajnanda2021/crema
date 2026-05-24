@@ -359,25 +359,42 @@ def _product_lite_from_scraped(p: dict, *, enrichment_status: str = "pending") -
 # back-substitutes that canonical slug onto every scraped product before
 # the diff runs, so updates wire up to existing rows.
 
-def _canonical_slug_lookup(db) -> dict[str, str]:
-    """Map every roaster_profile's website → canonical roaster_slug."""
+def _canonical_slug_lookup(db) -> dict[str, dict]:
+    """Map every roaster_profile's website → {slug, name}.
+
+    `slug` is the canonical roaster_slug. `name` is the clean brand
+    name (cleaned by the bio enrichment Haiku pass). Both are used to
+    override the scraper-provided values, which are derived from the
+    raw HTML <title> and frequently carry SEO noise / HTML entities
+    (`&amp;`, `&ndash;`, "Buy X | Brand Name" prefixes, …).
+    """
     rows = db.execute(
-        "SELECT website, roaster_slug FROM roaster_profiles "
+        "SELECT website, roaster_slug, name FROM roaster_profiles "
         "WHERE website IS NOT NULL AND website <> ''"
     ).fetchall()
-    return {r["website"]: r["roaster_slug"] for r in rows}
+    return {
+        r["website"]: {"slug": r["roaster_slug"], "name": r["name"]}
+        for r in rows
+    }
 
 
-def _canonicalize(p: dict, lookup: dict[str, str]) -> None:
-    """Mutate the scraped product so its roaster_slug + product_id use
-    the canonical slug from `roaster_profiles`. No-op when we can't
-    resolve a match (unknown roaster — leaves the scraper-derived slug
-    in place)."""
+def _canonicalize(p: dict, lookup: dict[str, dict]) -> None:
+    """Mutate the scraped product so its roaster_slug + roaster_name +
+    product_id use the canonical values from `roaster_profiles`.
+    No-op when we can't resolve a match (unknown roaster — leaves
+    the scraper-derived values in place).
+
+    Both slug AND name come from the same profile lookup. Without the
+    name override, products carry the raw HTML <title> as
+    `roaster_name` (e.g. "Buy Nespresso Coffee Capsules, Pods &amp;
+    Machines in India | Caramelly") which leaks straight to consumer
+    surfaces like the roaster profile page.
+    """
     website = p.get("roaster_website") or p.get("website")
     if not website:
         return
-    canonical = lookup.get(website)
-    if not canonical:
+    entry = lookup.get(website)
+    if not entry:
         # Try an alt-form lookup (https://x ↔ http://www.x). One last
         # attempt before giving up — slug drift caused by URL drift is
         # the same root cause we're fighting.
@@ -386,9 +403,16 @@ def _canonicalize(p: dict, lookup: dict[str, str]) -> None:
             alt = "https://" + alt[len("http://"):]
         elif alt.startswith("https://"):
             alt = "http://" + alt[len("https://"):]
-        canonical = lookup.get(alt)
-    if not canonical:
+        entry = lookup.get(alt)
+    if not entry:
         return
+    canonical = entry["slug"]
+    canonical_name = entry.get("name")
+    # Override name with the clean profile value whenever it exists,
+    # regardless of slug match — even same-slug rescrapes can have
+    # the title field drift.
+    if canonical_name:
+        p["roaster_name"] = canonical_name
     old_slug = p.get("roaster_slug") or ""
     if old_slug == canonical:
         return
