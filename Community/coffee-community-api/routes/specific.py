@@ -5476,29 +5476,20 @@ def _apply_roaster_enrichment(db, website: str) -> dict:
             ),
         )
     else:
-        # COALESCE here — admin edits to shop_url / platform / city /
-        # state on `roaster_sources` win over a re-enrich, so that
-        # operator-curated values aren't clobbered when Sonnet
-        # re-picks. SQL note: COALESCE(existing, new) returns
-        # `existing` whenever it's NOT NULL, falling back to the new
-        # Sonnet value only when the column was empty. For brand-new
-        # source rows (the INSERT path above) Sonnet's pick wins
-        # naturally because the column had no prior value.
-        db.execute(
-            "UPDATE roaster_sources SET "
-            " shop_url = COALESCE(shop_url, ?), "
-            " platform = COALESCE(platform, ?), "
-            " city = COALESCE(city, ?), "
-            " state = COALESCE(state, ?) "
-            "WHERE id = ?",
-            (
-                source.get("shop_url"),
-                source.get("platform"),
-                profile.get("city"),
-                profile.get("state"),
-                existing_src["id"],
-            ),
-        )
+        # NO COALESCE — re-enrichment does not modify roaster_sources
+        # scrape config (shop_url, platform, city, state) at all.
+        # Anti-fallback discipline (per CRUD_UTOPIA): scraping is
+        # deterministic; we don't let "old data" win to mask a bad
+        # new pick, and we don't let "new pick" silently overwrite
+        # an operator-curated value either. The scrape entry-point
+        # is admin-owned and only mutates through explicit
+        # crema_update_scrape_settings calls. Sonnet's re-pick is
+        # informational — it lands in the result_summary but never
+        # touches the live source row on re-enrichment.
+        # (Initial onboard INSERT above still seeds from Sonnet's
+        # pick when admin didn't provide shop_url, because the
+        # column had no prior value to preserve.)
+        pass
     db.commit()
 
     return {

@@ -54,6 +54,17 @@ _HARD_EXCLUDE_TITLE = [
     "gift card", "hamper", "merchandise", "gift box", "gift set",
     "coffee gift", "gift pack",
     "assorted 6", "6-pack", "6 pack",
+    # Sampler / bundle / "pick & mix" / multi-tin combos — these are
+    # multi-coffee bundles, not single bean SKUs. The downstream LLM
+    # gate (`is_coffee_bean`) catches them when reached, but they
+    # waste an enrichment call AND if the enrichment errors out
+    # (parameter binding, SDK transient, etc.) they can leak through
+    # auto_approve's failed→thin fallback. Hard-exclude here at
+    # Stage 1 so they never reach the LLM at all.
+    "sampler", "pick & mix", "pick and mix", "steal deal",
+    "tasting pack", "tasting box", "discovery box",
+    " combo", "combo ", "bundle", "assorted box",
+    "pack of ", " pack of",
 
     # ── Subscriptions / experiences / stays ──
     "subscription", "experience", "workshop", "tour",
