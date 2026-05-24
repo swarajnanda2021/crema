@@ -34,7 +34,16 @@ from database import init_db, get_db
 from resources.envelope import ok
 from services.auth import get_current_user
 from services.catalog_sync import sync_products
+from services.http_client import install_urllib3_patch
 from fastapi import Depends, Header
+
+# Install happy-eyeballs DNS race at the urllib3 layer BEFORE any
+# requests / httpx call fires. Affects every catalog-ops HTTP path
+# (roaster_enricher, article_scraper, sync_runner, scrape_runner,
+# Scraper/scraper/*). Fixes the multi-A-record blackhole problem
+# where one IP works and the other times out — see
+# services/http_client.py for the full story.
+install_urllib3_patch()
 
 # ── App setup ────────────────────────────────────────────────────────────────
 

@@ -129,9 +129,35 @@ def _try_playwright_html(url: str) -> str:
         from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
     except ImportError:
         return ""
+    # Wire happy-eyeballs IP hints into the Chromium DNS layer.
+    # The catalog-ops backend ships http_client.chromium_host_resolver_rules_arg;
+    # this stand-alone scraper module imports it lazily so it stays
+    # runnable from `python Scraper/scraper/main.py` without the
+    # backend in scope.
+    try:
+        import sys as _sys
+        import os as _os
+        _backend = _os.path.abspath(_os.path.join(
+            _os.path.dirname(__file__), "..", "..", "Community",
+            "coffee-community-api"))
+        if _backend not in _sys.path:
+            _sys.path.insert(0, _backend)
+        from services.http_client import (  # type: ignore
+            chromium_host_resolver_rules_arg,
+            pick_best_ip,
+        )
+        from urllib.parse import urlsplit as _urlsplit
+        _p = _urlsplit(url)
+        if _p.hostname:
+            pick_best_ip(_p.hostname,
+                          _p.port or (443 if _p.scheme == "https" else 80))
+        _host_rules = chromium_host_resolver_rules_arg()
+    except Exception:
+        _host_rules = None
+    _launch_args = [_host_rules] if _host_rules else []
     try:
         with sync_playwright() as pw:
-            browser = pw.chromium.launch(headless=True)
+            browser = pw.chromium.launch(headless=True, args=_launch_args)
             try:
                 ctx = browser.new_context(
                     viewport={"width": 1280, "height": 1024},

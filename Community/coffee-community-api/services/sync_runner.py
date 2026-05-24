@@ -437,8 +437,24 @@ def _render_wix_html(url: str) -> str:
     except ImportError:
         return ""
     try:
+        # Wire happy-eyeballs IP hints into the Chromium DNS layer.
+        # urllib3 patch doesn't help Chromium — it reads system DNS
+        # via its own resolver, so we hand it the winning IPs via
+        # --host-resolver-rules. See services/http_client.py.
+        try:
+            from services.http_client import chromium_host_resolver_rules_arg, pick_best_ip
+            from urllib.parse import urlsplit as _urlsplit
+            # Warm the cache for this URL's host first so the rules
+            # arg actually includes it.
+            _p = _urlsplit(url)
+            if _p.hostname:
+                pick_best_ip(_p.hostname, _p.port or (443 if _p.scheme == "https" else 80))
+            host_rules = chromium_host_resolver_rules_arg()
+        except ImportError:
+            host_rules = None
+        launch_args = [host_rules] if host_rules else []
         with sync_playwright() as pw:
-            browser = pw.chromium.launch(headless=True)
+            browser = pw.chromium.launch(headless=True, args=launch_args)
             try:
                 ctx = browser.new_context(
                     viewport={"width": 1280, "height": 1024},
