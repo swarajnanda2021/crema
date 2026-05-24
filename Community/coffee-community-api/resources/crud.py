@@ -206,6 +206,17 @@ def list_resource(db, name, *, filters=None, limit=None, offset=0,
                 where_clauses.append(f"t.{k} = ?")
                 params.append(v)
 
+    # Registry-declared list_where (raw SQL fragment) — always-on filter
+    # applied to every list call regardless of auth. Use for cross-table
+    # visibility gates that the consumer + admin surfaces share. The
+    # `products` resource uses it to keep unpublished-roaster beans out
+    # of the Discover BEANS tab (which otherwise counted "from 102
+    # roasters" while ROASTERS showed 99 — the gap = unpublished
+    # profiles + orphan products).
+    list_where = res.get("list_where")
+    if list_where:
+        where_clauses.append(list_where)
+
     if where_clauses:
         sql += "\n    WHERE " + " AND ".join(where_clauses)
 

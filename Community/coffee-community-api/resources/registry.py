@@ -596,6 +596,19 @@ RESOURCES = {
         "auth": {"list": None, "read": None, "create": "required", "delete": "required"},
         "order": "coffee_name ASC",
         "limit": 500,
+        # Discover-visibility gate. Only surface products belonging to
+        # roasters whose profile is `published=1`. Without this, beans
+        # from unpublished or orphan-profile roasters appeared on
+        # Discover BEANS (the "from 102 roasters" count vs ROASTERS
+        # tab's "99 roasters" disparity) but their roaster pages
+        # weren't reachable from Discover → dead-end taps. Filter is
+        # registry-level so consumer + admin paths inherit it
+        # consistently; per-roaster admin views fetch via dedicated
+        # routes, so they're unaffected.
+        "list_where": (
+            "EXISTS (SELECT 1 FROM roaster_profiles rp "
+            " WHERE rp.roaster_slug = t.roaster_slug AND rp.published = 1)"
+        ),
         "subfields": [
             {"name": "roaster_city", "sql": "(SELECT rp.city FROM roaster_profiles rp WHERE rp.roaster_slug = t.roaster_slug)"},
             {"name": "roaster_state", "sql": "(SELECT rp.state FROM roaster_profiles rp WHERE rp.roaster_slug = t.roaster_slug)"},
