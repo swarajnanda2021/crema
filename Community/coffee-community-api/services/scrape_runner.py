@@ -893,6 +893,34 @@ def _insert_heuristic_rejection(
 
 # ── Apply / reject / undo helpers ──────────────────────────────────────────
 
+def _coerce_proposed_for_sqlite(proposed: dict) -> dict:
+    """Re-serialize fields that can land as Python list/dict — sqlite3
+    can't bind those types directly and raises InterfaceError
+    ("Error binding parameter N - probably unsupported type"). The
+    re-enrich path (run_resolve_held_job) builds merged_state from
+    LLM output where `flavor_notes` is a list and
+    `brew_recommendation_json` is a dict; both must be JSON strings
+    before they hit the upsert.
+
+    Conservative — only touches the known-list / known-dict fields.
+    Everything else (strings, ints, None) binds natively.
+    """
+    out = dict(proposed)
+    fn = out.get("flavor_notes")
+    if isinstance(fn, (list, tuple)):
+        out["flavor_notes"] = json.dumps(list(fn))
+    elif isinstance(fn, dict):
+        # Defensive — shouldn't happen, but if upstream packed it as
+        # an object, serialize so we don't crash.
+        out["flavor_notes"] = json.dumps(fn)
+    br = out.get("brew_recommendation_json")
+    if isinstance(br, dict):
+        out["brew_recommendation_json"] = json.dumps(br)
+    elif isinstance(br, (list, tuple)):
+        out["brew_recommendation_json"] = json.dumps(list(br))
+    return out
+
+
 def apply_proposal(db, proposal: dict) -> None:
     """Commit a single proposal to the `products` table. The owner-controlled
     `source` column survives the apply so a roaster's edits aren't
@@ -901,6 +929,9 @@ def apply_proposal(db, proposal: dict) -> None:
     ctype = proposal["change_type"]
     proposed = json.loads(proposal["proposed_state_json"]) if proposal["proposed_state_json"] else None
     prev = json.loads(proposal["prev_state_json"]) if proposal["prev_state_json"] else None
+
+    if proposed is not None:
+        proposed = _coerce_proposed_for_sqlite(proposed)
 
     if ctype == "insert":
         if not proposed:

@@ -66,13 +66,29 @@ def set_pipeline_context(
 
 
 def get_provider() -> str:
-    """Return 'anthropic' or 'claude_code_agent'."""
+    """Return 'anthropic' or 'claude_code_agent'.
+
+    Hard rule (per the agent-first operating model): if any agent
+    identity is in scope — env `CREMA_AGENT_IDENTITY` starts with
+    `claude-` or the running process sets `CLAUDECODE=1` — the
+    queue path WINS regardless of what `LLM_PROVIDER` is set to.
+    Explicit `LLM_PROVIDER=anthropic` (the SDK path that burns
+    paid API credits) is reserved for humans driving manual
+    enrichment from the admin UI. An agent that explicitly sets
+    `anthropic` is treated as a misconfiguration and the call is
+    forced through the queue anyway. Don't honor the override.
+    """
+    identity = (os.environ.get("CREMA_AGENT_IDENTITY") or "").strip()
+    agent_in_scope = (
+        identity.startswith("claude-")
+        or os.environ.get("CLAUDECODE") == "1"
+        or (os.environ.get("AI_AGENT") or "").startswith("claude-")
+    )
+    if agent_in_scope:
+        return "claude_code_agent"
     explicit = (os.environ.get("LLM_PROVIDER") or "").strip()
     if explicit in ("anthropic", "claude_code_agent"):
         return explicit
-    identity = (os.environ.get("CREMA_AGENT_IDENTITY") or "").strip()
-    if identity.startswith("claude-"):
-        return "claude_code_agent"
     return "anthropic"
 
 

@@ -4988,8 +4988,16 @@ def admin_resolve_held_proposals(
                         break
 
             try:
+                # bypass_mutex=True — per-slug concurrent resolve_held
+                # is safe (each run scopes its SELECT by slug) and
+                # required for autonomy: serializing on the global
+                # mutex tempted SDK shortcuts when caramelly +
+                # project-kaapi resolves had to run back-to-back.
+                # Each per-roaster run keeps its own visibility job
+                # row + its own per-proposal apply transactions.
                 job_id = catalog_ops.enqueue_job(
                     db, "resolve_held", started_by=user["id"],
+                    bypass_mutex=True,
                 )
             except catalog_ops.JobConflict as e:
                 from fastapi import HTTPException

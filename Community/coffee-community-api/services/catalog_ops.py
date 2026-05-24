@@ -1147,18 +1147,26 @@ def backfill_last_scraped_at(conn) -> None:
 
 
 def recover_orphan_jobs(conn) -> None:
-    """Mark any `running` jobs as `failed` at server boot.
+    """Mark any `running` jobs as `failed` at server boot, and reset
+    any `in_progress` llm_jobs claims back to `pending` so the
+    drainer agent can re-claim them cleanly.
 
-    A job can only be in `running` status if a live worker is
-    iterating it — but if the server is just starting up, no worker
-    is iterating anything. So every `running` row at boot time is
-    by definition an orphan from a prior worker that died (uvicorn
-    killed mid-scrape, OS crash, OOM during per-product Haiku
-    enrichment, …). Without this, `enqueue_job`'s in-flight gate
-    refuses every subsequent kick with a 409 until the admin hand-
-    edits the row.
+    A `jobs.status='running'` row at boot is by definition an orphan
+    from a prior worker that died (uvicorn killed mid-scrape, OS
+    crash, OOM during per-product Haiku enrichment, --reload while
+    a BG task was polling the queue). Without this, `enqueue_job`'s
+    in-flight gate refuses every subsequent kick with a 409 until
+    the admin hand-edits the row.
 
-    Runs unconditionally — the WHERE clause is a no-op when no
+    Similarly, an `llm_jobs.status='in_progress'` row at boot is an
+    abandoned claim from a drainer that never submitted (the drainer
+    died, or the BG task that was waiting on the response gave up).
+    Reset claimed_at + agent_identity to NULL and flip status back
+    to 'pending' so the next drainer round picks it up. Per the
+    agent-first operating model, autonomy means not requiring a
+    human or shell-level intervention to unstick stuck queue rows.
+
+    Runs unconditionally — the WHERE clauses are no-ops when no
     orphans exist, so there's nothing to gate on.
     """
     cur = conn.execute(
@@ -1172,6 +1180,16 @@ def recover_orphan_jobs(conn) -> None:
     if cur.rowcount > 0:
         conn.commit()
         print(f"Recovered {cur.rowcount} orphan job(s) from prior worker death.")
+
+    # Reset abandoned llm_jobs claims so drainers can re-pick them up.
+    cur = conn.execute(
+        "UPDATE llm_jobs SET status = 'pending', claimed_at = NULL, "
+        "  agent_identity = NULL "
+        "WHERE status = 'in_progress'"
+    )
+    if cur.rowcount > 0:
+        conn.commit()
+        print(f"Reset {cur.rowcount} stale in_progress llm_job(s) to pending.")
 
 
 def backfill_canonical_columns(conn) -> None:
