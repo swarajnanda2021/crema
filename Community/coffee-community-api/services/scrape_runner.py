@@ -601,10 +601,20 @@ def stage_scrape_proposals(db, job_id: int,
             scraped_slugs.add(p["roaster_slug"])
 
         scrape_available = 1 if p.get("available", True) else 0
-        if scrape_available == 0 and pid not in existing:
-            # Don't propose creating a new row that's already out-of-stock.
-            skipped_count += 1
-            continue
+        # Deterministic-staging principle: stage every product the
+        # scraper found, even if it's sold-out and not yet in the
+        # catalog. The old behaviour silently dropped sold-out-new
+        # products (Reserved India's specialty-selection collection
+        # had 2 products both sold-out on variants[0] — both got
+        # dropped without trace, while LLM jobs ran on them anyway).
+        # Now we stage with available=0 so the admin sees the row
+        # in the proposals queue and can decide. Log the case so
+        # the operator can read what happened.
+        if scrape_available == 0 and pid not in existing and log:
+            log(
+                f"staging new sold-out product as available=0: "
+                f"pid={pid} name={p.get('coffee_name')!r}"
+            )
 
         proposed = _product_lite_from_scraped(p, enrichment_status=enriched_status)
 

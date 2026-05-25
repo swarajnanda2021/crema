@@ -15,6 +15,42 @@ Outputs written to output/:
     images_manifest.json   — flat list of all product image URLs
 """
 
+# ── Happy-eyeballs DNS patch ─────────────────────────────────────────
+#
+# This file runs as a subprocess spawned by
+# `services/scrape_runner.py` in the catalog-ops backend. The API
+# server installs `services.http_client.install_urllib3_patch()` at
+# boot to fix the multi-A-record / poisoned-resolver blackhole
+# problem (see services/http_client.py). The subprocess gets a fresh
+# Python interpreter and DOES NOT inherit that patch — so on
+# networks where the local resolver returns blackhole IPs (Reserved,
+# Mindful, anything CNAME'd to shops.myshopify.com on some ISPs),
+# the scraper's first `requests.get` against the storefront times
+# out and the scrape returns 0 products silently. Mindful Coffee
+# Roaster's "scraped=0" failure today traced back to this exact
+# subprocess-vs-server-process gap.
+#
+# Install the same patch at the top of the subprocess so every
+# `requests` / `urllib3` call inherits happy-eyeballs + DoH
+# fallback. Idempotent — safe to call from main() too.
+import sys as _sys
+import os as _os
+_backend = _os.path.abspath(_os.path.join(
+    _os.path.dirname(__file__), "..", "..", "Community",
+    "coffee-community-api",
+))
+if _backend not in _sys.path:
+    _sys.path.insert(0, _backend)
+try:
+    from services.http_client import install_urllib3_patch  # type: ignore
+    install_urllib3_patch()
+except Exception as _e:
+    # Don't block the scraper if the patch can't load — the legacy
+    # CLI-only mode (no catalog-ops backend in sight) must still run.
+    _sys.stderr.write(
+        f"[scraper] WARN: happy-eyeballs patch unavailable: {_e!s}\n"
+    )
+
 import datetime
 import json
 import os
