@@ -276,57 +276,23 @@ def _links_from_text(soup: BeautifulSoup, base_url: str, domain: str) -> set:
 
 
 def _links_from_sitemap(domain: str) -> set:
-    """Try sitemap.xml to find product URLs.
+    """Discover product URLs from the host's sitemaps.
 
-    Many sites (Wix, large WooCommerce installs, sites with multiple
-    business lines) emit a *sitemap index* at `/sitemap.xml` whose
-    `<loc>` entries point to child sitemaps, not products. We follow
-    each child once. Also probes well-known per-platform paths:
-    `/store-products-sitemap.xml` is the Wix Stores convention.
-
-    A safety cap (20 sitemaps total) prevents runaway recursion on
-    pathological cases.
+    Delegates to the canonical
+    `services.sitemap_walker.discover_product_urls`. Returns a set
+    of URL strings to preserve the legacy call-site interface
+    (which dedupes by raw string and doesn't need lastmod /
+    source-sitemap metadata).
     """
-    links: set = set()
-    seen: set = set()
-    queue = [
-        f"https://{domain}/sitemap.xml",
-        f"https://www.{domain}/sitemap.xml",
-        f"https://{domain}/store-products-sitemap.xml",
-        f"https://www.{domain}/store-products-sitemap.xml",
-    ]
-
-    while queue and len(seen) < 20:
-        sitemap_url = queue.pop(0)
-        if sitemap_url in seen:
-            continue
-        seen.add(sitemap_url)
-
-        html = _fetch_html(sitemap_url)
-        if not html:
-            continue
-        soup = BeautifulSoup(html, "lxml")
-
-        # Sitemap *index*: enqueue child sitemaps; nothing to extract here.
-        if soup.find("sitemap"):
-            for child in soup.find_all("sitemap"):
-                loc = child.find("loc")
-                if loc:
-                    child_url = loc.get_text(strip=True)
-                    if child_url and child_url not in seen:
-                        queue.append(child_url)
-            continue
-
-        # Leaf sitemap: extract product URLs by path-segment match.
-        for loc in soup.find_all("loc"):
-            url = loc.get_text(strip=True)
-            if domain not in url:
-                continue
-            path = urlparse(url).path.lower()
-            if any(seg in path for seg in _PRODUCT_URL_SEGMENTS):
-                links.add(url)
-
-    return links
+    try:
+        from services.sitemap_walker import discover_product_urls  # type: ignore
+    except ImportError:
+        return set()
+    # The canonical walker accepts a website URL (scheme + host); we
+    # pass an https:// constructor with the bare domain — the walker
+    # itself probes both bare-host and www-host variants.
+    entries = discover_product_urls(f"https://{domain}")
+    return {e.url for e in entries}
 
 
 def _find_product_links(
@@ -354,44 +320,77 @@ def _find_product_links(
 
 # ── Per-product page scraper ──────────────────────────────────────────────────
 
-def _extract_jsonld_product(soup: BeautifulSoup) -> Optional[dict]:
-    """If the page emits a JSON-LD `Product` schema, return that dict.
+def _extract_jsonld_product(soup: BeautifulSoup):
+    """Pull the first JSON-LD Product / ProductGroup schema from
+    the page. Delegates to the canonical
+    `services.jsonld_extractor.extract_product` — returns a
+    `CanonicalProduct` (dataclass) so callers can access typed
+    fields (.name, .price, .image_url, .additional_properties, …)
+    instead of dict.get-ing into a raw schema-org payload.
 
-    Wix (and many other JS-rendered platforms) emit complete Product
-    schemas in `<script type="application/ld+json">` for SEO, even
-    when the visible HTML is a hydration shell. The schema may live
-    at the top level, inside an array, or wrapped in `@graph`.
+    Returns None when no Product-family schema is present. Caller
+    falls back to CSS-selector / body-text extraction.
     """
-    for tag in soup.find_all("script", type="application/ld+json"):
-        try:
-            payload = json.loads(tag.string or "")
-        except (json.JSONDecodeError, TypeError):
-            continue
-        candidates = payload if isinstance(payload, list) else [payload]
-        if isinstance(payload, dict) and isinstance(payload.get("@graph"), list):
-            candidates = payload["@graph"]
-        for c in candidates:
-            if isinstance(c, dict) and str(c.get("@type", "")).lower() == "product":
-                return c
-    return None
+    try:
+        from services.jsonld_extractor import (  # type: ignore
+            extract_jsonld_blocks, extract_product,
+        )
+    except ImportError:
+        return None
+    blocks = extract_jsonld_blocks(soup)
+    return extract_product(blocks)
 
 
 def _product_from_jsonld(
-    ld: dict, url: str, roaster: dict, domain: str,
+    canonical, url: str, roaster: dict, domain: str,
 ) -> Optional[dict]:
-    """Convert a JSON-LD Product object into the dict shape the rest
-    of the pipeline expects. Tolerates Wix's non-standard `Offers`
-    capitalization alongside the schema.org-canonical `offers`."""
+    """Convert a CanonicalProduct (from the canonical JSON-LD
+    extractor) into the raw-product dict shape the rest of the
+    pipeline expects. Falls back to body-text weight extraction
+    when JSON-LD doesn't carry a weight field.
+
+    Accepts either the legacy raw dict shape OR a CanonicalProduct
+    dataclass — the second is what `_extract_jsonld_product` now
+    returns. Keeping the dual shape lets call-sites change one at
+    a time during the refactor.
+    """
+    # CanonicalProduct dataclass path (new)
+    if hasattr(canonical, "name"):
+        name = (canonical.name or "").strip()
+        if not name:
+            return None
+        desc = canonical.description or ""
+        price = canonical.price
+        image_url = canonical.image_url
+        weight_raw = canonical.weight_raw
+        # Weight fallback — JSON-LD often omits weight; description
+        # copy almost always mentions it ("250g bag").
+        if not weight_raw:
+            weight_raw = _extract_weight_text(name, desc)
+        return {
+            "_roaster": roaster,
+            "_domain": domain,
+            "_platform": "custom",
+            "_product_url": url,
+            "title": name,
+            "body_html": desc,
+            "price_raw": price,
+            "weight_raw": weight_raw,
+            "image_raw": image_url,
+            "tags": [],
+            "product_type": "",
+            "variants": [],
+        }
+    # Legacy raw-dict path — kept for backward compat with any
+    # caller still passing schema.org dicts directly.
+    ld = canonical
     name = (ld.get("name") or "").strip()
     if not name:
         return None
-
     desc = (ld.get("description") or "").strip()
-
     offers = ld.get("offers") or ld.get("Offers") or {}
     if isinstance(offers, list):
         offers = offers[0] if offers else {}
-
     price = None
     raw_price = offers.get("price") if isinstance(offers, dict) else None
     if raw_price is not None:
@@ -399,7 +398,6 @@ def _product_from_jsonld(
             price = float(str(raw_price).replace(",", ""))
         except (ValueError, TypeError):
             pass
-
     image_url = None
     images = ld.get("image")
     if isinstance(images, list) and images:
@@ -412,15 +410,9 @@ def _product_from_jsonld(
         image_url = images.get("contentUrl") or images.get("url")
     elif isinstance(images, str):
         image_url = images
-
-    # Weight: try JSON-LD's weight first, fall back to text regex on
-    # the name + description. Wix often emits weight in the JSON-LD
-    # offers block; when it doesn't, the description copy almost
-    # always mentions it (e.g. "250g bag").
     weight_raw = _ld_weight_to_raw(ld, offers)
     if not weight_raw:
         weight_raw = _extract_weight_text(name, desc)
-
     return {
         "_roaster": roaster,
         "_domain": domain,

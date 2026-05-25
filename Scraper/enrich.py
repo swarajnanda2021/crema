@@ -607,57 +607,25 @@ def _fetch_product_page_text(url: str) -> str:
 
 
 def _extract_jsonld_strings(soup) -> list:
-    """Pull human-readable strings from any JSON-LD Product schemas in
-    the page. Walks the JSON tree; collects values for keys likely to
-    carry product info (name, description, brand, manufacturer, sku,
-    weight, additionalProperty, etc.). Skips URLs / IDs / hash-like
-    blobs.
+    """Pull human-readable strings from JSON-LD Product / Article
+    schemas on the page. Delegates to the canonical
+    `services.jsonld_extractor.extract_strings_for_llm` — kept as a
+    thin wrapper here so existing call-sites in this module don't
+    need to change.
 
-    Returns a flat list of strings. Caller joins them.
+    Caller joins the returned list into the `[JSON-LD STRUCTURED DATA]`
+    block the per-product Haiku extractor is trained to read.
     """
-    out = []
-    _RELEVANT_KEYS = {
-        "name", "description", "brand", "manufacturer", "sku", "gtin",
-        "weight", "category", "productID", "color", "material",
-        "alternativeHeadline", "headline", "articleBody",
-        "additionalProperty", "value", "propertyID", "unitText",
-        "offers", "price", "priceCurrency",
-    }
-    def _walk(node):
-        if isinstance(node, str):
-            s = node.strip()
-            if 4 <= len(s) <= 2000 and not s.startswith(("http://", "https://", "data:", "blob:")):
-                out.append(s)
-        elif isinstance(node, dict):
-            for k, v in node.items():
-                if k in _RELEVANT_KEYS or k == "@graph":
-                    _walk(v)
-        elif isinstance(node, list):
-            for item in node:
-                _walk(item)
-    for tag in soup.find_all("script", type="application/ld+json"):
-        try:
-            payload = json.loads(tag.string or "")
-        except (json.JSONDecodeError, TypeError):
-            continue
-        # Only walk Product / Article / Thing schemas (avoid SiteNavigationElement, etc.)
-        candidates = payload if isinstance(payload, list) else [payload]
-        if isinstance(payload, dict) and isinstance(payload.get("@graph"), list):
-            candidates = payload["@graph"]
-        for c in candidates:
-            if not isinstance(c, dict):
-                continue
-            typ = str(c.get("@type", "")).lower()
-            if any(t in typ for t in ("product", "article", "thing", "offer")):
-                _walk(c)
-    # Dedupe while preserving order — JSON-LD often repeats strings.
-    seen = set()
-    deduped = []
-    for s in out:
-        if s not in seen:
-            seen.add(s)
-            deduped.append(s)
-    return deduped
+    try:
+        from services.jsonld_extractor import (  # type: ignore
+            extract_jsonld_blocks, extract_strings_for_llm,
+        )
+    except ImportError:
+        # Catalog-ops backend not on sys.path — degrade to empty
+        # list (callers tolerate it; LLM still gets body text).
+        return []
+    blocks = extract_jsonld_blocks(soup)
+    return extract_strings_for_llm(blocks)
 
 
 def _fetch_page_via_playwright(url: str) -> str:

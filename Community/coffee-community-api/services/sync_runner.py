@@ -323,40 +323,17 @@ def _crawl_products_generic(website: str) -> list[dict]:
             "hash":   _stable_hash(clean),
         })
 
-    # 1. Sitemap discovery — covers Wix Stores
-    #    (`/store-products-sitemap.xml`), most WooCommerce installs,
-    #    and any large Shopify-but-misclassified store.
-    sitemap_candidates = [
-        f"{base}/store-products-sitemap.xml",
-        f"{base}/sitemap.xml",
-    ]
-    sitemap_queue = list(sitemap_candidates)
-    sitemap_seen: set[str] = set()
-    while sitemap_queue and len(sitemap_seen) < 20:
-        sm_url = sitemap_queue.pop(0)
-        if sm_url in sitemap_seen:
-            continue
-        sitemap_seen.add(sm_url)
-        try:
-            r = requests.get(sm_url, headers={"User-Agent": UA},
-                             timeout=TIMEOUT, allow_redirects=True)
-            if r.status_code != 200:
-                continue
-            soup = BeautifulSoup(r.text, "lxml-xml")
-            # Sitemap-index: enqueue child sitemaps.
-            if soup.find("sitemap"):
-                for child in soup.find_all("sitemap"):
-                    loc = child.find("loc")
-                    if loc:
-                        child_url = loc.get_text(strip=True)
-                        if child_url and child_url not in sitemap_seen:
-                            sitemap_queue.append(child_url)
-                continue
-            # Leaf sitemap: extract product URLs.
-            for loc in soup.find_all("loc"):
-                _add_link(loc.get_text(strip=True))
-        except Exception:
-            continue
+    # 1. Sitemap discovery — delegates to the canonical
+    #    services.sitemap_walker. Replaces the prior inline walker
+    #    (which was one of four duplicates in the codebase). The
+    #    canonical walker probes every well-known sitemap entry
+    #    point (Shopify /sitemap_products_*.xml, Wix /store-
+    #    products-sitemap.xml, Yoast /sitemap_index.xml, WP 5.5+
+    #    /wp-sitemap.xml, universal /sitemap.xml), follows
+    #    sitemap-index recursively, and dedupes by canonical URL.
+    from services.sitemap_walker import discover_product_urls
+    for entry in discover_product_urls(website):
+        _add_link(entry.url, entry.url.rsplit("/", 1)[-1])
 
     if out:
         return out

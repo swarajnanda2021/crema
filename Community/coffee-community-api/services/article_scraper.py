@@ -684,62 +684,29 @@ def _normalize_pubdate(raw: Optional[str]) -> Optional[str]:
 
 
 def _extract_jsonld_date(soup: BeautifulSoup) -> Optional[str]:
-    """Walk every `<script type="application/ld+json">` block on the
-    page looking for Article / BlogPosting / NewsArticle schemas, and
-    return the first non-empty `datePublished` value found.
+    """Pull `datePublished` from JSON-LD Article / BlogPosting /
+    NewsArticle / TechArticle schemas on the page.
 
-    Shopify is the dominant pattern here — its default blog templates
-    emit JSON-LD with `BlogPosting` containing `datePublished` while
-    leaving `og:article:published_time` and `<time datetime=>` empty.
-    Without this branch, the scraper's date extraction misses every
-    Shopify blog that doesn't customize its head metadata (Chariot,
-    Okiru, many others — 442 of 912 articles in catalog as of
-    2026-05-13 land with published_at = NULL because of this gap).
+    Delegates to the canonical
+    `services.jsonld_extractor.extract_article_date`. Kept as a
+    thin wrapper here so existing call-sites in this module don't
+    need to change.
 
-    Walks `@graph` arrays (the wrapped form Yoast / Rank Math / Shopify
-    sometimes uses) as well as top-level objects. Returns the raw
-    value — caller passes through `_normalize_pubdate` for ISO
-    coercion.
+    Shopify is the dominant pattern here — its default blog
+    templates emit JSON-LD with `BlogPosting` containing
+    `datePublished` while leaving `og:article:published_time` and
+    `<time datetime=>` empty. Without this branch, the scraper's
+    date extraction misses every Shopify blog that doesn't
+    customise its head metadata (442 of 912 articles in catalog
+    as of 2026-05-13 landed with published_at = NULL because of
+    this gap). Caller passes the result through
+    `_normalize_pubdate` for ISO coercion.
     """
-    import json
-    targets = {"Article", "BlogPosting", "NewsArticle", "TechArticle"}
-
-    def _walk(node) -> Optional[str]:
-        if isinstance(node, dict):
-            typ = node.get("@type")
-            types = set()
-            if isinstance(typ, str):
-                types = {typ}
-            elif isinstance(typ, list):
-                types = {t for t in typ if isinstance(t, str)}
-            if types & targets:
-                dp = node.get("datePublished")
-                if isinstance(dp, str) and dp.strip():
-                    return dp.strip()
-            # Walk children — `@graph`, nested objects, arrays.
-            for v in node.values():
-                found = _walk(v)
-                if found:
-                    return found
-        elif isinstance(node, list):
-            for item in node:
-                found = _walk(item)
-                if found:
-                    return found
-        return None
-
-    for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
-        raw = script.string or script.text
-        if not raw:
-            continue
-        try:
-            data = json.loads(raw)
-        except (json.JSONDecodeError, ValueError):
-            continue
-        found = _walk(data)
-        if found:
-            return found
-    return None
+    from services.jsonld_extractor import (
+        extract_jsonld_blocks, extract_article_date,
+    )
+    blocks = extract_jsonld_blocks(soup)
+    return extract_article_date(blocks)
 
 
 # ── Page-text + og: hint extraction (Haiku enricher input) ─────────────────
