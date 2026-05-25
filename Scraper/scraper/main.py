@@ -257,6 +257,103 @@ def _write_outputs(all_products: list, scrape_log: list) -> None:
     print("  images_manifest.json ✓")
 
 
+# ── Discovery — generic-first (new) + legacy fallback ──────────────────────
+
+def _scrape_legacy_dispatch(roaster: dict, detected: str) -> list:
+    """The old per-platform discovery dispatch.
+
+    Kept as an escape hatch (CREMA_LEGACY_DISCOVERY=1) during the
+    refactor shakeout — once the generic path proves it's strictly
+    >= this one on every roaster in the catalog, this gets deleted.
+    """
+    if detected == "shopify":
+        return scrape_shopify(roaster)
+    if detected == "woocommerce":
+        woo_products, needs_fallback = scrape_woocommerce(roaster)
+        if needs_fallback:
+            raw = scrape_custom(roaster)
+            for p in raw:
+                p["_platform"] = "custom"
+            return raw
+        return woo_products
+    return scrape_custom(roaster)
+
+
+def _scrape_via_generic_discovery(roaster: dict, detected: str, log_entry: dict) -> list:
+    """Generic-first discovery — sitemap + platform augmenter.
+
+    Calls `services.product_discovery.discover` (in the catalog-ops
+    backend, on sys.path via the http_client injection at top of
+    this file). The sitemap walker handles platform-agnostic URL
+    discovery; the per-platform augmenter (when available) attaches
+    variant/SKU/price data the sitemap doesn't carry.
+
+    For URLs the augmenter doesn't cover (typical for Wix or for
+    Shopify roasters whose shop_url is narrower than the full
+    catalog), we route through the existing custom_scraper per-page
+    extractor `_scrape_product_page` to fill in title/price/body.
+    That path already does the Tier 2-3 JSON-LD + body extraction
+    that the rest of the pipeline expects.
+    """
+    try:
+        from services.product_discovery import discover  # type: ignore
+    except ImportError as e:
+        # Backend module not in scope — fall back to legacy to keep
+        # the standalone CLI mode runnable.
+        sys.stderr.write(
+            f"[scraper] generic discovery unavailable ({e!s}), "
+            f"falling back to legacy dispatch\n"
+        )
+        return _scrape_legacy_dispatch(roaster, detected)
+
+    from custom_scraper import _scrape_product_page  # for sitemap-only enrichment
+    from urllib.parse import urlparse as _urlparse
+
+    domain = _urlparse(roaster["website"]).netloc.replace("www.", "")
+    result = discover(roaster, log=lambda s: print(f"  [discovery] {s}"))
+
+    log_entry["discovery_urls"] = len(result.urls)
+    log_entry["discovery_source_breakdown"] = dict(result.source_breakdown)
+    if result.filter_collapsed:
+        log_entry["discovery_filter_collapsed"] = True
+
+    raw_products: list = []
+    sitemap_only_count = 0
+
+    for dp in result.urls:
+        # Augmenter-provided data → use directly. Preserves the
+        # platform-shape the existing normalizer expects.
+        if dp.augmented:
+            shopify_raw = dp.augmented.get("shopify_raw")
+            wc_raw = dp.augmented.get("woocommerce_raw")
+            if shopify_raw:
+                rp = dict(shopify_raw)
+                rp["_roaster"] = roaster
+                rp["_domain"] = dp.augmented.get("_domain") or domain
+                rp["_platform"] = "shopify"
+                raw_products.append(rp)
+                continue
+            if wc_raw:
+                rp = dict(wc_raw)
+                rp["_roaster"] = roaster
+                rp["_domain"] = dp.augmented.get("_domain") or domain
+                rp["_platform"] = "woocommerce"
+                raw_products.append(rp)
+                continue
+
+        # Sitemap-only — fetch the product page and extract via the
+        # existing custom-scraper extraction (JSON-LD Product + body
+        # text). Same path Wix-platform roasters take today.
+        product = _scrape_product_page(dp.url, roaster, domain)
+        if product:
+            product["_platform"] = "custom"
+            raw_products.append(product)
+            sitemap_only_count += 1
+
+    log_entry["discovery_sitemap_only_fetched"] = sitemap_only_count
+    return raw_products
+
+
 # ── Per-roaster scrape logic ──────────────────────────────────────────────────
 
 def _scrape_single_roaster(roaster: dict) -> tuple:
@@ -291,20 +388,17 @@ def _scrape_single_roaster(roaster: dict) -> tuple:
     if detected != catalog_platform:
         log_entry["platform_mismatch"] = True
 
-    # 2. Scrape
-    raw_products = []
-    if detected == "shopify":
-        raw_products = scrape_shopify(roaster)
-    elif detected == "woocommerce":
-        woo_products, needs_fallback = scrape_woocommerce(roaster)
-        if needs_fallback:
-            raw_products = scrape_custom(roaster)
-            for p in raw_products:
-                p["_platform"] = "custom"
-        else:
-            raw_products = woo_products
+    # 2. Scrape — generic-first discovery (sitemap + platform
+    # augmenter) by default. Set CREMA_LEGACY_DISCOVERY=1 to fall
+    # back to the old per-platform dispatch (kept as escape hatch
+    # during the refactor shakeout).
+    use_legacy = os.environ.get("CREMA_LEGACY_DISCOVERY") == "1"
+    if use_legacy:
+        raw_products = _scrape_legacy_dispatch(roaster, detected)
+        log_entry["discovery_mode"] = "legacy"
     else:
-        raw_products = scrape_custom(roaster)
+        raw_products = _scrape_via_generic_discovery(roaster, detected, log_entry)
+        log_entry["discovery_mode"] = "generic"
 
     log_entry["products_found"] = len(raw_products)
 
