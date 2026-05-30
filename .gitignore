@@ -16,6 +16,10 @@ dist/
 # Database (user data, recreated on first run)
 *.db
 *.db.bak.*
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 
 # Local design references (mockups, screenshots) — not source
 Feed_mock_ups/
