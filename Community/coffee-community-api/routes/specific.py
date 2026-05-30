@@ -5,6 +5,8 @@ These have fixed paths that would otherwise be shadowed by /{resource}/{id}.
 """
 
 import json
+import os
+import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -2875,29 +2877,37 @@ def admin_list_agent_runs(limit: int = 100, agent_identity: str = None,
 
 @router.post("/admin/agent-summaries", status_code=201)
 def admin_log_agent_summary(body: dict, user=Depends(get_current_user)):
-    """Append a row to `agent_summaries` — the daily-digest log.
+    """Append a row to `agent_summaries` — the journal-style activity log.
+
+    Per the journal directive (AGENTIC_UTOPIA.md): every entry is
+    written by the orchestrator, in plain English, as a colleague-
+    briefing — not a technical log dump. The admin UI renders this
+    surface like the consumer JOURNAL: a card with title + excerpt,
+    click to expand into a journal-style reader.
 
     Body:
-      • task_label (required, free text) — agent's own description of
-        what it did. Examples: "Drain held-roaster re-enrich queue",
-        "Auto-approve clean proposals after sweep", "Patch korebi
-        bio_hint with Bourbon disambiguation".
-      • summary (required, 3-5 sentences) — agent's narrative of what
-        happened, in its own voice. Should mention scope (which
-        roasters / how many jobs / what landed), key outcomes, any
-        surprises.
+      • task_label (required, free text) — short noun phrase that
+        becomes the journal TITLE on the card. Examples:
+        "Refreshed Caaraabi's catalog", "Drained held-roaster
+        re-enrich queue", "Patched Bourbon disambiguation for korebi".
+      • summary (required, 1-3 sentences) — the EXCERPT shown on the
+        card. Frame as plain-English teaser of what happened. Keep
+        under ~200 chars.
+      • body_html (optional, the journal body) — long-form narrative
+        as HTML. Allowed tags: h2, h3, p, ul/ol/li, blockquote,
+        strong, em, a. Use to walk through the work in paragraphs +
+        subheadings the way an article would. Renders via the same
+        `htmlToBlocks` walker as consumer articles.
       • outcome (optional enum) — 'success' | 'partial' | 'failed' |
-        'aborted'. If omitted, treated as 'success'.
-      • prompt_excerpt (optional) — first ~500 chars of the prompt the
-        agent received. Useful for retro-debugging.
-      • tool_calls_count (optional int) — how many MCP tool calls the
-        agent made. Cheaper than aggregating agent_runs at read time.
-      • scope_slugs (optional list[string]) — roaster slugs the agent
-        touched. Stored as JSON array.
-      • metrics (optional dict) — free-form counters. Examples:
-        {"jobs_processed": 12, "approved": 9, "held": 3}.
-      • started_at (optional ISO8601) — when the agent began. If
-        omitted, defaults to roughly now.
+        'aborted'. Default 'success'. Drives the card's status badge.
+      • prompt_excerpt (optional) — first ~500 chars of the originating
+        prompt. Surfaces in the reader's metadata sidebar.
+      • tool_calls_count (optional int) — surfaces in the meta row.
+      • scope_slugs (optional list[string]) — roaster slugs touched.
+        Render as roaster-name chips in the reader header.
+      • metrics (optional dict) — free-form counters
+        ({"jobs_processed": 12, "approved": 9}). Surface in meta.
+      • started_at (optional ISO8601) — agent start time.
 
     Returns: {id, ended_at}.
     """
@@ -2936,13 +2946,19 @@ def admin_log_agent_summary(body: dict, user=Depends(get_current_user)):
     # to avoid spoofing.
     agent_identity = user.get("agent_identity") or user.get("display_name") or f"user:{user.get('id')}"
 
+    body_html = body.get("body_html")
+    if body_html is not None and not isinstance(body_html, str):
+        from fastapi import HTTPException
+        raise HTTPException(422, "body_html must be a string if provided")
+
     db = get_db()
     try:
         cur = db.execute(
             "INSERT INTO agent_summaries "
             "(agent_identity, task_label, prompt_excerpt, summary, outcome, "
-            " tool_calls_count, scope_slugs, metrics, started_at, ended_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " tool_calls_count, scope_slugs, metrics, started_at, ended_at, "
+            " body_html) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 agent_identity,
                 task_label,
@@ -2954,6 +2970,7 @@ def admin_log_agent_summary(body: dict, user=Depends(get_current_user)):
                 metrics_json,
                 body.get("started_at") or now,
                 now,
+                body_html,
             ),
         )
         db.commit()
@@ -3011,6 +3028,961 @@ def admin_list_agent_summaries(
         db.close()
 
 
+# ── enrichment_tasks — v2 per-URL state machine ────────────────────────────
+# Each row tracks one URL through the v2 pipeline: discovered →
+# fetching → llm_pending → enriched | failed | skipped. The canonical
+# data lives in `products` / `roaster_articles`; this table is the
+# work spine.
+#
+# Surfaced via MCP `crema_list_enrichment_tasks` so an orchestrator can
+# ask "which products are stuck pending?", "which roaster has the most
+# failed enrichments?", "what got bs4_fallback'd and needs admin
+# review?". Replaces the proposals-table observability of the v1
+# workflow.
+
+
+@router.get("/admin/enrichment-tasks")
+def admin_list_enrichment_tasks(
+    limit: int = 100,
+    kind: Optional[str] = None,
+    state: Optional[str] = None,
+    roaster_slug: Optional[str] = None,
+    extraction_provenance: Optional[str] = None,
+    since: Optional[str] = None,
+    user=Depends(get_current_user),
+):
+    """List v2 enrichment_tasks rows. All filters are optional.
+
+    Params:
+      • kind: 'product' | 'article'
+      • state: 'discovered' | 'fetching' | 'llm_pending' | 'enriched' |
+               'failed' | 'skipped'
+      • roaster_slug: scope to one roaster
+      • extraction_provenance: 'haiku' | 'haiku_site_hinted' |
+                                'admin_manual' | 'bs4_fallback'
+      • since: ISO8601 — only rows with state_changed_at >= since
+      • limit: 1-1000, default 100
+    """
+    _require_admin(user)
+    where = []
+    params: list = []
+    if kind:
+        where.append("kind = ?"); params.append(kind)
+    if state:
+        where.append("state = ?"); params.append(state)
+    if roaster_slug:
+        where.append("roaster_slug = ?"); params.append(roaster_slug)
+    if extraction_provenance:
+        where.append("extraction_provenance = ?"); params.append(extraction_provenance)
+    if since:
+        where.append("state_changed_at >= ?"); params.append(since)
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+    params.append(min(max(int(limit or 100), 1), 1000))
+
+    db = get_db()
+    try:
+        rows = db.execute(
+            f"SELECT * FROM enrichment_tasks{where_sql} "
+            f"ORDER BY state_changed_at DESC LIMIT ?",
+            tuple(params),
+        ).fetchall()
+        return ok([dict(r) for r in rows], resource="enrichment_tasks")
+    finally:
+        db.close()
+
+
+@router.get("/admin/enrichment-tasks/breakdown")
+def admin_enrichment_tasks_breakdown(
+    roaster_slug: Optional[str] = None,
+    since: Optional[str] = None,
+    user=Depends(get_current_user),
+):
+    """Aggregate per-state counts. Useful for a one-shot health check:
+    'how many of my v2 tasks are stuck in failed?'.
+
+    Returns: {by_state: {state: count}, by_kind: {kind: count},
+              by_provenance: {provenance: count}, total: int}.
+    """
+    _require_admin(user)
+    where = []
+    params: list = []
+    if roaster_slug:
+        where.append("roaster_slug = ?"); params.append(roaster_slug)
+    if since:
+        where.append("state_changed_at >= ?"); params.append(since)
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+
+    db = get_db()
+    try:
+        by_state = {r["state"]: r["c"] for r in db.execute(
+            f"SELECT state, COUNT(*) c FROM enrichment_tasks{where_sql} "
+            f"GROUP BY state", tuple(params)
+        ).fetchall()}
+        by_kind = {r["kind"]: r["c"] for r in db.execute(
+            f"SELECT kind, COUNT(*) c FROM enrichment_tasks{where_sql} "
+            f"GROUP BY kind", tuple(params)
+        ).fetchall()}
+        by_prov = {r["p"] or "(unset)": r["c"] for r in db.execute(
+            f"SELECT extraction_provenance p, COUNT(*) c FROM enrichment_tasks{where_sql} "
+            f"GROUP BY extraction_provenance", tuple(params)
+        ).fetchall()}
+        total = sum(by_state.values())
+        return ok({
+            "by_state": by_state,
+            "by_kind": by_kind,
+            "by_provenance": by_prov,
+            "total": total,
+        }, resource="enrichment_tasks_breakdown")
+    finally:
+        db.close()
+
+
+# ── Catalog quality audit (single-shot cosmetic-bug surface) ───────────────
+# Replaces the prior session's habit of dumping 122k-char
+# `crema_list_thin_products` payloads to investigate "what's broken
+# on the consumer cards?". One structured report covering every
+# cosmetic-bug class the v2 pipeline can leave behind:
+#   - coffee_name junk (HTML entities, pipe-tails, trailing weight
+#     suffix, ALL-CAPS strings)
+#   - absurd prices (>100k INR for <500g — the Vithai 9-lakh class)
+#   - missing image_url per roaster
+#   - missing price_inr per roaster
+#   - silent-empty (≥5 of 10 enrichment fields null) per roaster
+#   - denorm name drift (products.roaster_name ≠ roaster_profiles.name)
+# Per-category: top sample rows + totals + per-roaster rollup. Optional
+# `slug` arg scopes everything to one roaster — useful for verifying
+# a per-roaster re-enrich landed clean.
+
+
+@router.get("/admin/catalog-quality-audit")
+def admin_catalog_quality_audit(
+    slug: Optional[str] = None,
+    limit: int = 20,
+    user=Depends(get_current_user),
+):
+    """Single-shot cosmetic-bug audit across the products + articles
+    tables. Returns six counts + sample rows per category."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        scope_clause = " AND p.roaster_slug = ?" if slug else ""
+        scope_params: tuple = (slug,) if slug else ()
+
+        # 1. coffee_name junk patterns.
+        # HTML entities: '&#NNNN;' or '&amp;' / '&quot;' / etc.
+        # Pipe-tail: contains ' | '.
+        # Weight suffix: ends with " 250g" / " 1kg" / "- 500gm" etc.
+        # ALL-CAPS: coffee_name is fully uppercase letters (≥3 chars).
+        junk_html_rows = db.execute(
+            f"""
+            SELECT p.product_id, p.roaster_slug, p.coffee_name
+            FROM products p
+            WHERE (
+                p.coffee_name LIKE '%&#%' OR
+                p.coffee_name LIKE '%&amp;%' OR
+                p.coffee_name LIKE '%&quot;%' OR
+                p.coffee_name LIKE '%&lt;%' OR
+                p.coffee_name LIKE '%&gt;%' OR
+                p.coffee_name LIKE '%&nbsp;%'
+            ){scope_clause}
+            LIMIT ?
+            """,
+            (*scope_params, limit),
+        ).fetchall()
+        junk_html_total = db.execute(
+            f"""
+            SELECT COUNT(*) c FROM products p WHERE (
+                p.coffee_name LIKE '%&#%' OR
+                p.coffee_name LIKE '%&amp;%' OR
+                p.coffee_name LIKE '%&quot;%' OR
+                p.coffee_name LIKE '%&lt;%' OR
+                p.coffee_name LIKE '%&gt;%' OR
+                p.coffee_name LIKE '%&nbsp;%'
+            ){scope_clause}
+            """,
+            scope_params,
+        ).fetchone()["c"]
+
+        junk_pipe_rows = db.execute(
+            f"""
+            SELECT p.product_id, p.roaster_slug, p.coffee_name
+            FROM products p
+            WHERE p.coffee_name LIKE '% | %'{scope_clause}
+            LIMIT ?
+            """,
+            (*scope_params, limit),
+        ).fetchall()
+        junk_pipe_total = db.execute(
+            f"""
+            SELECT COUNT(*) c FROM products p
+            WHERE p.coffee_name LIKE '% | %'{scope_clause}
+            """,
+            scope_params,
+        ).fetchone()["c"]
+
+        # Weight-suffix detection in Python — SQLite LIKE can't match
+        # the digit-then-unit pattern reliably. Pull candidates with
+        # any trailing digit + g/kg, filter in Python.
+        weight_re = re.compile(
+            r"\s*[-–—]?\s*\d+\s*(?:g|gm|gms|gram|grams|kg)\s*$",
+            re.IGNORECASE,
+        )
+        cand_rows = db.execute(
+            f"""
+            SELECT p.product_id, p.roaster_slug, p.coffee_name
+            FROM products p
+            WHERE p.coffee_name LIKE '%g'{scope_clause}
+            """,
+            scope_params,
+        ).fetchall()
+        junk_weight_matches = [
+            dict(r) for r in cand_rows if weight_re.search(r["coffee_name"] or "")
+        ]
+        junk_weight_rows = junk_weight_matches[:limit]
+        junk_weight_total = len(junk_weight_matches)
+
+        # ALL-CAPS: pull candidates that have ANY uppercase letter and
+        # filter to fully uppercase in Python.
+        all_caps_cand = db.execute(
+            f"""
+            SELECT p.product_id, p.roaster_slug, p.coffee_name
+            FROM products p
+            WHERE p.coffee_name = UPPER(p.coffee_name)
+              AND p.coffee_name GLOB '*[A-Z]*'
+              AND length(p.coffee_name) >= 3{scope_clause}
+            """,
+            scope_params,
+        ).fetchall()
+        junk_allcaps_matches = [
+            dict(r) for r in all_caps_cand
+            if (r["coffee_name"] or "").upper() == (r["coffee_name"] or "")
+            and any(ch.isalpha() for ch in (r["coffee_name"] or ""))
+        ]
+        junk_allcaps_rows = junk_allcaps_matches[:limit]
+        junk_allcaps_total = len(junk_allcaps_matches)
+
+        # 2. Absurd prices: >100k INR for products under 500g.
+        absurd_rows = db.execute(
+            f"""
+            SELECT p.product_id, p.roaster_slug, p.coffee_name,
+                   p.price_inr, p.weight_grams
+            FROM products p
+            WHERE p.price_inr IS NOT NULL
+              AND p.price_inr > 100000
+              AND (p.weight_grams IS NULL OR p.weight_grams < 500)
+              {scope_clause}
+            ORDER BY p.price_inr DESC
+            LIMIT ?
+            """,
+            (*scope_params, limit),
+        ).fetchall()
+        absurd_total = db.execute(
+            f"""
+            SELECT COUNT(*) c FROM products p
+            WHERE p.price_inr IS NOT NULL
+              AND p.price_inr > 100000
+              AND (p.weight_grams IS NULL OR p.weight_grams < 500)
+              {scope_clause}
+            """,
+            scope_params,
+        ).fetchone()["c"]
+
+        # 3. Missing image_url per roaster.
+        missing_image_per_roaster = [
+            dict(r) for r in db.execute(
+                f"""
+                SELECT p.roaster_slug,
+                       COUNT(*) c_missing,
+                       (SELECT COUNT(*) FROM products p2
+                          WHERE p2.roaster_slug = p.roaster_slug
+                            {('AND p2.roaster_slug = ?' if slug else '')}
+                       ) c_total
+                FROM products p
+                WHERE p.image_url IS NULL{scope_clause}
+                GROUP BY p.roaster_slug
+                ORDER BY c_missing DESC
+                LIMIT ?
+                """,
+                (*(scope_params), *scope_params, limit),
+            ).fetchall()
+        ]
+        missing_image_total = db.execute(
+            f"""
+            SELECT COUNT(*) c FROM products p
+            WHERE p.image_url IS NULL{scope_clause}
+            """,
+            scope_params,
+        ).fetchone()["c"]
+
+        # 4. Missing-or-zero price_inr per roaster. (Price = 0 is
+        # almost always an extraction artifact for out-of-stock rows
+        # where the page hides the price; treated the same as null
+        # for audit purposes — Zenforest 'First Blossom X Rum Barrel'
+        # + 'La Vida Mango' were the canonical examples that the
+        # IS-NULL-only rule missed in the 2026-05-27 audit.)
+        missing_price_per_roaster = [
+            dict(r) for r in db.execute(
+                f"""
+                SELECT p.roaster_slug, COUNT(*) c_missing
+                FROM products p
+                WHERE (p.price_inr IS NULL OR p.price_inr = 0){scope_clause}
+                GROUP BY p.roaster_slug
+                ORDER BY c_missing DESC
+                LIMIT ?
+                """,
+                (*scope_params, limit),
+            ).fetchall()
+        ]
+        missing_price_total = db.execute(
+            f"""
+            SELECT COUNT(*) c FROM products p
+            WHERE (p.price_inr IS NULL OR p.price_inr = 0){scope_clause}
+            """,
+            scope_params,
+        ).fetchone()["c"]
+
+        # 5. Silent-empty: enrichment_status='enriched' with ≥5 of 10
+        # enrichment fields null. The 10 fields mirror crema_list_thin_products.
+        silent_empty_sql = f"""
+            SELECT p.product_id, p.roaster_slug, p.coffee_name, (
+                (CASE WHEN p.origin IS NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN p.varietal IS NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN p.process IS NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN p.process_raw IS NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN p.roast_level IS NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN p.tasting_notes IS NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN p.flavor_notes IS NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN p.altitude_masl IS NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN p.producer IS NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN p.roaster_blurb IS NULL THEN 1 ELSE 0 END)
+            ) AS null_count
+            FROM products p
+            WHERE p.enrichment_status = 'enriched'{scope_clause}
+        """
+        silent_empty_rollup = [
+            dict(r) for r in db.execute(
+                f"""
+                SELECT roaster_slug, COUNT(*) c FROM ({silent_empty_sql})
+                WHERE null_count >= 5
+                GROUP BY roaster_slug
+                ORDER BY c DESC
+                LIMIT ?
+                """,
+                (*scope_params, limit),
+            ).fetchall()
+        ]
+        silent_empty_total = db.execute(
+            f"""
+            SELECT COUNT(*) c FROM ({silent_empty_sql})
+            WHERE null_count >= 5
+            """,
+            scope_params,
+        ).fetchone()["c"]
+
+        # 6. Denorm name drift: products.roaster_name != roaster_profiles.name.
+        drift_rows = db.execute(
+            f"""
+            SELECT p.product_id, p.roaster_slug,
+                   p.roaster_name AS row_name,
+                   rp.name AS canonical_name
+            FROM products p
+            JOIN roaster_profiles rp ON rp.roaster_slug = p.roaster_slug
+            WHERE rp.name IS NOT NULL
+              AND p.roaster_name IS NOT NULL
+              AND p.roaster_name != rp.name{scope_clause}
+            LIMIT ?
+            """,
+            (*scope_params, limit),
+        ).fetchall()
+        drift_total = db.execute(
+            f"""
+            SELECT COUNT(*) c FROM products p
+            JOIN roaster_profiles rp ON rp.roaster_slug = p.roaster_slug
+            WHERE rp.name IS NOT NULL
+              AND p.roaster_name IS NOT NULL
+              AND p.roaster_name != rp.name{scope_clause}
+            """,
+            scope_params,
+        ).fetchone()["c"]
+
+        # 7. Variant-mismatch suspicion. Row has a high price but
+        # a tiny weight — almost certainly the scraper picked the
+        # wrong variant's weight (e.g. a 20g sample) while keeping
+        # the full-bag price. Coral Rum class corruption: stored
+        # weight=20g + price=3799 on a URL whose live 200g variant
+        # sells at ₹799. Threshold: price > ₹2000 AND weight < 100g.
+        # `price_per_gram` is surfaced so the operator can separate a real
+        # mis-pick (ABSURD ₹/g — Coral Rum was ~190) from a legit premium
+        # micro-lot (sane ₹/g — reserved-india Gesha Village E-02 is a real
+        # 90 g lot at ₹2200 = 24 ₹/g, single variant option1='90g' while
+        # grams=1000 is just the shipping placeholder; _variant_bag_grams
+        # already prefers the label, so its 90 g is correct, not a mismatch).
+        # NOTE: no row is dropped (heuristic unchanged); the ₹/g column is
+        # purely additive so neither real defects nor legit lots are hidden.
+        variant_mismatch_rows = [
+            dict(r) for r in db.execute(
+                f"""
+                SELECT p.product_id, p.roaster_slug, p.coffee_name,
+                       p.price_inr, p.weight_grams, p.enrichment_status,
+                       ROUND(p.price_inr * 1.0 / NULLIF(p.weight_grams, 0), 1)
+                           AS price_per_gram
+                FROM products p
+                WHERE p.price_inr > 2000
+                  AND p.weight_grams IS NOT NULL
+                  AND p.weight_grams < 100
+                  AND p.available = 1
+                  {scope_clause}
+                ORDER BY (p.price_inr / NULLIF(p.weight_grams, 0)) DESC,
+                         p.product_id
+                LIMIT ?
+                """,
+                (*scope_params, limit),
+            ).fetchall()
+        ]
+        variant_mismatch_total = db.execute(
+            f"""
+            SELECT COUNT(*) c FROM products p
+            WHERE p.price_inr > 2000
+              AND p.weight_grams IS NOT NULL
+              AND p.weight_grams < 100
+              AND p.available = 1
+              {scope_clause}
+            """,
+            scope_params,
+        ).fetchone()["c"]
+
+        # 8. Tracking the new audit-introduced enrichment states.
+        # url_dead: HEAD-check returned 404 → row preserved but
+        # available=0. filter_reject: current Stage 1 rules now
+        # reject this row's title/URL → row preserved but
+        # available=0. These rollups surface how much catalog
+        # cleanup the retroactive sweeps did.
+        url_dead_total = db.execute(
+            f"""
+            SELECT COUNT(*) c FROM products p
+            WHERE p.enrichment_status = 'url_dead'
+              {scope_clause}
+            """,
+            scope_params,
+        ).fetchone()["c"]
+        filter_reject_total = db.execute(
+            f"""
+            SELECT COUNT(*) c FROM products p
+            WHERE p.enrichment_status = 'filter_reject'
+              {scope_clause}
+            """,
+            scope_params,
+        ).fetchone()["c"]
+        # Failed enrichments STILL consumer-visible (Class F, 2026-05-30).
+        # A re-enrich failure (empty fetch / validation) marks the row
+        # 'failed' but leaves `available` untouched (entity_reenricher),
+        # so a previously-visible bean lingers as failed+available=1 with
+        # stale/partial data. Surface count + price so the operator (and a
+        # regression gate) can tell a displayable bean that just needs a
+        # re-enrich (has price) from a broken/non-bean (→ filter sweep).
+        failed_available_total = db.execute(
+            f"""
+            SELECT COUNT(*) c FROM products p
+            WHERE p.enrichment_status = 'failed' AND p.available = 1
+              {scope_clause}
+            """,
+            scope_params,
+        ).fetchone()["c"]
+        failed_available_rows = [dict(r) for r in db.execute(
+            f"""
+            SELECT p.product_id, p.roaster_slug, p.coffee_name,
+                   p.price_inr, p.weight_grams
+            FROM products p
+            WHERE p.enrichment_status = 'failed' AND p.available = 1
+              {scope_clause}
+            ORDER BY p.product_id LIMIT 40
+            """,
+            scope_params,
+        ).fetchall()]
+
+        # Non-bean FORMAT rows still live in the catalog (available=1).
+        # Crema is a whole-beans catalog — single-serve drip bags / brew
+        # bags / sachets / capsules / pods / instant / RTD are out of
+        # scope (grind is fine; format is not). Counts what the Stage-1
+        # beans-only filter should reject; run crema_apply_filters_retro
+        # to flip them to filter_reject. Three detectors mirror exactly
+        # what the sweep + write-path guards enforce, so the audit and
+        # the filter never drift apart:
+        #   (a) is_non_bean_format(coffee_name)        — title marker
+        #   (b) is_single_serve_by_economics(wt, ₹)    — economic signature
+        #   (c) is_non_bean_format_desc(description)   — declaration marker
+        # (b)+(c) added 2026-05-30 (Class A): the single-serve leaks whose
+        # FORMAT marker never reached the cleaned coffee_name (odd-coffee
+        # Brew Bag, dripface pocket brew, roast-coffee 5 g Easy Pour,
+        # ninetytwo Pocket Pour) — they read as available=1 beans and the
+        # ₹/g sort floats them to #1, yet the title-only counter scored
+        # them 0. (c) uses the STRICT description set so a real bean whose
+        # recipe mentions a "cold brew bag" (motley-brew) is never counted.
+        from services.product_filters import (
+            is_non_bean_format as _is_nbf,
+            is_single_serve_by_economics as _is_sse,
+            is_non_bean_format_desc as _is_nbfd,
+            is_multi_coffee_bundle as _is_bundle,
+        )
+        _nbf_by_roaster: dict[str, int] = {}
+        _nbf_samples: list[dict] = []
+        # Multi-coffee BUNDLE counter (Class B, 2026-05-30) — gift box /
+        # curated set / duo / combo of ≥2 distinct coffees. Same available=1
+        # scan, so the audit measures both beans-only leak types the sweep +
+        # write-path guards enforce (the goal's "no format/bundle available=1").
+        _bundle_by_roaster: dict[str, int] = {}
+        _bundle_samples: list[dict] = []
+        for _r in db.execute(
+            f"""
+            SELECT p.product_id, p.roaster_slug, p.coffee_name,
+                   p.weight_grams, p.price_inr, p.description_raw,
+                   p.product_url, p.roaster_blurb, p.tasting_notes
+            FROM products p
+            WHERE p.available = 1{scope_clause}
+            """,
+            scope_params,
+        ).fetchall():
+            _why = None
+            if _is_nbf(_r["coffee_name"]):
+                _why = "title-marker"
+            elif _is_sse(_r["weight_grams"], _r["price_inr"]):
+                _why = (
+                    f"economics:{_r['weight_grams']}g/{_r['price_inr']}inr"
+                )
+            elif _is_nbfd(_r["description_raw"]):
+                _why = "description-marker"
+            if _why is not None:
+                _nbf_by_roaster[_r["roaster_slug"]] = (
+                    _nbf_by_roaster.get(_r["roaster_slug"], 0) + 1
+                )
+                if len(_nbf_samples) < 25:
+                    _nbf_samples.append({
+                        "product_id": _r["product_id"],
+                        "roaster_slug": _r["roaster_slug"],
+                        "coffee_name": _r["coffee_name"],
+                        "reason": _why,
+                    })
+            _bundle = _is_bundle(
+                _r["coffee_name"], url=_r["product_url"],
+                description=_r["description_raw"],
+                blurb=_r["roaster_blurb"], tasting_notes=_r["tasting_notes"],
+            )
+            if _bundle:
+                _bundle_by_roaster[_r["roaster_slug"]] = (
+                    _bundle_by_roaster.get(_r["roaster_slug"], 0) + 1
+                )
+                if len(_bundle_samples) < 25:
+                    _bundle_samples.append({
+                        "product_id": _r["product_id"],
+                        "roaster_slug": _r["roaster_slug"],
+                        "coffee_name": _r["coffee_name"],
+                        "reason": _bundle,
+                    })
+        non_bean_format_total = sum(_nbf_by_roaster.values())
+        non_bean_format_top = sorted(
+            ({"roaster_slug": k, "c": v} for k, v in _nbf_by_roaster.items()),
+            key=lambda x: x["c"], reverse=True,
+        )[:20]
+        multi_coffee_bundle_total = sum(_bundle_by_roaster.values())
+        multi_coffee_bundle_top = sorted(
+            ({"roaster_slug": k, "c": v} for k, v in _bundle_by_roaster.items()),
+            key=lambda x: x["c"], reverse=True,
+        )[:20]
+
+        cosmetic_total = (
+            junk_html_total + junk_pipe_total + junk_weight_total
+            + junk_allcaps_total + absurd_total + drift_total
+        )
+
+        # 7. Price extremes — high-to-low + low-to-high. Surfaces
+        # equipment-priced-like-coffee outliers (a ₹19k row signals
+        # something slipped Stage 1; a ₹50 row signals a missing-
+        # variant-price or a one-shot sample / drip-bag). Each row
+        # carries enriched_at so the operator knows how stale the
+        # data is.
+        top_high_priced = [
+            dict(r) for r in db.execute(
+                f"""
+                SELECT p.product_id, p.roaster_slug, p.coffee_name,
+                       p.price_inr, p.weight_grams, p.image_url,
+                       p.enrichment_status, p.enriched_at, p.created_at
+                FROM products p
+                WHERE p.price_inr IS NOT NULL
+                  AND p.available = 1
+                  {scope_clause}
+                ORDER BY p.price_inr DESC, p.product_id
+                LIMIT ?
+                """,
+                (*scope_params, limit),
+            ).fetchall()
+        ]
+        top_low_priced = [
+            dict(r) for r in db.execute(
+                f"""
+                SELECT p.product_id, p.roaster_slug, p.coffee_name,
+                       p.price_inr, p.weight_grams, p.image_url,
+                       p.enrichment_status, p.enriched_at, p.created_at
+                FROM products p
+                WHERE p.price_inr IS NOT NULL
+                  AND p.price_inr > 0
+                  AND p.available = 1
+                  {scope_clause}
+                ORDER BY p.price_inr ASC, p.product_id
+                LIMIT ?
+                """,
+                (*scope_params, limit),
+            ).fetchall()
+        ]
+
+        # 8. Missing-image samples with version-tracking timestamps.
+        # Lets the operator see WHEN the missing-image rows were last
+        # enriched — if `enriched_at` is recent (post-image-extractor
+        # fix), the row genuinely has no extractable image; if it's
+        # stale (or NULL = pre-enriched_at column), a fresh re-enrich
+        # may now populate it via the new extractor stack.
+        missing_image_samples = [
+            dict(r) for r in db.execute(
+                f"""
+                SELECT p.product_id, p.roaster_slug, p.coffee_name,
+                       p.enrichment_status, p.enriched_at, p.created_at
+                FROM products p
+                WHERE p.image_url IS NULL{scope_clause}
+                ORDER BY p.enriched_at IS NULL DESC, p.enriched_at ASC,
+                         p.created_at ASC
+                LIMIT ?
+                """,
+                (*scope_params, limit),
+            ).fetchall()
+        ]
+
+        return ok({
+            "scope": slug or "all",
+            "cosmetic_bug_total": cosmetic_total,
+            "price_extremes": {
+                "top_high_priced": top_high_priced,
+                "top_low_priced": top_low_priced,
+                "note": (
+                    "Sort the catalog the way a consumer sees it. "
+                    "High-end outliers above ~₹3000 / 250g (~₹12k/kg) "
+                    "almost always signal equipment or roaster-side "
+                    "mis-tagging. Low-end below ~₹100 signals drip-"
+                    "bags / single-serves slipping Stage 1 or "
+                    "missing-variant price-augmentation."
+                ),
+            },
+            "missing_image_with_timestamps": {
+                "total": missing_image_total,
+                "samples": missing_image_samples,
+                "note": (
+                    "enriched_at=NULL means the row predates the column "
+                    "(was last touched by the v1 path or hasn't been "
+                    "re-enriched via v2 since 2026-05-25). Recently-"
+                    "enriched rows with image_url=NULL mean the new "
+                    "extractor genuinely couldn't pick a product image "
+                    "off the page — typically Wix sites that JS-render "
+                    "the gallery in a way Playwright doesn't capture."
+                ),
+            },
+            "coffee_name_junk": {
+                "html_entities": {
+                    "total": junk_html_total,
+                    "samples": [dict(r) for r in junk_html_rows],
+                },
+                "pipe_tails": {
+                    "total": junk_pipe_total,
+                    "samples": [dict(r) for r in junk_pipe_rows],
+                },
+                "weight_suffixes": {
+                    "total": junk_weight_total,
+                    "samples": junk_weight_rows,
+                },
+                "all_caps": {
+                    "total": junk_allcaps_total,
+                    "samples": junk_allcaps_rows,
+                    "note": (
+                        "Some roasters (DEVAN'S, BROOT) market in ALL-CAPS "
+                        "deliberately. Curation decision before mass-fix."
+                    ),
+                },
+            },
+            "absurd_prices": {
+                "total": absurd_total,
+                "criterion": "price_inr > 100k INR for weight_grams < 500g",
+                "samples": [dict(r) for r in absurd_rows],
+            },
+            "missing_image_url": {
+                "total": missing_image_total,
+                "by_roaster_top": missing_image_per_roaster,
+            },
+            "missing_price_inr": {
+                "total": missing_price_total,
+                "by_roaster_top": missing_price_per_roaster,
+            },
+            "silent_empty": {
+                "total": silent_empty_total,
+                "criterion": "enrichment_status='enriched' AND ≥5 of 10 fields null",
+                "by_roaster_top": silent_empty_rollup,
+            },
+            "denorm_name_drift": {
+                "total": drift_total,
+                "criterion": "products.roaster_name != roaster_profiles.name",
+                "samples": [dict(r) for r in drift_rows],
+            },
+            "variant_mismatch_suspicion": {
+                "total": variant_mismatch_total,
+                "criterion": (
+                    "price_inr > 2000 AND weight_grams < 100. Read the "
+                    "per-row price_per_gram to triage: an ABSURD ₹/g (Coral "
+                    "Rum was ~190) is a real mis-pick — the scraper paired a "
+                    "tiny/wrong variant weight with the full-bag price. A SANE "
+                    "₹/g in premium-micro-lot range (≲45; reserved-india "
+                    "Gesha Village E-02 is a genuine 90 g lot at 24 ₹/g) is "
+                    "legit, NOT a defect — _variant_bag_grams already prefers "
+                    "the variant size label over the shipping `grams` field, "
+                    "so the small weight is the real net weight."
+                ),
+                "samples": variant_mismatch_rows,
+            },
+            "url_dead_count": {
+                "total": url_dead_total,
+                "criterion": (
+                    "enrichment_status='url_dead' — HEAD-check on the "
+                    "product_url returned 404 during a re-enrich or "
+                    "url-health audit. Row is preserved but available=0."
+                ),
+            },
+            "filter_reject_count": {
+                "total": filter_reject_total,
+                "criterion": (
+                    "enrichment_status='filter_reject' — the current "
+                    "Stage 1 keyword filter rejected this row during a "
+                    "re-enrich or retroactive sweep. Row preserved but "
+                    "available=0."
+                ),
+            },
+            "failed_available": {
+                "total": failed_available_total,
+                "criterion": (
+                    "enrichment_status='failed' AND available=1 (Class F) — a "
+                    "re-enrich failure left the row consumer-visible with "
+                    "stale/partial data. A row WITH a price is a displayable "
+                    "bean whose enrich hiccupped (re-enrich it; the "
+                    "entity_reenricher fix now preserves the prior enriched "
+                    "status instead of downgrading to failed). A row with no "
+                    "price / non-bean name is broken (filter sweep / hide)."
+                ),
+                "samples": failed_available_rows,
+            },
+            "non_bean_format": {
+                "total": non_bean_format_total,
+                "criterion": (
+                    "available=1 rows whose coffee_name is a single-serve / "
+                    "non-bean FORMAT (drip bag / drip filter / brew bag / "
+                    "sachet / capsule / pod / instant / RTD). Crema is a "
+                    "whole-beans catalog — grind is fine, format is not. "
+                    "These should be Stage-1 filtered; run "
+                    "crema_apply_filters_retro to flip them to filter_reject."
+                ),
+                "by_roaster_top": non_bean_format_top,
+                "samples": _nbf_samples,
+            },
+            "multi_coffee_bundle": {
+                "total": multi_coffee_bundle_total,
+                "criterion": (
+                    "available=1 rows that are a MULTI-COFFEE BUNDLE — a gift "
+                    "box / curated set / duo / combo / sampler of ≥2 distinct "
+                    "coffees in separate bags (caarabi 'Light Roast Edit', "
+                    "black-poetry 'Java Joy Box', zenforest 'X' duos). Coffee, "
+                    "but not a single bean SKU, so out of scope. Detected via "
+                    "is_multi_coffee_bundle (separation structure, not a bare "
+                    "count, so a single-bag BLEND is never counted); run "
+                    "crema_apply_filters_retro to flip them to filter_reject. "
+                    "A collapsed-enrich combo with no bundle prose left "
+                    "(93-degrees) is caught instead on the write path by the "
+                    "model's distinct_coffee_count on the next re-enrich."
+                ),
+                "by_roaster_top": multi_coffee_bundle_top,
+                "samples": _bundle_samples,
+            },
+        }, resource="catalog_quality_audit")
+    finally:
+        db.close()
+
+
+@router.get("/admin/catalog-price-per-gram")
+def admin_catalog_price_per_gram(
+    slug: Optional[str] = None,
+    band_pct: float = 10.0,
+    limit: int = 25,
+    user=Depends(get_current_user),
+):
+    """Price-per-gram distribution + outlier audit over consumer-visible
+    beans (available=1). Built 2026-05-30 for pipeline hardening.
+
+    The consumer sees a card with a price and a weight; ₹/g is the
+    normalized 'how expensive is this bean really' axis that makes a
+    250g bag and a 100g micro-lot comparable. The catalog's ₹/g is
+    heavy-tailed (bulk 5kg bags at one end, 50g tasters / premium
+    Geisha micro-lots at the other), so we flag by DECILE BANDS on the
+    distribution (top/bottom `band_pct`%), not Tukey fences (which the
+    skew makes useless — the lower fence goes negative).
+
+    Returns three actionable buckets:
+      • upper_band — top `band_pct`% ₹/g. 'Why so expensive per gram?'
+        Mostly LEGITIMATE (Geisha, small-lot, barrel-aged) — verify,
+        don't auto-fix. A blend/commodity landing here is the signal.
+      • lower_band — bottom `band_pct`% ₹/g. 'Why so cheap per gram?'
+        Drip-bag/sample/sachet that slipped Stage-1, a wrong-variant
+        weight, or genuine commodity. The defect-rich bucket.
+      • uncomputable — available=1 rows where ₹/g can't be computed
+        (price_inr is null/0 OR weight_grams is null/0). These are the
+        REAL extraction defects the card shows as ₹0 or weightless;
+        split by which field is missing.
+
+    Read-only; no mutation. Pair with crema_get_product_detail +
+    fetch_shopify_product/fetch_page_text to root-cause each flag.
+    """
+    _require_admin(user)
+    db = get_db()
+    try:
+        band = max(0.5, min(49.0, float(band_pct)))
+        scope = " AND roaster_slug = ?" if slug else ""
+        sp: tuple = (slug,) if slug else ()
+
+        # Consumer-visible universe = available=1. Computable ₹/g needs
+        # a positive price AND positive weight.
+        computable = db.execute(
+            f"""
+            SELECT product_id, roaster_slug, coffee_name, price_inr,
+                   weight_grams, enrichment_status,
+                   (price_inr * 1.0 / weight_grams) AS ppg
+            FROM products
+            WHERE available = 1
+              AND price_inr IS NOT NULL AND price_inr > 0
+              AND weight_grams IS NOT NULL AND weight_grams > 0
+              {scope}
+            ORDER BY ppg
+            """,
+            sp,
+        ).fetchall()
+        rows = [dict(r) for r in computable]
+        n = len(rows)
+
+        def _pct(sorted_vals, frac):
+            if not sorted_vals:
+                return None
+            i = frac * (len(sorted_vals) - 1)
+            lo = int(i)
+            hi = min(lo + 1, len(sorted_vals) - 1)
+            return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (i - lo)
+
+        ppg_vals = [r["ppg"] for r in rows]
+        frac = band / 100.0
+        lo_cut = _pct(ppg_vals, frac) if n else None
+        hi_cut = _pct(ppg_vals, 1 - frac) if n else None
+        distribution = {
+            "n_computable": n,
+            "min": round(ppg_vals[0], 4) if n else None,
+            "p10": round(_pct(ppg_vals, 0.10), 4) if n else None,
+            "q1": round(_pct(ppg_vals, 0.25), 4) if n else None,
+            "median": round(_pct(ppg_vals, 0.50), 4) if n else None,
+            "q3": round(_pct(ppg_vals, 0.75), 4) if n else None,
+            "p90": round(_pct(ppg_vals, 0.90), 4) if n else None,
+            "max": round(ppg_vals[-1], 4) if n else None,
+            "band_pct": band,
+            "lower_band_cut": round(lo_cut, 4) if lo_cut is not None else None,
+            "upper_band_cut": round(hi_cut, 4) if hi_cut is not None else None,
+            "unit": "INR per gram",
+        }
+
+        def _fmt(r):
+            return {
+                "product_id": r["product_id"],
+                "roaster_slug": r["roaster_slug"],
+                "coffee_name": r["coffee_name"],
+                "price_inr": r["price_inr"],
+                "weight_grams": r["weight_grams"],
+                "price_per_gram": round(r["ppg"], 4),
+                "enrichment_status": r["enrichment_status"],
+            }
+
+        upper = [
+            _fmt(r) for r in reversed(rows)
+            if hi_cut is not None and r["ppg"] >= hi_cut
+        ][:limit]
+        lower = [
+            _fmt(r) for r in rows
+            if lo_cut is not None and r["ppg"] <= lo_cut
+        ][:limit]
+
+        # Uncomputable = consumer-visible but ₹/g can't be formed.
+        uncomp_rows = db.execute(
+            f"""
+            SELECT product_id, roaster_slug, coffee_name, price_inr,
+                   weight_grams, enrichment_status
+            FROM products
+            WHERE available = 1
+              AND (price_inr IS NULL OR price_inr <= 0
+                   OR weight_grams IS NULL OR weight_grams <= 0)
+              {scope}
+            """,
+            sp,
+        ).fetchall()
+        missing_price = [
+            dict(r) for r in uncomp_rows
+            if r["price_inr"] is None or r["price_inr"] <= 0
+        ]
+        missing_weight = [
+            dict(r) for r in uncomp_rows
+            if (r["price_inr"] is not None and r["price_inr"] > 0)
+            and (r["weight_grams"] is None or r["weight_grams"] <= 0)
+        ]
+
+        return ok({
+            "scope": slug or "all",
+            "distribution": distribution,
+            "upper_band": {
+                "criterion": (
+                    f"top {band}% ₹/g (≥ {distribution['upper_band_cut']}). "
+                    "'Why so expensive per gram?' — usually legitimate "
+                    "(Geisha / small-lot / barrel-aged); a blend or "
+                    "commodity here is the anomaly to check."
+                ),
+                "count": sum(
+                    1 for r in rows
+                    if hi_cut is not None and r["ppg"] >= hi_cut
+                ),
+                "samples": upper,
+            },
+            "lower_band": {
+                "criterion": (
+                    f"bottom {band}% ₹/g (≤ {distribution['lower_band_cut']}). "
+                    "'Why so cheap per gram?' — drip-bag/sample/sachet that "
+                    "slipped Stage-1, a wrong-variant weight, or genuine "
+                    "commodity. Defect-rich bucket."
+                ),
+                "count": sum(
+                    1 for r in rows
+                    if lo_cut is not None and r["ppg"] <= lo_cut
+                ),
+                "samples": lower,
+            },
+            "uncomputable": {
+                "criterion": (
+                    "available=1 rows where ₹/g can't be computed — the "
+                    "real consumer-facing defects (card shows ₹0 or no "
+                    "weight). Split by missing field."
+                ),
+                "missing_price_count": len(missing_price),
+                "missing_weight_count": len(missing_weight),
+                "missing_price_samples": missing_price[:limit],
+                "missing_weight_samples": missing_weight[:limit],
+            },
+        }, resource="catalog_price_per_gram")
+    finally:
+        db.close()
+
+
 # ── LLM-jobs queue (agent-fallback execution path) ─────────────────────────
 # When the FastAPI runner is invoked by a Claude operator (env
 # CREMA_AGENT_IDENTITY starts with "claude-" or LLM_PROVIDER=
@@ -3022,6 +3994,126 @@ def admin_list_agent_summaries(
 # rule. The awaiting enricher (services/llm_router._call_via_queue)
 # picks up the response on the next poll tick.
 
+# Drainer identity policy — added 2026-05-26 after the 2026-05-25
+# full-sweep session used Opus to drain its own queue (~600 jobs at
+# 6-10× the cost + 15 orphan requeues from Opus narrating instead of
+# submitting). Drainers MUST be Haiku subagents per the canonical
+# drainer template in catalog-ops memory; the server enforces it here
+# so policy isn't lesson-based.
+_DRAINER_REQUIRED_KEYWORD = "haiku"
+
+
+def _require_haiku_drainer(agent_identity: str) -> None:
+    """Reject any drainer claim/submit where agent_identity doesn't
+    look like a Haiku subagent. The keyword match is permissive (any
+    string containing 'haiku' case-insensitive — e.g.
+    'claude-haiku-drainer-A', 'haiku-A', 'patient-haiku-mokkafarms')
+    so operators have naming flexibility, but the orchestrator's
+    default `user-N` fallback or self-drain identities like
+    `claude-opus-4-7@...` get blocked outright."""
+    from fastapi import HTTPException
+    if _DRAINER_REQUIRED_KEYWORD not in (agent_identity or "").lower():
+        raise HTTPException(
+            403,
+            f"Drainer agent_identity must contain "
+            f"'{_DRAINER_REQUIRED_KEYWORD}' (case-insensitive). Got: "
+            f"{agent_identity!r}. The catalog-ops LLM queue is "
+            "Haiku-only by server policy — Opus/Sonnet orchestrators "
+            "spawn Haiku subagents per the drainer template in "
+            "catalog-ops memory rather than draining the queue "
+            "themselves. The 2026-05-25 sweep proved why: Opus "
+            "drainers cost 6-10× more per job + narrate instead of "
+            "submitting structured output, causing orphan requeues.",
+        )
+
+
+# Stuck-claim reaper — see L1 / 2026-05-26. Default 300s TTL: a Haiku
+# drainer's typical wall-clock for one job is 5-30s (page fetch + Haiku
+# call + structured output processing). 5 minutes is generous slack
+# above that floor, while staying well below llm_router._call_via_queue's
+# 600s polling timeout so the reaped job has time to be claimed AND
+# completed by a fresh drainer before the bulk worker gives up on it.
+# Override via env when triaging (e.g. LLM_JOB_REAP_TTL_SECONDS=60 to
+# force aggressive reap during a known-bad drainer run).
+_LLM_JOB_REAP_TTL_S = int(os.environ.get("LLM_JOB_REAP_TTL_SECONDS", "300"))
+
+
+def _reap_stuck_llm_jobs(db) -> list[int]:
+    """Flip llm_jobs stuck in status='in_progress' for >TTL back to
+    'pending' so the next drainer can claim them fresh. Returns the
+    list of reaped job ids (for stderr logging).
+
+    Called at the top of admin_llm_jobs_next — lazy reap-on-claim
+    means the reaper only fires when a drainer is actually polling,
+    which is exactly when a stuck claim is blocking real progress.
+    No idle cost when the queue is quiet.
+
+    Race-safety: the UPDATE is atomic in SQLite (single-statement
+    write, WAL mode). If two drainers poll simultaneously and both
+    try to reap the same row, SQLite serializes the writes — the
+    second sees rowcount=0 for that row (already flipped by the
+    first) and moves on. The captured `ids_before` list may
+    over-report by the briefest of windows, but the actual UPDATE
+    rowcount is the source of truth for logging.
+
+    Bookkeeping: increments `reap_count` and stamps `last_reaped_at`
+    on the row so /admin/llm-jobs/list shows the stuck-claim history
+    persistently — operators can grep for `reap_count > 0` to find
+    flaky drainer patterns without needing server-log access.
+    """
+    import datetime as _dt
+    now_dt = _dt.datetime.now(_dt.timezone.utc)
+    now_iso = now_dt.isoformat().replace("+00:00", "Z")
+    threshold_iso = (
+        now_dt - _dt.timedelta(seconds=_LLM_JOB_REAP_TTL_S)
+    ).isoformat().replace("+00:00", "Z")
+
+    # Capture ids before the flip so we can log what we just freed.
+    # ISO 8601 strings sort lexicographically — strict-less-than vs.
+    # threshold_iso correctly identifies rows whose claimed_at is
+    # older than `now - TTL`.
+    stuck = db.execute(
+        "SELECT id FROM llm_jobs "
+        "WHERE status = 'in_progress' "
+        "  AND claimed_at IS NOT NULL "
+        "  AND claimed_at < ?",
+        (threshold_iso,),
+    ).fetchall()
+    if not stuck:
+        return []
+    ids = [r["id"] for r in stuck]
+
+    cur = db.execute(
+        "UPDATE llm_jobs SET "
+        "  status = 'pending', "
+        "  claimed_at = NULL, "
+        "  agent_identity = NULL, "
+        "  response_payload = NULL, "
+        "  error = NULL, "
+        "  completed_at = NULL, "
+        "  last_reaped_at = ?, "
+        "  reap_count = COALESCE(reap_count, 0) + 1 "
+        "WHERE status = 'in_progress' "
+        "  AND claimed_at IS NOT NULL "
+        "  AND claimed_at < ?",
+        (now_iso, threshold_iso),
+    )
+    db.commit()
+
+    if cur.rowcount > 0:
+        # stderr so the line shows up in uvicorn output without
+        # depending on the app's logging configuration. Operator
+        # sees it live during a bulk pass; the persistent record
+        # is on the rows themselves.
+        import sys as _sys
+        _sys.stderr.write(
+            f"[llm-jobs-reaper] requeued {cur.rowcount} stuck claim(s) "
+            f"older than {_LLM_JOB_REAP_TTL_S}s: {ids}\n"
+        )
+        _sys.stderr.flush()
+    return ids
+
+
 @router.post("/admin/llm-jobs/next")
 def admin_llm_jobs_next(body: Optional[dict] = None,
                           user=Depends(get_current_user)):
@@ -3032,17 +4124,30 @@ def admin_llm_jobs_next(body: Optional[dict] = None,
 
     The claim is atomic — concurrent agents racing for the same job
     only one wins, the loser sees status!=pending and we retry the
-    next-oldest row."""
+    next-oldest row.
+
+    Identity policy: `agent_identity` must contain 'haiku' (case-
+    insensitive). The orchestrator's default `user-N` fallback is
+    rejected — drainers are Haiku subagents per the catalog-ops
+    drainer template, never the orchestrator itself.
+
+    Stuck-claim reaper (2026-05-26 L1): before claiming a fresh job,
+    flip back to 'pending' any in_progress claims older than
+    LLM_JOB_REAP_TTL_SECONDS (default 300s). This unblocks the
+    bulk_reenrich pipeline when a Claude Agent drainer dies between
+    /next (atomic claim) and /respond (submit). Without it, a dead
+    drainer's claim stays in_progress forever and the bulk worker
+    blocks indefinitely waiting for a response that never arrives."""
     _require_admin(user)
     body = body or {}
     step = (body.get("step") or "").strip() or None
     roaster_slug = (body.get("roaster_slug") or "").strip() or None
     agent_identity = (body.get("agent_identity") or "").strip()
-    if not agent_identity:
-        agent_identity = f"user-{user['id']}"
+    _require_haiku_drainer(agent_identity)
 
     db = get_db()
     try:
+        _reap_stuck_llm_jobs(db)
         import datetime as _dt
         import json as _json
         for _attempt in range(8):  # bounded loop in case of races
@@ -3087,6 +4192,102 @@ def admin_llm_jobs_next(body: Optional[dict] = None,
         db.close()
 
 
+def _apply_enrichment_job(db, *, job_id: int, apply_context_json: str,
+                          output) -> dict:
+    """Background applier — apply a drained product/article enrich job to
+    its catalog table from the apply_context persisted on the job at
+    enqueue time (services/llm_router._call_via_queue).
+
+    Called from /respond so the apply is driven by the drainer's submit,
+    NOT by the (possibly-timed-out) BG thread that enqueued the job. This
+    is the fix for the silent-loss pathology: pre-2026-05-29 the upsert
+    only ran inside the waiting thread, so a 600s timeout orphaned the
+    completed job and the product never updated. Idempotent with the
+    inline upsert in enrichment_runner.run_for_roaster (COALESCE writes).
+    Records apply_error on the job instead of failing the submit — the
+    LLM output is valid even if the apply hiccups; QC surfaces it.
+    """
+    import json as _json
+    import datetime as _dt
+    now = _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z")
+
+    def _mark(applied_ok: bool, err: Optional[str]) -> None:
+        db.execute(
+            "UPDATE llm_jobs SET applied_at = ?, apply_error = ? "
+            "WHERE id = ?",
+            (now, (None if applied_ok else (err or "")[:500]), job_id),
+        )
+        db.commit()
+
+    try:
+        ctx = _json.loads(apply_context_json) or {}
+    except Exception as e:
+        _mark(False, f"bad_apply_context:{e}")
+        return {"applied": False, "error": "bad_apply_context"}
+
+    # The MCP submit can stringify the output dict (ZodUnknown→string);
+    # recover the intended object the same way _call_via_queue does.
+    if isinstance(output, str):
+        try:
+            output = _json.loads(output)
+        except Exception:
+            pass
+
+    kind = ctx.get("kind")
+    url = ctx.get("url")
+    slug = ctx.get("roaster_slug")
+    task_id = ctx.get("task_id")
+    try:
+        from services.entity_enricher import build_entity_from_output
+        from services.entity_upserter import (
+            upsert_entity, mark_task_skipped, mark_task_failed,
+        )
+        entity, gate = build_entity_from_output(
+            output, kind=kind, url=url, roaster_slug=slug,
+            scraped_at=ctx.get("scraped_at") or now,
+            provenance=ctx.get("provenance") or "haiku",
+            hints=ctx.get("hints") or {},
+        )
+        if entity is not None:
+            # job_id=None: `job_id` here is the llm_jobs id, but
+            # enrichment_tasks.job_id is an FK to the jobs (scrape) table
+            # (database.py:1475). Passing the llm_jobs id violated the FK
+            # and rolled back the whole upsert (apply_error=FK constraint).
+            # The task row already has its scrape job_id from _open_task;
+            # _mark_task_enriched COALESCEs, so None preserves it.
+            res = upsert_entity(db, entity, task_id=task_id, job_id=None)
+            _mark(True, None)
+            return {"applied": True, "action": res.action,
+                    "result_id": (str(res.result_id)
+                                  if res.result_id is not None else None)}
+        if gate and gate.startswith("gated_"):
+            # Haiku's own gate (not-a-bean / not-an-article). Mirror the
+            # inline runner: route the task to skipped, not failed.
+            if task_id is not None:
+                mark_task_skipped(db, task_id=task_id,
+                                  reason=f"applied_gate:{gate}",
+                                  job_id=None)  # FK: see upsert note above
+            _mark(True, None)
+            return {"applied": True, "action": "gated", "gate": gate}
+        # empty/validation build failure — record, don't crash the submit
+        if task_id is not None:
+            mark_task_failed(db, task_id=task_id,
+                             error=f"apply_build:{gate}", job_id=None)
+        _mark(False, f"build:{gate}")
+        return {"applied": False, "error": gate}
+    except Exception as e:
+        msg = f"{type(e).__name__}:{str(e)[:300]}"
+        try:
+            if task_id is not None:
+                from services.entity_upserter import mark_task_failed
+                mark_task_failed(db, task_id=task_id,
+                                 error=f"apply_exc:{msg}", job_id=None)
+        except Exception:
+            pass
+        _mark(False, msg)
+        return {"applied": False, "error": msg}
+
+
 @router.post("/admin/llm-jobs/{job_id}/respond")
 def admin_llm_jobs_respond(job_id: int, body: dict,
                              user=Depends(get_current_user)):
@@ -3122,6 +4323,20 @@ def admin_llm_jobs_respond(job_id: int, body: dict,
     try:
         import datetime as _dt
         import json as _json
+        # Identity policy: the claimer's agent_identity (stamped at
+        # /next-time) must be a Haiku subagent. Belt-and-suspenders
+        # check — even if a non-Haiku slipped past /next (it can't,
+        # but defense in depth), /respond rejects.
+        claim_row = db.execute(
+            "SELECT agent_identity, status, step, apply_context_json, "
+            "applied_at FROM llm_jobs WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        if claim_row is None:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"llm_job {job_id} not found")
+        _require_haiku_drainer(claim_row["agent_identity"] or "")
+
         now = _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z")
         payload_json = _json.dumps(output) if output is not None else None
         cur = db.execute(
@@ -3140,8 +4355,30 @@ def admin_llm_jobs_respond(job_id: int, body: dict,
                 raise HTTPException(404, f"llm_job {job_id} not found")
             raise HTTPException(409,
                 f"llm_job {job_id} is {row['status']}, not in_progress")
-        return ok({"id": job_id, "status": status,
-                   "completed_at": now}, resource="llm_jobs")
+        # ── Background applier ───────────────────────────────────────
+        # If this is a product/article enrich job that carried an
+        # apply_context, apply it NOW from the drainer's submit — so the
+        # catalog row lands even if the BG thread that enqueued the job
+        # already timed out (the silent-loss "huge activity, zero
+        # result" bug). Idempotent with the inline upsert; an apply
+        # hiccup is recorded on apply_error for QC and NEVER fails the
+        # submit (the LLM output is still valid).
+        apply_outcome = None
+        if (status == "complete"
+                and (claim_row["step"] or "") in (
+                    "product_enrich", "article_enrich")
+                and claim_row["apply_context_json"]
+                and not claim_row["applied_at"]):
+            apply_outcome = _apply_enrichment_job(
+                db,
+                job_id=job_id,
+                apply_context_json=claim_row["apply_context_json"],
+                output=output,
+            )
+        resp = {"id": job_id, "status": status, "completed_at": now}
+        if apply_outcome is not None:
+            resp["apply"] = apply_outcome
+        return ok(resp, resource="llm_jobs")
     finally:
         db.close()
 
@@ -3175,7 +4412,8 @@ def admin_list_llm_jobs(limit: int = 100, status: Optional[str] = None,
     try:
         cols = (
             "id, roaster_slug, step, target_id, model, status, "
-            "created_at, claimed_at, completed_at, error, agent_identity"
+            "created_at, claimed_at, completed_at, error, agent_identity, "
+            "last_reaped_at, reap_count"
         )
         if include_payloads:
             cols += (", system_prompt, user_content, tool_schema_json, "
@@ -3212,7 +4450,12 @@ def admin_standardize_run(body: Optional[dict] = None,
     """
     _require_admin(user)
     body = body or {}
-    regenerate = bool(body.get("regenerate_exemplars"))
+    # regenerate_exemplars defaults to True (2026-05-25) — the user
+    # directive is that exemplars refresh every standardize run, so
+    # the classifier never falls behind the latest house-style
+    # examples in the catalog. Caller can opt out with an explicit
+    # `{"regenerate_exemplars": false}` for tight debug loops.
+    regenerate = bool(body.get("regenerate_exemplars", True))
     force_reclassify = bool(body.get("force_reclassify"))
     tasks = body.get("tasks")
     if tasks is not None and not isinstance(tasks, list):
@@ -5102,19 +6345,43 @@ def admin_resolve_held_proposals(
             # Stamp pipeline context so the queued llm_job has the right
             # roaster_slug (avoids the 'unknown' bug we just fixed).
             _set_ctx(roaster_slug=state.get("roaster_slug"))
+            # v2 retry path (2026-05-26). Previously called the
+            # retired v1 product_enricher.enrich_product which now
+            # raises ProductEnricherError. Switch to the v2 helper:
+            # look up the live products row by product_id, run it
+            # through entity_reenricher.reenrich_one_product (which
+            # fetches page, calls Haiku, upserts), and if the upsert
+            # landed an enriched row, marker the proposal as resolved.
+            enriched = None
             try:
-                from services import product_enricher
-                # Build the input dict the way product_enricher expects.
-                # The proposal's state already has product_url, scraped
-                # fields, etc. — pass it directly.
-                enriched = product_enricher.enrich_product(state)
+                from services.entity_reenricher import reenrich_one_product
+                live_row = db.execute(
+                    "SELECT * FROM products WHERE product_id = ?",
+                    (r["product_id"],),
+                ).fetchone()
+                if not live_row:
+                    # No live row to v2-re-enrich; fall through to
+                    # apply_thin/skip below (`enriched=None`).
+                    pass
+                else:
+                    res = reenrich_one_product(db, dict(live_row))
+                    if res.outcome in ("updated", "inserted"):
+                        # Re-read the row — v2 wrote directly. We
+                        # shape it like the v1 enricher's return so
+                        # the merge-and-apply path below stays the
+                        # same.
+                        fresh = db.execute(
+                            "SELECT * FROM products WHERE product_id = ?",
+                            (r["product_id"],),
+                        ).fetchone()
+                        enriched = dict(fresh) if fresh else None
             except Exception as e:
                 enriched = None
                 detail.append({
                     "id": r["id"],
                     "product_id": r["product_id"],
                     "outcome": "retry_errored_apply_thin",
-                    "reason": f"{type(e).__name__}: {e}",
+                    "reason": f"v2 retry: {type(e).__name__}: {e}",
                 })
 
             now_iso = _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -5347,6 +6614,35 @@ def admin_mark_product_sold_out(product_id: str, user=Depends(get_current_user))
         db.close()
 
 
+@router.post("/admin/products/{product_id}/set-available")
+def admin_set_product_available(product_id: str, body: dict,
+                                user=Depends(get_current_user)):
+    """Manually set `products.available` to 1 or 0. Logged as a
+    `catalog_operations` row (kind='manual_set_available') with a
+    pre-mutation snapshot so it's undoable via
+    crema_rollback_catalog_operation. The companion to
+    /sold-out (which only sets available=0) — this can also UN-HIDE an
+    in-stock bean (available=1) without a full re-enrich.
+
+    Body: { available: bool } (or 0/1)."""
+    _require_admin(user)
+    body = body or {}
+    if "available" not in body:
+        from fastapi import HTTPException
+        raise HTTPException(422, "body must include 'available' (bool)")
+    available = bool(body.get("available"))
+    db = get_db()
+    try:
+        return ok(
+            catalog_ops.set_product_available(
+                db, product_id, available, started_by=user["id"],
+            ),
+            resource="products",
+        )
+    finally:
+        db.close()
+
+
 # ── Tab 1 (ROASTERS): single-URL enrichment + publish toggle + delete ───────
 # `enrich_roaster_from_url` synthesizes a profile via Sonnet; the response
 # upserts into `roaster_profiles` (with `published=0` so the admin reviews
@@ -5400,6 +6696,10 @@ def _apply_roaster_enrichment(db, website: str) -> dict:
 
     specialties_json = json.dumps(profile.get("specialties") or [])
     if existing:
+        # Capture the existing name before the UPDATE so we know
+        # whether the canonical name actually changed (and need to
+        # propagate to products.roaster_name).
+        old_canonical_name = existing["name"] if "name" in existing.keys() else None
         # COALESCE pattern: any field Sonnet returned `None` keeps
         # whatever was already on the row. Non-null Sonnet values
         # win. Re-enrich is therefore safe — admin's manual edits
@@ -5435,6 +6735,22 @@ def _apply_roaster_enrichment(db, website: str) -> dict:
                 slug,
             ),
         )
+        # Bio-update name propagation (added 2026-05-26). When the
+        # canonical roaster_profiles.name changes via bio enrichment,
+        # propagate to products.roaster_name for every row of this
+        # roaster. Without this, the v2 upserter only restamps
+        # products.roaster_name when a row is INSERTed or UPDATEd —
+        # rows untouched by the current sweep keep the OLD canonical,
+        # producing denorm_drift. The 2026-05-25 sweep surfaced 149
+        # drifted rows (Black Baza, Subko, Corridor Seven, Sleepy
+        # Owl, 7000 Steps class) — all explained by this timing gap.
+        new_name = profile.get("name")
+        if new_name and new_name != old_canonical_name:
+            db.execute(
+                "UPDATE products SET roaster_name = ? "
+                "WHERE roaster_slug = ?",
+                (new_name, slug),
+            )
     else:
         db.execute(
             "INSERT INTO roaster_profiles "
@@ -5474,11 +6790,27 @@ def _apply_roaster_enrichment(db, website: str) -> dict:
         "SELECT id, shop_url, platform FROM roaster_sources WHERE website = ?",
         (profile["website"],),
     ).fetchone()
+    # Bio-as-discovery (2026-05-27): JSON-serialize the three URL
+    # lists for storage. Always update on every bio enrich — these
+    # are ephemeral facts about the homepage as it exists right now,
+    # NOT operator-curated config, so anti-fallback discipline
+    # doesn't apply.
+    discovered_products_json = json.dumps(
+        source.get("discovered_product_urls") or []
+    )
+    discovered_articles_json = json.dumps(
+        source.get("discovered_article_urls") or []
+    )
+    discovered_collections_json = json.dumps(
+        source.get("discovered_collection_urls") or []
+    )
     if not existing_src:
         db.execute(
             "INSERT INTO roaster_sources "
-            "(name, website, shop_url, platform, city, state, enabled, added_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
+            "(name, website, shop_url, platform, city, state, enabled, "
+            " added_at, discovered_product_urls, discovered_article_urls, "
+            " discovered_collection_urls, bio_discovery_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)",
             (
                 profile.get("name") or slug,
                 profile["website"],
@@ -5487,24 +6819,77 @@ def _apply_roaster_enrichment(db, website: str) -> dict:
                 profile.get("city"),
                 profile.get("state"),
                 now,
+                discovered_products_json,
+                discovered_articles_json,
+                discovered_collections_json,
+                now,
             ),
         )
     else:
-        # NO COALESCE — re-enrichment does not modify roaster_sources
-        # scrape config (shop_url, platform, city, state) at all.
-        # Anti-fallback discipline (per CRUD_UTOPIA): scraping is
-        # deterministic; we don't let "old data" win to mask a bad
-        # new pick, and we don't let "new pick" silently overwrite
-        # an operator-curated value either. The scrape entry-point
-        # is admin-owned and only mutates through explicit
-        # crema_update_scrape_settings calls. Sonnet's re-pick is
-        # informational — it lands in the result_summary but never
-        # touches the live source row on re-enrichment.
-        # (Initial onboard INSERT above still seeds from Sonnet's
-        # pick when admin didn't provide shop_url, because the
-        # column had no prior value to preserve.)
-        pass
+        # NO COALESCE on shop_url / platform / city / state —
+        # re-enrichment does not modify scrape config (anti-fallback
+        # discipline per CRUD_UTOPIA; admin owns those via explicit
+        # crema_update_scrape_settings calls).
+        #
+        # BUT: discovered_*_urls + bio_discovery_at ARE ephemeral
+        # homepage facts that should always refresh — they're the
+        # input to bio T1+T2's URL-drift detection, and stale lists
+        # would mask real catalog/website drift.
+        db.execute(
+            "UPDATE roaster_sources SET "
+            "  discovered_product_urls = ?, "
+            "  discovered_article_urls = ?, "
+            "  discovered_collection_urls = ?, "
+            "  bio_discovery_at = ? "
+            "WHERE website = ?",
+            (
+                discovered_products_json,
+                discovered_articles_json,
+                discovered_collections_json,
+                now,
+                profile["website"],
+            ),
+        )
     db.commit()
+
+    # Bio quality review (2026-05-27): run T1 deterministic
+    # heuristics over the bio output + discovered link graph
+    # against the catalog. Flags persist as 'confirmed' directly
+    # (bio rules are deterministic — no T2 Haiku review needed).
+    # Best-effort: never let QR failures block the enrichment.
+    try:
+        from services import quality_reviewer as qr
+        # Re-read the upserted profile + source rows so we pass the
+        # post-write state to QR (matches what consumers see).
+        profile_row = db.execute(
+            "SELECT * FROM roaster_profiles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        source_row = db.execute(
+            "SELECT * FROM roaster_sources WHERE website = ?",
+            (profile["website"],),
+        ).fetchone()
+        catalog_urls = [
+            r["product_url"] for r in db.execute(
+                "SELECT product_url FROM products "
+                "WHERE roaster_slug = ? AND product_url IS NOT NULL "
+                "AND product_url != ''",
+                (slug,),
+            ).fetchall()
+        ]
+        if profile_row and source_row:
+            bundle = qr.run_t1_bio(
+                roaster_slug=slug,
+                profile=dict(profile_row),
+                source=dict(source_row),
+                catalog_product_urls=catalog_urls,
+            )
+            qr.persist_flags(
+                db, bundle, now_iso=now, default_verdict="confirmed",
+            )
+    except Exception as e:
+        # Bio QR is best-effort; never fail the bio enrich itself.
+        print(f"bio quality review note ({slug}): {type(e).__name__}: {e}")
 
     return {
         "slug": slug,
@@ -5612,6 +6997,41 @@ def admin_re_enrich_roaster(slug: str, user=Depends(get_current_user)):
 _ORCHESTRATOR_LOG = "/tmp/crema_orchestrator.log"
 
 
+# ── Context-rot mitigation (2026-05-27) ──────────────────────────────────
+#
+# Tools return `next_steps` arrays that structurally encode the
+# orchestrator's follow-on workflow IN THE WORKING MEMORY at decision
+# time. This replaces "the cheat-sheet said to do X next" (slow memory,
+# easily lost to context rot after 100 tool calls) with "the previous
+# tool response told you to do X next" (working memory, present at the
+# exact moment the orchestrator picks the next action).
+
+
+def _next_step(tool: str, args: dict, why: str) -> dict:
+    """One entry in a tool response's next_steps array. The
+    orchestrator reads these as a structured directive in working
+    memory rather than from documentation in slow memory."""
+    return {"tool": tool, "args": args, "why": why}
+
+# Standardize-run serialization (2026-05-26 fix). During a catalog-wide
+# refresh sweep, every per-roaster _orchestrate_refresh_all spawns a
+# _wait_and_standardize thread which calls catalog_ops.run_standardize_job
+# directly (in-process). Without coordination, 106 threads run the
+# classifier on overlapping unclassified slices in parallel — drainers
+# see "duplicate input batches", Haiku tokens get spent N times on the
+# same rows, and last-write-wins races make exemplar regeneration
+# non-deterministic.
+#
+# The lock allows at most ONE standardize run at a time. Threads that
+# can't acquire set the follow-up flag; the in-flight runner re-fires
+# (looping once more) so trailing data still gets classified before
+# returning. Bounded: the loop exits when no new follow-up was flagged
+# during the most recent run.
+import threading as _threading_for_std
+_STANDARDIZE_RUN_LOCK = _threading_for_std.Lock()
+_STANDARDIZE_FOLLOWUP_NEEDED = _threading_for_std.Event()
+
+
 def _orch_log(slug: str, msg: str) -> None:
     """Print to stdout AND append to a tail-able file so MCP-only
     diagnosis is possible without raw DB access."""
@@ -5630,6 +7050,8 @@ def _orchestrate_refresh_all(
     regenerate_prompt: bool,
     regenerate_article_hint: bool,
     user_id: int,
+    parent_operation_id: Optional[int] = None,
+    force_enrich: bool = False,
 ):
     """Background-task version of the refresh-all pipeline.
 
@@ -5681,22 +7103,71 @@ def _orchestrate_refresh_all(
     # (`Scraper/scraper/main.py` subprocess). Per-product enrichment +
     # image-OCR can proceed without the bio. So treat bio failure as a
     # log-and-continue rather than an orchestrator abort.
-    db = get_db()
-    try:
+    #
+    # HEAD-OF-LINE FIX (2026-05-30): bio's `call_llm` BLOCKS the worker
+    # thread until a drainer answers (up to 600s, ×2 for the bio+hint
+    # pair). On a re-enrich the `roaster_sources` row already exists, so
+    # the scrape (step 4) does NOT need bio to have run — yet the old
+    # ordering ran bio inline FIRST, stalling product enrichment by 10+
+    # minutes whenever no drainer was on the bio queue (gb-roasters op
+    # 2262: scrape thread didn't dispatch until 11 min after sync, by
+    # which point the operator had given up polling). So: when a valid
+    # sources row already exists, we run bio in its OWN daemon thread
+    # (still best-effort) and let step 4 dispatch immediately. Only when
+    # the sources row is MISSING (true first-time onboarding, where bio
+    # is what CREATES it) do we run bio inline-first and re-check.
+    def _run_bio(reason: str):
+        bdb = get_db()
         try:
-            _orch_log(slug, "step2 calling _apply_roaster_enrichment …")
-            applied = _apply_roaster_enrichment(db, website)
+            _orch_log(slug, f"step2 bio enrich ({reason}) …")
+            applied = _apply_roaster_enrichment(bdb, website)
             _orch_log(slug, f"step2 bio enrich complete — slug={applied.get('slug')}")
         except roaster_enricher.RoasterEnricherError as e:
             _orch_log(slug, f"step2 BIO ENRICH FAILED (RoasterEnricherError): {e}")
-            _orch_log(slug, "step2 continuing past bio failure — scrape step 4 doesn't depend on bio")
         except Exception as e:
             _orch_log(slug, f"step2 BIO ENRICH FAILED (unexpected {type(e).__name__}): {e}")
-            _orch_log(slug, "step2 continuing past bio failure — scrape step 4 doesn't depend on bio")
+        finally:
+            bdb.close()
+
+    import threading
+
+    # Does a usable sources row already exist? If so, scrape can start
+    # without waiting on bio.
+    db = get_db()
+    try:
+        src_row = db.execute(
+            "SELECT id, shop_url, platform FROM roaster_sources rs "
+            "JOIN roaster_profiles rp ON rp.website = rs.website "
+            "WHERE rp.roaster_slug = ?",
+            (slug,),
+        ).fetchone()
     finally:
         db.close()
 
-    # Step 3 — pre-flight check for scrape (shop_url + platform)
+    sources_ready = bool(
+        src_row and src_row["shop_url"] and src_row["platform"]
+    )
+
+    if sources_ready:
+        # Re-enrich path: bio is non-blocking background; scrape proceeds.
+        threading.Thread(
+            target=_run_bio, args=("background, sources already present",),
+            daemon=True,
+        ).start()
+        _orch_log(
+            slug,
+            "step2 bio dispatched as non-blocking thread "
+            "(sources row present — scrape won't wait on bio)",
+        )
+    else:
+        # First-time onboarding: bio CREATES the sources row, so it must
+        # run inline before the scrape preflight can pass.
+        _orch_log(slug, "step2 no usable sources row — running bio inline first")
+        _run_bio("inline, needed to create sources row")
+
+    # Step 3 — pre-flight check for scrape (shop_url + platform).
+    # Re-read (bio may have just created/updated the sources row on the
+    # onboarding path).
     db = get_db()
     try:
         src_row = db.execute(
@@ -5726,28 +7197,135 @@ def _orchestrate_refresh_all(
         # and scrape_proposals.job_id FK stays valid.
         import threading
 
-        threading.Thread(
+        scrape_thread = threading.Thread(
             target=catalog_ops.scrape_one_roaster,
             kwargs={
                 "roaster_slug": slug,
                 "user_id": user_id,
                 "regenerate_prompt": regenerate_prompt,
+                "parent_operation_id": parent_operation_id,
+                "force_enrich": force_enrich,
             },
             daemon=True,
-        ).start()
+        )
+        scrape_thread.start()
         _orch_log(slug, "step4 scrape thread dispatched (per-roaster workspace, no mutex)")
 
-        threading.Thread(
+        article_thread = threading.Thread(
             target=catalog_ops.article_scrape_one_roaster,
             kwargs={
                 "roaster_slug": slug,
                 "user_id": user_id,
                 "regenerate_article_hint": regenerate_article_hint,
+                "parent_operation_id": parent_operation_id,
             },
             daemon=True,
-        ).start()
+        )
+        article_thread.start()
         _orch_log(slug, "step4 article scrape thread dispatched (no mutex)")
-        _orch_log(slug, "orchestrator DONE — both scrape threads running concurrently")
+
+        # Step 5 — chain a catalog-wide standardize run after both
+        # scrape threads complete (added 2026-05-25 per user
+        # directive: every refresh MUST trigger standardization with
+        # exemplar refresh so the controlled vocabularies stay in
+        # sync with the catalog). Runs in its own daemon thread so
+        # the orchestrator returns immediately; the standardize run
+        # waits for both scrape threads, enqueues a `standardize`
+        # jobs row, and invokes the runner in-process. If standardize
+        # has nothing to classify (no new inputs since last run), the
+        # runner short-circuits with a cheap "nothing to classify"
+        # exit — costs zero Haiku tokens.
+        def _wait_and_standardize():
+            scrape_thread.join()
+            article_thread.join()
+            _orch_log(
+                slug, "step5 scrape + article threads complete; "
+                "checking standardize lock"
+            )
+
+            # Serialize across the whole process (2026-05-26 fix).
+            # If another _wait_and_standardize is already running, set
+            # the follow-up flag and return — the in-flight runner
+            # will re-fire to catch our data.
+            if not _STANDARDIZE_RUN_LOCK.acquire(blocking=False):
+                _STANDARDIZE_FOLLOWUP_NEEDED.set()
+                _orch_log(
+                    slug,
+                    "step5 standardize already running — flagged "
+                    "follow-up, exiting (in-flight runner will "
+                    "re-fire to pick up our scrape's classifications)"
+                )
+                return
+
+            try:
+                # Loop: run standardize, then check if any other
+                # caller flagged a follow-up while we were running.
+                # If yes, run again (bounded — the loop exits when
+                # no new follow-up flag was set during the most
+                # recent iteration).
+                iteration = 0
+                while True:
+                    iteration += 1
+                    # Clear the flag BEFORE running so any caller
+                    # that arrives during our run can re-set it.
+                    _STANDARDIZE_FOLLOWUP_NEEDED.clear()
+
+                    inner_db = get_db()
+                    try:
+                        try:
+                            std_job_id = catalog_ops.enqueue_job(
+                                inner_db, "standardize",
+                                started_by=user_id, bypass_mutex=True,
+                            )
+                        except Exception as e:
+                            _orch_log(
+                                slug,
+                                f"step5 enqueue standardize FAILED "
+                                f"(iter={iteration}): "
+                                f"{type(e).__name__}: {e}"
+                            )
+                            return
+                    finally:
+                        inner_db.close()
+
+                    try:
+                        catalog_ops.run_standardize_job(
+                            std_job_id, regenerate_exemplars=True,
+                        )
+                        _orch_log(
+                            slug,
+                            f"step5 standardize complete (iter={iteration}, "
+                            f"job={std_job_id})"
+                        )
+                    except Exception as e:
+                        _orch_log(
+                            slug,
+                            f"step5 standardize FAILED (iter={iteration}, "
+                            f"job={std_job_id}): "
+                            f"{type(e).__name__}: {e}"
+                        )
+                        return
+
+                    if not _STANDARDIZE_FOLLOWUP_NEEDED.is_set():
+                        _orch_log(
+                            slug,
+                            f"step5 no follow-up flagged — exiting "
+                            f"(total iterations: {iteration})"
+                        )
+                        break
+                    _orch_log(
+                        slug,
+                        f"step5 follow-up flag set during iter={iteration} "
+                        "— re-running to catch trailing data"
+                    )
+            finally:
+                _STANDARDIZE_RUN_LOCK.release()
+
+        threading.Thread(
+            target=_wait_and_standardize, daemon=True,
+        ).start()
+        _orch_log(slug, "step5 standardize hook dispatched (awaits step4 threads)")
+        _orch_log(slug, "orchestrator DONE — scrape + article + chained standardize")
     finally:
         db.close()
 
@@ -5807,17 +7385,1181 @@ def admin_refresh_roaster_all(
         user_id=user["id"],
     )
 
+    fired_at = _now_iso()
     return ok(
         {
             "slug": slug,
             "queued": True,
             "regenerate_prompt": regenerate_prompt,
             "regenerate_article_hint": regenerate_article_hint,
+            "fired_at": fired_at,
             "message": "Refresh queued. Poll crema_list_llm_jobs "
                        "(or crema_list_jobs for scrape-level progress).",
+            "next_steps": [
+                _next_step(
+                    "crema_list_jobs",
+                    {"kind": "scrape", "status": "running", "limit": 5},
+                    "verify the BG scrape worker is running. Wait "
+                    "for status='succeeded' on this slug's job "
+                    "before triaging.",
+                ),
+                _next_step(
+                    "crema_list_quality_reviews",
+                    {"target_table": "roaster_profiles",
+                     "verdict": "confirmed", "roaster_slug": slug,
+                     "limit": 10},
+                    "bio T1 findings for this roaster (URL drift, "
+                    "specialties punt, etc.). Catches Nandan-class "
+                    "issues at the source.",
+                ),
+                _next_step(
+                    "crema_run_quality_review_sweep",
+                    {"target_table": "products", "slug": slug},
+                    "retroactively drain T1 product flags for this "
+                    "roaster's catalog after the refresh lands.",
+                ),
+            ],
         },
         resource="roaster_refresh",
     )
+
+
+def _orchestrate_full_reenrich(
+    *,
+    slug: str,
+    sync_mode: str,
+    regenerate_prompt: bool,
+    regenerate_article_hint: bool,
+    user_id: int,
+    force_enrich: bool = False,
+):
+    """Sequential pipeline: sync → bio + scrape (with hint regen) +
+    article scrape (with article-hint regen) + standardize.
+
+    Prepends the sync step that refresh-all skipped. Without sync,
+    replatformed roasters (Nandan → www.nandancoffee.com on
+    2026-05-26) keep stale URLs in the catalog because the scrape
+    runs against whatever sources row was already there. With sync,
+    the snapshot detects the move and the diff downstream gets the
+    refreshed product URLs.
+
+    Errors in sync are logged but non-fatal — the rest of the
+    pipeline can still produce useful work against the existing
+    sources row.
+
+    Op-QC wrapper (2026-05-27): creates a PARENT catalog_operations
+    row that the child ops (sync_tab2, run_scrape, run_article_scrape,
+    standardize) chain under via parent_operation_id. The parent
+    finishes when refresh-all dispatches; downstream children
+    complete on their own and chain into the parent's audit trail.
+    """
+    from services.operation_qc import (
+        start_operation, finish_operation_with_qc, finish_operation,
+    )
+    from database import get_db as _get_db
+    qc_db = _get_db()
+    parent_op_id = None
+    try:
+        parent_op_id = start_operation(
+            qc_db, kind="full_reenrich_roaster", target_slug=slug,
+            params={
+                "sync_mode": sync_mode,
+                "regenerate_prompt": regenerate_prompt,
+                "regenerate_article_hint": regenerate_article_hint,
+            },
+            started_by=str(user_id) if user_id is not None else None,
+        )
+    finally:
+        qc_db.close()
+
+    _orch_log(
+        slug,
+        f"full-reenrich START (op_id={parent_op_id}, "
+        f"sync_mode={sync_mode}, regenerate_prompt={regenerate_prompt}, "
+        f"regenerate_article_hint={regenerate_article_hint})",
+    )
+    try:
+        from services import sync_runner
+        if sync_mode == "tab1":
+            summary = sync_runner.run_tab1_sync(
+                slug, parent_operation_id=parent_op_id,
+            )
+        else:
+            summary = sync_runner.run_tab2_sync(
+                slug, parent_operation_id=parent_op_id,
+            )
+        if summary.get("ok"):
+            _orch_log(
+                slug,
+                f"step0 sync OK — products="
+                f"{summary.get('product_count', '?')} "
+                f"articles={summary.get('article_count', '?')}",
+            )
+        else:
+            _orch_log(
+                slug,
+                f"step0 sync FAILED — {summary.get('error', '?')!r}; "
+                "continuing past sync failure (scrape can still run "
+                "against the existing sources row)",
+            )
+    except Exception as e:
+        _orch_log(
+            slug,
+            f"step0 sync EXCEPTION ({type(e).__name__}: {e}); continuing",
+        )
+
+    # Chain the existing refresh-all pipeline (bio + scrape + article
+    # scrape + standardize). refresh-all dispatches its own BG threads,
+    # so this returns once those are launched.
+    _orchestrate_refresh_all(
+        slug=slug,
+        regenerate_prompt=regenerate_prompt,
+        regenerate_article_hint=regenerate_article_hint,
+        user_id=user_id,
+        parent_operation_id=parent_op_id,
+        force_enrich=force_enrich,
+    )
+    _orch_log(slug, "full-reenrich DONE — refresh-all dispatched")
+
+    # Finish parent op now that dispatch is complete. Children
+    # (sync_tab2, scrape, article_scrape, standardize) continue in
+    # their own threads; they record under parent_op_id but the
+    # parent op's lifecycle ends at dispatch. T1 op rules on the
+    # parent run against the dispatch-time summary; the children
+    # have their own T1 rules that fire as they complete.
+    qc_db = _get_db()
+    try:
+        finish_operation_with_qc(
+            qc_db, parent_op_id, status="succeeded",
+            summary={
+                "dispatched": True,
+                "sync_mode": sync_mode,
+                "note": "Children (sync, scrape, article_scrape, "
+                        "standardize) record under parent_operation_id "
+                        "and complete independently.",
+            },
+        )
+    finally:
+        qc_db.close()
+
+
+@router.post("/admin/roasters/{slug}/full-reenrich", status_code=202)
+def admin_full_reenrich_roaster(
+    slug: str,
+    body: dict = None,
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_current_user),
+):
+    """Atomic full re-enrichment for one roaster: sync → bio +
+    products + articles (with hint regen) + standardize. ONE call,
+    sequential pipeline in the background.
+
+    This is the "bulk enrich" verb. Before this route landed
+    (2026-05-26), the orchestrator's CLAUDE.md mapped "bulk enrich"
+    to crema_bulk_reenrich_roaster — which only re-enriches existing
+    products. That path skips sync (so stale URLs from replatformed
+    sites linger), skips hint regeneration (so old per-roaster quirk
+    hints persist), and skips bio + article enrichment entirely.
+    This route runs the full pipeline.
+
+    Body:
+      • mode: 'tab1' | 'tab2' (default 'tab2') — sync mode. tab1 is
+        a full crawl (use for new/re-baseline); tab2 is a diff-only
+        sync (steady-state — the right default).
+      • regenerate_prompt: default True — regenerate the per-roaster
+        product-enrichment hint as part of the scrape.
+      • regenerate_article_hint: default True — same for articles.
+
+    Returns 202 with the slug + queued flag. Poll
+    crema_list_llm_jobs / crema_list_jobs for per-step progress.
+    """
+    _require_admin(user)
+    body = body or {}
+    sync_mode = (body.get("mode") or "tab2").strip().lower()
+    if sync_mode not in ("tab1", "tab2"):
+        from fastapi import HTTPException
+        raise HTTPException(400, "mode must be 'tab1' or 'tab2'")
+    regenerate_prompt = bool(body.get("regenerate_prompt", True))
+    regenerate_article_hint = bool(body.get("regenerate_article_hint", True))
+    force_enrich = bool(body.get("force_enrich", False))
+
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT website FROM roaster_profiles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not row or not row["website"]:
+            from fastapi import HTTPException
+            raise HTTPException(
+                404, f"No website on file for roaster {slug}",
+            )
+    finally:
+        db.close()
+
+    background_tasks.add_task(
+        _orchestrate_full_reenrich,
+        slug=slug,
+        sync_mode=sync_mode,
+        regenerate_prompt=regenerate_prompt,
+        regenerate_article_hint=regenerate_article_hint,
+        user_id=user["id"],
+        force_enrich=force_enrich,
+    )
+
+    fired_at = _now_iso()
+    return ok({
+        "slug": slug,
+        "queued": True,
+        "sync_mode": sync_mode,
+        "regenerate_prompt": regenerate_prompt,
+        "regenerate_article_hint": regenerate_article_hint,
+        "force_enrich": force_enrich,
+        "fired_at": fired_at,
+        "message": (
+            "Full re-enrich queued (sync → bio + products + articles "
+            "with hint regeneration + standardize). Poll "
+            "crema_list_llm_jobs / crema_list_jobs."
+        ),
+        "next_steps": [
+            _next_step(
+                "crema_list_jobs",
+                {"kind": "scrape", "status": "running", "limit": 30},
+                "verify the BG scrape worker is running. Wait until "
+                "it succeeded before triaging — children fire as the "
+                "sweep completes.",
+            ),
+            _next_step(
+                "crema_list_catalog_operations",
+                {"kind": "full_reenrich_roaster", "target_slug": slug,
+                 "since": fired_at, "limit": 5},
+                "audit THIS sweep (parent op + sync_tab2 + scrape + "
+                "article_scrape + standardize children). Confirm "
+                "status='succeeded' on the parent before moving on.",
+            ),
+            _next_step(
+                "crema_list_quality_reviews",
+                {"target_table": "catalog_operations",
+                 "verdict": "confirmed", "limit": 50},
+                "T1 anomaly flags against the operations themselves: "
+                "mass_delete, failed_rate_high, zero_discovered, "
+                "duplicate_enqueue_burst. These are the structural "
+                "concerns from the sweep.",
+            ),
+            _next_step(
+                "crema_list_quality_reviews",
+                {"target_table": "roaster_profiles",
+                 "verdict": "confirmed", "roaster_slug": slug, "limit": 20},
+                "T1 bio findings for THIS roaster: URL drift, "
+                "homepage-vs-catalog mismatch, generic specialties.",
+            ),
+            _next_step(
+                "crema_run_quality_review_sweep",
+                {"target_table": "products", "slug": slug},
+                "retroactively drain T1 product flags that didn't "
+                "get T2-reviewed during the live sweep (drainer "
+                "coverage gap). Fires Haiku — spawn drainers first.",
+            ),
+        ],
+    }, resource="roaster_full_reenrich")
+
+
+@router.get("/admin/quality-reviews")
+def admin_list_quality_reviews(
+    target_table: Optional[str] = None,
+    verdict: Optional[str] = None,
+    tier: Optional[int] = None,
+    roaster_slug: Optional[str] = None,
+    limit: int = 100,
+    user=Depends(get_current_user),
+):
+    """List rows in the quality_reviews table for orchestrator triage.
+
+    Filters:
+      • target_table: 'products' | 'roaster_articles'
+      • verdict: 'pending' | 'confirmed' | 'cleared' | 'overridden'
+      • tier: 1 | 2 | 3
+      • roaster_slug: scope to one roaster (JOINs products /
+        roaster_articles for the slug)
+
+    Default usage: GET /admin/quality-reviews?verdict=confirmed to
+    surface the T2-confirmed-hallucination queue ready for T3 Opus
+    override.
+    """
+    _require_admin(user)
+    if limit < 1 or limit > 500:
+        from fastapi import HTTPException
+        raise HTTPException(400, "limit must be 1..500")
+    if target_table and target_table not in ("products", "roaster_articles", "roaster_profiles"):
+        from fastapi import HTTPException
+        raise HTTPException(400, "target_table must be products, roaster_articles, or roaster_profiles")
+    if verdict and verdict not in ("pending", "confirmed", "cleared", "overridden"):
+        from fastapi import HTTPException
+        raise HTTPException(400, "invalid verdict")
+    if tier and tier not in (1, 2, 3):
+        from fastapi import HTTPException
+        raise HTTPException(400, "tier must be 1, 2, or 3")
+
+    where = []
+    params: list = []
+    if target_table:
+        where.append("qr.target_table = ?")
+        params.append(target_table)
+    if verdict:
+        where.append("qr.verdict = ?")
+        params.append(verdict)
+    if tier is not None:
+        where.append("qr.tier = ?")
+        params.append(tier)
+    if roaster_slug:
+        # Join through target table to filter by slug
+        where.append(
+            "((qr.target_table = 'products' AND EXISTS (SELECT 1 FROM products p "
+            "  WHERE p.product_id = qr.target_id AND p.roaster_slug = ?)) "
+            "OR (qr.target_table = 'roaster_articles' AND EXISTS (SELECT 1 FROM "
+            "  roaster_articles ra WHERE ra.id = CAST(qr.target_id AS INTEGER) "
+            "  AND ra.roaster_slug = ?)))"
+        )
+        params.extend([roaster_slug, roaster_slug])
+
+    sql = "SELECT * FROM quality_reviews qr"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY qr.created_at DESC, qr.id DESC LIMIT ?"
+    params.append(limit)
+
+    db = get_db()
+    try:
+        rows = db.execute(sql, tuple(params)).fetchall()
+        # Per-status rollup for convenience
+        rollup = {}
+        for r in db.execute(
+            "SELECT verdict, tier, COUNT(*) as c FROM quality_reviews "
+            "GROUP BY verdict, tier"
+        ).fetchall():
+            rollup[f"{r['verdict']}_t{r['tier']}"] = r["c"]
+        return ok({
+            "rows": [dict(r) for r in rows],
+            "returned": len(rows),
+            "filters": {
+                "target_table": target_table, "verdict": verdict,
+                "tier": tier, "roaster_slug": roaster_slug,
+            },
+            "rollup": rollup,
+        }, resource="quality_reviews")
+    finally:
+        db.close()
+
+
+@router.post("/admin/quality-reviews/prepare-t3", status_code=200)
+def admin_prepare_t3_review(
+    body: dict = None,
+    user=Depends(get_current_user),
+):
+    """Return T3 context bundles for the orchestrator to reason over.
+
+    T3 is ORCHESTRATOR-FIRED — the caller of this MCP tool (Claude
+    Code session) reads the bundles, decides what to correct, and
+    submits the corrections via /admin/quality-reviews/apply-t3.
+    No LLM call happens here — this route is pure data shaping.
+
+    Why this pattern: T3 is the "smarter than Haiku" review layer.
+    Routing T3 through the call_llm queue puts a Haiku drainer on
+    the job, defeating the purpose. Calling the SDK from the
+    backend burns credits the operator reserves for human-fired
+    work. The orchestrator (this Claude Code session, running on
+    the subscription path) IS the smarter tier — let it do the
+    reasoning directly.
+
+    Body:
+      • target_table: 'products' | 'roaster_articles' (required)
+      • target_id: scope to one row (optional)
+      • roaster_slug: scope to one roaster (optional)
+      • limit: max bundles to return (default 10, max 50)
+
+    Returns: { bundles: [{target_id, entity, roaster_name,
+      description_raw, confirmed_flags}, ...] }
+    """
+    _require_admin(user)
+    body = body or {}
+    target_table = body.get("target_table")
+    if target_table not in ("products", "roaster_articles", "roaster_profiles"):
+        from fastapi import HTTPException
+        raise HTTPException(
+            400, "target_table must be products, roaster_articles, or roaster_profiles",
+        )
+    target_id = body.get("target_id")
+    roaster_slug = body.get("roaster_slug")
+    limit = int(body.get("limit") or 10)
+    if limit < 1 or limit > 50:
+        from fastapi import HTTPException
+        raise HTTPException(400, "limit must be 1..50")
+
+    from services.quality_reviewer import prepare_t3_review_batch
+    db = get_db()
+    try:
+        bundles = prepare_t3_review_batch(
+            db, target_table=target_table, target_id=target_id,
+            roaster_slug=roaster_slug, limit=limit,
+        )
+        # Encode the structural next step: for each bundle, the
+        # orchestrator must reason + call apply_t3_correction. We
+        # surface ONE template next_step (per first bundle) — the
+        # orchestrator iterates the rest itself.
+        next_steps = []
+        if bundles:
+            sample = bundles[0]
+            next_steps.append(_next_step(
+                "crema_apply_t3_correction",
+                {
+                    "target_table": target_table,
+                    "target_id": sample["target_id"],
+                    "corrections": [
+                        {
+                            "field": "<field>",
+                            "corrected_value": "<value or null to clear>",
+                            "reasoning": "<page-text citation>",
+                        }
+                    ],
+                    "lesson": "<what the original enricher got wrong + "
+                              "what rule would have caught it>",
+                },
+                f"reason over each of the {len(bundles)} bundles "
+                "above (read entity + confirmed_flags + roaster_name + "
+                "description_raw), then call apply_t3_correction "
+                "PER TARGET with corrections + lesson. The lesson is "
+                "what makes T3 worth it — without lessons, the "
+                "continuous-hardening loop doesn't close.",
+            ))
+        else:
+            next_steps.append(_next_step(
+                "crema_list_quality_reviews",
+                {"target_table": target_table, "limit": 20},
+                "no confirmed flags to T3 right now. Verify the "
+                "review queue is empty for this scope.",
+            ))
+        return ok({
+            "target_table": target_table,
+            "bundles": bundles,
+            "bundle_count": len(bundles),
+            "next_steps": next_steps,
+        }, resource="quality_review_t3_prepare")
+    finally:
+        db.close()
+
+
+@router.post("/admin/quality-reviews/apply-t3", status_code=200)
+def admin_apply_t3_correction(
+    body: dict = None,
+    user=Depends(get_current_user),
+):
+    """Apply the orchestrator's T3 corrections to one target row.
+
+    Body:
+      • target_table: 'products' | 'roaster_articles' (required)
+      • target_id: target row id (required)
+      • corrections: [{field, corrected_value, reasoning}, ...]
+        — field must be in the allowlist; corrected_value can be
+        a string or null (null clears the field)
+      • lesson: string capturing what the original enricher got
+        wrong + what rule would have caught it. Persisted to
+        every overridden quality_reviews row for the
+        continuous-hardening loop.
+
+    Returns: { applied: N, skipped: N }
+    """
+    _require_admin(user)
+    body = body or {}
+    target_table = body.get("target_table")
+    if target_table not in ("products", "roaster_articles", "roaster_profiles"):
+        from fastapi import HTTPException
+        raise HTTPException(
+            400, "target_table must be products, roaster_articles, or roaster_profiles",
+        )
+    target_id = body.get("target_id")
+    if not target_id:
+        from fastapi import HTTPException
+        raise HTTPException(400, "target_id is required")
+    corrections = body.get("corrections") or []
+    lesson = body.get("lesson") or ""
+    if not corrections:
+        from fastapi import HTTPException
+        raise HTTPException(400, "corrections list is required and non-empty")
+    if not lesson:
+        from fastapi import HTTPException
+        raise HTTPException(
+            400,
+            "lesson is required — even a one-liner. T3's value is "
+            "the lesson, not just the correction.",
+        )
+
+    from services.quality_reviewer import apply_t3_corrections
+    db = get_db()
+    try:
+        counts = apply_t3_corrections(
+            db, target_table=target_table, target_id=target_id,
+            corrections=corrections, lesson=lesson, now_iso=_now_iso(),
+        )
+        return ok({
+            "target_table": target_table,
+            "target_id": target_id,
+            "applied": counts["applied"],
+            "skipped": counts["skipped"],
+            "lesson": lesson,
+        }, resource="quality_review_t3_apply")
+    finally:
+        db.close()
+
+
+@router.get("/admin/catalog-operations")
+def admin_list_catalog_operations(
+    kind: Optional[str] = None,
+    status: Optional[str] = None,
+    target_slug: Optional[str] = None,
+    since: Optional[str] = None,
+    limit: int = 50,
+    user=Depends(get_current_user),
+):
+    """List rows from catalog_operations — the audit trail of every
+    state-mutating catalog op.
+
+    Filters:
+      • kind: 'dedupe' | 'delete_product' | 'full_reenrich_roaster' | ...
+      • status: 'running' | 'succeeded' | 'failed' | 'rolled_back'
+      • target_slug: scope to one roaster
+      • since: ISO timestamp; only ops started_at >= since
+      • limit: max rows. Default 50, max 500.
+
+    Returns the rows + a parsed summary_json + a roll-up of counts by
+    status. Use to triage what's happened recently or to find an
+    operation to roll back.
+    """
+    _require_admin(user)
+    if limit < 1 or limit > 500:
+        from fastapi import HTTPException
+        raise HTTPException(400, "limit must be 1..500")
+    where = []
+    params: list = []
+    if kind:
+        where.append("kind = ?"); params.append(kind)
+    if status:
+        if status not in ("running", "succeeded", "failed", "rolled_back"):
+            from fastapi import HTTPException
+            raise HTTPException(400, "invalid status")
+        where.append("status = ?"); params.append(status)
+    if target_slug:
+        where.append("target_slug = ?"); params.append(target_slug)
+    if since:
+        where.append("started_at >= ?"); params.append(since)
+    sql = "SELECT * FROM catalog_operations"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+
+    db = get_db()
+    try:
+        rows = db.execute(sql, tuple(params)).fetchall()
+        result_rows = []
+        for r in rows:
+            d = dict(r)
+            # Parse JSON columns for easier downstream consumption
+            for col in ("params_json", "summary_json"):
+                if d.get(col):
+                    try:
+                        d[col[:-5]] = json.loads(d[col])
+                    except (ValueError, TypeError):
+                        d[col[:-5]] = None
+            result_rows.append(d)
+        rollup = {}
+        for r in db.execute(
+            "SELECT status, COUNT(*) as c FROM catalog_operations "
+            "GROUP BY status"
+        ).fetchall():
+            rollup[r["status"]] = r["c"]
+        return ok({
+            "rows": result_rows,
+            "returned": len(result_rows),
+            "rollup": rollup,
+        }, resource="catalog_operations")
+    finally:
+        db.close()
+
+
+@router.post("/admin/catalog-operations/{operation_id}/rollback")
+def admin_rollback_catalog_operation(
+    operation_id: int,
+    body: dict = None,
+    user=Depends(get_current_user),
+):
+    """Roll back a catalog operation by restoring all snapshotted
+    rows. Idempotent — re-running on an already-rolled-back op is a
+    no-op.
+
+    Body:
+      • reason: free-form note recorded on the operation row.
+
+    Returns: { operation_id, rows_restored, rows_deleted,
+               tables_touched }
+    """
+    _require_admin(user)
+    body = body or {}
+    reason = body.get("reason") or f"admin:{user.get('id')}"
+    from services.operation_qc import rollback_operation
+    db = get_db()
+    try:
+        result = rollback_operation(db, operation_id, reason=reason)
+        return ok(result, resource="catalog_operation_rollback")
+    finally:
+        db.close()
+
+
+@router.post("/admin/products/dedupe", status_code=200)
+def admin_dedupe_products(
+    body: dict = None,
+    user=Depends(get_current_user),
+):
+    """Consolidate duplicate products in the catalog.
+
+    Finds groups by URL (exact or normalized after stripping
+    scheme/www/collections-all/trailing-slash), picks a canonical
+    row (richest enrichment, most recent enriched_at, lexicographic
+    tie-break), merges null fields from siblings, re-points FKs in
+    shelf_entries / tasting_notes / click_events / hidden_products /
+    brew_methods / ad_impressions / roaster_ad_placements /
+    roaster_posts / scrape_proposals, then deletes the sibling rows.
+
+    Body:
+      • strategy: 'url_exact' | 'url_normalized' (default
+        'url_normalized' — catches both Class A and Class B from
+        the 2026-05-26 audit).
+      • slug: scope to one roaster (optional).
+      • limit: cap on groups to consolidate per call (optional).
+      • dry_run: default true. Preview before committing.
+
+    Returns a summary with per-group details. Tables with UNIQUE
+    constraints (shelf_entries on user_id+product_id, hidden_products
+    on roaster_slug+product_id) get conflicting sibling rows deleted
+    before the UPDATE re-points the rest.
+    """
+    _require_admin(user)
+    body = body or {}
+    strategy = body.get("strategy") or "url_normalized"
+    if strategy not in ("url_exact", "url_normalized", "content_similarity"):
+        from fastapi import HTTPException
+        raise HTTPException(
+            400,
+            "strategy must be url_exact, url_normalized, or content_similarity",
+        )
+    slug = body.get("slug")
+    raw_limit = body.get("limit")
+    limit = int(raw_limit) if raw_limit is not None else None
+    if limit is not None and (limit < 1 or limit > 5000):
+        from fastapi import HTTPException
+        raise HTTPException(400, "limit must be 1..5000")
+    dry_run = bool(body.get("dry_run", True))
+
+    from services.product_dedupe import run_dedupe_sweep
+    db = get_db()
+    try:
+        result = run_dedupe_sweep(
+            db, strategy=strategy, slug=slug, limit=limit,
+            dry_run=dry_run,
+        )
+        # Structurally encode the follow-on workflow. Dry-run vs live
+        # have different next steps — dry should review the preview,
+        # live should audit the catalog_operations row + verify.
+        if dry_run:
+            result["next_steps"] = [
+                _next_step(
+                    "crema_dedupe_products",
+                    {"strategy": strategy, "slug": slug,
+                     "limit": limit, "dry_run": False},
+                    "the preview above shows what WOULD merge. If it "
+                    "looks correct (canonical picks are right, "
+                    "sibling deletions are real dupes), re-fire with "
+                    "dry_run=false to apply.",
+                ),
+            ]
+        else:
+            op_id = result.get("operation_id")
+            result["next_steps"] = [
+                _next_step(
+                    "crema_list_catalog_operations",
+                    {"kind": "dedupe", "limit": 3},
+                    "audit this dedupe op. Look for op_dedupe_oversized "
+                    "or op_mass_delete T1 flags — if either fired, "
+                    "the merges may have over-collapsed.",
+                ),
+                _next_step(
+                    "crema_list_quality_reviews",
+                    {"target_table": "catalog_operations",
+                     "verdict": "confirmed", "limit": 10},
+                    "T1 op-level anomalies. Roll back via "
+                    "crema_rollback_catalog_operation if a flag "
+                    "indicates over-aggressive consolidation.",
+                ),
+                *(
+                    [_next_step(
+                        "crema_rollback_catalog_operation",
+                        {"operation_id": op_id,
+                         "reason": "<fill in if dedupe was wrong>"},
+                        "ONLY IF the audit shows this dedupe was "
+                        "wrong. Restores every merged sibling + "
+                        "reverts canonical field-merges.",
+                    )] if op_id else []
+                ),
+            ]
+        return ok(result, resource="products_dedupe")
+    finally:
+        db.close()
+
+
+@router.post("/admin/catalog/filter-retro-sweep", status_code=200)
+def admin_catalog_filter_retro_sweep(
+    body: dict = None,
+    user=Depends(get_current_user),
+):
+    """Retroactive Stage 1 filter sweep — re-apply current
+    `is_url_excluded` to every available catalog row and flip the
+    matches to `available=0, enrichment_status='filter_reject'`.
+    Field values (price, weight, name, image) preserved.
+
+    Closes the grandfathering loop: rows inserted before filter
+    rules tightened (e.g. "tasting set", "blend duo", "drip kit"
+    added after the initial seed) are now caught.
+
+    Body:
+      • slug: scope to one roaster (optional).
+      • limit: cap on rows scanned (optional, default = all).
+      • dry_run: default true. Always preview first.
+
+    Live runs log a `catalog_operations` row with snapshots so
+    rollback restores `available + enrichment_status` exactly.
+    Field values are not touched (no rollback needed for those).
+    """
+    _require_admin(user)
+    body = body or {}
+    slug = body.get("slug")
+    raw_limit = body.get("limit")
+    limit = int(raw_limit) if raw_limit is not None else None
+    if limit is not None and (limit < 1 or limit > 50000):
+        from fastapi import HTTPException
+        raise HTTPException(400, "limit must be 1..50000")
+    dry_run = bool(body.get("dry_run", True))
+
+    from services.catalog_filter_sweep import run_filter_sweep
+    db = get_db()
+    try:
+        result = run_filter_sweep(
+            db, dry_run=dry_run, slug=slug, limit=limit,
+        )
+        if dry_run:
+            result["next_steps"] = [
+                _next_step(
+                    "crema_apply_filters_retro",
+                    {"slug": slug, "limit": limit, "dry_run": False},
+                    "the preview shows which rows would flip to "
+                    "filter_reject. If the matches look correct, "
+                    "re-fire with dry_run=false to apply.",
+                ),
+            ]
+        else:
+            op_id = result.get("operation_id")
+            result["next_steps"] = [
+                *(
+                    [_next_step(
+                        "crema_list_catalog_operations",
+                        {"kind": "filter_retro_sweep", "limit": 3},
+                        "audit the sweep op. If the affected count "
+                        "looks too high, roll back via "
+                        "crema_rollback_catalog_operation.",
+                    )] if op_id else []
+                ),
+                _next_step(
+                    "crema_catalog_quality_audit",
+                    {},
+                    "re-audit the catalog to confirm the bundle "
+                    "cluster is gone.",
+                ),
+            ]
+        return ok(result, resource="catalog_filter_sweep")
+    finally:
+        db.close()
+
+
+@router.post("/admin/catalog/url-health-audit", status_code=200)
+def admin_catalog_url_health_audit(
+    body: dict = None,
+    user=Depends(get_current_user),
+):
+    """URL health audit — HEAD-check every available product_url and
+    flip persistent 404s to `available=0, enrichment_status='url_dead'`.
+
+    Closes stale-URL accumulation: roasters retire SKUs (Takaraa
+    `-takaraa-1-kg`), replatform (ffox/libertario), or publish
+    per-batch URLs that age out (Caffinary `-roasted-on-DDMM`).
+
+    Body:
+      • slug: scope to one roaster (optional).
+      • limit: cap on rows scanned (optional, default = all).
+      • concurrency: parallel HEAD requests (default 8).
+      • dry_run: default true. Always preview first.
+
+    Live runs log a `catalog_operations` row with snapshots so
+    rollback restores `available + enrichment_status`.
+
+    Cost: one HEAD per row. At default 8-way parallelism, a 1500-row
+    catalog completes in ~3-5 minutes. Network errors and 5xx are
+    treated as transient — only 404 flips the row.
+    """
+    _require_admin(user)
+    body = body or {}
+    slug = body.get("slug")
+    raw_limit = body.get("limit")
+    limit = int(raw_limit) if raw_limit is not None else None
+    if limit is not None and (limit < 1 or limit > 50000):
+        from fastapi import HTTPException
+        raise HTTPException(400, "limit must be 1..50000")
+    raw_concurrency = body.get("concurrency")
+    concurrency = int(raw_concurrency) if raw_concurrency else 8
+    if concurrency < 1 or concurrency > 32:
+        from fastapi import HTTPException
+        raise HTTPException(400, "concurrency must be 1..32")
+    dry_run = bool(body.get("dry_run", True))
+
+    from services.catalog_url_health import run_url_health_audit
+    db = get_db()
+    try:
+        result = run_url_health_audit(
+            db, dry_run=dry_run, slug=slug, limit=limit,
+            concurrency=concurrency,
+        )
+        if dry_run:
+            result["next_steps"] = [
+                _next_step(
+                    "crema_url_health_audit",
+                    {"slug": slug, "limit": limit, "dry_run": False},
+                    "preview shows the 404'd URLs. If they're truly "
+                    "dead (not transient), re-fire with dry_run=false "
+                    "to flip them to url_dead.",
+                ),
+            ]
+        else:
+            op_id = result.get("operation_id")
+            result["next_steps"] = [
+                *(
+                    [_next_step(
+                        "crema_list_catalog_operations",
+                        {"kind": "url_health_audit", "limit": 3},
+                        "audit the sweep. Rollback via "
+                        "crema_rollback_catalog_operation if needed.",
+                    )] if op_id else []
+                ),
+                _next_step(
+                    "crema_full_reenrich_roaster",
+                    {"slug": "<affected roaster slug>"},
+                    "for any roaster with significant url_dead count, "
+                    "fire a full re-enrich to rediscover live URLs "
+                    "and rebuild that roaster's catalog from scratch.",
+                ),
+            ]
+        return ok(result, resource="catalog_url_health")
+    finally:
+        db.close()
+
+
+@router.post("/admin/quality-reviews/run-sweep", status_code=200)
+def admin_run_quality_review_sweep(
+    body: dict = None,
+    user=Depends(get_current_user),
+):
+    """Run T1 (and optionally T2) retroactively across already-enriched
+    rows. Closes the coverage gap when bulk enrichment ran through the
+    subprocess scrape path (catalog_ops.scrape_one_roaster), which
+    bypasses the inline T1+T2 wiring in enrichment_runner.
+
+    Use after a bulk re-enrich sweep completes. Idempotent at the row
+    level — re-running on the same rows wipes pending flags and
+    re-evaluates (cleared/confirmed/overridden flags stay as history).
+
+    Body:
+      • target_table: 'products' | 'roaster_articles' (default 'products')
+      • slug: scope to one roaster (optional)
+      • since: ISO timestamp; only rows enriched_at >= since (optional)
+      • limit: cap on rows scanned (optional)
+      • run_t2: default true. False = T1 only (faster, no LLM spend).
+      • skip_already_reviewed: default true. Set false to force re-scan
+        of rows that already have a quality_reviews entry.
+
+    Cost: T1 is free. T2 runs Haiku per T1-flagged row via the
+    standard call_llm queue (drainers must be active to make progress).
+    """
+    _require_admin(user)
+    body = body or {}
+    target_table = body.get("target_table") or "products"
+    if target_table not in ("products", "roaster_articles", "roaster_profiles"):
+        from fastapi import HTTPException
+        raise HTTPException(
+            400, "target_table must be products, roaster_articles, or roaster_profiles",
+        )
+    slug = body.get("slug")
+    since = body.get("since")
+    raw_limit = body.get("limit")
+    limit = int(raw_limit) if raw_limit is not None else None
+    if limit is not None and (limit < 1 or limit > 10000):
+        from fastapi import HTTPException
+        raise HTTPException(400, "limit must be 1..10000")
+    run_t2 = bool(body.get("run_t2", True))
+    skip_already_reviewed = bool(body.get("skip_already_reviewed", True))
+
+    from services.quality_reviewer import run_retroactive_sweep
+    db = get_db()
+    try:
+        result = run_retroactive_sweep(
+            db, target_table=target_table, slug=slug, since=since,
+            limit=limit, run_t2=run_t2,
+            skip_already_reviewed=skip_already_reviewed,
+        )
+        # Next-step structural directives based on what the sweep found
+        confirmed = int(result.get("t2_confirmed") or 0)
+        flagged = int(result.get("rows_flagged_by_t1") or 0)
+        ns: list[dict] = []
+        if confirmed > 0:
+            ns.append(_next_step(
+                "crema_list_quality_reviews",
+                {"target_table": target_table,
+                 "verdict": "confirmed", "limit": 50},
+                f"T2 confirmed {confirmed} flag(s) as real hallucinations. "
+                "Review them, then escalate to T3 if you want orchestrator "
+                "corrections.",
+            ))
+            ns.append(_next_step(
+                "crema_prepare_t3_review",
+                {"target_table": target_table, "limit": 10},
+                "fetch context bundles for the confirmed flags so YOU "
+                "(the orchestrator) can reason over each and emit "
+                "corrections via crema_apply_t3_correction.",
+            ))
+        if flagged == 0:
+            ns.append(_next_step(
+                "crema_list_quality_reviews",
+                {"target_table": target_table, "limit": 20},
+                "sweep found no new flags. Verify previously-flagged "
+                "rows are still in the expected states.",
+            ))
+        result["next_steps"] = ns
+        return ok(result, resource="quality_review_sweep")
+    finally:
+        db.close()
+
+
+@router.post("/admin/quality-reviews/{review_id}/resolve")
+def admin_resolve_quality_review(
+    review_id: int,
+    body: dict = None,
+    user=Depends(get_current_user),
+):
+    """Manually resolve one quality_reviews row.
+
+    Body:
+      • verdict: 'cleared' | 'confirmed' | 'overridden' (required)
+      • corrected_value: optional, only for 'overridden'
+      • lesson: optional, only for 'overridden'
+
+    Use when the admin (human) makes the call instead of T2/T3.
+    Common: clear a T1 false-positive that T2 missed, or override
+    a row directly without invoking Opus.
+    """
+    _require_admin(user)
+    body = body or {}
+    verdict = body.get("verdict")
+    if verdict not in ("cleared", "confirmed", "overridden"):
+        from fastapi import HTTPException
+        raise HTTPException(
+            400, "verdict must be cleared|confirmed|overridden",
+        )
+    corrected_value = body.get("corrected_value")
+    lesson = body.get("lesson")
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT * FROM quality_reviews WHERE id = ?", (review_id,),
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"quality_review {review_id} not found")
+        db.execute(
+            "UPDATE quality_reviews SET verdict = ?, "
+            "  corrected_value = ?, lesson = ?, "
+            "  resolved_at = ?, resolved_by = 'admin' "
+            "WHERE id = ?",
+            (
+                verdict,
+                str(corrected_value) if corrected_value is not None else None,
+                lesson, _now_iso(), review_id,
+            ),
+        )
+        db.commit()
+        updated = db.execute(
+            "SELECT * FROM quality_reviews WHERE id = ?", (review_id,),
+        ).fetchone()
+        return ok(dict(updated), resource="quality_reviews")
+    finally:
+        db.close()
+
+
+@router.post("/admin/enrichment-tasks/reap-stuck", status_code=200)
+def admin_reap_stuck_enrichment_tasks(
+    body: dict = None,
+    user=Depends(get_current_user),
+):
+    """Reap enrichment_tasks rows stuck at state='llm_pending'.
+
+    Sister to the L1 stuck-claim reaper (which heals llm_jobs.in_progress
+    claims after 300s) but operates on the higher-level enrichment_tasks
+    state machine. The L1 reaper handles drainer early-exit; this one
+    handles the case where the BG enrichment worker itself dies between
+    flipping state to llm_pending (enrichment_runner.py:578) and the
+    subsequent transition to enriched/failed/skipped.
+
+    The 2026-05-26 post-bulk-sweep audit surfaced 21 such stuck rows.
+    Most have llm_job_id=null (worker crashed BEFORE call_llm enqueued
+    the LLM job — the new try/except around enrich_url should prevent
+    this going forward, but the reaper is still needed for SIGKILL-class
+    failures the try/except can't intercept).
+
+    Body:
+      • older_than_minutes: int (default 5). Only reap rows stuck for
+        at least this long.
+      • dry_run: bool (default false). Preview the reap without writing.
+
+    Rule:
+      • Tasks where result_table + result_id are set AND the target row
+        exists → flip to 'enriched' (state-machine straggler)
+      • Else → flip to 'failed' with last_error='reaped:stuck_llm_pending_Nm'
+    """
+    _require_admin(user)
+    body = body or {}
+    older_than_minutes = int(body.get("older_than_minutes") or 5)
+    dry_run = bool(body.get("dry_run", False))
+    if older_than_minutes < 1:
+        from fastapi import HTTPException
+        raise HTTPException(400, "older_than_minutes must be >= 1")
+
+    from services.enrichment_runner import reap_stuck_llm_pending
+    db = get_db()
+    try:
+        result = reap_stuck_llm_pending(
+            db,
+            older_than_minutes=older_than_minutes,
+            dry_run=dry_run,
+        )
+    finally:
+        db.close()
+    return ok(result, resource="enrichment_tasks_reap")
+
+
+@router.post("/admin/catalog-operations/reap-stuck", status_code=200)
+def admin_reap_stuck_catalog_operations(
+    body: dict = None,
+    user=Depends(get_current_user),
+):
+    """Reap catalog_operations rows stuck at status='running'.
+
+    Sister to /admin/enrichment-tasks/reap-stuck (which heals the lower-
+    level state machine). This one operates on the catalog_operations
+    audit table — the parent rows that wrap full_reenrich_roaster,
+    sync_tab*, standardize, scrape_one_roaster, etc.
+
+    Background: the parent-op-finalization bug (deferred fix) leaves
+    parent rows at status='running' even after all child work completed.
+    Symptom: bulk runs accumulate phantom "running" rows; the rollup
+    misreports active work; future bulk operations see a noisy baseline.
+
+    Body:
+      • older_than_minutes: int (default 30). Only reap rows stuck for
+        at least this long. Conservative default because legitimate
+        long-running ops (full_reenrich_roaster on a 50-product
+        roaster) can take 10+ minutes.
+      • dry_run: bool (default false). Preview the reap without writing.
+
+    Rule:
+      • status='running' AND started_at < now - older_than_minutes
+        → flip status='failed', set finished_at=now, write
+        error_message='stale_marker_reaped: ...' for audit trail.
+
+    Returns counts + the reaped rows so the caller can spot any
+    surprising entries (e.g. an op that's been stuck for days
+    against expectation).
+    """
+    _require_admin(user)
+    body = body or {}
+    older_than_minutes = int(body.get("older_than_minutes") or 30)
+    dry_run = bool(body.get("dry_run", False))
+    if older_than_minutes < 1:
+        from fastapi import HTTPException
+        raise HTTPException(400, "older_than_minutes must be >= 1")
+
+    db = get_db()
+    try:
+        # Find candidates first (same predicate either way).
+        # Comparison via julianday() because `started_at` is stored
+        # as ISO-with-T-and-Z (`2026-05-28T13:10:31.357657Z`) while
+        # `datetime('now', '-Nmin')` returns space-separated no-zone
+        # (`2026-05-28 13:28:55`). A string compare on those formats
+        # puts the `T` (ASCII 0x54) ahead of the space (ASCII 0x20)
+        # at position 11, so every row reads as "newer than cutoff"
+        # and the predicate matches zero rows. julianday() coerces
+        # both sides to numeric days-since-epoch, format-agnostic.
+        # Threshold expressed in days: minutes / (24 * 60).
+        threshold_days = float(older_than_minutes) / (24.0 * 60.0)
+        candidates = db.execute(
+            "SELECT id, kind, target_slug, started_at, "
+            "  CAST((julianday('now') - julianday(started_at)) "
+            "       * 24 * 60 AS INTEGER) AS age_minutes "
+            "FROM catalog_operations "
+            "WHERE status = 'running' "
+            "  AND julianday('now') - julianday(started_at) > ? "
+            "ORDER BY started_at",
+            (threshold_days,),
+        ).fetchall()
+        reaped_rows = [dict(r) for r in candidates]
+
+        if not dry_run and reaped_rows:
+            reason = (
+                f"stale_marker_reaped: status=running for "
+                f">{older_than_minutes}min with no finalization; "
+                f"parent-op-finalization residue."
+            )
+            db.execute(
+                "UPDATE catalog_operations "
+                "SET status = 'failed', "
+                "    finished_at = ?, "
+                "    error_message = ? "
+                "WHERE status = 'running' "
+                "  AND julianday('now') - julianday(started_at) > ?",
+                (_now_iso(), reason, threshold_days),
+            )
+            db.commit()
+
+        # Per-kind rollup for the response.
+        by_kind: dict[str, int] = {}
+        for r in reaped_rows:
+            by_kind[r["kind"]] = by_kind.get(r["kind"], 0) + 1
+
+        return ok(
+            {
+                "dry_run": dry_run,
+                "older_than_minutes": older_than_minutes,
+                "reaped_count": len(reaped_rows),
+                "by_kind": by_kind,
+                "reaped_rows": reaped_rows,
+            },
+            resource="catalog_operations_reap",
+        )
+    finally:
+        db.close()
 
 
 @router.post("/admin/roasters/{slug}/publish")
@@ -5928,14 +8670,24 @@ def admin_update_scrape_settings(slug: str, body: dict,
 
 @router.post("/admin/products/{product_id}/re-enrich")
 def admin_re_enrich_product(product_id: str, user=Depends(get_current_user)):
-    """Re-run Sonnet enrichment against an existing products row,
-    overwrite the four enrichment columns (process_raw, producer,
-    brew_recommendation_json, enrichment_status) plus the LLM-curated
-    fields (coffee_name, origin, varietal, bean_type, …).
+    """Force re-enrichment of one product through the v2 pipeline.
 
-    Used by the Library view in Tab 3 + by the per-card "Needs
-    re-enrichment" affordance for rows where Sonnet failed during the
-    scrape's initial pass.
+    Pulls the product_url + roaster_slug from the existing row, fetches
+    the source page (with the Playwright Tier 4 fallback that clears
+    Cloudflare / JS-render walls + clicks Wix variant dropdowns), runs
+    the Haiku v2 enricher, and upserts through the canonical
+    entity_upserter.
+
+    The route is a thin wrapper around
+    `services.entity_reenricher.reenrich_one_product` so the bulk
+    `/admin/roasters/{slug}/bulk-reenrich` worker shares the same path.
+
+    Note on blocking: the call is synchronous and waits for the LLM
+    queue (drainer subagents chase the job). With drainers running
+    typical wall is 30-60s per product; without drainers the route
+    will hang up to llm_router's timeout. The HTTP client may give
+    up earlier but the work continues server-side — re-poll the
+    products row to check final state.
     """
     _require_admin(user)
     db = get_db()
@@ -5947,70 +8699,253 @@ def admin_re_enrich_product(product_id: str, user=Depends(get_current_user)):
             from fastapi import HTTPException
             raise HTTPException(404, f"Product {product_id} not found")
         product = dict(row)
-        # Stamp pipeline context so llm_router queues the job with the
-        # correct roaster_slug instead of "unknown". Mirrors the
-        # _orchestrate_refresh_all pattern above.
-        from services.llm_router import set_pipeline_context
-        set_pipeline_context(roaster_slug=product.get("roaster_slug"))
-        try:
-            from services import product_enricher
-            merged = product_enricher.enrich_product(product)
-        except Exception as e:
-            from fastapi import HTTPException
-            raise HTTPException(503, f"Enrichment failed: {e}")
-        if merged is None:
-            db.execute(
-                "UPDATE products SET enrichment_status = 'failed' "
-                "WHERE product_id = ?",
-                (product_id,),
-            )
-            db.commit()
-            from fastapi import HTTPException
-            raise HTTPException(502, "Sonnet returned no result; row marked failed")
 
-        brew = merged.get("brew_recommendation")
-        brew_json = json.dumps(brew) if isinstance(brew, dict) else None
-        flavor = merged.get("flavor_notes")
-        flavor_json = json.dumps(flavor) if isinstance(flavor, list) else flavor
-        db.execute(
-            """
-            UPDATE products SET
-                coffee_name = COALESCE(?, coffee_name),
-                roast_level = COALESCE(?, roast_level),
-                tasting_notes = COALESCE(?, tasting_notes),
-                origin = COALESCE(?, origin),
-                process = COALESCE(?, process),
-                varietal = COALESCE(?, varietal),
-                altitude_masl = COALESCE(?, altitude_masl),
-                bean_type = COALESCE(?, bean_type),
-                flavor_notes = COALESCE(?, flavor_notes),
-                process_raw = ?,
-                producer = ?,
-                brew_recommendation_json = ?,
-                enrichment_status = 'enriched'
-            WHERE product_id = ?
-            """,
-            (
-                merged.get("coffee_name_clean") or merged.get("coffee_name"),
-                merged.get("roast_level"),
-                merged.get("tasting_notes"),
-                merged.get("origin"),
-                merged.get("process"),
-                merged.get("varietal"),
-                merged.get("altitude_masl"),
-                merged.get("bean_type"),
-                flavor_json,
-                merged.get("process_raw"),
-                merged.get("producer"),
-                brew_json,
-                product_id,
-            ),
-        )
-        db.commit()
+        from services.entity_reenricher import reenrich_one_product
+        result = reenrich_one_product(db, product)
+
+        if result.outcome == "no_url":
+            from fastapi import HTTPException
+            raise HTTPException(422, result.error or "missing url/slug")
+        if result.outcome == "failed_fetch":
+            from fastapi import HTTPException
+            raise HTTPException(502, result.error or "page fetch failed")
+        if result.outcome == "gated":
+            from fastapi import HTTPException
+            raise HTTPException(
+                422,
+                f"Haiku gated this product out ({result.gate_status}); "
+                "existing row preserved.",
+            )
+        if result.outcome == "failed_llm":
+            from fastapi import HTTPException
+            raise HTTPException(503, f"Enrichment failed: {result.error}")
+        if result.outcome == "failed_validation":
+            from fastapi import HTTPException
+            raise HTTPException(
+                502,
+                result.error or "enricher returned no result",
+            )
+
         updated = db.execute(
             "SELECT * FROM products WHERE product_id = ?", (product_id,),
         ).fetchone()
         return ok(dict(updated), resource="products")
+    finally:
+        db.close()
+
+
+@router.post("/admin/roasters/{slug}/bulk-reenrich")
+def admin_bulk_reenrich_roaster(
+    slug: str,
+    body: Optional[dict] = None,
+    user=Depends(get_current_user),
+):
+    """Fire-and-forget bulk re-enrich for every product of a roaster.
+
+    Iterates products of the roaster in a BG thread, calling the
+    shared v2 helper for each. Returns a jobs row ID immediately so
+    the operator can track progress via crema_list_jobs +
+    crema_get_scrape_run_log.
+
+    Body:
+      only_status: 'failed' | 'enriched' | 'pre_v2' | None
+        - 'failed' → only rows where enrichment_status='failed'
+        - 'enriched' → only enrichment_status='enriched' (silent-empty
+          sweep target)
+        - 'pre_v2' → only rows with enriched_at IS NULL (never touched
+          by v2 — the most common target after the 2026-05-25 stack)
+        - omit → every product in the roaster
+
+    The BG thread blocks on the LLM queue per-product. Drainer
+    subagents must be running to make progress. Spawn 3-5 drainers
+    before kicking off a roaster with 20+ products.
+    """
+    _require_admin(user)
+    body = body or {}
+    only_status = body.get("only_status")
+    db = get_db()
+    try:
+        prof = db.execute(
+            "SELECT roaster_slug, name FROM roaster_profiles WHERE roaster_slug = ?",
+            (slug,),
+        ).fetchone()
+        if not prof:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"Roaster {slug} not found")
+
+        sql = "SELECT * FROM products WHERE roaster_slug = ?"
+        params: list = [slug]
+        if only_status == "failed":
+            sql += " AND enrichment_status = 'failed'"
+        elif only_status == "enriched":
+            sql += " AND enrichment_status = 'enriched'"
+        elif only_status == "pre_v2":
+            sql += " AND enriched_at IS NULL"
+        sql += " ORDER BY product_id"
+        rows = db.execute(sql, tuple(params)).fetchall()
+        product_ids = [r["product_id"] for r in rows]
+
+        if not product_ids:
+            return ok({
+                "slug": slug,
+                "job_id": None,
+                "product_count": 0,
+                "only_status": only_status,
+                "note": "no products matched the filter",
+            }, resource="bulk_reenrich")
+
+        # Track via the existing jobs table.
+        now_iso = _now_iso()
+        cur = db.execute(
+            "INSERT INTO jobs (kind, status, started_by, created_at) "
+            "VALUES (?, 'queued', ?, ?)",
+            ("bulk_reenrich", user["id"], now_iso),
+        )
+        job_id = cur.lastrowid
+        db.commit()
+    finally:
+        db.close()
+
+    # Spawn BG thread. Each iteration opens its own db handle.
+    import threading
+    threading.Thread(
+        target=_bulk_reenrich_worker,
+        args=(job_id, slug, product_ids, only_status),
+        daemon=True,
+    ).start()
+
+    return ok({
+        "slug": slug,
+        "job_id": job_id,
+        "product_count": len(product_ids),
+        "only_status": only_status,
+        "note": (
+            "BG worker started — poll crema_list_jobs (kind=bulk_reenrich) "
+            "for progress. Each product blocks on the LLM queue until a "
+            "drainer submits, so spawn drainers in parallel for any "
+            "roaster with 10+ products."
+        ),
+    }, resource="bulk_reenrich")
+
+
+# Throttle: cap concurrent in-flight bulk_reenrich workers at 8.
+# 2026-05-26 bulk run spawned 106 parallel workers (one per published
+# roaster) → cascading SQLite "unable to open database file" lock
+# contention → ~80 products landed with outcome=failed_llm. 8 is the
+# empirical safe ceiling for the current single-file SQLite setup;
+# raise only after switching to WAL with higher concurrent-writer
+# tolerance or splitting catalog state into roaster-scoped shards.
+#
+# Workers that exceed the cap stay status='queued' (route already set
+# it that way) until they acquire — observable via crema_list_jobs.
+# Lazy-init mirrors the pattern at _RENDER_SEMAPHORE further up the
+# file so `threading` stays out of import-time hot path.
+_BULK_REENRICH_SEMAPHORE = None
+
+
+def _get_bulk_reenrich_semaphore():
+    global _BULK_REENRICH_SEMAPHORE
+    if _BULK_REENRICH_SEMAPHORE is None:
+        import threading
+        _BULK_REENRICH_SEMAPHORE = threading.Semaphore(8)
+    return _BULK_REENRICH_SEMAPHORE
+
+
+def _bulk_reenrich_worker(
+    job_id: int,
+    slug: str,
+    product_ids: list,
+    only_status,
+) -> None:
+    """BG worker iterating products and invoking the shared v2 helper.
+    Updates the jobs row with progress as it goes."""
+    from services.entity_reenricher import reenrich_one_product
+    from database import get_db as _get_db
+
+    # Block on the module-level semaphore before doing any work. The
+    # jobs row stays status='queued' (route sets that on insert) until
+    # this acquire fires — so queue depth is visible to the operator
+    # without extra bookkeeping.
+    with _get_bulk_reenrich_semaphore():
+        _bulk_reenrich_worker_inner(
+            job_id, slug, product_ids, only_status,
+            reenrich_one_product, _get_db,
+        )
+
+
+def _bulk_reenrich_worker_inner(
+    job_id: int,
+    slug: str,
+    product_ids: list,
+    only_status,
+    reenrich_one_product,
+    _get_db,
+) -> None:
+    """Operative body of the bulk_reenrich worker, factored so the
+    semaphore wrapper stays a clean two-liner."""
+    db = _get_db()
+    counts = {
+        "updated": 0, "inserted": 0, "skipped_unchanged": 0,
+        "gated": 0, "failed_fetch": 0, "failed_llm": 0,
+        "failed_validation": 0, "no_url": 0,
+    }
+    log_lines: list[str] = []
+    try:
+        db.execute(
+            "UPDATE jobs SET status = 'running', started_at = ? WHERE id = ?",
+            (_now_iso(), job_id),
+        )
+        db.commit()
+        for idx, pid in enumerate(product_ids, start=1):
+            # Re-fetch each row so the latest catalog state seeds the
+            # existing_coffee_name hint.
+            row = db.execute(
+                "SELECT * FROM products WHERE product_id = ?", (pid,),
+            ).fetchone()
+            if not row:
+                counts["no_url"] += 1
+                continue
+            res = reenrich_one_product(db, dict(row))
+            counts[res.outcome] = counts.get(res.outcome, 0) + 1
+            log_lines.append(
+                f"[{idx}/{len(product_ids)}] {pid} → {res.outcome}"
+                + (f" ({res.gate_status})" if res.gate_status else "")
+                + (f" {res.error}" if res.error else "")
+            )
+            # Heartbeat every 5 products.
+            if idx % 5 == 0 or idx == len(product_ids):
+                db.execute(
+                    "UPDATE jobs SET log_tail = ?, current_target = ? "
+                    "WHERE id = ?",
+                    ("\n".join(log_lines[-30:]),
+                     f"{idx}/{len(product_ids)}", job_id),
+                )
+                db.commit()
+        # Final status
+        db.execute(
+            "UPDATE jobs SET status = 'succeeded', finished_at = ?, "
+            "log_tail = ?, result_summary = ? WHERE id = ?",
+            (
+                _now_iso(),
+                "\n".join(log_lines[-100:]),
+                json.dumps({
+                    "slug": slug,
+                    "only_status": only_status,
+                    "product_count": len(product_ids),
+                    "outcomes": counts,
+                }),
+                job_id,
+            ),
+        )
+        db.commit()
+    except Exception as e:
+        db.execute(
+            "UPDATE jobs SET status = 'failed', finished_at = ?, "
+            "error_message = ?, log_tail = ? WHERE id = ?",
+            (_now_iso(), str(e)[:500],
+             "\n".join(log_lines[-100:]), job_id),
+        )
+        db.commit()
     finally:
         db.close()
 
@@ -6348,7 +9283,10 @@ def admin_list_articles(roaster_slug: Optional[str] = None,
             f"SELECT a.id, a.roaster_slug, a.url, a.title, a.excerpt, "
             "a.image_url, a.word_count, a.published_at, a.scraped_at, "
             "a.published, a.enrichment_status, a.is_about_coffee, "
-            "a.topic_category, a.tags, rp.name AS roaster_name, "
+            "a.topic_category, a.tags, "
+            "a.editorial_score, a.editorial_score_components, "
+            "a.editorial_scored_at, "
+            "rp.name AS roaster_name, "
             "rp.logo_url AS roaster_logo_url "
             "FROM roaster_articles a "
             "LEFT JOIN roaster_profiles rp ON rp.roaster_slug = a.roaster_slug "
@@ -6369,10 +9307,19 @@ def admin_list_articles(roaster_slug: Optional[str] = None,
 
 
 def _hydrate_article_row(row: dict) -> dict:
-    """Decode the JSON `tags` column into a real list so the admin
-    UI doesn't have to JSON.parse on each row. Empty / unparseable
-    tags become an empty array — never null — so the frontend can
-    render `tags.map(...)` without an undefined check."""
+    """Decode the JSON `tags` and `editorial_score_components` columns
+    into real Python types so the admin UI doesn't have to JSON.parse
+    on each row.
+
+    Empty / unparseable tags become an empty array — never null — so
+    the frontend can render `tags.map(...)` without an undefined check.
+
+    `editorial_score_components` (M2, 2026-05-26) decodes to a dict
+    with the 5-component score breakdown + raw counts + Haiku
+    rationales. Stays None when the article hasn't been graded yet
+    so the UI can show a "Not yet graded" affordance distinct from a
+    legitimately zero-scored article.
+    """
     raw = row.get("tags")
     if raw:
         try:
@@ -6387,6 +9334,17 @@ def _hydrate_article_row(row: dict) -> dict:
             row["tags"] = []
     else:
         row["tags"] = []
+
+    components_raw = row.get("editorial_score_components")
+    if components_raw:
+        try:
+            decoded = json.loads(components_raw)
+            row["editorial_score_components"] = decoded if isinstance(decoded, dict) else None
+        except (TypeError, ValueError):
+            row["editorial_score_components"] = None
+    else:
+        row["editorial_score_components"] = None
+
     return row
 
 
@@ -6449,6 +9407,205 @@ def admin_delete_article(article_id: int, user=Depends(get_current_user)):
         )
         db.commit()
         return ok({"deleted": article_id}, resource="roaster_articles")
+    finally:
+        db.close()
+
+
+@router.post("/admin/articles/grade-batch")
+def admin_articles_grade_batch(
+    body: Optional[dict] = None,
+    user=Depends(get_current_user),
+):
+    """Fire-and-forget editorial grading for a batch of articles.
+    M2 (2026-05-26) — composes editorial_score from 3 mechanical
+    sub-scores (image richness, product cross-links, internal article
+    cross-links) and 2 Haiku-rated sub-scores (prose quality, sourcing
+    specificity). See services/article_grader.py for the rubric.
+
+    Body:
+      slug: roaster_slug — scope to one roaster's articles. Omit for
+        catalog-wide.
+      only_unscored: bool (default true). When true, skips articles
+        that already have a non-null editorial_score. Set false to
+        re-grade everything (after a rubric change).
+      limit: int (default 500, max 5000). Caps the batch size so a
+        catalog-wide grade can be checkpointed across multiple calls.
+
+    Returns a jobs row ID — poll crema_list_jobs (kind=grade_articles)
+    for progress + log_tail. The BG worker blocks on the LLM queue
+    per article (one Haiku call each), so spawn 3-5 drainers in
+    parallel for any batch with 20+ articles.
+    """
+    _require_admin(user)
+    body = body or {}
+    slug = (body.get("slug") or "").strip() or None
+    only_unscored = bool(body.get("only_unscored", True))
+    limit = max(1, min(int(body.get("limit") or 500), 5000))
+
+    db = get_db()
+    try:
+        where = ["body_html IS NOT NULL", "body_html != ''"]
+        params: list = []
+        if slug:
+            prof = db.execute(
+                "SELECT roaster_slug FROM roaster_profiles WHERE roaster_slug = ?",
+                (slug,),
+            ).fetchone()
+            if not prof:
+                from fastapi import HTTPException
+                raise HTTPException(404, f"Roaster {slug} not found")
+            where.append("roaster_slug = ?")
+            params.append(slug)
+        if only_unscored:
+            where.append("editorial_score IS NULL")
+        # Skip articles already gated as non-coffee — they're never
+        # going to be featured, and grading them burns tokens that
+        # produce a score the consumer surface will never read.
+        where.append("(is_about_coffee = 1 OR is_about_coffee IS NULL)")
+        where_sql = " AND ".join(where)
+        rows = db.execute(
+            f"SELECT id FROM roaster_articles WHERE {where_sql} "
+            "ORDER BY id LIMIT ?",
+            (*params, limit),
+        ).fetchall()
+        article_ids = [r["id"] for r in rows]
+
+        if not article_ids:
+            return ok({
+                "slug": slug,
+                "job_id": None,
+                "article_count": 0,
+                "only_unscored": only_unscored,
+                "note": "no articles matched the filter",
+            }, resource="grade_articles")
+
+        now_iso = _now_iso()
+        cur = db.execute(
+            "INSERT INTO jobs (kind, status, started_by, created_at) "
+            "VALUES (?, 'queued', ?, ?)",
+            ("grade_articles", user["id"], now_iso),
+        )
+        job_id = cur.lastrowid
+        db.commit()
+    finally:
+        db.close()
+
+    import threading
+    threading.Thread(
+        target=_grade_articles_worker,
+        args=(job_id, slug, article_ids, only_unscored),
+        daemon=True,
+    ).start()
+
+    return ok({
+        "slug": slug,
+        "job_id": job_id,
+        "article_count": len(article_ids),
+        "only_unscored": only_unscored,
+        "note": (
+            "BG worker started — poll crema_list_jobs (kind=grade_articles) "
+            "for progress. Each article blocks on the LLM queue for one "
+            "Haiku scoring call (~3-5s), so spawn drainers in parallel "
+            "for any batch with 20+ articles."
+        ),
+    }, resource="grade_articles")
+
+
+def _grade_articles_worker(
+    job_id: int,
+    slug: Optional[str],
+    article_ids: list,
+    only_unscored: bool,
+) -> None:
+    """BG worker iterating articles and invoking the grader. Updates
+    the jobs row with progress + log_tail as it goes. Each iteration
+    opens its own db handle."""
+    from services.article_grader import grade_one_article
+    from database import get_db as _get_db
+    from services.llm_router import set_pipeline_context
+    db = _get_db()
+    counts = {"graded": 0, "skipped": 0, "failed": 0}
+    log_lines: list[str] = []
+    try:
+        db.execute(
+            "UPDATE jobs SET status = 'running', started_at = ? WHERE id = ?",
+            (_now_iso(), job_id),
+        )
+        db.commit()
+        total = len(article_ids)
+        for idx, aid in enumerate(article_ids, start=1):
+            row = db.execute(
+                "SELECT id, roaster_slug, url, title, body_html, topic_category "
+                "FROM roaster_articles WHERE id = ?",
+                (aid,),
+            ).fetchone()
+            if row is None:
+                counts["skipped"] += 1
+                log_lines.append(f"[{idx}/{total}] article {aid} → vanished")
+                continue
+            # Stamp roaster_slug on the contextvar so the queued
+            # llm_jobs row gets slug-tagged (drainer filtering works).
+            set_pipeline_context(roaster_slug=row["roaster_slug"])
+            db.execute(
+                "UPDATE jobs SET log_tail = ? WHERE id = ?",
+                ("\n".join(log_lines[-50:] + [
+                    f"[{idx}/{total}] article {aid} → grading…",
+                ]), job_id),
+            )
+            db.commit()
+            try:
+                result = grade_one_article(db, row)
+            except Exception as e:
+                counts["failed"] += 1
+                log_lines.append(
+                    f"[{idx}/{total}] article {aid} → failed ({e!r})"
+                )
+                continue
+            if result is None:
+                counts["failed"] += 1
+                log_lines.append(
+                    f"[{idx}/{total}] article {aid} → failed "
+                    "(no Haiku response or empty body)"
+                )
+            else:
+                counts["graded"] += 1
+                log_lines.append(
+                    f"[{idx}/{total}] article {aid} → "
+                    f"score={result.get('aggregate')}"
+                )
+            db.execute(
+                "UPDATE jobs SET log_tail = ? WHERE id = ?",
+                ("\n".join(log_lines[-50:]), job_id),
+            )
+            db.commit()
+
+        db.execute(
+            "UPDATE jobs SET status = 'succeeded', finished_at = ?, "
+            "result_summary = ?, log_tail = ? "
+            "WHERE id = ?",
+            (
+                _now_iso(),
+                json.dumps({
+                    "slug": slug,
+                    "only_unscored": only_unscored,
+                    "article_count": len(article_ids),
+                    "outcomes": counts,
+                }),
+                "\n".join(log_lines[-50:]),
+                job_id,
+            ),
+        )
+        db.commit()
+    except Exception as e:
+        try:
+            db.execute(
+                "UPDATE jobs SET status = 'failed', finished_at = ?, "
+                "error_message = ? WHERE id = ?",
+                (_now_iso(), str(e)[:500], job_id),
+            )
+            db.commit()
+        except Exception:
+            pass
     finally:
         db.close()
 
@@ -6673,22 +9830,54 @@ def admin_delete_product(product_id: str,
     For 'hide from Discover but keep history', use
     /admin/products/{id}/sold-out instead. This endpoint is for truly
     broken / mis-scraped rows.
+
+    Snapshotted + logged via the operation-QC layer — every delete
+    is reversible via crema_rollback_operation. T1 doesn't typically
+    flag single-row deletes, but they participate in the same
+    catalog_operations history so admin can audit later.
     """
     _require_admin(user)
     db = get_db()
     try:
         row = db.execute(
-            "SELECT product_id FROM products WHERE product_id = ?",
+            "SELECT * FROM products WHERE product_id = ?",
             (product_id,),
         ).fetchone()
         if not row:
             from fastapi import HTTPException
             raise HTTPException(404, f"Product {product_id} not found")
-        db.execute(
-            "DELETE FROM products WHERE product_id = ?", (product_id,),
+
+        from services.operation_qc import (
+            start_operation, snapshot_rows, finish_operation_with_qc,
+            finish_operation,
         )
-        db.commit()
-        return ok({"deleted": product_id}, resource="products")
+        op_id = start_operation(
+            db, kind="delete_product",
+            target_slug=row["roaster_slug"] if "roaster_slug" in row.keys() else None,
+            params={"product_id": product_id},
+            started_by=str(user.get("id") if user else None),
+        )
+        try:
+            snapshot_rows(
+                db, op_id, "products", [dict(row)],
+                mutation_kind="delete",
+            )
+            db.execute(
+                "DELETE FROM products WHERE product_id = ?", (product_id,),
+            )
+            db.commit()
+            finish_operation_with_qc(
+                db, op_id, status="succeeded",
+                summary={"rows_deleted": 1, "product_id": product_id},
+            )
+        except Exception as e:
+            finish_operation(
+                db, op_id, status="failed",
+                error_message=f"{type(e).__name__}: {str(e)[:200]}",
+            )
+            raise
+        return ok({"deleted": product_id, "operation_id": op_id},
+                  resource="products")
     finally:
         db.close()
 
@@ -7113,5 +10302,197 @@ def admin_list_agent_memory(scope: Optional[str] = None,
             )
             db.commit()
         return ok(out, resource="agent_memory", total=len(out))
+    finally:
+        db.close()
+
+
+@router.get("/admin/runbook")
+def admin_get_runbook(
+    verb: Optional[str] = None,
+    user=Depends(get_current_user),
+):
+    """Return the full runbook OR a specific section by verb slug.
+
+    The runbook lives at `agent-catalog-ops/RUNBOOK.md` outside the
+    auto-loaded path so it doesn't burn the orchestrator's session-
+    start context budget. Fetched on demand via this route.
+
+    `verb`: optional slug ('bulk_enrich', 'dedupe', 'rollback', etc.).
+    When provided, returns just the matching section (by markdown
+    header substring match). When omitted, returns the full doc plus
+    a list of available sections.
+    """
+    _require_admin(user)
+    import os as _os
+    # The runbook lives in the agent-catalog-ops folder at the repo
+    # root. Walk up from the API folder to find it.
+    api_dir = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    repo_root = _os.path.dirname(_os.path.dirname(api_dir))
+    runbook_path = _os.path.join(repo_root, "agent-catalog-ops", "RUNBOOK.md")
+    if not _os.path.exists(runbook_path):
+        from fastapi import HTTPException
+        raise HTTPException(
+            500, f"runbook not found at {runbook_path}",
+        )
+    with open(runbook_path) as f:
+        full_text = f.read()
+
+    # Index sections by markdown ## headers
+    import re as _re
+    section_starts = [
+        (m.start(), m.group(1).strip())
+        for m in _re.finditer(r"^##\s+(.+)$", full_text, _re.MULTILINE)
+    ]
+    sections = []
+    for i, (pos, title) in enumerate(section_starts):
+        end = section_starts[i + 1][0] if i + 1 < len(section_starts) else len(full_text)
+        sections.append({
+            "title": title,
+            "slug": _re.sub(r"[^a-z0-9_]+", "_", title.lower()).strip("_"),
+            "content": full_text[pos:end].strip(),
+        })
+
+    if verb:
+        # Match verb slug against section slugs / titles. Substring
+        # match keeps it forgiving (orchestrator can pass partial verb).
+        verb_lower = verb.lower()
+        matches = [
+            s for s in sections
+            if verb_lower in s["slug"] or verb_lower in s["title"].lower()
+        ]
+        if not matches:
+            return ok({
+                "verb": verb,
+                "matched": False,
+                "available_slugs": [s["slug"] for s in sections],
+                "note": (
+                    f"No section matched verb {verb!r}. Available slugs "
+                    f"listed above; try one of those."
+                ),
+            }, resource="runbook")
+        return ok({
+            "verb": verb,
+            "matched": True,
+            "section_count": len(matches),
+            "sections": matches,
+        }, resource="runbook")
+
+    # No verb — return the full doc + TOC of available slugs
+    return ok({
+        "verb": None,
+        "full_text": full_text,
+        "byte_size": len(full_text),
+        "available_slugs": [s["slug"] for s in sections],
+    }, resource="runbook")
+
+
+@router.get("/admin/agent-memory/search")
+def admin_search_agent_memory(
+    query: str,
+    scope: Optional[str] = None,
+    tag: Optional[str] = None,
+    k: int = 3,
+    user=Depends(get_current_user),
+):
+    """Search agent_memory for the top-k most relevant lessons by
+    lexical overlap with `query`. Replaces the bulk crema_get_agent_memory
+    dump pattern for the common case of "find a lesson about X".
+
+    Scoring (no LLM): term-frequency overlap between query words and
+    lesson text + scope + tags. Ranks by descending score; returns
+    top-k. Bumps reference_count on every returned row.
+
+    Context-rot mitigation (2026-05-27): the orchestrator's
+    session-start context shouldn't carry the full memory dump.
+    Instead, when the orchestrator hits an unfamiliar verb or
+    pattern, it can fire this with a 3-5 word query and get the
+    relevant lessons back — much smaller working-memory cost than
+    front-loading 50KB of memory.
+    """
+    _require_admin(user)
+    if not query or not query.strip():
+        from fastapi import HTTPException
+        raise HTTPException(400, "query is required")
+    k = max(1, min(int(k or 3), 20))
+
+    # Pull candidate rows (scope/tag pre-filter trims the search
+    # space cheaply before lexical scoring).
+    where = []
+    params: list = []
+    if scope:
+        where.append("scope = ?"); params.append(scope)
+    if tag:
+        where.append("tags_json LIKE ?"); params.append(f'%"{tag}"%')
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+
+    db = get_db()
+    try:
+        rows = db.execute(
+            f"SELECT id, scope, lesson, tags_json, source_session_id, "
+            f"source_summary_id, created_at, last_referenced_at, "
+            f"reference_count "
+            f"FROM agent_memory{where_sql} "
+            f"ORDER BY created_at DESC LIMIT 500",
+            tuple(params),
+        ).fetchall()
+
+        # Score: count of query-term hits in lesson + scope + tags.
+        # Lowercase substring match — sufficient for short queries.
+        import re as _re
+        q_terms = [
+            t for t in _re.split(r"\s+", query.lower().strip())
+            if t and len(t) >= 2
+        ]
+        if not q_terms:
+            return ok([], resource="agent_memory_search", total=0)
+
+        scored: list[tuple[int, dict]] = []
+        for r in rows:
+            d = dict(r)
+            haystack = (
+                (d.get("lesson") or "").lower() + " " +
+                (d.get("scope") or "").lower() + " " +
+                (d.get("tags_json") or "").lower()
+            )
+            score = sum(1 for term in q_terms if term in haystack)
+            if score == 0:
+                continue
+            # Boost: bonus if the query term appears in scope/tags
+            # (scope/tag matches are stronger signal than body match).
+            scope_l = (d.get("scope") or "").lower()
+            tags_l = (d.get("tags_json") or "").lower()
+            for term in q_terms:
+                if term in scope_l:
+                    score += 2
+                if term in tags_l:
+                    score += 1
+            if d.get("tags_json"):
+                try:
+                    d["tags"] = json.loads(d["tags_json"])
+                except (TypeError, ValueError):
+                    d["tags"] = []
+            else:
+                d["tags"] = []
+            d.pop("tags_json", None)
+            d["relevance_score"] = score
+            scored.append((score, d))
+
+        scored.sort(key=lambda x: (-x[0], -x[1]["id"]))
+        top = [d for _, d in scored[:k]]
+
+        # Bump reference counters on what we returned.
+        if top:
+            ids = [d["id"] for d in top]
+            placeholders = ",".join("?" * len(ids))
+            db.execute(
+                f"UPDATE agent_memory SET reference_count = reference_count + 1, "
+                f"last_referenced_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
+                f"WHERE id IN ({placeholders})",
+                tuple(ids),
+            )
+            db.commit()
+
+        return ok(top, resource="agent_memory_search", total=len(top),
+                  query=query, candidates_scored=len(scored))
     finally:
         db.close()

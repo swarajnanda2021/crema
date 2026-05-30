@@ -340,14 +340,56 @@ def _html_index(base: str) -> Optional[dict]:
 # ── Feed parsers ───────────────────────────────────────────────────────────
 
 
+def _fetch_xml_with_pw_fallback(url: str) -> Optional[bytes]:
+    """Fetch XML/feed content. Try requests.get first; on non-200 or
+    exception, escalate to Playwright (which can clear CF rate-limit
+    walls by presenting a browser fingerprint). Black Baza's
+    /blogs/*.atom returns 503 to scripted requests; the Playwright
+    render goes through. Returns the raw bytes (XML) or None on
+    total failure.
+
+    Playwright renders XML wrapped in a tiny HTML viewer — extract the
+    inner XML text via the <pre> tag or just strip the wrapper. We do
+    the simplest thing: grab whatever's between <body>...</body>, then
+    fall back to the raw rendered HTML if there's no body tag.
+    """
+    try:
+        r = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
+        if r.status_code == 200:
+            return r.content
+    except Exception:
+        pass
+
+    # Tier 4 Playwright fallback for CF-walled feeds.
+    try:
+        from services.sync_runner import _render_wix_html
+    except ImportError:
+        return None
+    rendered = _render_wix_html(url)
+    if not rendered:
+        return None
+    # Playwright wraps XML in <html><head></head><body><pre>{XML}</pre></body></html>
+    # — strip the wrapper to get to the XML.
+    import re as _re
+    pre_match = _re.search(
+        r"<pre[^>]*>(.*?)</pre>", rendered, _re.DOTALL | _re.IGNORECASE,
+    )
+    if pre_match:
+        # Unescape HTML entities — Playwright entitizes `<` etc.
+        import html as _html
+        return _html.unescape(pre_match.group(1)).encode("utf-8")
+    # No <pre>? Return the raw rendered bytes — xml parser may still cope.
+    return rendered.encode("utf-8")
+
+
 def _parse_atom(url: str) -> list[dict]:
     """Atom 1.0 — entries carry title, link, summary, content,
     published, updated."""
+    content = _fetch_xml_with_pw_fallback(url)
+    if not content:
+        return []
     try:
-        r = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
-        if r.status_code != 200:
-            return []
-        root = ET.fromstring(r.content)
+        root = ET.fromstring(content)
     except Exception:
         return []
     out: list[dict] = []
@@ -387,11 +429,11 @@ def _parse_atom(url: str) -> list[dict]:
 def _parse_rss(url: str) -> list[dict]:
     """RSS 2.0 — items carry title, link, description, pubDate, and
     optional content:encoded with full HTML."""
+    content = _fetch_xml_with_pw_fallback(url)
+    if not content:
+        return []
     try:
-        r = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
-        if r.status_code != 200:
-            return []
-        root = ET.fromstring(r.content)
+        root = ET.fromstring(content)
     except Exception:
         return []
     out: list[dict] = []
@@ -417,12 +459,11 @@ def _parse_rss(url: str) -> list[dict]:
 def _parse_sitemap_blog_urls(sitemap_url: str) -> list[dict]:
     """Walk a Shopify sitemap_blogs_*.xml and return URL-only stubs
     (caller fills body via fetch_full_article)."""
+    content = _fetch_xml_with_pw_fallback(sitemap_url)
+    if not content:
+        return []
     try:
-        r = requests.get(sitemap_url, headers={"User-Agent": UA},
-                         timeout=TIMEOUT)
-        if r.status_code != 200:
-            return []
-        root = ET.fromstring(r.content)
+        root = ET.fromstring(content)
     except Exception:
         return []
     ns_sm = "{http://www.sitemaps.org/schemas/sitemap/0.9}"

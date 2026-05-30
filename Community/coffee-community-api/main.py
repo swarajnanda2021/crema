@@ -8,10 +8,36 @@ Every response follows the { data, meta } envelope.
 
 import os
 import re
+import resource
 import threading
 from queue import Queue, Empty
 import json
 import asyncio
+
+
+def _raise_fd_limit(target: int = 4096) -> None:
+    """Raise the open-file-descriptor soft limit before the server
+    boots, so bulk catalog ops (Playwright renders + SQLite handles +
+    HTTP sockets fanned across 80-100 parallel BG tasks) don't hit
+    "Too many open files". The macOS 256-soft default exhausted
+    mid-sweep and failed ~163 products in the 2026-05-28 bulk run.
+    We lift soft toward `target`, capped at the hard limit — soft≤hard
+    needs no privileges. Best-effort: platforms without RLIMIT_NOFILE
+    are a silent no-op. Forked scrape subprocesses inherit the limit.
+    """
+    try:
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    except (ValueError, OSError, AttributeError):
+        return
+    desired = target if hard == resource.RLIM_INFINITY else min(target, hard)
+    if desired > soft:
+        try:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (desired, hard))
+        except (ValueError, OSError):
+            pass
+
+
+_raise_fd_limit()
 
 # Load `.env` from the same directory as this `main.py`, regardless of
 # the cwd uvicorn was launched from. `load_dotenv()` with no argument

@@ -423,6 +423,149 @@ def _extract_nav_links(html: str, base_url: str) -> list[str]:
     return out[:50]
 
 
+def parse_homepage_link_graph(
+    html: str, base_url: str,
+) -> dict[str, list[str]]:
+    """Pure deterministic walk over the homepage's <a href> anchors.
+    Buckets URLs into product / article / collection by URL-path pattern.
+
+    Used by bio enrich to capture the storefront's link graph as a
+    structured artifact. The bio quality reviewer cross-checks this
+    against the products / roaster_articles catalog to detect URL
+    drift (Nandan handle-prefix change), replatform (Shopify→Woo
+    URL pattern shift), and dead catalog rows (catalog has URLs the
+    homepage no longer links to).
+
+    Patterns are platform-agnostic; same anchor may legitimately
+    match more than one bucket (rare), in which case product wins.
+
+    Returns a dict with three sorted, deduplicated URL lists. All
+    URLs are absolute (resolved via urljoin), have query strings +
+    fragments stripped, and trailing slashes normalized.
+
+    The function is intentionally CONSERVATIVE — it under-collects
+    rather than over-collects. A homepage that doesn't link to
+    products at all returns empty lists; downstream T1 then flags
+    "no_urls_discovered" rather than panicking.
+    """
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        return {
+            "product_urls": [], "article_urls": [], "collection_urls": [],
+        }
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    def _normalize(href: str) -> Optional[str]:
+        if not href:
+            return None
+        href = href.strip()
+        if href.startswith(("#", "mailto:", "tel:", "javascript:")):
+            return None
+        absolute = urljoin(base_url, href)
+        # Strip query + fragment for bucket keys
+        absolute = absolute.split("?")[0].split("#")[0]
+        # Only keep same-host URLs (don't capture cross-site links)
+        try:
+            base_host = urlparse(base_url).netloc.replace("www.", "")
+            link_host = urlparse(absolute).netloc.replace("www.", "")
+            if base_host and link_host and base_host != link_host:
+                return None
+        except Exception:
+            return None
+        return absolute
+
+    products: set[str] = set()
+    articles: set[str] = set()
+    collections: set[str] = set()
+
+    # Platform-agnostic path-pattern classifier. These regexes match
+    # against the URL PATH (no host) — keeps the logic
+    # transport-independent.
+    re_shopify_product = re.compile(
+        r"^/products/[^/]+/?$", re.IGNORECASE,
+    )
+    re_woo_product = re.compile(
+        r"^/product/[^/]+/?$", re.IGNORECASE,
+    )
+    re_wix_product = re.compile(
+        r"^/product-page/[^/]+/?$", re.IGNORECASE,
+    )
+    re_magento_product = re.compile(
+        r"^/[^/]+\.html?$", re.IGNORECASE,
+    )
+    re_generic_product = re.compile(
+        r"^/(?:coffee|shop|store|coffees|beans)/[^/]+/?$", re.IGNORECASE,
+    )
+
+    re_shopify_article = re.compile(
+        r"^/blogs/[^/]+/[^/]+/?$", re.IGNORECASE,
+    )
+    re_woo_article = re.compile(
+        r"^/blog/[^/]+/?$", re.IGNORECASE,
+    )
+    re_generic_article = re.compile(
+        r"^/(?:journal|stories|news|posts|brewbooks|guides)/[^/]+/?$",
+        re.IGNORECASE,
+    )
+
+    re_shopify_collection = re.compile(
+        r"^/collections/[^/]+/?$", re.IGNORECASE,
+    )
+    re_generic_collection = re.compile(
+        r"^/(?:coffee|coffees|shop|store|beans|our-coffees?|menu)/?$",
+        re.IGNORECASE,
+    )
+
+    for a in soup.find_all("a", href=True):
+        absolute = _normalize(a.get("href"))
+        if not absolute:
+            continue
+        path = urlparse(absolute).path or "/"
+
+        # Product patterns — strongest classification, check first.
+        # Note: Magento's pattern is very loose (any /*.html), so
+        # only fire it when no other pattern matches and the file
+        # extension is .html or .htm.
+        if (
+            re_shopify_product.match(path)
+            or re_woo_product.match(path)
+            or re_wix_product.match(path)
+            or re_generic_product.match(path)
+        ):
+            products.add(absolute)
+            continue
+
+        if re_shopify_article.match(path) or re_woo_article.match(path) or re_generic_article.match(path):
+            articles.add(absolute)
+            continue
+
+        if re_shopify_collection.match(path) or re_generic_collection.match(path):
+            collections.add(absolute)
+            continue
+
+        # Defensive last-pass: Magento .html products only if nothing
+        # else fired. Constrain to PATH having an obvious-product
+        # slug — multiple dashes — to avoid catching /index.html /
+        # /about.html etc.
+        if re_magento_product.match(path):
+            slug = path.lstrip("/").rsplit(".", 1)[0]
+            if slug and "-" in slug and slug not in {
+                "index", "about", "about-us", "contact", "contact-us",
+                "shipping", "returns", "privacy", "terms",
+                "shipping-policy", "refund-policy", "privacy-policy",
+                "terms-of-service",
+            }:
+                products.add(absolute)
+
+    return {
+        "product_urls": sorted(products),
+        "article_urls": sorted(articles),
+        "collection_urls": sorted(collections),
+    }
+
+
 def _select_image(html: str, base_url: str, selectors: tuple) -> Optional[str]:
     try:
         from bs4 import BeautifulSoup
@@ -561,6 +704,15 @@ def enrich_roaster_from_url(website: str) -> dict:
     sitemap_urls = _try_sitemap(base_url)
     platform_hint = _detect_platform(homepage)
 
+    # Bio-as-discovery (2026-05-27): parse the homepage <a href>
+    # anchors deterministically into product / article / collection
+    # URL lists. Becomes the cross-check artifact the quality
+    # reviewer runs against the products + roaster_articles catalog
+    # — catches URL drift / replatform / dead-row classes that the
+    # diff layer's heuristic handle-match doesn't catch (Nandan
+    # 2026-05-26 prefix-change class).
+    link_graph = parse_homepage_link_graph(homepage, base_url)
+
     sonnet = _call_sonnet(
         base_url=base_url,
         platform_hint=platform_hint,
@@ -594,6 +746,12 @@ def enrich_roaster_from_url(website: str) -> dict:
         # was confident.
         "platform": (sonnet.get("platform") or platform_hint),
         "shop_url": sonnet.get("bean_catalog_url") or None,
+        # Homepage link graph — captured deterministically. Quality
+        # reviewer's bio T1+T2 rules cross-check these against the
+        # catalog tables to detect URL drift.
+        "discovered_product_urls": link_graph["product_urls"],
+        "discovered_article_urls": link_graph["article_urls"],
+        "discovered_collection_urls": link_graph["collection_urls"],
     }
 
     return {"profile": profile, "source": source}

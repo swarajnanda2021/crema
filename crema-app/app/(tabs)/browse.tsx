@@ -241,10 +241,26 @@ export default function BrowsePage() {
     // Sort
     if (sortBy === "featured" && Object.keys(popularity).length > 0) {
       list = [...list].sort((a, b) => (popularity[b.product_id] || 0) - (popularity[a.product_id] || 0));
-    } else if (sortBy === "price_low") {
-      list = [...list].sort((a, b) => (a.price_inr || 0) - (b.price_inr || 0));
-    } else if (sortBy === "price_high") {
-      list = [...list].sort((a, b) => (b.price_inr || 0) - (a.price_inr || 0));
+    } else if (sortBy === "price_low" || sortBy === "price_high") {
+      // Sort by PRICE PER GRAM (₹/g), not sticker price — a ₹750/1kg bag
+      // is cheaper per gram than a ₹400/100g micro-lot, and that's what
+      // "cheapest" should mean. Mirrors the ₹/100g basis the price-band
+      // filter already uses (selectedPriceBands above). Rows with no
+      // computable ₹/g (missing price or weight) sort to the END in both
+      // directions so they never masquerade as the cheapest/priciest.
+      const ppg = (p: typeof list[number]): number | null =>
+        p.price_inr != null && p.price_inr > 0 && p.weight_grams && p.weight_grams > 0
+          ? p.price_inr / p.weight_grams
+          : null;
+      const dir = sortBy === "price_low" ? 1 : -1;
+      list = [...list].sort((a, b) => {
+        const pa = ppg(a);
+        const pb = ppg(b);
+        if (pa == null && pb == null) return 0;
+        if (pa == null) return 1; // a goes after b
+        if (pb == null) return -1; // b goes after a
+        return (pa - pb) * dir;
+      });
     } else if (sortBy === "newest") {
       list = [...list].sort((a, b) => {
         const ta = Date.parse(a.created_at || "") || 0;

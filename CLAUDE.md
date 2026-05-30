@@ -118,14 +118,59 @@ larger than the visual evidence supports), surface the conflict
 back to the user before substituting — do not silently "correct"
 to a ladder value.
 
+## Hard rule — beans-only catalog
+
+Crema is a **whole-beans catalog.** We list and show coffee **beans** —
+whole-bean or ground. **Grind is a roaster fulfillment option, not a
+product type:** a coffee offered with a grind selector, or sold as a
+bulk bag of ground coffee, is still "the bean" and stays. We just talk
+about and show beans.
+
+**Single-serve and non-bean FORMATS are out of scope** and must be
+Stage-1 filtered, never admitted: single-serve drip bags / pour-over
+filter bags, brew bags, sachets, "drip filters", capsules / pods,
+instant coffee, and ready-to-drink (cans / bottles / cold-brew bottles
+/ concentrates).
+
+- The filter targets **formats, not grind.** Bare `filter coffee` /
+  `South Indian filter` / `ground` (a ground bean) must NOT be excluded;
+  `drip filter(s)` / `drip bag` / `sachet` (the single-serve format) MUST.
+- Enforcement (`services/product_filters.py`), four layers — keep all
+  in sync with the audit's `non_bean_format` counter:
+  - `_HARD_EXCLUDE_TITLE` (Stage-1 URL/title rejection) +
+    `NON_BEAN_FORMAT_MARKERS` / `is_non_bean_format` (title marker).
+  - `is_non_bean_format_text` (Stage-2a body-text marker, fetched page).
+  - `is_single_serve_by_economics` (weight ≤ 15 g AND ≥ 15 ₹/g) — the
+    text-invisible single-serve whose marker never reaches name/slug/
+    prose (roast-coffee "Monsoon Malabar" 5 g); enforced on the write
+    path by `CanonicalProduct._single_serve_format_economics`.
+  - `is_non_bean_format_desc` (strict stored-description marker; OMITS
+    recipe-tool nouns like "cold brew bag" so a real bean's brew recipe
+    is never rejected — motley-brew). Used by the retro sweep + audit.
+- **Multi-coffee BUNDLES are also out of scope** (a gift box / curated
+  set / duo / combo of ≥2 distinct coffees in separate bags is coffee
+  but not a single bean SKU). A **single-bag BLEND** that mixes coffees
+  is ONE SKU and STAYS. Enforcement separates observation from policy:
+  the model emits `distinct_coffee_count` (`Scraper/enrich.py` +
+  `CanonicalProduct`; a blend = 1, a bundle = N), deterministic code
+  rejects >1 (`_multi_coffee_bundle_guard`). Belt: `is_multi_coffee_bundle`
+  (text detector keyed on SEPARATION structure, never a bare "N coffees")
+  in the retro sweep + the audit's `multi_coffee_bundle` counter. Never
+  widen onto blend language — "a blend of two coffees" is a real bean.
+- This reverses the 2026-05-27 "let Haiku decide on drip bags" call.
+  If a format seems borderline (e.g. a roaster's own bean bag named
+  "coffee bag"), surface it — don't silently widen the exclusion onto
+  grind terms.
+
 ## Before any dev / implementation work — read these
 
 The moment a request is about writing, modifying, debugging, reviewing,
 deploying, or scoping code (anything beyond discussion, research,
 docs-only edits, or non-technical planning), Read the full contents of
-all three before proposing changes or writing code:
+all four before proposing changes or writing code:
 
 - [CRUD_UTOPIA.md](CRUD_UTOPIA.md) — architecture rules (registry-driven backend, design tokens, the non-negotiables)
+- [AGENTIC_UTOPIA.md](AGENTIC_UTOPIA.md) — agent-first orchestration: operator-based routing (queue vs SDK), MCP tools as the agent-facing surface, Opus-orchestrates / Haiku-executes, activity-log-over-approval-queue. Required reading for any catalog-ops or backend automation change.
 - [BUILD_ROADMAP.md](BUILD_ROADMAP.md) — what's built, what's next, key files per feature
 - [DESIGN_LANGUAGE.md](DESIGN_LANGUAGE.md) — primary palette (3 brand colors only), font directive (NewSpirit display + Inter body), spacing/radius/shadow ladders, identity-surface split (CroppedAvatar circular vs RoasterLogo rounded square), pre-flight checklist
 

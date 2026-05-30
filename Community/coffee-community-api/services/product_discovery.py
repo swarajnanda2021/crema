@@ -437,12 +437,22 @@ def _woocommerce_augmenter(roaster: dict) -> tuple[dict, List[str]]:
 
     data_by_url: dict[str, dict] = {}
     urls: List[str] = []
-    page = 1
-    while True:
-        url = (
-            f"https://{domain}/wp-json/wc/store/products"
-            f"?per_page=100&page={page}"
-        )
+
+    # WooCommerce Store API base path. Modern WooCommerce serves the
+    # VERSIONED endpoint; the unversioned form was dropped in newer
+    # releases and 404s — e.g. Curious Life returned 0 products on the
+    # unversioned path, silently zeroing discovery for the ENTIRE
+    # roaster (the sitemap was bot-blocked, so the augmenter was the
+    # only surface). Probe versioned first, fall back to unversioned
+    # for older stores, so neither generation regresses. Kept in sync
+    # with `_fetch_platform_raw_by_url`, which already uses /v1/.
+    _store_api_paths = (
+        "/wp-json/wc/store/v1/products",
+        "/wp-json/wc/store/products",
+    )
+
+    def _fetch_page(base_path: str, page: int):
+        url = f"https://{domain}{base_path}?per_page=100&page={page}"
         try:
             r = requests.get(
                 url,
@@ -450,12 +460,25 @@ def _woocommerce_augmenter(roaster: dict) -> tuple[dict, List[str]]:
                 timeout=10,
             )
             if not r.ok:
-                break
+                return None
             payload = r.json()
         except Exception:
+            return None
+        return payload if isinstance(payload, list) else None
+
+    # Pick the first base path that actually yields products.
+    base_path = None
+    payload = None
+    for _cand in _store_api_paths:
+        payload = _fetch_page(_cand, 1)
+        if payload:
+            base_path = _cand
             break
-        if not isinstance(payload, list) or not payload:
-            break
+    if not base_path:
+        return data_by_url, urls
+
+    page = 1
+    while True:
         for p in payload:
             permalink = p.get("permalink")
             if not permalink:
@@ -471,4 +494,7 @@ def _woocommerce_augmenter(roaster: dict) -> tuple[dict, List[str]]:
         if len(payload) < 100:
             break
         page += 1
+        payload = _fetch_page(base_path, page)
+        if not payload:
+            break
     return data_by_url, urls

@@ -98,6 +98,7 @@ _EXTRACT_TOOL = {
         "type": "object",
         "required": [
             "is_coffee_bean",
+            "distinct_coffee_count",
             "coffee_name_clean",
             "origin",
             "altitude_masl",
@@ -108,6 +109,7 @@ _EXTRACT_TOOL = {
             "flavor_notes",
             "varietal",
             "bean_type",
+            "is_single_origin",
             "weight_grams",
             "producer",
             "roaster_blurb",
@@ -116,15 +118,55 @@ _EXTRACT_TOOL = {
             "is_coffee_bean": {
                 "type": "boolean",
                 "description": (
-                    "True ONLY for roasted whole bean or ground coffee products — "
-                    "including single-serve pour-over filter bags that contain "
-                    "actual roasted coffee. False for: workshops, classes, "
-                    "barista training, subscriptions (the subscription itself, "
-                    "not a roastable bean), gift cards, gift sets / hampers, "
-                    "merchandise (mugs, t-shirts, totes), equipment (grinders, "
-                    "kettles, scales, drippers, accessories), cold brew cans, "
-                    "ready-to-drink bottles, instant coffee jars, capsules / "
-                    "pods, chocolate bars, tea, matcha, honey, syrups. "
+                    "True for roasted coffee products that are a SINGLE SKU "
+                    "(one coffee per product page). Includes:\n"
+                    "  • Roasted whole bean or ground coffee (single origin "
+                    "or single blend SKU).\n"
+                    "  • Ground coffee sold as a bag (any grind, including "
+                    "a 'filter coffee' grind or a grind-selector option) — "
+                    "grind is a fulfillment choice; the product is still "
+                    "the bean.\n"
+                    "  • Traditional Indian FILTER COFFEE BLENDS that mix "
+                    "roasted coffee with chicory or other extenders. As long "
+                    "as the product contains real roasted coffee as the "
+                    "primary ingredient (typically ≥50% coffee), it counts — "
+                    "filter coffee is identity, not a bug. 'Coffee 80% + "
+                    "Chicory 20%' = TRUE. 'Pure Chicory Powder' (no coffee) = "
+                    "FALSE.\n"
+                    "False for:\n"
+                    "  • SINGLE-SERVE / PRE-PORTIONED BREW FORMATS — even "
+                    "when they hold real roasted coffee. Crema is a "
+                    "whole-beans catalog: a box/pack of single-serve "
+                    "pour-over filter bags, drip bags, drip sachets, brew "
+                    "bags, or steep-in-cup 'hot-brew' / 'cold-brew' bags is "
+                    "a FORMAT, not a bean — FALSE (e.g. 'Pourtable Pourover "
+                    "Box of 6', 'Pour Over Pack of 10', 'Drip Bag x5', "
+                    "'easy-pour sachets'). A plain bag of ground or "
+                    "whole-bean coffee (any grind) stays TRUE; the "
+                    "single-serve PACKAGING is the disqualifier, not the "
+                    "grind.\n"
+                    "  • Pure chicory powder, pure malt, pure adjunct sold "
+                    "alone with no coffee component.\n"
+                    "  • Workshops, classes, barista training, subscriptions "
+                    "(the subscription itself, not a roastable bean), gift "
+                    "cards, gift sets / hampers, merchandise (mugs, t-shirts, "
+                    "totes), equipment (grinders, kettles, scales, drippers, "
+                    "accessories), cold brew cans, ready-to-drink bottles, "
+                    "instant coffee jars, capsules / pods, chocolate bars, "
+                    "tea, matcha, honey, syrups.\n"
+                    "  • MULTI-SKU BUNDLES — products whose page describes "
+                    "multiple distinct coffees sold together as one SKU. Cues: "
+                    "'includes 3 coffees', 'set of 5 origins', 'tasting flight "
+                    "of N beans', 'trio of single origins', 'try all 4', "
+                    "'mix and match', JSON-LD or HTML listing multiple bean "
+                    "names within one product page, or variant titles that "
+                    "name distinct coffees rather than weight/grind options. "
+                    "A single-serve pour-over / drip Pack of N of the SAME "
+                    "coffee is FALSE — it's a brew FORMAT, not a bag of "
+                    "beans (beans-only catalog), even though it's one "
+                    "coffee. A 'Discovery Pack' or 'Trio' containing three "
+                    "DIFFERENT coffees is also FALSE (bundle of distinct "
+                    "SKUs).\n"
                     "Use these signal sources jointly:\n"
                     "  • URL slug — `/products/barista-...`, `/products/"
                     "workshop-...`, `/products/class-...`, `/products/"
@@ -135,14 +177,67 @@ _EXTRACT_TOOL = {
                     "signals.\n"
                     "  • Variant shape — products with a single flat-price "
                     "variant and no weight options are rarely beans. Real "
-                    "bean SKUs almost always have 250g / 500g / 1kg weight "
-                    "options.\n"
+                    "bean SKUs almost always have weight options (50g / 100g "
+                    "/ 250g / 500g / 1kg).\n"
                     "  • Page text — explicit mentions of roast level, "
                     "process, origin estate, varietal, altitude are positive "
-                    "signals; mentions of 'class duration', 'instructor', "
-                    "'workshop schedule', 'subscription plan', 'gift recipient' "
-                    "are negative. When in doubt, lean false — non-coffee items "
-                    "polluting the catalog is worse than missing one bean."
+                    "signals; multiple distinct coffee names listed together, "
+                    "'sample of X coffees', 'tasting set' are negative bundle "
+                    "signals.\n"
+                    "When in doubt, lean TRUE for ambiguous single-SKU coffee "
+                    "(including filter coffee blends with chicory). Lean FALSE "
+                    "only for clear bundles, equipment, or non-coffee items."
+                ),
+            },
+            "distinct_coffee_count": {
+                "type": "integer",
+                "description": (
+                    "How many DISTINCT coffees this one product page sells as "
+                    "SEPARATE bags. This SEPARATES observation from policy: "
+                    "your job here is only to COUNT, not to decide whether to "
+                    "keep the product — deterministic code downstream rejects "
+                    "any count > 1. Count carefully and honestly:\n"
+                    "  • 1 — a normal single product: one whole-bean / ground "
+                    "coffee, OR a BLEND (a blend mixes several coffees into "
+                    "ONE bag — it is still ONE coffee SKU, so count = 1), OR a "
+                    "filter-coffee+chicory bag, OR a single-serve pack of the "
+                    "SAME coffee.\n"
+                    "  • 2, 3, 4, … — a multi-coffee BUNDLE: a gift box / "
+                    "curated set / duo / combo / sampler / 'edit' where the "
+                    "buyer receives two or more DIFFERENT coffees, each in its "
+                    "own bag. Count the distinct coffees the page lists — "
+                    "'Includes (3 Coffees)' → 3; 'a duo pairing X with Y' → 2; "
+                    "'three 75g packs from Yercaud: A, B, C' → 3; 'featuring "
+                    "four handcrafted blends' → 4.\n"
+                    "CRITICAL: the difference between a BLEND (count 1) and a "
+                    "BUNDLE (count > 1) is separate bags, not multiple "
+                    "coffees. 'A blend of two coffees' in one bag = 1. 'Two "
+                    "coffees, 100g each' = 2. If a bundle hides behind a "
+                    "single-origin-looking title but the page body clearly "
+                    "describes two products with different estates/processes, "
+                    "count the products you see (≥ 2), not 1."
+                ),
+            },
+            "is_single_origin": {
+                "type": "boolean",
+                "description": (
+                    "True ONLY for a TRACEABLE single-origin / single-estate "
+                    "lot — the page names a specific estate/farm/washing-station "
+                    "OR a varietal/cultivar OR a process OR an altitude for ONE "
+                    "coffee. False for commodity grades and blends with NO "
+                    "single-origin traceability: a house/commercial blend, an "
+                    "'X% Arabica / Y% Robusta' or coffee+chicory filter blend, "
+                    "'100% Pure Robusta' / '100% Pure Arabica' commodity, "
+                    "'Monsoon Malabar' / 'Mysore Nuggets' commodity grades, or "
+                    "any product whose page gives only a roast/grind/format with "
+                    "no estate/varietal/process/altitude. When False, "
+                    "origin/varietal/process/altitude/producer are legitimately "
+                    "ABSENT — do NOT invent them; the catalog records the row as "
+                    "a thin source, not a defect. When the page DOES name an "
+                    "estate/varietal/process for one coffee, set True and fill "
+                    "those fields from the page. This judges TRACEABILITY, "
+                    "independent of bean_type (a single-species commodity like "
+                    "100% Robusta is still is_single_origin=False)."
                 ),
             },
             "coffee_name_clean": {
@@ -312,6 +407,41 @@ _EXTRACT_TOOL = {
                     "'Catuai'). The barrel-aging method itself belongs "
                     "in process_raw ('Bourbon Barrel Aged', 'Whiskey "
                     "Barrel Aged Natural', etc.).\n"
+                    "  • Worked example F — WRONG INFERENCE: product "
+                    "name is 'Bourbon Bliss', the page describes "
+                    "bourbon-barrel-aging, and NO cultivar is stated "
+                    "anywhere on the page → DO NOT write "
+                    "varietal='Bourbon'. The word 'Bourbon' here is "
+                    "the spirit aging the coffee, not the coffee "
+                    "plant. varietal=NULL, process_raw='Bourbon "
+                    "Barrel Aged'. (Zenforest 'Bourbon Bliss' + "
+                    "Zenforest 'First Blossom X Rum Barrel' both got "
+                    "this wrong in the 2026-05-26 bulk run; treat "
+                    "any product-name-only mention of a spirit as "
+                    "non-evidence for varietal.)\n"
+                    "  • Worked example G — WRONG INFERENCE: product "
+                    "name is 'Whiskey Caramel', page describes "
+                    "whiskey-barrel-aging, no cultivar stated → DO "
+                    "NOT write varietal='Whiskey'. Same rule. "
+                    "varietal=NULL.\n"
+                    "  • Worked example H — CORRECT: page says "
+                    "'Varietal: Catuai' explicitly AND describes "
+                    "bourbon-barrel-aging → varietal='Catuai'. The "
+                    "EXPLICIT cultivar disclosure wins; the barrel "
+                    "context is unrelated. (This is exactly how "
+                    "Caarabi's 'Rum Barrel Aged' product was "
+                    "extracted correctly — the page stated "
+                    "'Varietal: Arabica Catuai'.)\n"
+                    "  • Decision rule (combine F + G + H): the ONLY "
+                    "valid evidence for varietal is an EXPLICIT "
+                    "cultivar mention in the page text — a 'Varietal:' "
+                    "label, a botanical descriptor ('Catuai plants', "
+                    "'SL28 varietal', 'Bourbon cultivar'), or an "
+                    "agronomic context ('planted with Bourbon trees'). "
+                    "A product name alone is NEVER sufficient. If the "
+                    "only place a spirit name (Bourbon, Whiskey, Rum, "
+                    "Wine, Agave) appears is the product title or in "
+                    "a barrel-aging phrase, varietal=NULL.\n"
                     "  • 'Bourbon' AS A REAL VARIETAL is legitimate (a "
                     "coffee cultivar grown in Nicaragua, El Salvador, "
                     "Brazil, parts of India). Use varietal = 'Bourbon' "
@@ -493,6 +623,15 @@ is_coffee_bean is the most consequential field. If it's wrong upstream
 catalog pollution propagates to consumers. Use the URL slug + variant shape
 + page text together — see the field's schema description for specifics.
 When in doubt, return false.
+
+distinct_coffee_count is your SECOND gate and works differently: don't apply
+policy there, just OBSERVE — count how many DIFFERENT coffees the page sells
+as SEPARATE bags. A blend (several coffees mixed into one bag) is ONE; a gift
+box / curated set / duo / combo of distinct coffees is the number of coffees
+in it. Deterministic code, not you, rejects count > 1. This split exists
+because folding "is it a bundle?" into is_coffee_bean made the model observe
+the bundle in its prose ("a curated box of three coffees") yet still return
+is_coffee_bean=true — so report the count honestly and let the code decide.
 
 Field-specific guidance is in each field's schema description.
 """

@@ -42,7 +42,7 @@ import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Callable, Optional
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -116,22 +116,44 @@ def _canonical_text(s: str) -> str:
 
 def _crawl_bio(website: str) -> dict:
     """Fetch the homepage and return {hash, text, len, image_url}.
-    Image is best-effort — first prominent og:image or hero img."""
+    Image is best-effort — first prominent og:image or hero img.
+
+    Playwright Tier 4 fallback (2026-05-26): when requests.get returns
+    non-200 OR an exception (CF wall, IP-rate-limit, JS challenge),
+    escalate to `_render_wix_html` (generic Chromium render despite
+    its name). Without this fallback, CF-walled homepages produce
+    empty hash → diff sweep can never see bio changes for those
+    roasters. Empty rendered fallback returns the original error.
+    """
+    html_text: Optional[str] = None
+    resp_url: str = website
+    error: Optional[str] = None
     try:
         r = requests.get(website, headers={"User-Agent": UA},
                          timeout=TIMEOUT, allow_redirects=True)
-        if r.status_code != 200:
-            return {"hash": "", "text": "", "len": 0, "image_url": None,
-                     "error": f"http {r.status_code}"}
+        if r.status_code == 200:
+            html_text = r.text
+            resp_url = r.url
+        else:
+            error = f"http {r.status_code}"
     except Exception as e:
-        return {"hash": "", "text": "", "len": 0, "image_url": None,
-                 "error": f"{type(e).__name__}: {e}"}
+        error = f"{type(e).__name__}: {e}"
 
-    soup = BeautifulSoup(r.text, "html.parser")
+    if not html_text:
+        # Tier 4 escalation — Playwright clears most CF/JS walls.
+        rendered = _render_wix_html(website)
+        if rendered:
+            html_text = rendered
+            error = None
+    if not html_text:
+        return {"hash": "", "text": "", "len": 0, "image_url": None,
+                 "error": error or "fetch failed (Tier 2 + Tier 4 both empty)"}
+
+    soup = BeautifulSoup(html_text, "html.parser")
     og_image_el = soup.find("meta", property="og:image")
     og_image = og_image_el.get("content") if og_image_el else None
     if og_image:
-        og_image = urljoin(r.url, og_image)
+        og_image = urljoin(resp_url, og_image)
 
     for sel in ("nav", "header", "footer", "script", "style",
                 "noscript", "form", "aside"):
@@ -253,6 +275,30 @@ def _crawl_products_shopify(website: str) -> tuple[list[dict], str]:
             status = retry_status
 
     if status not in ("ok", "empty_retry_confirmed"):
+        # Playwright escalation for Cloudflare-walled Shopify storefronts
+        # (added 2026-05-25). Black Baza / Nandan / Agastya / Ainmane all
+        # 403'd on /products.json from scripted requests — their CF rules
+        # gate the JSON endpoint specifically. A headless render of
+        # /collections/all clears the challenge and surfaces every
+        # product href. Hash is URL-only here (no variant data) but the
+        # downstream enrichment pipeline pulls per-product detail
+        # anyway so the diff layer still catches change.
+        rendered_urls = _render_shopify_collection_urls(website)
+        if rendered_urls:
+            out: list[dict] = []
+            for u in rendered_urls:
+                handle = u.rstrip("/").rsplit("/", 1)[-1]
+                out.append({
+                    "id":         None,
+                    "handle":     handle,
+                    "url":        u,
+                    "title":      None,
+                    "available":  True,
+                    "prices":     [],
+                    "image_url":  None,
+                    "hash":       _stable_hash(u),
+                })
+            return out, "ok_playwright_fallback"
         return [], status
 
     data = {"products": raw}
@@ -273,6 +319,47 @@ def _crawl_products_shopify(website: str) -> tuple[list[dict], str]:
         })
     out.sort(key=lambda x: x.get("id") or 0)
     return out, status
+
+
+def _render_shopify_collection_urls(website: str) -> list[str]:
+    """Last-resort Playwright render of a Shopify storefront's all-
+    products listing — fires when /products.json was Cloudflare-gated
+    and the requests-based fetch returned 403 / parse-failure.
+
+    Probes the conventional Shopify listing URLs and returns product
+    hrefs found on the rendered DOM. Re-uses the generic
+    `_render_wix_html` Chromium launch (its name is historical — the
+    function takes any URL).
+
+    Returns [] when Playwright isn't available or the render fails.
+    """
+    base = website.rstrip("/")
+    candidates = [
+        f"{base}/collections/all",
+        f"{base}/collections/coffee",
+        f"{base}/products",
+    ]
+    for listing_url in candidates:
+        rendered = _render_wix_html(listing_url)
+        if not rendered:
+            continue
+        soup = BeautifulSoup(rendered, "html.parser")
+        seen: set[str] = set()
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if "/products/" not in href:
+                continue
+            clean = urljoin(listing_url, href).split("?")[0].rstrip("/")
+            # Skip variant / fragment links — keep only the canonical
+            # /products/<handle> form.
+            path = urlparse(clean).path
+            segments = [s for s in path.split("/") if s]
+            if len(segments) < 2 or segments[-2] != "products":
+                continue
+            seen.add(clean)
+        if seen:
+            return sorted(seen)
+    return []
 
 
 _PRODUCT_PATH_SEGMENTS = (
@@ -448,6 +535,40 @@ def _render_wix_html(url: str) -> str:
                 except PWTimeout:
                     pass
                 page.wait_for_timeout(4000)
+
+                # Expand Wix variant dropdowns so size/weight options
+                # enter the captured HTML. Added 2026-05-25 after
+                # Agastya (and the ~50-product Wix class) re-enriched
+                # with weight_grams=NULL because the Size dropdown
+                # rendered as "Select" placeholder text only. Best-
+                # effort: each selector is tried, failures are
+                # swallowed silently — for non-Wix pages this is a
+                # no-op since none of the selectors match.
+                _dropdown_selectors = (
+                    "[data-hook='dropdown-base']",
+                    "[data-hook*='ProductOptionsDropdown']",
+                    "[data-hook='product-options'] button",
+                    "button[aria-haspopup='listbox']",
+                    "[role='combobox']",
+                )
+                for sel in _dropdown_selectors:
+                    try:
+                        elements = page.locator(sel).element_handles()
+                    except Exception:
+                        continue
+                    if not elements:
+                        continue
+                    # Cap at 4 — typical Wix product page has 1-2
+                    # variant dropdowns (Size, Grind). Beyond that
+                    # we're probably clicking unrelated UI chrome.
+                    for el in elements[:4]:
+                        try:
+                            el.click(timeout=500, force=True)
+                            page.wait_for_timeout(200)
+                        except Exception:
+                            continue
+                page.wait_for_timeout(400)
+
                 return page.content() or ""
             finally:
                 browser.close()
@@ -661,6 +782,264 @@ def _clear_pending(slug: str) -> None:
         sub.unlink()
 
 
+# DEPRECATED 2026-05-28: this threshold was the URL-drift trigger for
+# auto-unpublish — `matched==0 AND len(unmatched) >= 5` → hide. Per
+# user directive ("hiding requires absolute cause: no coffee, totally
+# unreachable, no prior history to fall back on"), URL drift alone
+# is NO LONGER a reason to hide. The constant stays for legacy
+# reference + audit. See `_classify_visibility` for the new rule.
+_REDISCOVERY_AUTO_UNPUBLISH_THRESHOLD = 5
+
+# Minimum fresh-product count that proves a hidden storefront is
+# "back" — flips `published=0` → `published=1` if the catalog rows
+# align. Coarse on purpose (a single fluke return doesn't rescue a
+# truly-dead roaster). See `_classify_visibility`.
+_REDISCOVERY_AUTO_REPUBLISH_MIN_PRODUCTS = 3
+
+
+def _handle_from_url(url: str) -> str:
+    """Extract the canonical 'handle' (last URL path segment) from a
+    product URL. Strips query strings + trailing slashes. Used for
+    handle-based rediscovery when a roaster replatforms (e.g. Nandan
+    moving from nandancoffee.com to www.nandancoffee.com on
+    2026-05-26 — the slug after /products/ stays the same but the
+    host doesn't)."""
+    if not url:
+        return ""
+    return url.rstrip("/").rsplit("/", 1)[-1].split("?")[0]
+
+
+def _rediscover_urls(
+    conn: sqlite3.Connection,
+    slug: str,
+    fresh_products: list[dict],
+    *,
+    retry_crawl_fn: Optional[Callable[[], list[dict]]] = None,
+) -> dict:
+    """Reconcile existing catalog product URLs against a freshly-
+    crawled product list. When a catalog URL doesn't appear in the
+    fresh list, try to re-match it by handle (last URL segment) and
+    update the catalog row's product_url to the new canonical.
+
+    Why this exists: roasters periodically replatform (subdomain
+    move, hosting provider switch, custom domain). Without
+    rediscovery, every catalog row keeps pointing at a dead URL
+    forever — the v2 page_fetcher 404s, enrichment fails, and the
+    next bulk_reenrich produces 100% failed_fetch outcomes. With
+    rediscovery, a host-only change is healed automatically as part
+    of the sync step.
+
+    The match key is the handle (e.g. `bella-kaapi` from
+    `https://example.com/products/bella-kaapi`). Roasters that
+    replatform almost always preserve handles because they're the
+    SEO-canonical slug; only the host/path-prefix changes.
+
+    ── Visibility policy (refactored 2026-05-28) ─────────────────
+    Hiding a roaster requires ABSOLUTE CAUSE:
+      1. `unreachable` — both the initial AND retry crawls returned
+         empty product lists. The storefront isn't responding to us.
+      2. `no_coffee_no_history` — fresh crawl returned no products
+         AND the catalog has no prior rows for this roaster. There
+         is nothing to fall back on.
+
+    URL drift (the old trigger: `matched==0 AND unmatched>=5`) is
+    NO LONGER a reason to hide — the roaster has coffee, is
+    reachable, has prior history; they just changed handles or
+    hosts. Heal via handle rediscovery; don't punish.
+
+    Symmetrically, the same evidence rescues a hidden roaster: if
+    `published=0` AND the fresh crawl returns ≥
+    `_REDISCOVERY_AUTO_REPUBLISH_MIN_PRODUCTS` products, flip
+    `published=1`. Coarse on purpose — one fluke product return
+    won't rescue a genuinely-dead roaster.
+
+    Returns a summary dict with counts + the per-row rediscovery
+    log + visibility flips for upstream visibility.
+    """
+    # ── Step 1: Match the initial fresh crawl. ────────────────────
+    fresh_urls: set[str] = set()
+    handle_to_url: dict[str, str] = {}
+    for p in (fresh_products or []):
+        u = p.get("url")
+        if not u:
+            continue
+        fresh_urls.add(u)
+        h = p.get("handle") or _handle_from_url(u)
+        if h:
+            # First-seen wins.
+            handle_to_url.setdefault(h, u)
+
+    catalog_rows = conn.execute(
+        "SELECT product_id, product_url FROM products "
+        "WHERE roaster_slug = ? AND product_url IS NOT NULL "
+        "AND product_url <> ''",
+        (slug,),
+    ).fetchall()
+    has_prior_history = len(catalog_rows) > 0
+
+    matched = 0
+    rediscovered: list[dict] = []
+    unmatched: list[str] = []
+    if fresh_products:
+        for row in catalog_rows:
+            cat_url = row["product_url"]
+            if cat_url in fresh_urls:
+                matched += 1
+                continue
+            cat_handle = _handle_from_url(cat_url)
+            if cat_handle and cat_handle in handle_to_url:
+                new_url = handle_to_url[cat_handle]
+                if new_url == cat_url:
+                    matched += 1
+                    continue
+                conn.execute(
+                    "UPDATE products SET product_url = ? "
+                    "WHERE product_id = ?",
+                    (new_url, row["product_id"]),
+                )
+                rediscovered.append({
+                    "product_id": row["product_id"],
+                    "old_url": cat_url,
+                    "new_url": new_url,
+                })
+            else:
+                unmatched.append(cat_url)
+
+    # ── Step 2: If the initial crawl came back empty OR we
+    # might be staring at a wholesale URL replatform (matched==0
+    # AND unmatched threshold), give the storefront a second
+    # chance before classifying visibility. The retry distinguishes
+    # transient flake (Cloudflare / 503 / network) from real death.
+    retry_attempted = False
+    retry_saved = False
+    retry_products: Optional[list[dict]] = None
+    should_retry = (
+        retry_crawl_fn is not None
+        and (
+            not fresh_products
+            or (matched == 0 and len(unmatched) >= _REDISCOVERY_AUTO_UNPUBLISH_THRESHOLD)
+        )
+    )
+    if should_retry:
+        import time
+        retry_attempted = True
+        time.sleep(8)  # cool-off
+        try:
+            retry_products = retry_crawl_fn() or []
+        except Exception:
+            retry_products = []
+        if retry_products:
+            # Recompute `matched` against the retry crawl. If the
+            # retry yields matches that the first didn't, the
+            # original was a transient flake.
+            retry_fresh_urls: set[str] = set()
+            retry_handle_to_url: dict[str, str] = {}
+            for p in retry_products:
+                u = p.get("url")
+                if not u:
+                    continue
+                retry_fresh_urls.add(u)
+                h = p.get("handle") or _handle_from_url(u)
+                if h:
+                    retry_handle_to_url.setdefault(h, u)
+            retry_matched = 0
+            for row in catalog_rows:
+                cat_url = row["product_url"]
+                if not cat_url:
+                    continue
+                if cat_url in retry_fresh_urls:
+                    retry_matched += 1
+                    continue
+                cat_handle = _handle_from_url(cat_url)
+                if cat_handle and cat_handle in retry_handle_to_url:
+                    retry_matched += 1
+            if retry_matched > 0:
+                retry_saved = True
+
+    # ── Step 3: Classify visibility against the ABSOLUTE CAUSE
+    # rule. URL drift is intentionally NOT a cause.
+    effective_products = (
+        retry_products if (not fresh_products and retry_products)
+        else (fresh_products or [])
+    )
+    initial_crawl_empty = not fresh_products
+    retry_crawl_empty = (retry_attempted and not retry_products)
+
+    unreachable = (
+        initial_crawl_empty
+        and retry_attempted
+        and retry_crawl_empty
+    )
+    no_coffee_no_history = (
+        not effective_products and not has_prior_history
+    )
+
+    should_hide = unreachable or no_coffee_no_history
+
+    # Look up current published state for the rescue decision.
+    pub_row = conn.execute(
+        "SELECT published FROM roaster_profiles WHERE roaster_slug = ?",
+        (slug,),
+    ).fetchone()
+    currently_published = bool(pub_row and pub_row["published"])
+
+    should_rescue = (
+        not currently_published
+        and len(effective_products) >= _REDISCOVERY_AUTO_REPUBLISH_MIN_PRODUCTS
+        and not unreachable
+    )
+
+    auto_unpublished = False
+    auto_republished = False
+    visibility_reason: Optional[str] = None
+    if should_hide and currently_published:
+        cause = (
+            "unreachable" if unreachable
+            else "no_coffee_no_history"
+        )
+        visibility_reason = (
+            f"auto_unpublish: cause={cause}; "
+            f"initial_crawl_empty={initial_crawl_empty}, "
+            f"retry_empty={retry_crawl_empty}, "
+            f"has_prior_history={has_prior_history}"
+        )
+        conn.execute(
+            "UPDATE roaster_profiles SET published = 0 "
+            "WHERE roaster_slug = ?",
+            (slug,),
+        )
+        auto_unpublished = True
+    elif should_rescue:
+        visibility_reason = (
+            f"auto_republish: cause=storefront_alive_with_coffee; "
+            f"effective_products={len(effective_products)}, "
+            f"prior_match={matched}, "
+            f"retry_attempted={retry_attempted}"
+        )
+        conn.execute(
+            "UPDATE roaster_profiles SET published = 1 "
+            "WHERE roaster_slug = ?",
+            (slug,),
+        )
+        auto_republished = True
+
+    conn.commit()
+    return {
+        "matched_directly": matched,
+        "rediscovered": rediscovered,
+        "unmatched": unmatched,
+        "auto_unpublished": auto_unpublished,
+        "auto_republished": auto_republished,
+        "visibility_reason": visibility_reason,
+        "retry_attempted": retry_attempted,
+        "retry_saved": retry_saved,
+        "unreachable": unreachable,
+        "no_coffee_no_history": no_coffee_no_history,
+        "has_prior_history": has_prior_history,
+        "effective_product_count": len(effective_products),
+    }
+
+
 # ── Public entry points ────────────────────────────────────────────────────
 
 
@@ -703,7 +1082,12 @@ def _crawl(slug: str, website: str, platform: Optional[str]) -> dict:
     }
 
 
-def run_tab1_sync(slug: str, conn: Optional[sqlite3.Connection] = None) -> dict:
+def run_tab1_sync(
+    slug: str,
+    conn: Optional[sqlite3.Connection] = None,
+    *,
+    parent_operation_id: Optional[int] = None,
+) -> dict:
     """Tab 1 — full crawl + stage every entity as pending agent work.
 
     Used for fresh roaster onboarding (admin pastes a URL → row in
@@ -714,8 +1098,18 @@ def run_tab1_sync(slug: str, conn: Optional[sqlite3.Connection] = None) -> dict:
     Returns a summary dict. Caller persists to job table.
     """
     from database import get_db
+    from services.operation_qc import (
+        start_operation, snapshot_rows, finish_operation_with_qc,
+        finish_operation,
+    )
     owns_conn = conn is None
     conn = conn or get_db()
+
+    op_id = start_operation(
+        conn, kind="sync_tab1", target_slug=slug,
+        params={"mode": "tab1_full"},
+        parent_operation_id=parent_operation_id,
+    )
 
     row = conn.execute(
         "SELECT rp.name, rp.website, rs.platform "
@@ -725,16 +1119,60 @@ def run_tab1_sync(slug: str, conn: Optional[sqlite3.Connection] = None) -> dict:
         (slug,),
     ).fetchone()
     if not row:
-        return {"ok": False, "error": f"unknown slug: {slug}"}
+        finish_operation(
+            conn, op_id, status="failed",
+            error_message=f"unknown slug: {slug}",
+        )
+        return {"ok": False, "error": f"unknown slug: {slug}",
+                "operation_id": op_id}
     name, website, platform = row["name"], row["website"], row["platform"]
 
     if not website:
-        return {"ok": False, "error": f"{slug} has no website"}
+        finish_operation(
+            conn, op_id, status="failed",
+            error_message=f"{slug} has no website",
+        )
+        return {"ok": False, "error": f"{slug} has no website",
+                "operation_id": op_id}
 
     _clear_pending(slug)
     payload = _crawl(slug, website, platform)
     bio_text = payload.pop("_bio_text", "")
     _snapshot_set(conn, slug, payload)
+
+    # URL rediscovery — heal stale catalog URLs against the fresh
+    # crawl (handle-based match). Runs before staging so any
+    # downstream re-enrichment in this session uses the corrected
+    # URLs. See _rediscover_urls docstring. Snapshots affected
+    # product rows BEFORE _rediscover_urls UPDATEs their URLs so
+    # rollback can restore them.
+    pre_rediscover = [
+        dict(r) for r in conn.execute(
+            "SELECT * FROM products WHERE roaster_slug = ? "
+            "AND product_url IS NOT NULL AND product_url != ''",
+            (slug,),
+        ).fetchall()
+    ]
+    if pre_rediscover:
+        snapshot_rows(
+            conn, op_id, "products", pre_rediscover,
+            mutation_kind="update",
+        )
+
+    def _retry_crawl_products() -> list[dict]:
+        """Second-chance crawl when the first sync returns nothing
+        that matches the catalog. Reuses the same platform-dispatch
+        logic as the initial `_crawl` — _rediscover_urls sleeps
+        before invoking this, so the storefront has time to recover
+        from a 503 / rate-limit / CF challenge.
+        """
+        retry_payload = _crawl(slug, website, platform)
+        return retry_payload.get("products") or []
+
+    rediscovery = _rediscover_urls(
+        conn, slug, payload.get("products") or [],
+        retry_crawl_fn=_retry_crawl_products,
+    )
 
     # Stage all entities as pending work — Tab 1 is the cold-start so
     # everything's "added" from the agent's perspective.
@@ -755,13 +1193,38 @@ def run_tab1_sync(slug: str, conn: Optional[sqlite3.Connection] = None) -> dict:
         "products_pending": len(payload.get("products", [])),
         "articles_pending": len(payload.get("articles", [])),
         "snapshot_taken_at": _snapshot_get(conn, slug)["taken_at"],
+        "url_rediscovery": {
+            "matched_directly": rediscovery["matched_directly"],
+            "rediscovered_count": len(rediscovery["rediscovered"]),
+            "unmatched_count": len(rediscovery["unmatched"]),
+            "auto_unpublished": rediscovery["auto_unpublished"],
+        },
+        "operation_id": op_id,
     }
+    # Surface T1 op rule inputs in the op summary
+    op_summary = {
+        **summary,
+        "products_discovered": len(payload.get("products", [])),
+        "articles_discovered": len(payload.get("articles", [])),
+        "rows_kept": len(payload.get("products", [])),
+    }
+    try:
+        finish_operation_with_qc(
+            conn, op_id, status="succeeded", summary=op_summary,
+        )
+    except Exception:
+        pass
     if owns_conn:
         conn.close()
     return summary
 
 
-def run_tab2_sync(slug: str, conn: Optional[sqlite3.Connection] = None) -> dict:
+def run_tab2_sync(
+    slug: str,
+    conn: Optional[sqlite3.Connection] = None,
+    *,
+    parent_operation_id: Optional[int] = None,
+) -> dict:
     """Tab 2 — diff-based refresh. Stage agent work ONLY for the diff.
 
     The cost story: steady-state weekly refresh on a 121-roaster
@@ -769,8 +1232,18 @@ def run_tab2_sync(slug: str, conn: Optional[sqlite3.Connection] = None) -> dict:
     something changed, only those entities get bundled.
     """
     from database import get_db
+    from services.operation_qc import (
+        start_operation, snapshot_rows, finish_operation_with_qc,
+        finish_operation,
+    )
     owns_conn = conn is None
     conn = conn or get_db()
+
+    op_id = start_operation(
+        conn, kind="sync_tab2", target_slug=slug,
+        params={"mode": "tab2_diff"},
+        parent_operation_id=parent_operation_id,
+    )
 
     row = conn.execute(
         "SELECT rp.name, rp.website, rs.platform "
@@ -780,11 +1253,21 @@ def run_tab2_sync(slug: str, conn: Optional[sqlite3.Connection] = None) -> dict:
         (slug,),
     ).fetchone()
     if not row:
-        return {"ok": False, "error": f"unknown slug: {slug}"}
+        finish_operation(
+            conn, op_id, status="failed",
+            error_message=f"unknown slug: {slug}",
+        )
+        return {"ok": False, "error": f"unknown slug: {slug}",
+                "operation_id": op_id}
     name, website, platform = row["name"], row["website"], row["platform"]
 
     if not website:
-        return {"ok": False, "error": f"{slug} has no website"}
+        finish_operation(
+            conn, op_id, status="failed",
+            error_message=f"{slug} has no website",
+        )
+        return {"ok": False, "error": f"{slug} has no website",
+                "operation_id": op_id}
 
     prev = _snapshot_get(conn, slug, "current")
     payload = _crawl(slug, website, platform)
@@ -792,6 +1275,65 @@ def run_tab2_sync(slug: str, conn: Optional[sqlite3.Connection] = None) -> dict:
 
     diff = _diff(payload, prev["payload"] if prev else None)
     _snapshot_set(conn, slug, payload)
+
+    # URL rediscovery — heal stale catalog URLs against the fresh
+    # crawl (handle-based match). Runs before the staging loop so any
+    # downstream re-enrichment in this session uses the corrected
+    # URLs. Important for tab2 specifically: a replatformed roaster
+    # like Nandan would produce a diff where every existing product
+    # is "removed" (URLs don't match) and every fresh product is
+    # "added" — the rediscovery layer prevents that false-positive
+    # by healing the URLs first. Snapshot affected rows pre-UPDATE
+    # so rollback can restore.
+    pre_rediscover = [
+        dict(r) for r in conn.execute(
+            "SELECT * FROM products WHERE roaster_slug = ? "
+            "AND product_url IS NOT NULL AND product_url != ''",
+            (slug,),
+        ).fetchall()
+    ]
+    if pre_rediscover:
+        snapshot_rows(
+            conn, op_id, "products", pre_rediscover,
+            mutation_kind="update",
+        )
+
+    def _retry_crawl_products() -> list[dict]:
+        """Second-chance crawl when the first sync's product list
+        doesn't match any catalog row. Same dispatch as _crawl —
+        _rediscover_urls sleeps before calling this so the
+        storefront has time to recover from a transient flake.
+        """
+        retry_payload = _crawl(slug, website, platform)
+        return retry_payload.get("products") or []
+
+    rediscovery = _rediscover_urls(
+        conn, slug, payload.get("products") or [],
+        retry_crawl_fn=_retry_crawl_products,
+    )
+
+    # Class B prevention (2026-05-27): D1 just healed catalog
+    # product_urls to the new canonical (e.g. bombayisland.com/x →
+    # www.bombayisland.com/x). The diff's "added" list still
+    # contains those same www URLs because they weren't in prev
+    # snapshot. Without filtering, the staging step queues them,
+    # enrichment INSERTs new rows alongside the D1-healed ones, and
+    # we end up with two rows for the same product. Filter the
+    # added list against the post-D1 products table to keep one
+    # row per product.
+    existing_urls = {
+        r["product_url"] for r in conn.execute(
+            "SELECT product_url FROM products "
+            "WHERE roaster_slug = ? AND product_url IS NOT NULL "
+            "AND product_url != ''",
+            (slug,),
+        ).fetchall()
+    }
+    filtered_added = [
+        p for p in diff["products"]["added"]
+        if p.get("url") not in existing_urls
+    ]
+    class_b_skipped = len(diff["products"]["added"]) - len(filtered_added)
 
     # Stage agent work ONLY for diff entities
     _clear_pending(slug)
@@ -801,7 +1343,7 @@ def run_tab2_sync(slug: str, conn: Optional[sqlite3.Connection] = None) -> dict:
             "platform": platform, "bio_text": bio_text,
             "image_url": payload["bio"].get("image_url"),
         })
-    for p in diff["products"]["added"] + diff["products"]["updated"]:
+    for p in filtered_added + diff["products"]["updated"]:
         _stage_bundle(slug, "product", {"slug": slug, **p})
     for a in diff["articles"]["added"] + diff["articles"]["updated"]:
         _stage_bundle(slug, "article", {"slug": slug, **a})
@@ -824,7 +1366,33 @@ def run_tab2_sync(slug: str, conn: Optional[sqlite3.Connection] = None) -> dict:
             "articles": diff["articles"]["removed"],
         },
         "snapshot_taken_at": _snapshot_get(conn, slug)["taken_at"],
+        "url_rediscovery": {
+            "matched_directly": rediscovery["matched_directly"],
+            "rediscovered_count": len(rediscovery["rediscovered"]),
+            "unmatched_count": len(rediscovery["unmatched"]),
+            "auto_unpublished": rediscovery["auto_unpublished"],
+        },
+        "class_b_skipped": class_b_skipped,
+        "operation_id": op_id,
     }
+    # Surface T1 op rule inputs in the op summary. The 'products_removed'
+    # count is what op_mass_delete looks at.
+    op_summary = {
+        **{k: summary[k] for k in (
+            "ok", "mode", "slug", "products_pending", "products_removed",
+            "articles_pending", "articles_removed", "class_b_skipped",
+        )},
+        "products_discovered": len(payload.get("products", [])),
+        "articles_discovered": len(payload.get("articles", [])),
+        "rows_deleted": len(diff["products"]["removed"]),
+        "rows_kept": len(payload.get("products", [])),
+    }
+    try:
+        finish_operation_with_qc(
+            conn, op_id, status="succeeded", summary=op_summary,
+        )
+    except Exception:
+        pass
     if owns_conn:
         conn.close()
     return summary

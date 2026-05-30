@@ -33,7 +33,6 @@ import {
   // schemas
   listRoastersSchema, getAllStatusSchema, syncRoasterSchema,
   syncAllSchema, getSnapshotSchema, enrichRoasterSchema, enrichAllSchema,
-  listProposalsSchema, approveProposalsSchema, rejectProposalsSchema, autoApproveProposalsSchema,
   logAgentSummarySchema, diffSweepSchema,
   getHintsSchema, setDiffHintSchema, regenerateHintSchema,
   listJobsSchema, listAgentRunsSchema,
@@ -49,7 +48,16 @@ import {
   bulkScrapeArticlesSchema, scrapeRoasterArticlesSchema, listArticlesSchema,
   setArticlePublishedSchema, deleteArticleSchema,
   // products
-  reenrichProductSchema, markProductSoldOutSchema, undoScrapeJobSchema,
+  reenrichProductSchema, bulkReenrichRoasterSchema, fullReenrichRoasterSchema,
+  reapStuckEnrichmentTasksSchema,
+  reapStuckCatalogOperationsSchema,
+  listQualityReviewsSchema, prepareT3ReviewSchema, applyT3CorrectionSchema, runQualityReviewSweepSchema, resolveQualityReviewSchema,
+  dedupeProductsSchema,
+  applyFiltersRetroSchema, urlHealthAuditSchema,
+  listCatalogOperationsSchema, rollbackCatalogOperationSchema,
+  markProductSoldOutSchema, setProductAvailableSchema, undoScrapeJobSchema,
+  // article grading (M2)
+  gradeArticlesSchema,
   // jobs
   getScrapeRunLogSchema, cancelRunningJobSchema,
   // phase 2 inspect / diagnose
@@ -57,21 +65,19 @@ import {
   getLLMJobDetailSchema, requeueLLMJobSchema, listScrapeRunsSchema,
   testSourceURLSchema,
   // aggregate observability (MCP-purity gap closers)
-  catalogStatsSchema, proposalBreakdownSchema, freshnessReportSchema,
+  catalogStatsSchema, catalogQualityAuditSchema, catalogPricePerGramSchema, freshnessReportSchema,
   listThinProductsSchema,
   // per-tier debug fetchers (Tier 1-4 ladder probes)
   fetchShopifyProductSchema, fetchPageTextSchema, renderPageSchema,
-  // held-proposal resolver (closes HITL gate)
-  resolveHeldProposalsSchema,
-  // bulk-apply revert (undo bad auto_approve runs)
-  revertProposalsAppliedSinceSchema,
   // agent action log + memory
   logAgentActionSchema, getSessionActionsSchema,
-  logAgentMemorySchema, getAgentMemorySchema,
+  logAgentMemorySchema, getAgentMemorySchema, searchAgentMemorySchema,
+  getRunbookSchema,
+  // v2 enrichment_tasks observability
+  listEnrichmentTasksSchema, enrichmentTasksBreakdownSchema,
   // impls
   listRoasters, getAllStatus, syncRoaster, syncAll, getSnapshot,
-  enrichRoaster, enrichAll, listProposals, approveProposals,
-  rejectProposals, autoApproveProposals, logAgentSummary, diffSweep, getHints, setDiffHint, regenerateHint, listJobs,
+  enrichRoaster, enrichAll, logAgentSummary, diffSweep, getHints, setDiffHint, regenerateHint, listJobs,
   listAgentRuns,
   haikuNextJob, haikuSubmit, listLLMJobs,
   onboardRoaster, deleteRoaster, publishRoaster, updateScrapeSettings,
@@ -80,14 +86,23 @@ import {
   listFlavorSchemas, uploadFlavorSchema, activateFlavorSchema,
   bulkScrapeArticles, scrapeRoasterArticles, listArticles,
   setArticlePublished, deleteArticle,
-  reenrichProduct, markProductSoldOut, undoScrapeJob,
+  reenrichProduct, bulkReenrichRoaster, fullReenrichRoaster,
+  reapStuckEnrichmentTasks,
+  reapStuckCatalogOperations,
+  listQualityReviews, prepareT3Review, applyT3Correction, runQualityReviewSweep, resolveQualityReview,
+  dedupeProducts,
+  applyFiltersRetro, urlHealthAudit,
+  listCatalogOperations, rollbackCatalogOperation,
+  markProductSoldOut, setProductAvailable, undoScrapeJob,
+  gradeArticles,
   getScrapeRunLog, cancelRunningJob,
   getProductDetail, deleteProduct, getRawSnapshot,
   getLLMJobDetail, requeueLLMJob, listScrapeRuns, testSourceURL,
-  catalogStats, proposalBreakdown, freshnessReport, listThinProducts,
+  catalogStats, catalogQualityAudit, catalogPricePerGram, freshnessReport, listThinProducts,
   fetchShopifyProduct, fetchPageText, renderPage,
-  resolveHeldProposals, revertProposalsAppliedSince,
-  logAgentAction, getSessionActions, logAgentMemory, getAgentMemory,
+  logAgentAction, getSessionActions, logAgentMemory, getAgentMemory, searchAgentMemory,
+  getRunbook,
+  listEnrichmentTasks, enrichmentTasksBreakdown,
 } from "./tools.js";
 
 interface ToolDef<T extends z.ZodTypeAny> {
@@ -132,16 +147,6 @@ const TOOLS: ToolDef<any>[] = [
       "after spotting it in the dashboard.",
     schema: getSnapshotSchema,
     handler: getSnapshot,
-    readOnly: true,
-  },
-  {
-    name: "crema_list_proposals",
-    description:
-      "List scrape proposals (pending / applied / rejected). Pending proposals are " +
-      "in the admin approve queue — use crema_approve_proposals or crema_reject_proposals " +
-      "to dispose of them.",
-    schema: listProposalsSchema,
-    handler: listProposals,
     readOnly: true,
   },
   {
@@ -217,35 +222,36 @@ const TOOLS: ToolDef<any>[] = [
     handler: enrichAll,
     idempotent: false,
   },
-  // ── Proposals (admin approve queue) ────────────────────────────────────
+  // ── v2 enrichment_tasks observability ─────────────────────────────────
   {
-    name: "crema_approve_proposals",
+    name: "crema_list_enrichment_tasks",
     description:
-      "Approve scrape proposals by id — merges proposed_state_json into the live " +
-      "products table. Use crema_list_proposals first to find ids.",
-    schema: approveProposalsSchema,
-    handler: approveProposals,
-    destructive: false,  // creates/updates live rows, but reversible via reject/undo
-  },
-  {
-    name: "crema_reject_proposals",
-    description:
-      "Reject (discard) scrape proposals by id. Does not touch the live products table.",
-    schema: rejectProposalsSchema,
-    handler: rejectProposals,
+      "List rows from the v2 `enrichment_tasks` state machine — one row per " +
+      "(url, kind) tracked through discovered → fetching → llm_pending → " +
+      "enriched | failed | skipped. Use to inspect what the v2 pipeline " +
+      "did (or didn't) on a per-URL basis. Filters: kind ('product' | " +
+      "'article'), state, roaster_slug, extraction_provenance ('haiku' | " +
+      "'haiku_site_hinted' | 'admin_manual' | 'bs4_fallback'), since " +
+      "(ISO8601). Common queries: failed-state to surface stuck work, " +
+      "bs4_fallback-provenance to find admin-review candidates, " +
+      "state='skipped'+kind='product' to inspect what the two-stage " +
+      "filter rejected. Replaces the proposals-table observability of " +
+      "the v1 workflow.",
+    schema: listEnrichmentTasksSchema,
+    handler: listEnrichmentTasks,
     destructive: false,
   },
   {
-    name: "crema_auto_approve_proposals",
+    name: "crema_enrichment_tasks_breakdown",
     description:
-      "Apply the auto-approval policy across all pending proposals (or scoped to one " +
-      "roaster). Policy: approve every proposal where Haiku's structured output has " +
-      "is_coffee_bean=true; reject every proposal with is_coffee_bean=false; skip the " +
-      "ones where the field is null/absent. Pass dry_run=true to preview the outcome. " +
-      "Use this after a sweep to bulk-decide proposals without per-card review.",
-    schema: autoApproveProposalsSchema,
-    handler: autoApproveProposals,
-    destructive: false,  // creates/updates live rows but reversible via the existing undo flow
+      "Aggregate per-state / per-kind / per-provenance counts of " +
+      "`enrichment_tasks` rows. One-shot health check: 'how many of my " +
+      "v2 tasks are stuck in failed?', 'what fraction of my catalog " +
+      "ran through Haiku vs bs4 fallback?'. Optional scope: roaster_slug, " +
+      "since.",
+    schema: enrichmentTasksBreakdownSchema,
+    handler: enrichmentTasksBreakdown,
+    destructive: false,
   },
   // ── Deterministic diff sweep (LLM-free change detection) ──────────────
   {
@@ -569,6 +575,283 @@ const TOOLS: ToolDef<any>[] = [
   },
   // ── Products (re-enrich / sold-out / undo) ─────────────────────────────
   {
+    name: "crema_bulk_reenrich_roaster",
+    description:
+      "Per-product bulk re-enrich (no sync, no hint regeneration, no " +
+      "bio / article touch). Use this when the catalog URLs are " +
+      "current and you only want to refresh the enrichment columns on " +
+      "existing rows — e.g. after a prompt change against products " +
+      "with enrichment_status='failed' or pre_v2. For the FULL " +
+      "pipeline (sync to refresh URLs + regenerate hints + bio + " +
+      "products + articles + standardize), use " +
+      "crema_full_reenrich_roaster instead. Spawns a BG worker that " +
+      "iterates the products table and calls the shared v2 helper " +
+      "(page_fetcher with Playwright Tier 4 + Wix dropdown expansion + " +
+      "INR/Rs price regex + Shopify variant augmentation + " +
+      "existing_coffee_name hint). Each product blocks on the LLM " +
+      "queue — spawn 3-5 drainer subagents in parallel for any " +
+      "roaster with 10+ products. Returns a job_id you can poll via " +
+      "crema_list_jobs (kind='bulk_reenrich') for progress + " +
+      "log_tail. only_status='pre_v2' is the canonical filter for " +
+      "healing the pre-v2 backlog (rows with enriched_at=NULL). " +
+      "Concurrent-worker cap = 8 (semaphore, 2026-05-26).",
+    schema: bulkReenrichRoasterSchema,
+    handler: bulkReenrichRoaster,
+    readOnly: false,
+  },
+  {
+    name: "crema_full_reenrich_roaster",
+    description:
+      "Atomic FULL pipeline re-enrich for one roaster: sync " +
+      "(refresh snapshot + detect URL changes from replatforming) → " +
+      "bio enrich → product scrape with hint regeneration → article " +
+      "scrape with article-hint regeneration → catalog-wide " +
+      "standardize. ONE call, sequential pipeline in the background. " +
+      "This is the 'bulk enrich' verb — what the orchestrator " +
+      "CLAUDE.md should aim for. The PARTIAL crema_bulk_reenrich_roaster " +
+      "only re-touches existing product rows; it skips sync (so stale " +
+      "URLs from replatformed sites like Nandan → www.nandancoffee.com " +
+      "linger), skips hint regeneration (so old per-roaster quirks " +
+      "persist), and skips bio + article enrichment. Use full-reenrich " +
+      "for any catalog-wide refresh sweep; use bulk-reenrich only when " +
+      "you specifically want to touch existing product rows without " +
+      "re-crawling. Returns 202 with the slug + queued flag; poll " +
+      "crema_list_llm_jobs / crema_list_jobs for per-step progress. " +
+      "Defaults: mode='tab2' (diff-only sync), regenerate_prompt=true, " +
+      "regenerate_article_hint=true.",
+    schema: fullReenrichRoasterSchema,
+    handler: fullReenrichRoaster,
+    readOnly: false,
+  },
+  {
+    name: "crema_list_quality_reviews",
+    description:
+      "List rows from the quality_reviews table — the trust-but-verify " +
+      "queue. Each row is a finding from the T1/T2/T3 review pipeline " +
+      "(T1 = deterministic heuristic; T2 = Haiku adversarial reviewer; " +
+      "T3 = Opus override). Common usage: " +
+      "crema_list_quality_reviews({verdict:'confirmed'}) to surface " +
+      "T2-confirmed hallucinations ready for T3 override. " +
+      "crema_list_quality_reviews({verdict:'overridden'}) to read the " +
+      "T3 lessons accumulated so far. Returns rows + a rollup of " +
+      "verdict×tier counts.",
+    schema: listQualityReviewsSchema,
+    handler: listQualityReviews,
+    readOnly: true,
+  },
+  {
+    name: "crema_list_catalog_operations",
+    description:
+      "List the catalog_operations audit trail. Every state-mutating " +
+      "catalog op (dedupe, delete_product, full_reenrich_roaster, " +
+      "sync, scrape, standardize, onboard, …) logs a row with its " +
+      "params, status, summary, and snapshots. Use this to triage " +
+      "what's happened recently, find an operation to roll back, or " +
+      "see why an op flagged in quality_reviews. Combine with " +
+      "crema_list_quality_reviews({target_table:'catalog_operations'}) " +
+      "to see the T1 anomaly findings alongside the operation history.",
+    schema: listCatalogOperationsSchema,
+    handler: listCatalogOperations,
+    readOnly: true,
+  },
+  {
+    name: "crema_rollback_catalog_operation",
+    description:
+      "Roll back a catalog operation by restoring every row it " +
+      "mutated. Reads catalog_snapshots (the pre-mutation row state " +
+      "captured before the op ran), reverses delete→insert, " +
+      "update→restore-before-state, insert→delete in reverse order. " +
+      "Idempotent — re-running on an already-rolled-back op is a " +
+      "no-op. Use when T1 op anomaly flags surface a destructive " +
+      "operation that shouldn't have happened (e.g. mass_delete on " +
+      "a roaster whose storefront just had a 503, not a real wipe). " +
+      "The operation row flips to status='rolled_back' with the " +
+      "reason recorded on summary_json.",
+    schema: rollbackCatalogOperationSchema,
+    handler: rollbackCatalogOperation,
+    destructive: true,
+  },
+  {
+    name: "crema_dedupe_products",
+    description:
+      "Consolidate duplicate products. Three strategies: " +
+      "'url_normalized' (default — catches www vs no-www, " +
+      "/collections/all/ vs /, trailing slashes); 'url_exact' " +
+      "(conservative — only same-string URLs); 'content_similarity' " +
+      "(groups by roaster + normalized coffee_name + price_inr + " +
+      "image_url — catches the Class D pattern where one bean is " +
+      "published as N grind/brew-preference SKUs that the URL-" +
+      "normalized strategy can't see). Picks a canonical row " +
+      "(richest enrichment + most recent enriched_at), merges null " +
+      "fields from siblings, re-points FKs in 9 dependent tables " +
+      "with UNIQUE-constraint collision handling, then deletes the " +
+      "sibling rows. ALWAYS run with dry_run=true first.",
+    schema: dedupeProductsSchema,
+    handler: dedupeProducts,
+    destructive: true,
+  },
+  {
+    name: "crema_apply_filters_retro",
+    description:
+      "Retroactive Stage 1 filter sweep. Re-applies the current " +
+      "`is_url_excluded` rules to every available catalog row and " +
+      "flips matches to `available=0, enrichment_status=" +
+      "'filter_reject'`. Catalog membership re-evaluation that the " +
+      "prior `_already_enriched` short-circuit was preventing — " +
+      "rows inserted before filter rules tightened (e.g. 'taster " +
+      "pack', 'blend duo', 'drip kit' added after the seed import) " +
+      "are now flagged. Field values (price, weight, name, image) " +
+      "are preserved; only `available` + `enrichment_status` flip. " +
+      "Wraps in `catalog_operations` so rollback is available. " +
+      "ALWAYS run with dry_run=true first.",
+    schema: applyFiltersRetroSchema,
+    handler: applyFiltersRetro,
+    destructive: true,
+  },
+  {
+    name: "crema_url_health_audit",
+    description:
+      "HEAD-check every available `products.product_url` and flip " +
+      "persistent 404s to `available=0, enrichment_status='url_dead'`. " +
+      "Cleans stale-URL zombies — roasters retire SKUs (Takaraa " +
+      "`-takaraa-1-kg`), replatform (ffox/libertario migration), " +
+      "or publish per-batch URLs that age out (Caffinary " +
+      "`-roasted-on-DDMM` handles). Default 8-way parallel HEAD " +
+      "requests; ~3-5 minutes for a 1500-row catalog. Network " +
+      "errors and 5xx treated as transient (no mutation). Field " +
+      "values preserved; only `available` + `enrichment_status` " +
+      "flip. Wraps in `catalog_operations` for rollback. ALWAYS " +
+      "run with dry_run=true first.",
+    schema: urlHealthAuditSchema,
+    handler: urlHealthAudit,
+    destructive: true,
+  },
+  {
+    name: "crema_run_quality_review_sweep",
+    description:
+      "Run T1 (and optionally T2) retroactively across already-" +
+      "enriched catalog rows. CRITICAL after every bulk re-enrich " +
+      "sweep — the inline T1+T2 wiring in enrichment_runner only " +
+      "fires on the v2 path; the subprocess scrape path (which " +
+      "crema_full_reenrich_roaster ultimately uses) bypasses it. " +
+      "Without running this sweep after a bulk enrich, ~99% of " +
+      "products skip quality review entirely. Uses the row's " +
+      "description_raw as the 'page text' source (no live re-fetch). " +
+      "Idempotent at the row level. Pair with active drainers if " +
+      "run_t2=true (default) — T2 fires Haiku per flagged row.",
+    schema: runQualityReviewSweepSchema,
+    handler: runQualityReviewSweep,
+    readOnly: false,
+  },
+  {
+    name: "crema_prepare_t3_review",
+    description:
+      "Fetch T3 context bundles for the orchestrator to reason over. " +
+      "T3 is ORCHESTRATOR-FIRED: this tool returns the data, the " +
+      "orchestrator (you, the calling Claude session) decides what to " +
+      "correct, then submits via crema_apply_t3_correction. No LLM " +
+      "call happens server-side — the orchestrator IS the smarter " +
+      "tier. Returns one bundle per (target row, all confirmed flags) " +
+      "with the entity, roaster_name, description_raw, and the " +
+      "confirmed_flags array (each with rule/field/evidence/" +
+      "flagged_value + current_value_in_target for easy comparison). " +
+      "Use crema_list_quality_reviews({verdict:'confirmed'}) first to " +
+      "see what's queued; then crema_prepare_t3_review to get the " +
+      "context; then reason over each bundle and call " +
+      "crema_apply_t3_correction with your corrections + lesson.",
+    schema: prepareT3ReviewSchema,
+    handler: prepareT3Review,
+    readOnly: true,
+  },
+  {
+    name: "crema_apply_t3_correction",
+    description:
+      "Apply orchestrator-decided T3 corrections to one target row. " +
+      "Call this AFTER reading a bundle from crema_prepare_t3_review " +
+      "and reasoning about what each confirmed flag should become. " +
+      "Each correction sets one field to a new value (or null to " +
+      "clear). The lesson string is REQUIRED — T3's durable output " +
+      "is the lesson, not just the correction; without lessons the " +
+      "continuous-hardening loop doesn't close. The lesson should " +
+      "describe (a) what the original enricher got wrong, (b) the " +
+      "evidence in the page text that pointed to the correct value, " +
+      "(c) what T1 heuristic or prompt edit would have caught it. " +
+      "Persisted to every overridden quality_reviews row for the " +
+      "next iteration.",
+    schema: applyT3CorrectionSchema,
+    handler: applyT3Correction,
+    readOnly: false,
+  },
+  {
+    name: "crema_resolve_quality_review",
+    description:
+      "Manually resolve one quality_reviews row — when the admin (human) " +
+      "wants to set the verdict directly without T2/T3. Common: clear a " +
+      "T1 false positive that T2 missed, or override a row inline without " +
+      "invoking Opus for a single trivial case. For 'overridden', pass " +
+      "corrected_value (or empty string to clear the field) and lesson " +
+      "so the override participates in the prompt-hardening loop.",
+    schema: resolveQualityReviewSchema,
+    handler: resolveQualityReview,
+    destructive: false,
+  },
+  {
+    name: "crema_reap_stuck_enrichment_tasks",
+    description:
+      "Heal enrichment_tasks rows stuck at state='llm_pending'. " +
+      "Sister to the L1 stuck-claim reaper (which heals llm_jobs " +
+      "in_progress claims after 300s) — this one operates on the " +
+      "higher-level enrichment_tasks state machine. Use when a " +
+      "post-sweep audit surfaces stuck-pending rows (e.g. the " +
+      "2026-05-26 audit found 21). Tasks where result_table + " +
+      "result_id are set AND the target row exists get flipped to " +
+      "'enriched' (state-machine straggler — the upsert DID land); " +
+      "all others get flipped to 'failed' with last_error indicating " +
+      "the reap. Idempotent — safe to run repeatedly. Run with " +
+      "dry_run=true first to preview.",
+    schema: reapStuckEnrichmentTasksSchema,
+    handler: reapStuckEnrichmentTasks,
+    readOnly: false,
+  },
+  {
+    name: "crema_reap_stuck_catalog_operations",
+    description:
+      "Heal `catalog_operations` rows stuck at status='running'. " +
+      "Sister to crema_reap_stuck_enrichment_tasks (which heals the " +
+      "lower-level state machine) — this one operates on the parent " +
+      "audit rows that wrap full_reenrich_roaster, sync_tab*, " +
+      "standardize, scrape_one_roaster, etc. Symptom: bulk runs " +
+      "accumulate phantom 'running' rows when the parent-op-" +
+      "finalization step is missed (kids drain, parent marker " +
+      "lingers). Default older_than_minutes=30 is conservative " +
+      "because a real full_reenrich_roaster on a large roaster " +
+      "takes 10+ minutes. Idempotent. Run with dry_run=true first " +
+      "to preview which rows + per-kind counts get reaped.",
+    schema: reapStuckCatalogOperationsSchema,
+    handler: reapStuckCatalogOperations,
+    readOnly: false,
+  },
+  {
+    name: "crema_grade_articles",
+    description:
+      "Fire-and-forget editorial grading for a batch of roaster_articles. " +
+      "Composes a 0-100 editorial_score per article from 5 sub-components: " +
+      "Haiku-rated prose quality + sourcing specificity, plus deterministic " +
+      "image richness + product cross-links (to this roaster's own catalog) " +
+      "+ internal article cross-links (to other Crema articles). " +
+      "Score drives the consumer 'Featured Articles' rail and roaster-" +
+      "page article ordering. Optional slug scopes to one roaster; " +
+      "only_unscored=true (default) skips articles that already have a " +
+      "score. Returns a job_id you can poll via crema_list_jobs " +
+      "(kind='grade_articles'). Each article blocks on the LLM queue " +
+      "for one Haiku call (~3-5s), so spawn 3-5 drainer subagents in " +
+      "parallel for any batch with 20+ articles. See " +
+      "services/article_grader.py for the rubric.",
+    schema: gradeArticlesSchema,
+    handler: gradeArticles,
+    readOnly: false,
+  },
+  {
     name: "crema_reenrich_product",
     description:
       "Force re-enrichment for one product. Re-runs the full Haiku enricher and " +
@@ -588,6 +871,19 @@ const TOOLS: ToolDef<any>[] = [
       "the same way scrape-driven changes are.",
     schema: markProductSoldOutSchema,
     handler: markProductSoldOut,
+    destructive: false,
+  },
+  {
+    name: "crema_set_product_available",
+    description:
+      "Set products.available to 1 or 0. The companion to " +
+      "crema_mark_product_sold_out (which only hides, available=0): this " +
+      "can also UN-HIDE an in-stock bean (available=1) that was wrongly " +
+      "hidden, without a full re-enrich. Logged as a catalog_operations " +
+      "row (kind='manual_set_available') with a pre-mutation snapshot so " +
+      "it's undoable via crema_rollback_catalog_operation.",
+    schema: setProductAvailableSchema,
+    handler: setProductAvailable,
     destructive: false,
   },
   {
@@ -729,16 +1025,40 @@ const TOOLS: ToolDef<any>[] = [
     readOnly: true,
   },
   {
-    name: "crema_proposal_breakdown",
+    name: "crema_catalog_quality_audit",
     description:
-      "Group-by counts over scrape_proposals. group_by can be roaster_slug | " +
-      "change_type | enrichment_status | status. Filters: status, change_type, " +
-      "enrichment_filter (filters on the embedded enrichment_status in the " +
-      "proposed state — most useful with enrichment_filter='failed' to find " +
-      "held proposals stuck on Haiku errors). Replaces the SQLite-bypass for " +
-      "'which roasters have held proposals?'.",
-    schema: proposalBreakdownSchema,
-    handler: proposalBreakdown,
+      "Single-shot cosmetic-bug audit across the products table. " +
+      "Returns six categories: coffee_name junk (HTML entities, pipe-tails, " +
+      "weight suffixes, ALL-CAPS), absurd prices (>100k INR for <500g — the " +
+      "Vithai 9-lakh class), missing image_url per roaster, missing price_inr " +
+      "per roaster, silent-empty (≥5 of 10 enrichment fields null on " +
+      "enriched rows), denorm name drift (products.roaster_name vs " +
+      "roaster_profiles.name). Each category carries a total + top sample " +
+      "rows. Optional `slug` scopes to one roaster — useful to verify a " +
+      "per-roaster re-enrich landed clean (cosmetic_bug_total → 0). " +
+      "Replaces the prior session's habit of dumping a 122k-char " +
+      "crema_list_thin_products payload to see what's broken.",
+    schema: catalogQualityAuditSchema,
+    handler: catalogQualityAudit,
+    readOnly: true,
+  },
+  {
+    name: "crema_catalog_price_per_gram",
+    description:
+      "Price-per-gram (₹/g) distribution + outlier audit over " +
+      "consumer-visible beans (available=1). ₹/g is the normalized 'how " +
+      "expensive is this bean really' axis that makes a 250g bag and a " +
+      "100g micro-lot comparable. The catalog's ₹/g is heavy-tailed, so " +
+      "outliers are flagged by DECILE BANDS (top/bottom band_pct%), not " +
+      "Tukey fences. Returns: distribution (min/p10/q1/median/q3/p90/max + " +
+      "band cuts); upper_band ('why so expensive per gram?' — usually " +
+      "legit Geisha/small-lot, a blend here is the anomaly); lower_band " +
+      "('why so cheap per gram?' — drip-bag/sample/wrong-variant-weight, " +
+      "defect-rich); uncomputable (available=1 with ₹0/no-weight — the " +
+      "real card defects, split by missing field). Read-only; pair with " +
+      "crema_get_product_detail + fetch probes to root-cause each flag.",
+    schema: catalogPricePerGramSchema,
+    handler: catalogPricePerGram,
     readOnly: true,
   },
   {
@@ -812,41 +1132,6 @@ const TOOLS: ToolDef<any>[] = [
     handler: renderPage,
     readOnly: true,
   },
-  // ── Held-proposal resolver (autonomy gate closer) ──────────────────────
-  {
-    name: "crema_resolve_held_proposals",
-    description:
-      "Resolve the backlog of held proposals (status='pending' with " +
-      "enrichment_status='failed'). ASYNC pattern (2026-05-24 fix): " +
-      "non-dry-run calls enqueue a `resolve_held` BG job and return 202 " +
-      "with {job_id, status: 'queued', held_count_at_enqueue}. The " +
-      "runner re-runs enrichment ONCE per held proposal through the Tier " +
-      "1-4 ladder. Retry success → apply normally. Retry still fails AND " +
-      "live row already enriched → skip (never downgrade). Retry still " +
-      "fails AND no enriched live → apply as source_thin with LLM fields " +
-      "nulled. NEVER rejects for lack of info. Poll /api/jobs/{job_id} " +
-      "for completion; result_summary carries the full disposition + " +
-      "detail list. dry_run: true still returns synchronously with the " +
-      "target count. Under the agent-queue path, the agent must drain " +
-      "crema_haiku_next_job while polling — the per-proposal " +
-      "product_enrich llm_jobs need responses.",
-    schema: resolveHeldProposalsSchema,
-    handler: resolveHeldProposals,
-    destructive: true,
-  },
-  {
-    name: "crema_revert_proposals_applied_since",
-    description:
-      "Revert every proposal with applied_at >= the given timestamp. " +
-      "For each: replays prev_state_json onto the products row (or " +
-      "deletes the row if it was an insert), flips the proposal back " +
-      "to status='pending', clears applied_at. Use to undo a bad bulk " +
-      "auto_approve run that downgraded enriched rows. Pair with " +
-      "dry_run=true first to preview targets.",
-    schema: revertProposalsAppliedSinceSchema,
-    handler: revertProposalsAppliedSince,
-    destructive: true,
-  },
   // ── Agent action log + memory (working journal) ────────────────────────
   {
     name: "crema_log_agent_action",
@@ -903,6 +1188,36 @@ const TOOLS: ToolDef<any>[] = [
       "(pruning candidates).",
     schema: getAgentMemorySchema,
     handler: getAgentMemory,
+    readOnly: true,
+  },
+  {
+    name: "crema_get_runbook",
+    description:
+      "Fetch the catalog-ops runbook (full or by verb slug). The " +
+      "runbook lives outside the auto-loaded session-start context to " +
+      "keep the orchestrator's working memory budget cheap; this tool " +
+      "fetches sections on demand. Without args: returns full doc + " +
+      "list of available slugs. With verb: returns matching section(s) " +
+      "by slug or title substring. Use when you hit an unfamiliar " +
+      "verb in the user's prompt OR when you need depth on a verb the " +
+      "TOC in CLAUDE.md mentions.",
+    schema: getRunbookSchema,
+    handler: getRunbook,
+    readOnly: true,
+  },
+  {
+    name: "crema_search_agent_memory",
+    description:
+      "Top-k lazy lookup against agent_memory. PREFER this over " +
+      "crema_get_agent_memory for context-rot reasons — returning 3 " +
+      "matching lessons (default k=3) costs ~10x less working memory " +
+      "than dumping all 50+ rows. Use a 3-7 word query describing the " +
+      "lesson you need. e.g. 'wix sold-out variant', 'standardize lock " +
+      "regression', 'haiku barrel-aged varietal'. Scope/tag pre-filters " +
+      "narrow the search. Reading bumps reference_count so the " +
+      "operator can later see which lessons are still load-bearing.",
+    schema: searchAgentMemorySchema,
+    handler: searchAgentMemory,
     readOnly: true,
   },
 ];

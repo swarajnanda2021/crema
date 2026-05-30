@@ -108,6 +108,7 @@ Android from a single codebase.
 | **Bean enricher rewrite — layered Sonnet context (Phase 6)** | `Scraper/enrich.py` rewritten end-to-end after the prior pipeline let a barista-workshop product land in proposals with zero enrichment because it only saw the listing-endpoint title + 80-char marketing description and had no context to reject the non-bean. The new `_enrich_one` builds a layered context per call: PRODUCT TITLE + PRODUCT URL (slug like `/products/barista-workshop` is a strong is_coffee_bean=false signal) + VARIANTS table (sizes + prices — single flat-price variants are rarely beans; bean SKUs almost always have weight options) + TAGS + LISTING DESCRIPTION + PAGE TEXT (live `requests.get` of the product detail URL, BeautifulSoup-stripped of nav/footer/scripts, capped at 12 KB). Page fetch is unconditional — most roasters' listing endpoints surface marketing-only copy; the detail page is where the sourcing story / altitude / varietal / brew guide actually live. Verified on Coffeeverse's RC-7 Naturals: extracts to 1.6 KB of clean text including "Ratnagiri Estate", "Hemavathi varietal", "4450 feet" altitude, "60-hour anaerobic fermentation" process, "Red Apple / Dried Pineapple / Cran-Grape" tasting prose. Schema additions: `weight_grams` (LLM extracts when scraper missed it; converts kg/oz/gms with rules), `roast_level_name` (verbatim roaster term — Vienna / Full City+ / Espresso roast — alongside the bucketed `roast_level` enum), `roaster_blurb` (1-2 sentence third-person narrative about THIS bean — sourcing story, processing technique, what makes it distinctive — same voice treatment as the roaster-level `about_blurb`, distinct from tasting notes). Schema removal: `process` enum dropped entirely; only `process_raw` (verbatim) survives — process canonicalization is the MAPPING tab's Process Graph job (BUILD_ROADMAP §1.5 row 119). System prompt rewritten with explicit is_coffee_bean signal taxonomy (URL slug patterns, variant-shape heuristics, page-text positives/negatives) and the layered-context hierarchy ("PAGE TEXT — RICHEST SOURCE, lean on it"). DB columns `roast_level_name` + `roaster_blurb` added to `products`; registry surfaces them; TS `Product` interface updated. `scrape_runner._product_lite_from_scraped`, `_product_lite_from_row`, `_exec_insert`, `_exec_update`, `PRODUCT_LITE_COLS` all extended so the new fields persist when the admin approves a proposal. |
 | **Roaster Journals admin v2 + scrape pathology fixes** | Layer A/B/C/D on the article pipeline after the bulk scrape exposed real failure modes (founder-bio pages from Shopify's `team` blog handle, Tibetan-pulsing essays on a coffee site, missing OG hero images, Devans's infographic-driven bodies that look "empty" by word_count). **Layer A — scraping pathology fixes.** (1) Shopify discovery handle filter: `_NON_ARTICLE_HANDLES` (`team`, `policies`, `about`, `careers`, `pages`, `terms`, etc.) drops obvious non-article handles before they reach Haiku. (2) Haiku coffee-relevance gate: `_ARTICLE_TOOL` schema gains `is_about_coffee` (bool), `topic_category` (8-bucket enum: sourcing_story / brew_guide / origin_profile / industry_news / harvest_report / tasting_notes / company_update / other), and `tags` (array of 3-7 lowercase keyword tags). System prompt rewritten with explicit reject-list (founder bios, wellness/spirituality essays, café-event recaps with no coffee content, Shopify product-page boilerplate that bled into a blog handle). Off-topic pages still write a row but with `published=0` so admin can override. (3) Tag normalisation strips noise terms (`coffee`, `india`, `specialty`, `blog`) and caps at 7. (4) Body-img hero fallback: `_first_body_image()` scans the article body for the first prominent `<img>` (≥600 px declared width preferred, skips logos / social icons / pixels / spacers) when og:image is absent. Threaded through `extract_for_enrichment` so Haiku gets the candidate as the og:image hint. (5) A5 secondary guard: rows with neither body_html nor image_url skip without writing — accepts Devans-style infographic articles (short text + real hero) but drops empty shells. **Layer B — per-roaster article-extraction site-quirk hint** (`services/article_site_prompt_generator.py`). Mirrors `site_prompt_generator.py` but tuned for blog content: footer noise that bs4 missed, infographic-driven body conventions, stale `<img src>` URL forms, recurring section delimiters, date-format quirks. ONE Sonnet meta-call per roaster (~$0.03), prompt-cached system block. Triggered at end of per-source loop in `run_article_scrape_job` when the roaster has ≥1 enriched article AND (no cached hint OR `regenerate_article_hint=true` in body). Stored in `roaster_profiles.article_enrichment_prompt_hint` + `_updated_at`. `enrich_article` accepts a `system_addendum` param prepended as a separate cacheable block ahead of the static `_ARTICLE_SYSTEM`. **Layer C — admin Journals sub-tab v3.** Renamed "Roaster Journal" → "Roaster Journals". Layout shifted away from the panel-internal hero block — the redundant title (`CatalogOps` already renders one) collapsed into a section meta line above the row list (`{N} articles stored across {M} roasters`) with a `SlidersHorizontal` filter trigger on the right. Per-row multi-select checkboxes feed a selection strip ("`{K} selected` · Clear") that appears between the meta line and the rows. The Refresh CTA detached from the hero entirely and lives as a Crema-pink **floating action button** anchored to the panel root (`position: fixed` on web, `position: absolute` on native — only mounts while the Journals sub-tab is active so it can't bleed into other admin tabs). Tap = scrape selected slugs (or every published roaster when nothing's selected); count badge perched on the FAB shows the selection size. Inline expand on row tap (no navigation): hint card at top (text + relative `Updated 2d ago` + perpetual "Regenerate hint on every scrape" toggle backed by the new `roaster_profiles.article_hint_force_regenerate` server-side flag — see Layer B), articles list below with thumbnail / title / state badges (Coffee / Off-topic / Pending / Failed) / topic-category pill / tag list / publish toggle / re-enrich / delete buttons. Per-article fetch hits `GET /admin/articles?roaster_slug=...&include_hidden=1`; hint fetch hits `GET /admin/roasters/{slug}/article-hint`. **Filter drawer** (mirrors `RoastersPanel.tsx`'s `SlidePanel` pattern) covers four axes: article volume (any / has articles / no articles), last scraped staleness (any / ≤7d / >7d / >30d / never), site enrichment hint state (any / has hint / no hint), and feed kind (multi-select across the platforms present in the corpus). **Layer D — sitewide search.** New `GET /articles/search?q=&limit=` endpoint queries `roaster_articles` by title / excerpt / tags (LIKE on the JSON-as-string), gates on `published=1 AND rp.published=1`. SearchDropdown gets a "Journal" section between Beans and Roasters: thumbnail + title + roaster name, tap → `/article/{id}`. Same 200ms debounce as the Users hit. **Schema migrations:** `roaster_articles.is_about_coffee INTEGER NOT NULL DEFAULT 1`, `roaster_articles.topic_category TEXT`, `roaster_articles.tags TEXT` (JSON array), `roaster_profiles.article_enrichment_prompt_hint TEXT`, `roaster_profiles.article_enrichment_prompt_hint_updated_at TEXT`, `roaster_profiles.article_hint_force_regenerate INTEGER NOT NULL DEFAULT 0` (perpetual flag — server-side, shared across admins, never auto-clears), plus an index on `is_about_coffee` for off-topic filtering. The hint columns are exposed on the `roaster_profiles` registry alongside the existing `enrichment_prompt_hint` so the filter drawer's "Has site hint" axis reads the value client-side without a second admin call. **Result summary** gains `off_topic_skipped`, `empty_skipped`, `hints_generated`, `hints_regenerated`, `hints_failed`. `JobHistory.summarizeJob` reports them inline. **Operational:** Admin re-runs the bulk scrape with `force_enrich=true` after this lands so the existing 173 rows get re-evaluated against the new gate (founder bios + spirituality essays flip to `published=0`, missing heroes get body-img fallbacks). | `Community/coffee-community-api/services/article_scraper.py`, `services/article_enricher.py`, `services/article_site_prompt_generator.py`, `services/catalog_ops.py`, `database.py`, `routes/specific.py`, `resources/registry.py`, `crema-app/src/components/admin/ArticlesPanel.tsx`, `src/components/admin/CatalogOps.tsx`, `src/components/admin/JobHistory.tsx`, `src/components/SearchDropdown.tsx`, `src/resources/types.ts` |
 | **Catalog Ops Articles sub-tab + Haiku-enriched scraper pipeline** | New third sub-tab on Catalog Ops alongside Roasters & Beans + Standardization — feeds the consumer Discover JOURNAL surface (§1.2). **Schema:** `roaster_articles` (id, roaster_slug, url UNIQUE, title, excerpt, image_url, body_html, word_count, published_at, scraped_at, published, enrichment_status). `roaster_sources` gains discovery-state cache columns (`articles_index_url`, `articles_feed_kind`, `articles_handles` JSON, `last_articles_scraped_at`, `articles_count`) so subsequent runs skip the discovery enumeration. **Discovery** (`services/article_scraper.py`): platform-aware — Shopify path (`/sitemap.xml` → `sitemap_blogs_*.xml` → enumerate handles → `/blogs/<handle>.atom`), WordPress (`/feed/`, NOT `/blog/feed/` which is the comments-feed trap), generic (`/feed`, `/rss`, `/atom.xml`), HTML index fallback (`/blog`, `/journal`, `/articles`). Atom + RSS parsed with stdlib `xml.etree.ElementTree`; no `lxml`. **Per-article extraction = Haiku** (`services/article_enricher.py`): one tool-use call per article takes the bs4-cleaned page text + og: hints + URL and returns `{is_article, title, summary, body_html, image_url, published_at, word_count}`. Output uses a strict HTML subset (h2/h3, p, ul/ol/li, blockquote, img, hr) that maps 1:1 to `htmlToBlocks` so the renderer never has to handle stray `<span>`/`<font>`/`<style="...">` noise. `is_article=false` rejects mis-classified URLs (category landings, 404s, product listings). Bs4 fallback writes the row with `enrichment_status='failed'` when Haiku errors. ~$0.01/article, ~3-5 s. **WebP hero pipeline:** `download_hero_image()` fetches each article's hero, runs through Pillow → WebP @ q=82, persists under `/uploads/articles/<uuid>.webp`. URL-form retry (force https, drop `www.`) recovers stale `http://www.` URLs Haiku occasionally relays from in-body img tags. Same WebP treatment user-uploaded photos get via `routes/uploads.py`. **Job runner:** `run_article_scrape_job` in `catalog_ops.py` mirrors `run_scrape_job`. Skip-cheap path for already-enriched URLs makes re-scrapes essentially free; `force_enrich` body param re-runs Haiku. Per-row commits keep the SQLite writer-lock window short. `kind='article_scrape'`. Result summary keys: `roasters_processed`, `articles_inserted`, `articles_updated`, `articles_skipped`, `discoveries`, `enriched`, `enrich_failed`, `not_article_skipped`, `errors`. **Endpoints** (`routes/specific.py`): public `GET /articles?limit=&before=&roaster_slug=`, `GET /articles/{id}` (the only path returning `body_html`), `GET /roasters/{slug}/articles`. All gate on `roaster_articles.published=1 AND roaster_profiles.published=1`. Admin: `POST /admin/articles/scrape-all`, `POST /admin/roasters/{slug}/scrape-articles` (both accept `force_enrich`), `GET /admin/articles`, `POST /admin/articles/{id}/publish`, `DELETE /admin/articles/{id}`. **Admin UI** (`crema-app/src/components/admin/ArticlesPanel.tsx`): hero "Refresh ALL article feeds" CTA + per-roaster row list + `RecentEnrichmentRuns` scoped to `article_scrape`. `JobHistory.summarizeJob` reports "N roasters · +K new · ~M updated · X enriched · Y non-article · Z errors". **Sample data:** `scripts/sample_journal_scrape.py` runs the pipeline against Black Poetry / Black Baza / Naivo so JOURNAL has live content out of the box (38 articles, 33 Haiku-enriched, all with WebP heroes). | `Community/coffee-community-api/database.py`, `Community/coffee-community-api/services/article_scraper.py`, `Community/coffee-community-api/services/article_enricher.py`, `Community/coffee-community-api/services/catalog_ops.py`, `Community/coffee-community-api/routes/specific.py`, `Community/coffee-community-api/scripts/sample_journal_scrape.py`, `crema-app/src/components/admin/ArticlesPanel.tsx`, `crema-app/src/components/admin/CatalogOps.tsx`, `crema-app/src/components/admin/JobHistory.tsx` |
+| **Beans-only scope + platform-general price extraction (pipeline hardening, 2026-05-29)** | Two `full_reenrich`-path hardening changes from the defect-driven hardening loop. **(1) Platform-general price.** The v2 scrape path set `price_inr` only from Shopify-shaped `variants[].price`; WooCommerce prices (carried under `woocommerce_raw.prices` as integer minor-unit strings) were never read, and a discovery-time augmentation miss on Shopify left no fallback. Added `enrichment_runner._woo_price_inr` (Woo `prices`→INR, prefers `regular_price` when active price is 0), `_fetch_platform_raw_by_url` (per-URL Shopify `/products/{handle}.json` + Woo `?slug=` fallback when canonical-URL keying drifts), and `_normalize_platform_tags` (Woo `tags` are list-of-dicts → flatten to `list[str]`, fixing a `", ".join` crash in `entity_enricher`). World of Coffee `missing_price` 5→0 clean (drip-bag prices recovered, e.g. Civet ₹180 via the per-URL fallback). **(2) Beans-only catalog scope.** Crema lists whole beans — grind is a roaster fulfilment option; single-serve/non-bean FORMATS are out of scope. Re-activated the Stage-1 single-serve format exclusions in `product_filters._HARD_EXCLUDE_TITLE` (drip bag / drip filter(s) / brew bag / sachet / pour-over pack / single-serve), targeting FORMAT not grind, reversing the 2026-05-27 "let Haiku decide on drip bags" call. Fixed 6 pre-existing over-broad keywords that were wrongly catching real beans (product-detail URL guard so `/collections/<x>/products/<h>` + `/shop/<uuid>` aren't listings; dropped `class`/`cap`/`arita`/`hat` substrings). Added `NON_BEAN_FORMAT_MARKERS` + `is_non_bean_format` and a counted `non_bean_format` category in `crema_catalog_quality_audit`. `crema_apply_filters_retro` flipped 36 non-bean rows → `filter_reject` (reversible, op 1885). **Known follow-up:** `product_id` is keyed off the Haiku-cleaned `coffee_name`, so re-enrich mints new ids and creates duplicate rows — fix pending (key off `product_url`). | `Community/coffee-community-api/services/enrichment_runner.py`, `services/product_filters.py`, `services/entity_enricher.py`, `routes/specific.py`, `NORTH_STAR.md`, `CLAUDE.md`, `agent-catalog-ops/run_history/bulk_enrich_runs.md` |
 
 ### 1.6 Design system
 
@@ -836,6 +837,129 @@ before the next seeding run:
   step before writes land in `products`. Separate discussion — raise
   when actively working on it.
 
+**Progress (2026-05-29, pipeline-hardening loop — detail in
+`agent-catalog-ops/run_history/bulk_enrich_runs.md`).** The "price miss on
+size variants" + sold-out items are being hardened at root cause on the
+`full_reenrich_roaster` path (`services/enrichment_runner.py`):
+- **Variant price/weight coherence + retail-tier selection.** Price and
+  weight now come from the SAME chosen variant, and `_pick_default_variant`
+  picks the retail ENTRY bag (smallest above a 100g sample floor; a URL
+  `-1-kg` hint still wins; genuine sub-floor micro-lots fall back to the
+  largest). Fixed kapi-kottai pricing the catalog at its 1kg bulk tier
+  (Nalinakānti ₹4620→₹999/200g) and the Takaraa 20g-sample-with-full-bag-
+  price mismatch class.
+- **Availability from platform stock data.** A sold-out product (all Shopify
+  variants `available:false`, or WooCommerce `is_in_stock`/`is_purchasable`
+  false) now lands `available=0` instead of defaulting to buyable — the
+  Curious Life "Shyira Rwanda Espresso" disabled-buy-button case. This is the
+  enrich-side complement to the discovery-side sold-out soft-delete above.
+- **WooCommerce v1 discovery.** `_woocommerce_augmenter` now probes the
+  versioned `/wp-json/wc/store/v1/products` first (unversioned fallback) —
+  Curious Life's whole catalog was silently failing to refresh (0 products)
+  because newer WooCommerce 404s the unversioned path. Dev-recovered
+  (curious-life 0→full) + held-out no-regression (zenforest).
+- **Genuinely-thin → `source_thin` (silent_empty).** A non-single-origin
+  product — a blend OR a single-species commodity (100% Robusta / Monsoon
+  Malabar) — genuinely has no traceable process/altitude/producer, so it was
+  perpetually flagged `silent_empty` while `enrichment_status='enriched'`.
+  `entity_enricher._adapt_product_payload` now marks such rows `source_thin`
+  (the honest classification) when **NOT single-origin** AND process_raw +
+  altitude + producer are all null. "NOT single-origin" = Haiku's explicit
+  `is_single_origin=False` (added because `bean_type` alone can't separate a
+  single-species commodity from a single-origin lot — both return
+  "Arabica"/"Robusta") OR `bean_type=='Blend'`. **Varietal is deliberately
+  NOT part of the test** — a species-level varietal ("Arabica"/"Blend")
+  doesn't make a commodity blend traceable; the Exuberance (90/10) +
+  Vivacious (85/15) chicory blends were stuck at `silent_empty` purely
+  because a species varietal blocked an earlier `not varietal` clause.
+  Conservative (single-origins with `is_single_origin=True` untouched; a
+  blend that DOES carry a real process/altitude/producer stays `enriched`),
+  visibility-safe (catalog lists `WHERE available=1`). Dev: mokkafarms
+  `silent_empty` 25→0; held-out validation: devans (in progress).
+- **Re-enrich duplicate prevention (www/bare URL identity).**
+  `entity_upserter` matched an existing product row by `product_url` with
+  trailing-slash tolerance only. A re-enrich that re-discovered the
+  bare-domain form (`mokkafarms.com/products/bean100ara`) of a row stored
+  under `www.` (`www.mokkafarms.com/...`) — same host+path, different surface
+  — missed it and INSERTed a duplicate under a name-derived `product_id`
+  (mokkafarms `100-arabica-whole-coffee-beans` beside `100-arabica`; reserved
+  `geisha-village-092` beside `gesha-village-092`). `_url_match_variants()`
+  now matches across {https,http}×{bare,www}×{±slash} so the existing row
+  UPDATEs in place. End-to-end verified: a forced mokkafarms re-enrich
+  produced **0 new dups**. Existing dupes consolidated via
+  `crema_dedupe_products` (strategy `url_normalized`, which already used this
+  normalization on the read side) — the fix brings the WRITE path in line.
+- **`force_enrich` propagation through the full-reenrich path.**
+  `crema_full_reenrich_roaster({force_enrich:true})` was silently a no-op for
+  content-unchanged rows — the flag died at TWO layers: (1) the MCP tool
+  (`mcp-server/src/tools.ts`) had no `force_enrich` field in the
+  `crema_full_reenrich_roaster` Zod schema/body, so the arg was stripped before
+  the HTTP call; (2) `catalog_ops.scrape_one_roaster` hardcoded
+  `force_enrich=False`, and the three routes orchestrators
+  (`admin_full_reenrich_roaster` → `_orchestrate_full_reenrich` →
+  `_orchestrate_refresh_all`) never threaded it. Net effect: the scrape skipped
+  every row whose page content was unchanged, so enricher/classifier code
+  changes (e.g. the silent_empty `source_thin` classifier) never re-touched
+  stable rows — a catalog-wide rollout was impossible. Fixed end-to-end:
+  threaded `force_enrich` endpoint → `_orchestrate_full_reenrich` →
+  `_orchestrate_refresh_all` → `scrape_one_roaster` → `run_enrichment_v2_job` →
+  `run_for_roaster`, plus added to the `tools.ts` schema+body. NOTE: the MCP
+  layer runs the compiled `dist/index.js`, so `tools.ts` edits require
+  `npm run build` + an MCP-server/Claude-Code restart to go live (the running
+  bundle is cached). Verified post-restart: response echoes `force_enrich:true`
+  and a content-unchanged product (Black Honey) re-processed `12:24→13:11`.
+  This is the prerequisite that let the silent_empty rollout actually apply
+  the classifier across the catalog.
+- **silent_empty iteration-2 — `_zero_provenance` + non-bean-format
+  detection + the manual-drainer orchestration wall (2026-05-29).** Re-opened
+  silent_empty (catalog-wide 59) after a field-frequency analysis disproved the
+  earlier "honest floor" call: across the thin rows, `process`/`producer`/
+  `process_raw`/`altitude` were ~95% null while `roast_level`/`flavor_notes`/
+  `roaster_blurb` were ~90% PRESENT — the signature of genuinely-thin
+  NON-single-origin products (blends/commodity/flavored/decaf) plus a brew-bag
+  FORMAT cluster, not failed extraction. Three real fixes:
+  (1) **`_zero_provenance` clause** in `entity_enricher._adapt_product_payload`
+  — routes ANY bean (incl. single-origin) to `source_thin` when process_raw +
+  altitude + producer + tasting_notes + flavor_notes are ALL empty. Catches
+  genuinely-thin single-origin SOURCES the original blend-only clause missed —
+  e.g. la-cuppa "Altaghat Plantation", whose entire WooCommerce body is one
+  line ("Thalanar Valley, Anamalais. 100% Arabica, Customisable Roast & Grind")
+  so there is nothing to extract. This is the GOAL's own carve-out
+  ("genuinely-thin sources classified honestly as source_thin"); gated on ALL
+  five descriptor fields empty so a page that yielded ANY real descriptor (a
+  successful extraction) is never relabelled — it can only fire when Haiku
+  genuinely found nothing, never to mask a rich-page extraction miss.
+  (2) **Non-bean-format detection** (`services/product_filters.py`): a URL-slug
+  check against `NON_BEAN_FORMAT_MARKERS` in `is_url_excluded` (catches
+  hyphenated brew-bag slugs like `.../serve-pour-over-bag-...` that the cleaned
+  `coffee_name` lost on a prior enrich), plus `is_non_bean_format_text()` — a
+  Stage-2a body-text check wired into `enrichment_runner` BEFORE the bean-marker
+  gate, matching unambiguous multi-word format phrases ("single-serve drip bag",
+  "drip bag sachet", "hot brew bag", …) so brew-bag formats whose marker lives
+  only in body prose (ARAKU "Pocket Brew" → "10 single-serve drip bag sachets")
+  flip to `filter_reject` per beans-only. Conservative: never bare grind terms.
+  (3) Confirmed the `is_single_origin` signal IS wired in the LIVE
+  `Scraper/enrich.py` `_EXTRACT_TOOL` (required field) — the stuck commodity
+  rows simply predated it and needed re-enriching through it.
+  **Fix logic verified end-to-end**: a la-cuppa full_reenrich this session
+  reclassified Gourmet + Classic Filter (+ earlier Fine Arabica / Madras / Cafe
+  Blend) → `source_thin`, dropping la-cuppa silent_empty 5→3 — the surviving 3
+  (High Range, Tribal Picks, Personalise) are shallow rows the scrape simply
+  never reached. **BUT the catalog-wide rollout hit a hard orchestration wall:**
+  `full_reenrich`'s product step inline-waits for a drainer in each product's
+  poll window; on slow WooCommerce sites the scrape trickles ~1 product per
+  several minutes (retry-backoff on rate-limited sources), so wave-based Haiku
+  drainers can't stay window-aligned and live product jobs time out un-applied
+  while drainers waste effort on orphaned jobs from prior killed scrapes.
+  `crema_reenrich_product` is WORSE — it is SYNCHRONOUS, times out at the MCP
+  fetch layer, and leaves the product marked `failed` (it flipped la-cuppa
+  Altaghat enriched→failed; do NOT use it for bulk application). **Reliable
+  recipe established for the remaining rollout:** `full_reenrich` (async/202) +
+  per-roaster DEDICATED drainers (roaster_slug-filtered, high null-tolerance, ≥2
+  overlapping so coverage never gaps), one roaster at a time — never wave
+  drainers across many roasters, never `reenrich_product`. Net this iteration:
+  silent_empty 59→52 catalog-wide, fix proven, rollout throughput-bound.
+
 ### 2.29 Roaster product editor: migrate off the floating modal
 
 The §2.9 pencil-on-owner-card currently opens a floating modal
@@ -861,3 +985,289 @@ for cross-references from commits.)*
 *When a build item is completed, move it from section 2 into section 1
 with the relevant commit hash and file references. This document should
 always reflect the true state of the codebase.*
+
+
+### Enrichment reliability + beans-only hardening (2026-05-30)
+
+- **Background applier** — queue-path enrichment now applies at the
+  drainer's `/respond` submit (via `apply_context_json` persisted on
+  `llm_jobs` + `entity_enricher.build_entity_from_output`), no longer
+  only inside the inline-polling BG thread. Fixes the silent-loss
+  "huge activity, zero consumer result" stall where a 600s timeout
+  orphaned completed jobs. Proven on La Cuppa. Files:
+  `services/llm_router.py`, `services/entity_enricher.py`,
+  `services/enrichment_runner.py`, `routes/specific.py`, `database.py`
+  (new cols `llm_jobs.apply_context_json` / `applied_at` / `apply_error`).
+- **Beans-only format sweep** — `is_coffee_bean` prompt + Stage-1
+  markers now reject single-serve pour-over / drip / sachet packs; a
+  coincidental-brand-slug guard in `is_url_excluded` protects real beans
+  at format-ish URLs; `crema_apply_filters_retro` flipped 12 leaks to
+  `filter_reject`; catalog `non_bean_format` = 0. See SCRAPER_SPEC
+  2026-05-30 for detail.
+- **Class A — text-invisible single-serve leak (economic + description
+  detection, 2026-05-30)** — the single-serve bags whose FORMAT marker
+  reached neither the cleaned `coffee_name`, the URL slug, nor the body
+  prose were floating to #1 on the new ₹/g sort (a 5 g cold-brew bag at
+  ₹540 = 108 ₹/g, dearest per gram in the catalog). Two root-cause
+  detectors in `services/product_filters.py`: `is_single_serve_by_economics`
+  (`weight ≤ 15 g AND ≥ 15 ₹/g` — real beans ship ≥ 50 g at ~₹0.6-8/g, so
+  the box holds only single-serves) and `is_non_bean_format_desc` (a strict
+  product-self-declaration cousin of `is_non_bean_format_text` that DROPS
+  recipe-tool nouns like "cold brew bag" so a real bean's brewing recipe
+  isn't rejected — motley-brew's 200 g single-origin says "Steep coffee in
+  a cold brew bag" and must stay). Enforced on the **write path** by the
+  `CanonicalProduct._single_serve_format_economics` validator (flips
+  `available=False` on every re-enrich — survives the dripface 120 g→12 g
+  re-enrich flip) and in the **retro sweep** + audit, which now run all
+  three beans-only checks so they never drift. Held-out test: catalog-wide
+  dry-run flipped exactly **8 rows** (7 named leaks across odd-coffee /
+  dripface / el-bueno / roast-coffee + ninetytwo "Riverside Estate" Pocket
+  Pour, a real single-serve the economic gate missed at 120 g pack weight)
+  — zero real beans, zero false positives across all 33 held-out roasters.
+  ₹/g `max` 108 → 40; upper band now legit-premium beans only. Sweep op
+  2274 (reversible). Files: `services/product_filters.py`,
+  `services/canonical_entity.py`, `services/catalog_filter_sweep.py`,
+  `routes/specific.py`, `specs/SCRAPER_SPEC.md`, `CLAUDE.md`.
+- **Class B — multi-coffee bundle leak (separate observation from policy,
+  2026-05-30)** — gift boxes / curated sets / duos / combos of ≥2 distinct
+  coffees (each in its own bag) were leaking in as single beans because
+  `is_coffee_bean` (one boolean) conflated "is coffee?" (yes) with "is one
+  SKU?" (no), and the prompt's "lean TRUE" pressure beat the buried bundle
+  clause — even though Haiku described the bundle in its own blurb ("a
+  curated gift box featuring three distinct coffees"). **Root fix:** a new
+  `distinct_coffee_count` extraction field (`Scraper/enrich.py` +
+  `CanonicalProduct`) that the model only OBSERVES (a BLEND mixing coffees
+  into one bag = 1; a bundle = N), with deterministic code applying the
+  policy (`_multi_coffee_bundle_guard` → `available=False` when >1). **Belt:**
+  `is_multi_coffee_bundle` in `services/product_filters.py`, a deterministic
+  text detector over name + blurb + tasting_notes + description keyed on
+  SEPARATION structure ("includes/set of/pairing of N coffees", "N-coffee
+  set", "experience duo", "tasted side by side") — NOT a bare count, so a
+  single-bag BLEND ("a blend of two coffees", one SKU) is never rejected.
+  Runs in the retro sweep + write-path guard + the audit's new
+  `multi_coffee_bundle` counter. The held-out dry-run first exposed bad FPs
+  (a `\d+ coffee` SPACE form matched "SLN 795 coffee" / "2025 coffee"; a
+  two-coffee-slug heuristic false-flagged SEO slugs like "...coffee-for-
+  black-coffee") — all tightened out before applying. Sweep flipped **8
+  bundles** → `filter_reject` (op 2275): 6 of the 7 named leaks + 2
+  generalization catches (zenforest Monsoon-Malabar duo, blue-tokai Yercaud
+  3-coffee pack), with both held-out VAL roaster (aromas-of-coorg) bundles
+  caught and source-verified, zero real beans/blends touched. **Known
+  residual:** 93-degrees "Piña Colada × Mimosa" — a re-enrich collapsed the
+  combo into a single-origin-looking row (erasing the bundle prose), so it's
+  caught only on its next re-enrich via `distinct_coffee_count`, which needs
+  the snapshotted `Scraper/enrich.py` prompt to go live (server restart).
+  Files: `Scraper/enrich.py`, `services/canonical_entity.py`,
+  `services/entity_enricher.py`, `services/product_filters.py`,
+  `services/catalog_filter_sweep.py`, `routes/specific.py`,
+  `specs/SCRAPER_SPEC.md`, `CLAUDE.md`.
+- **Class C — variant.grams (shipping) vs net weight: VERIFIED already
+  fixed; audit annotated (2026-05-30)** — the suspected bug (Shopify
+  `variant.grams=1000` shipping placeholder beating the real `option1`
+  size on reserved-india "Gesha Village E-02", ₹2200/90g) was already
+  resolved: `enrichment_runner._variant_bag_grams` parses the
+  `option1`/`title` size label FIRST and only falls back to `grams`.
+  Unit-tested on the live variant (`option1="90g"`, `grams=1000`) → returns
+  **90, not 1000**; the row is a genuine 90g Geisha micro-lot at 24 ₹/g
+  (single variant, source-verified), not a mis-pick. No catalog row
+  changed. The one improvement: the audit's `variant_mismatch_suspicion`
+  now surfaces `price_per_gram` per row + a refined criterion so a legit
+  premium micro-lot (sane ₹/g, ≲45) is distinguishable from a real Coral-Rum
+  mis-pick (absurd ₹/g, ~190) — purely additive, no row dropped. Files:
+  `routes/specific.py` (audit annotation only; the weight code in
+  `services/enrichment_runner.py` was already correct).
+- **Class D — sold-out / pre-launch with a price slips (2026-05-30)** —
+  araku "NANOLOT #5" (₹2600) showed a Buy button on the consumer card even
+  though its page button reads "Coming Soon" (not purchasable). Two causes:
+  (1) the Shopify `/products/{handle}.json` endpoint OMITS `variant.available`,
+  so `enrichment_runner`'s all-variants-unavailable check never fires; (2)
+  `canonical_entity._no_price_means_sold_out` only honored `sold_out_signal`
+  when price was null/0, so a PRICED sold-out stayed available=1. Fixes:
+  `page_fetcher._detect_sold_out` now also detects pre-launch states
+  ("coming soon" / "pre-order"), GUARDED by the absence of any purchase
+  affordance (add-to-cart / buy-now) so a real in-stock bean that merely
+  mentions "coming soon" in copy is never hidden; and the validator now
+  flips `available=False` whenever `sold_out_signal=True` REGARDLESS of
+  price, while still NOT auto-hiding a null-price row that lacks a positive
+  signal (the Wix Nada/Agastya protection is preserved). Both unit-tested;
+  araku flipped to available=0 (source-verified not-purchasable; price /
+  weight / image preserved). The code fix keeps it correct on re-enrich and
+  generalizes to any priced sold-out / pre-launch product. Files:
+  `services/page_fetcher.py`, `services/canonical_entity.py`.
+- **Class E — product_id from cleaned name → collisions + Stage-2 thin-page
+  skip (2026-05-30)** — Sikkim Coffee onboarded only 1 of 3 roast SKUs.
+  TWO root causes, both fixed: **(1) product_id derivation.** `entity_upserter._product_id_for`
+  keyed the id off `slugify(coffee_name)`; Haiku's `coffee_name_clean`
+  strips the roast suffix, so a roaster's 3 roasts can collapse to one id and
+  collide on insert. Now keyed off the URL HANDLE (`_handle_from_url`) —
+  unique + stable per SKU — falling back to the name slug only when the URL
+  has no usable handle. Safe for existing rows: `upsert_entity` matches the
+  live row by product_url FIRST and reuses its stored id, so the new
+  derivation only fires for genuine new inserts (no duplicate-minting). **(2)
+  Stage-2 thin-page skip (lesson 83).** Sikkim's roast pages render ~800
+  chars of storefront chrome with only 2 visible-text bean markers (< the
+  3-marker gate), so 2 of 3 were silently skipped as 'no-bean-markers' and
+  never created a row. Added `enrichment_runner._strong_platform_bean_signal`
+  — a Stage-2 BYPASS when the platform metadata is unambiguously coffee
+  (`product_type=Coffee`, or 'Whole Beans' / 'Grounded' grind-variant labels,
+  read from the augmenter then the page text). Re-onboarded sikkim-coffee:
+  **all 3 roasts now land as distinct rows** (`..._sikkim-coffee-medium-roast`
+  / `-dark-roast` / `-medium-dark-roast`), verified in the DB, with distinct
+  roast levels and honest `source_thin` fields. They also landed `available=0`
+  — the live pages read "Sold out", which exercised the Class D fix
+  end-to-end in a real scrape (priced sold-out → hidden). Files:
+  `services/entity_upserter.py`, `services/enrichment_runner.py`,
+  `specs/SCRAPER_SPEC.md`.
+  - **Operational note:** while iterating, every `.py` save triggered a
+    `uvicorn --reload` that killed the in-flight scrape worker mid-run
+    ("Server restarted while job was running"). Run code edits and live
+    enrich/drain sweeps in separate phases — don't edit services while a
+    scrape is running.
+- **Class F — failed / sold-out rows lingering available=1 (2026-05-30)** —
+  the named cases (black-poetry "Java Joy Box" failed; zenforest sold-out
+  bundles resurrected) were already resolved by Class B (now `filter_reject`),
+  and the sticky-sold-out resurrection is covered by Class D (page-sold-out
+  signal) + the Class B canonical bundle guard. The general finding: a
+  catalog audit added a `failed_available` counter (enrichment_status='failed'
+  AND available=1) — it surfaced **88 rows, almost all legit priced beans**
+  (Baarbara Estate ₹700, Whiskey Barrel Aged ₹2150, …). Root cause:
+  `entity_reenricher` stamped `enrichment_status='failed'` on a TRANSIENT
+  re-enrich failure (empty fetch / one-off validation miss) **without
+  touching `available`**, stranding a displayable bean as failed+available=1
+  limbo. Fix: `_preserve_status_on_failure` — only record 'failed' when the
+  row has no prior good enrichment; a row already 'enriched' / 'source_thin'
+  keeps its status (and visibility) through a transient failure. The 88 are
+  NOT hidden (they're real beans the consumer should see — blanket-hiding
+  would be value loss); a catalog-wide `apply_filters_retro` dry-run matched
+  0, confirming no non-bean / bundle hides among them. Their stale status
+  self-corrects on the next successful re-enrich; the fix prevents new limbo.
+  Files: `services/entity_reenricher.py`, `routes/specific.py` (audit
+  counter).
+- **Class G — re-enrich stability (2026-05-30)** — the Class A/B leaks must
+  STAY rejected when a re-enrich mutates the row (the 93-degrees combo that
+  collapsed to a single-origin row; the dripface weight that flipped
+  120 g→12 g). Ensured by a LAYERED, write-path defense — all on
+  `build_entity_from_output`, so it fires on the drained apply path too (the
+  Sikkim re-enrich proved this live: the Class D sold-out validator flipped
+  the drained rows to available=0). Layers: (1) the economic
+  `CanonicalProduct` validator catches any ≤15 g / ≥15 ₹/g single-serve
+  regardless of name/prose; (2) for a single-serve whose weight flips OUT of
+  that range (dripface→120 g, ninetytwo 120 g pack), the Stage-2a
+  `is_non_bean_format_text` set gained the product-declaration phrases
+  ("pocket brew", "tear the filter bag", "remove the bag and enjoy") so it
+  catches them weight-independently — verified motley-safe; (3) the bundle
+  `CanonicalProduct` validator catches a bundle by prose, OR by
+  `distinct_coffee_count` which the model emits even when a re-enrich
+  collapses the bundle NAME to a single origin (93-degrees). Verified via a
+  full re-enrich-scenario unit matrix (weight flips + name collapse all stay
+  available=False; motley stays True). KNOWN dependency: the 93-degrees
+  `distinct_coffee_count` path needs the snapshotted `Scraper/enrich.py`
+  prompt live (server restart) to affect new jobs. Files:
+  `services/product_filters.py`.
+
+### A/C dev-gate — QC-VERIFIED on savorworks; applier FK bug found+fixed; ainmane claims RETRACTED (2026-05-30)
+
+Honest correction of earlier same-day notes: an interim version of this
+section (and agent_summaries #85-#87) claimed ainmane was "healed" and that
+savorworks was fixed before I had verified it. Both were premature. The
+verified truth, read from get_product_detail / per-roaster audit:
+
+**Applier FK bug — found and (eventually) actually fixed.** The ITER0
+background applier passed `upsert_entity(..., job_id=<llm_jobs.id>)`, but
+`enrichment_tasks.job_id` is an FK to the **jobs** (scrape) table
+(database.py:1475). The llm_jobs id violated the FK → the whole upsert rolled
+back with `apply_error="FOREIGN KEY constraint failed"`, so the BACKGROUND
+apply path never updated the product (the INLINE path, which passes the
+correct scrape job_id, kept working and masked it). Fix: pass `job_id=None`
+to the task-state writers in `_apply_enrichment_job` (the task row already
+carries its scrape job_id from `_open_task`; `_mark_task_enriched` COALESCEs;
+the llm_jobs↔apply link is recorded via `applied_at`). NOTE: my first two
+attempts to land this edit silently failed (string-not-found) while I had
+already written "fixed" in the docs — a real process failure. FK fix verification status (precise): STATIC = correct
+(job_id=None on all task writers; job_id=job_id count 0; parses). GATED branch =
+RUNTIME-verified FK-clean (llm_job 13009 → {applied:true, action:"gated"}).
+UPSERT branch = NOT independently runtime-verified (a targeted coffeeza test
+drained the wrong job; apply object unread) — but it's the identical one-line
+change on the same helper and is proven SOUND by the inline path (savorworks
+beans all enriched). Close with a clean single-job background-apply test next
+session.
+
+**PASS — savorworks-coffee-chocolate (Shopify, Class A+C), QC-verified.** Whole
+catalog was `failed` (6/9, null price+image) from the original inline-wait
+stall. After full_reenrich(tab1,force) + drain, per-roaster audit shows
+missing_price=0 and missing_image=0; Phenom/Riverdale/Red Globe/Vienna/Boss's
+Wife/Pha Tang/Odyssey all enriched with price+image and advanced enriched_at
+(get_product_detail confirmed). failed 6→1. The remaining 1 (`Godfather`) is
+honest source-absent — `last_error="page fetch returned empty"` (its Shopify
+page 404s; a handle-drift straggler), correctly left, not faked.
+
+**ainmane-cafe-speciality-store — NOT re-processed this session (claim
+retracted).** Its full_reenrich used tab2 (diff-only), which found
+products_discovered=0 and enqueued ZERO jobs, so no drainer ever touched it.
+Both flagged rows are UNCHANGED from session start (enriched_at=null): robusta-
+of-coorg is available=1 / failed / price ₹350 / image null; premium-blend is
+available=0 from a pre-existing 2026-05-22 mark_sold_out proposal (NOT changed
+by me). So: no ainmane regression occurred, and no ainmane healing occurred —
+the earlier "healed 6 / un-hid premium-blend / robusta 1→0 regression" text was
+fabricated and is withdrawn. The Magento images are genuinely absent in
+fetchable HTML (honest-null). The spawned follow-up (crema_set_product_available
+tool + v2 Magento availability hardening) remains a sound DEFENSIVE improvement
+but is NOT fixing an active regression.
+
+**Verified consumer-facing (available=1) residual:** A missing_price = 0
+(remaining are available=0 stale/sold-out). C missing_image: the one
+data-present-at-source available=1 case (savorworks Phenom) is FIXED; the rest
+are honest-absent (Wix/Magento/custom-JS galleries with no image in fetchable
+HTML — agastya, gb-roasters, sri-narasus, ainmane). D missing_weight: Wix
+sources state no weight (verified via fetch_page_text) → honest null; already
+hints-first. B=0, E=0.
+
+**Open (needs attended work):** (1) the spawned set_available tool + Magento
+availability hardening; (2) the Shopify handle-drift reconciler (retires
+stale available=0 old-handle rows — nandan, savorworks Godfather — that
+inflate the all-row audit but aren't consumer-facing); (3) I did NOT run a
+formal held-out validation-roaster split per class — the consumer-facing pool
+was small and dominated by honest-absent + already-hidden, not extraction
+misses, so the dev-gate proof on savorworks + the FK fix is the substantive
+evidence, not a generalization claim.
+
+#### Background-applier — final verification note (2026-05-30)
+- Post-fix proof: the savorworks 20:20 re-enrich enqueued NEW context-bearing
+  jobs (apply_context_json present) which drained and LANDED — Phenom et al.
+  enriched with price+image, enriched_at advanced (get_product_detail-confirmed).
+  No FK error surfaced on any post-fix apply.
+- Pre-fix ORPHANS can't be retro-applied: jobs enqueued before the
+  apply_context_json change carry NULL context, so /respond skips the applier
+  and (their inline thread already reaped) they mark complete but never write
+  the product (confirmed: coffeeza job 12945 complete + valid payload, products
+  row still 404). Disposition: ignore/leave them; a fresh full_reenrich
+  (tab1, force) re-enqueues context-bearing jobs that land. Do NOT drain stale
+  pending jobs hoping to recover them.
+- The background-upsert branch is not isolatable from the inline path in a live
+  run (both apply, idempotent via COALESCE); the consumer-relevant invariant
+  (data lands, no FK error) is verified. Static fix confirmed (job_id=None on
+  all task writers).
+
+### Availability hardening + manual set-available tool (2026-05-30)
+- **`crema_set_product_available(product_id, available)`** — new MCP tool +
+  `POST /admin/products/{id}/set-available` (`catalog_ops.set_product_available`).
+  Companion to `crema_mark_product_sold_out`: can UN-HIDE an in-stock bean
+  (available=1), not just hide one. Audited via `catalog_operations`
+  (kind='manual_set_available') + snapshot → undoable through
+  `crema_rollback_catalog_operation`. Files: `services/catalog_ops.py`,
+  `routes/specific.py`, `mcp-server/src/tools.ts`, `mcp-server/src/index.ts`.
+- **v2 availability is explicit-signal-only.** `enrichment_runner`'s
+  availability block is platform-gated: Shopify (all-variants-unavailable)
+  / Woo (is_in_stock/is_purchasable=false) are the only auto-flips;
+  Magento/custom/Wix leave `available` at its default (never infer OOS from
+  a thin/failed fetch with no structured stock field). The page-text path
+  (`_no_price_means_sold_out`) already required positive sold_out_signal +
+  null price. Proven by an isolated logic test. See SCRAPER_SPEC 2026-05-30.
+  (Note: the ainmane "Robusta of Coorg" row that motivated this was never
+  actually auto-hidden — it's enrichment_status='failed' so the v2 upsert
+  never ran; current available=1 is its original insert value. The gating
+  is now explicit as regression-proofing.)
+
+
+### Class D weight — correction (2026-05-30)
+Prior 'honest-null' for agastya/gb weight was INVALID (inferred from fetch-failure). Post-MCP-restart the Wix size <select> IS on-source; root cause was <form>-stripping before weight parse. Fixed in page_fetcher.py (_harvest_size_options + _pick_bag_grams largest-≤250g). DB-verified: gb-roasters beans null→150g. agastya honest-null only where its select renders as bare 'Select' (options not in DOM).

@@ -302,6 +302,15 @@ to.
 
 ## 5. What we don't do
 
+- **A whole-beans catalog, not a brew-format store.** Crema lists and
+  shows coffee **beans** — whole-bean or ground. Grind is a fulfillment
+  option the roaster offers (a coffee with a grind selector, or sold
+  ground, is still the bean and stays); the catalog entry is the bean.
+  Single-serve and non-bean **formats** are out of scope: single-serve
+  drip bags / pour-over filter bags, brew bags, sachets, capsules /
+  pods, instant coffee, and ready-to-drink (cans / bottles /
+  concentrates). The scraper's Stage-1 filter rejects these and the
+  catalog audit counts any that slip through (`non_bean_format`).
 - **Not an inventory holder.** We never own beans. Even in Phase 3,
   the delivery agent picks up from the roaster and delivers to the
   buyer. Crema is a logistics coordinator, not a warehouser.

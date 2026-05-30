@@ -69,30 +69,39 @@ def enrich_product(
     *,
     system_addendum: str | None = None,
 ) -> Optional[dict]:
-    """Run Haiku over a single scraped product, return the enriched dict.
+    """RETIRED as of 2026-05-26.
 
-    Returns the merged product (raw + LLM fields) on success, or `None`
-    if the LLM call exhausted retries (transient — caller should fall
-    back to the raw product and flag enrichment_status='failed').
+    v1 product enrichment is removed. It coexisted with the v2 stack
+    (services/page_fetcher + entity_enricher + entity_reenricher +
+    entity_upserter) and the orchestrator's choice between them was
+    stochastic — the 2026-05-25 full sweep landed on v1, which is why
+    that pass introduced 149 denorm_drift rows, +67 silent_empties,
+    and only healed 2 of 56 missing images. v1 used a different
+    roaster_name lookup than v2's canonical resolution; it didn't
+    have the image picker, Rs/INR price regex, brand-strip, Wix
+    dropdown click, or Shopify noise-tag filter.
 
-    Raises `ProductEnricherError` for caller-actionable setup failures
-    (no API key, no SDK, no scraper dir) — those shouldn't be silently
-    retried per-product; the runner short-circuits and marks every
-    proposal `enrichment_status='deferred'` instead.
+    Eliminating the choice. Every product enrichment goes through v2.
 
-    `system_addendum`: optional per-roaster prompt addendum (the
-    `roaster_profiles.enrichment_prompt_hint` value). When provided,
-    it's appended to the base extraction system prompt for THIS
-    product so Haiku gets the past site-specific experience for free.
-    The merged result also carries the `_page_text` key (private)
-    that the runner uses for the post-run meta-prompt sampling
-    without re-fetching the live page.
+    Callers that hit this method (services.scrape_runner's per-product
+    loop, services.catalog_ops's proposal-apply, the
+    /admin/proposals/{id}/apply route) will fail loudly with this
+    error — that surfaces to crema_enrich_all / crema_enrich_roaster /
+    crema_onboard_roaster's BG job log as a 503-class failure.
+
+    To enrich products, use:
+      • `crema_bulk_reenrich_roaster(slug)` — catalog-wide per roaster
+      • `crema_reenrich_product(product_id)` — single row
+
+    Both go through services.entity_reenricher.reenrich_one_product
+    (v2). Bio + article enrichment have their own paths
+    (services.roaster_enricher, services.article_enricher) and are
+    unaffected by this retirement.
     """
-    enrich = _import_enrich()
-    client = _client()
-    llm_data = enrich._enrich_one(  # noqa: SLF001 — intentional
-        client, product, system_addendum=system_addendum,
+    raise ProductEnricherError(
+        "v1 services.product_enricher.enrich_product is RETIRED "
+        "(2026-05-26). Use crema_bulk_reenrich_roaster(slug) or "
+        "crema_reenrich_product(product_id) — both go through the v2 "
+        "stack via services.entity_reenricher. v1 / v2 coexistence "
+        "produced stochastic routing; eliminating the choice."
     )
-    if llm_data is None:
-        return None
-    return enrich._merge(product, llm_data)  # noqa: SLF001 — intentional

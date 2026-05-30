@@ -1444,7 +1444,255 @@ _MIGRATIONS = [
     # retrying) and 'enriched' (proper data landed).
     # No schema change required — enrichment_status is a free-text
     # TEXT column. Migration list kept for documentation continuity.
+    # ── Scraper v2 — enrichment_tasks state-machine table ────────────────
+    # Per-(url, kind) work-tracking row. v2's enrichment_runner inserts
+    # one row per discovered URL and transitions it through the state
+    # machine (discovered → fetching → llm_pending → enriched | failed |
+    # skipped). The actual canonical data lives in `products` or
+    # `roaster_articles`; this table tracks the work. `extraction_provenance`
+    # is the publish-gate input — `haiku` / `haiku_site_hinted` land
+    # directly, `bs4_fallback` routes to admin review, `admin_manual` is
+    # sticky and v2 never overwrites it.
+    # Empty during the first PR — no writers yet; the runner lands in a
+    # later PR (see AGENTIC_UTOPIA.md + the v1→v2 handoff). FK to llm_jobs
+    # and jobs is SET NULL so housekeeping deletes don't cascade away the
+    # task lineage.
+    """CREATE TABLE IF NOT EXISTS enrichment_tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL CHECK (kind IN ('product', 'article')),
+        url TEXT NOT NULL,
+        url_hash TEXT NOT NULL,
+        roaster_slug TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'discovered'
+            CHECK (state IN ('discovered', 'fetching', 'llm_pending',
+                             'enriched', 'failed', 'skipped')),
+        state_changed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        extraction_provenance TEXT,
+        last_error TEXT,
+        llm_job_id INTEGER REFERENCES llm_jobs(id) ON DELETE SET NULL,
+        result_table TEXT CHECK (result_table IN ('products', 'roaster_articles')),
+        result_id INTEGER,
+        job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        UNIQUE(url, kind)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_enrichment_tasks_state ON enrichment_tasks(state, state_changed_at)",
+    "CREATE INDEX IF NOT EXISTS idx_enrichment_tasks_roaster ON enrichment_tasks(roaster_slug, kind)",
+    "CREATE INDEX IF NOT EXISTS idx_enrichment_tasks_job ON enrichment_tasks(job_id)",
+    "CREATE INDEX IF NOT EXISTS idx_enrichment_tasks_provenance ON enrichment_tasks(extraction_provenance)",
+    # ── Journal-style agent log body ───────────────────────────────────
+    # `agent_summaries.summary` stays as the SHORT EXCERPT (1-3
+    # sentences, shown on the card). `body_html` is the optional
+    # long-form journal narrative — paragraphs / lists / quotes /
+    # subheadings, rendered via the same `htmlToBlocks` walker the
+    # consumer JOURNAL reader uses. Per the directive: every agent
+    # log entry is written by the orchestrator, in plain English, as
+    # if briefing a colleague (not a technical dump).
+    #
+    # Allowed tag subset (enforced by writer convention, not by the
+    # column type): h2, h3, p, ul, ol, li, blockquote, strong, em, a.
+    # Tags outside that subset get stripped at render time.
+    "ALTER TABLE agent_summaries ADD COLUMN body_html TEXT",
+    # `enriched_at` (added 2026-05-25) — UTC ISO timestamp the
+    # entity_upserter writes on every product INSERT or UPDATE through
+    # the v2 pipeline. Distinct from `created_at` (row birth, never
+    # bumped). Version-tracking handle: "when did Haiku last touch this
+    # row?". NULL means the row predates the enriched_at column or has
+    # only ever flowed through the legacy v1 path. Surface in the
+    # catalog quality audit so operators can spot stale rows that need
+    # a fresh sweep.
+    "ALTER TABLE products ADD COLUMN enriched_at TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_products_enriched_at ON products(enriched_at)",
+    # Stuck-claim reaper bookkeeping (2026-05-26, L1) — when a Claude
+    # Agent Haiku drainer subagent calls /admin/llm-jobs/next (atomic
+    # claim) then exits without /admin/llm-jobs/{id}/respond, the job
+    # stays status='in_progress' indefinitely and the bulk_reenrich BG
+    # worker blocks waiting for the response — stalling the whole
+    # roaster's bulk pass. The reaper at the top of admin_llm_jobs_next
+    # flips claims older than a TTL (default 300s) back to 'pending' so
+    # the next drainer can claim them. These two columns persist a
+    # per-job record of when/how-many-times the row was reaped so the
+    # operator can spot drainer-flakiness patterns via the standard
+    # /admin/llm-jobs list endpoint without needing to grep server logs.
+    "ALTER TABLE llm_jobs ADD COLUMN last_reaped_at TEXT",
+    "ALTER TABLE llm_jobs ADD COLUMN reap_count INTEGER NOT NULL DEFAULT 0",
+    # ── Background-applier columns (2026-05-29) ──────────────────────
+    # The v2 queue path historically COUPLED the apply (entity_upserter
+    # upsert) to the BG thread inline-polling llm_router._call_via_queue
+    # for the drained response. If that thread timed out (600s, no
+    # drainer answered) the eventually-completed job was ORPHANED — the
+    # drainer's output landed nowhere and the product silently never
+    # updated ("huge activity, zero consumer result"). These columns let
+    # the drainer's own submit (POST /admin/llm-jobs/{id}/respond) BE the
+    # applier: apply_context_json carries everything the upsert needs
+    # (kind, url, roaster_slug, scraped_at, provenance, the resolved
+    # deterministic hints, task_id) so the apply no longer depends on a
+    # live waiting thread. applied_at marks the row applied (idempotency
+    # + observability); apply_error records an apply failure WITHOUT
+    # failing the job (the LLM output is still valid; QC surfaces it).
+    "ALTER TABLE llm_jobs ADD COLUMN apply_context_json TEXT",
+    "ALTER TABLE llm_jobs ADD COLUMN applied_at TEXT",
+    "ALTER TABLE llm_jobs ADD COLUMN apply_error TEXT",
+    # Article editorial grading (2026-05-26, M2) — populated by
+    # services/article_grader.py. The grade combines Haiku-rated
+    # subjective signals (editorial prose quality, sourcing
+    # specificity) with deterministically-computed structural
+    # signals from body_html (image richness, product cross-links to
+    # this roaster's own catalog, internal article cross-links to
+    # other Crema articles). High-scoring articles surface in the
+    # consumer "Featured" rail and are weighted higher in roaster-
+    # page article ordering. NULL means the row hasn't been graded
+    # yet — bulk-grade backfill via crema_grade_articles handles the
+    # one-time fill; new articles get graded inline when the
+    # enrichment pipeline runs over them.
+    "ALTER TABLE roaster_articles ADD COLUMN editorial_score INTEGER",
+    "ALTER TABLE roaster_articles ADD COLUMN editorial_score_components TEXT",
+    "ALTER TABLE roaster_articles ADD COLUMN editorial_scored_at TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_roaster_articles_editorial_score ON roaster_articles(editorial_score DESC)",
+    # Three-tier quality reviewer (2026-05-26). Catches semantic
+    # hallucinations Pydantic can't — varietal=spirit-name,
+    # coffee_name=brand, origin-not-in-page-text, all-generic
+    # cliche-bingo enrichments. One row per (target, tier, rule)
+    # finding. Verdict 'pending' until T2 Haiku review fires;
+    # 'confirmed' or 'cleared' after T2; 'overridden' after T3
+    # Opus correction. lesson column captures what T3 learned so
+    # the orchestrator can grow T1 rules over time.
+    """CREATE TABLE IF NOT EXISTS quality_reviews (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        target_table TEXT NOT NULL CHECK (target_table IN ('products','roaster_articles')),
+        target_id TEXT NOT NULL,
+        tier INTEGER NOT NULL CHECK (tier IN (1,2,3)),
+        rule TEXT NOT NULL,
+        field TEXT,
+        evidence TEXT,
+        flagged_value TEXT,
+        verdict TEXT NOT NULL DEFAULT 'pending'
+            CHECK (verdict IN ('pending','confirmed','cleared','overridden')),
+        corrected_value TEXT,
+        lesson TEXT,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT,
+        resolved_by TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_quality_reviews_target ON quality_reviews(target_table, target_id)",
+    "CREATE INDEX IF NOT EXISTS idx_quality_reviews_verdict ON quality_reviews(verdict, tier)",
+    "CREATE INDEX IF NOT EXISTS idx_quality_reviews_created ON quality_reviews(created_at DESC)",
+    # Bio-as-discovery (2026-05-27). The roaster bio enrich captures
+    # the homepage link graph (product, article, collection URLs found
+    # in <a href> anchors) as a structured artifact. Quality reviewer
+    # cross-checks against the catalog — URL drift / replatform / dead
+    # rows surface at the bio layer rather than via the diff layer's
+    # heuristic handle-match. Discovered URLs are JSON arrays;
+    # bio_discovery_at is the ISO timestamp of the last bio run that
+    # populated them.
+    "ALTER TABLE roaster_sources ADD COLUMN discovered_product_urls TEXT",
+    "ALTER TABLE roaster_sources ADD COLUMN discovered_article_urls TEXT",
+    "ALTER TABLE roaster_sources ADD COLUMN discovered_collection_urls TEXT",
+    "ALTER TABLE roaster_sources ADD COLUMN bio_discovery_at TEXT",
+    # Operation-level QC (2026-05-27). Every state-mutating catalog
+    # operation logs its outcome here. Post-completion, T1
+    # deterministic rules + T2 Haiku reviewer evaluate the summary
+    # for anomalies (mass deletes, enriched-rate drops, duplicate
+    # standardize bursts). Flags land in quality_reviews with
+    # target_table='catalog_operations' so the orchestrator's
+    # existing review queue surfaces them alongside row-level QC.
+    """CREATE TABLE IF NOT EXISTS catalog_operations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL,
+        target_slug TEXT,
+        params_json TEXT,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        status TEXT NOT NULL DEFAULT 'running'
+            CHECK (status IN ('running','succeeded','failed','rolled_back')),
+        summary_json TEXT,
+        error_message TEXT,
+        started_by TEXT,
+        parent_operation_id INTEGER REFERENCES catalog_operations(id) ON DELETE SET NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_catalog_operations_kind ON catalog_operations(kind, started_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_catalog_operations_slug ON catalog_operations(target_slug)",
+    "CREATE INDEX IF NOT EXISTS idx_catalog_operations_status ON catalog_operations(status)",
+    "CREATE INDEX IF NOT EXISTS idx_catalog_operations_parent ON catalog_operations(parent_operation_id)",
+    # Per-row pre-mutation snapshot. Captures the row state BEFORE
+    # any destructive op writes — enables crema_rollback_operation
+    # to restore deleted / mutated rows. Table-grain (not file-grain)
+    # so rollbacks are precise to one operation without coupling.
+    """CREATE TABLE IF NOT EXISTS catalog_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id INTEGER NOT NULL
+            REFERENCES catalog_operations(id) ON DELETE CASCADE,
+        table_name TEXT NOT NULL,
+        row_pk TEXT NOT NULL,
+        row_json_before TEXT,
+        mutation_kind TEXT NOT NULL
+            CHECK (mutation_kind IN ('update','delete','insert')),
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_catalog_snapshots_op ON catalog_snapshots(operation_id)",
+    "CREATE INDEX IF NOT EXISTS idx_catalog_snapshots_table ON catalog_snapshots(table_name, row_pk)",
 ]
+
+
+def _migrate_quality_reviews_target_table(conn):
+    """Rebuild quality_reviews to extend the target_table CHECK.
+
+    The CHECK started as IN ('products', 'roaster_articles'). Two
+    expansions over time:
+      - 2026-05-27 (bio): + 'roaster_profiles'
+      - 2026-05-27 (op-qc): + 'catalog_operations'
+
+    SQLite can't ALTER a CHECK constraint, so we rebuild the table.
+
+    Idempotent: skips when the CHECK already allows catalog_operations
+    (the newest value), or when the table doesn't exist yet.
+    """
+    try:
+        cur = conn.execute(
+            "SELECT sql FROM sqlite_master "
+            "WHERE type = 'table' AND name = 'quality_reviews'"
+        )
+        row = cur.fetchone()
+    except sqlite3.OperationalError:
+        return
+    if not row:
+        return
+    schema_sql = row[0] or ""
+    if "catalog_operations" in schema_sql:
+        return  # Already at newest CHECK
+    conn.executescript("""
+        BEGIN TRANSACTION;
+        CREATE TABLE quality_reviews_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target_table TEXT NOT NULL CHECK (target_table IN (
+                'products','roaster_articles','roaster_profiles',
+                'catalog_operations'
+            )),
+            target_id TEXT NOT NULL,
+            tier INTEGER NOT NULL CHECK (tier IN (1,2,3)),
+            rule TEXT NOT NULL,
+            field TEXT,
+            evidence TEXT,
+            flagged_value TEXT,
+            verdict TEXT NOT NULL DEFAULT 'pending'
+                CHECK (verdict IN ('pending','confirmed','cleared','overridden')),
+            corrected_value TEXT,
+            lesson TEXT,
+            created_at TEXT NOT NULL,
+            resolved_at TEXT,
+            resolved_by TEXT
+        );
+        INSERT INTO quality_reviews_new SELECT * FROM quality_reviews;
+        DROP TABLE quality_reviews;
+        ALTER TABLE quality_reviews_new RENAME TO quality_reviews;
+        CREATE INDEX IF NOT EXISTS idx_quality_reviews_target
+            ON quality_reviews(target_table, target_id);
+        CREATE INDEX IF NOT EXISTS idx_quality_reviews_verdict
+            ON quality_reviews(verdict, tier);
+        CREATE INDEX IF NOT EXISTS idx_quality_reviews_created
+            ON quality_reviews(created_at DESC);
+        COMMIT;
+    """)
 
 
 def _migrate_shelf_categories(conn):
@@ -1500,6 +1748,11 @@ def init_db():
         _migrate_shelf_categories(conn)
     except Exception as e:
         print(f"Shelf migration note: {e}")
+    # Quality reviews target_table CHECK extension (table rebuild)
+    try:
+        _migrate_quality_reviews_target_table(conn)
+    except Exception as e:
+        print(f"Quality reviews migration note: {e}")
     # §2.42 — drop café user rows. Lives outside the migration list
     # because the account_type='cafe' users are referenced from many
     # tables (sessions, posts, follows, …) without ON DELETE CASCADE,

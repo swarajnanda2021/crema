@@ -106,8 +106,15 @@ def call_llm(
     timeout_seconds: int = 600,
     poll_interval_seconds: float = 1.0,
     max_retries: int = 3,
+    apply_context: Optional[dict] = None,
 ) -> Optional[dict]:
     """Provider-routed LLM call.
+
+    apply_context (queue path only): an optional JSON-serialisable dict
+    persisted on the llm_jobs row so the drainer's /respond submit can
+    apply the result itself (background applier) — decoupling the apply
+    from this process's inline poll. Ignored on the SDK path (no job
+    row is created there). Only product/article enrich pass it.
 
     Returns the structured tool_use input dict (matching
     `tool["input_schema"]`), or None if the call succeeded but
@@ -161,6 +168,7 @@ def call_llm(
             parent_run_id=parent,
             timeout_seconds=timeout_seconds,
             poll_interval_seconds=poll_interval_seconds,
+            apply_context=apply_context,
         )
     raise LLMCallError(f"Unknown LLM_PROVIDER: {provider!r}")
 
@@ -217,6 +225,7 @@ def _call_via_queue(
     parent_run_id,
     timeout_seconds,
     poll_interval_seconds,
+    apply_context=None,
 ) -> Optional[dict]:
     """Enqueue an `llm_jobs` row, poll until complete, return payload.
 
@@ -228,6 +237,11 @@ def _call_via_queue(
     schema_json = json.dumps(tool["input_schema"])
     tool_name = tool["name"]
     now = _now_utc_iso()
+    # default=str so a stray non-JSON value in hints (e.g. a Decimal)
+    # degrades to a string instead of raising and failing the enqueue.
+    apply_ctx_json = (
+        json.dumps(apply_context, default=str) if apply_context else None
+    )
 
     db = sqlite3.connect(DB_PATH, timeout=10)
     db.row_factory = sqlite3.Row
@@ -236,8 +250,9 @@ def _call_via_queue(
             "INSERT INTO llm_jobs "
             "(roaster_slug, step, target_id, parent_run_id, "
             " model, system_prompt, tool_name, tool_schema_json, "
-            " user_content, max_tokens, status, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
+            " user_content, max_tokens, status, created_at, "
+            " apply_context_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)",
             (
                 roaster_slug,
                 step,
@@ -250,6 +265,7 @@ def _call_via_queue(
                 user_content,
                 max_tokens,
                 now,
+                apply_ctx_json,
             ),
         )
         db.commit()

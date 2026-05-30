@@ -20,6 +20,16 @@ import { audited } from "./audit.js";
 export const listRoastersSchema = z.object({
   search: z.string().optional().describe("Substring match on name/slug/website"),
   limit: z.number().int().min(1).max(500).default(500).describe("Max rows to return"),
+  include_unpublished: z.boolean().optional().describe(
+    "Default false (consumer-facing scope). Set true to also return " +
+    "roasters with published=0. Use for catalog-wide ops where " +
+    "hidden roasters still deserve enrichment cycles — under the " +
+    "absolute-cause visibility rule (services/sync_runner.py), a " +
+    "hidden roaster gets auto-republished on the next sync that " +
+    "finds its storefront alive with coffee. Bulk-enrich verbs " +
+    "should set this true so hidden roasters get a chance to be " +
+    "rescued.",
+  ),
 });
 export type ListRoastersInput = z.infer<typeof listRoastersSchema>;
 
@@ -29,15 +39,17 @@ export async function listRoasters(input: ListRoastersInput) {
       await call("/roaster_profiles", { query: { limit: input.limit } }),
     );
     const q = (input.search || "").trim().toLowerCase();
-    const published = rows.filter((r) => r.published === 1);
+    const scoped = input.include_unpublished
+      ? rows
+      : rows.filter((r) => r.published === 1);
     const filtered = q
-      ? published.filter(
+      ? scoped.filter(
           (r) =>
             (r.name || "").toLowerCase().includes(q) ||
             (r.roaster_slug || "").toLowerCase().includes(q) ||
             (r.website || "").toLowerCase().includes(q),
         )
-      : published;
+      : scoped;
     return filtered.map((r) => ({
       slug: r.roaster_slug,
       name: r.name,
@@ -276,6 +288,84 @@ export async function catalogStats(input: CatalogStatsInput) {
     await call("/admin/catalog/stats", {
       query: input.slug ? { roaster_slug: input.slug } : {},
     }),
+  );
+}
+
+export const catalogPricePerGramSchema = z.object({
+  slug: z.string().optional().describe(
+    "Optional roaster slug — scope to one roaster. Empty = catalog-wide.",
+  ),
+  band_pct: z.number().min(0.5).max(49).default(10).describe(
+    "Outlier band width as a percentile. 10 = flag the top 10% and " +
+    "bottom 10% of ₹/g. Default 10.",
+  ),
+  limit: z.number().int().min(1).max(200).default(25).describe(
+    "Per-bucket sample cap. Default 25.",
+  ),
+});
+export type CatalogPricePerGramInput = z.infer<typeof catalogPricePerGramSchema>;
+
+export async function catalogPricePerGram(input: CatalogPricePerGramInput) {
+  return audited(
+    "crema_catalog_price_per_gram",
+    input,
+    async () =>
+      unwrap(
+        await call("/admin/catalog-price-per-gram", {
+          query: {
+            ...(input.slug ? { slug: input.slug } : {}),
+            band_pct: String(input.band_pct ?? 10),
+            limit: String(input.limit ?? 25),
+          },
+        }),
+      ),
+    () => `price-per-gram audit (${input.slug ?? "all"})`,
+  );
+}
+
+export const catalogQualityAuditSchema = z.object({
+  slug: z.string().optional().describe(
+    "Optional roaster slug — scope the audit to one roaster's products. " +
+    "Empty = catalog-wide. Use slug-scoped after a per-roaster re-enrich " +
+    "to verify the cosmetic-bug count collapsed to zero.",
+  ),
+  limit: z.number().int().min(1).max(200).default(20).describe(
+    "Per-category sample / rollup row cap. Default 20.",
+  ),
+});
+export type CatalogQualityAuditInput = z.infer<typeof catalogQualityAuditSchema>;
+
+export async function catalogQualityAudit(input: CatalogQualityAuditInput) {
+  return audited(
+    "crema_catalog_quality_audit",
+    input,
+    async () =>
+      unwrap(
+        await call("/admin/catalog-quality-audit", {
+          query: {
+            ...(input.slug ? { slug: input.slug } : {}),
+            limit: String(input.limit ?? 20),
+          },
+        }),
+      ),
+    (r: any) => {
+      const top_hi = (r?.price_extremes?.top_high_priced ?? [])[0];
+      const top_lo = (r?.price_extremes?.top_low_priced ?? [])[0];
+      return (
+        `cosmetic_bug_total=${r?.cosmetic_bug_total ?? 0} (scope=${r?.scope}): ` +
+        `name_junk_html=${r?.coffee_name_junk?.html_entities?.total ?? 0}, ` +
+        `name_junk_pipe=${r?.coffee_name_junk?.pipe_tails?.total ?? 0}, ` +
+        `name_junk_weight=${r?.coffee_name_junk?.weight_suffixes?.total ?? 0}, ` +
+        `name_allcaps=${r?.coffee_name_junk?.all_caps?.total ?? 0}, ` +
+        `absurd_prices=${r?.absurd_prices?.total ?? 0}, ` +
+        `missing_image=${r?.missing_image_url?.total ?? 0}, ` +
+        `missing_price=${r?.missing_price_inr?.total ?? 0}, ` +
+        `silent_empty=${r?.silent_empty?.total ?? 0}, ` +
+        `denorm_drift=${r?.denorm_name_drift?.total ?? 0}` +
+        (top_hi ? `; top_high=${top_hi.coffee_name}@₹${top_hi.price_inr}` : "") +
+        (top_lo ? `; top_low=${top_lo.coffee_name}@₹${top_lo.price_inr}` : "")
+      );
+    },
   );
 }
 
@@ -637,6 +727,75 @@ export async function getAgentMemory(input: GetAgentMemoryInput) {
       limit: input.limit,
     },
   }));
+}
+
+export const getRunbookSchema = z.object({
+  verb: z.string().optional().describe(
+    "Section slug to fetch (e.g. 'bulk_enrich', 'dedupe', 'rollback', " +
+    "'drainer_template', 't3'). Substring-matched against runbook " +
+    "section slugs + titles. Omit to fetch the full runbook + TOC of " +
+    "available slugs.",
+  ),
+});
+export type GetRunbookInput = z.infer<typeof getRunbookSchema>;
+
+export async function getRunbook(input: GetRunbookInput) {
+  return audited(
+    "crema_get_runbook",
+    input,
+    async () => {
+      const qs = new URLSearchParams();
+      if (input.verb) qs.set("verb", input.verb);
+      return unwrap(await call(`/admin/runbook?${qs.toString()}`));
+    },
+    (r: any) =>
+      r?.verb
+        ? `runbook section${r?.section_count > 1 ? "s" : ""}: ${
+            r?.matched ? `${r?.section_count} matched` : "no match — see available_slugs"
+          }`
+        : `runbook (${r?.byte_size ?? 0} bytes, ${(r?.available_slugs || []).length} sections)`,
+  );
+}
+
+export const searchAgentMemorySchema = z.object({
+  query: z.string().describe(
+    "Free-text query (3-7 words is the sweet spot). The route " +
+    "tokenizes on whitespace, does case-insensitive substring " +
+    "match against lesson + scope + tags, and ranks by hit count. " +
+    "Boosts: scope-match +2, tag-match +1 per term. Use this " +
+    "INSTEAD of crema_get_agent_memory when you need a specific " +
+    "lesson — it returns 3 hits, not 50 rows.",
+  ),
+  scope: z.string().optional().describe(
+    "Pre-filter to one scope. e.g. 'catalog-ops'.",
+  ),
+  tag: z.string().optional().describe(
+    "Pre-filter to lessons with this tag.",
+  ),
+  k: z.number().int().min(1).max(20).default(3).describe(
+    "Top-k results. Default 3 — keeps the orchestrator's working " +
+    "memory cost ~10x lower than a full memory dump.",
+  ),
+});
+export type SearchAgentMemoryInput = z.infer<typeof searchAgentMemorySchema>;
+
+export async function searchAgentMemory(input: SearchAgentMemoryInput) {
+  return audited(
+    "crema_search_agent_memory",
+    input,
+    async () =>
+      unwrap(await call("/admin/agent-memory/search", {
+        query: {
+          query: input.query,
+          scope: input.scope,
+          tag: input.tag,
+          k: input.k,
+        },
+      })),
+    (r: any) =>
+      `top-${r?.total ?? 0} lessons matched query=${JSON.stringify(input.query)} ` +
+      `(${r?.candidates_scored ?? 0} candidates scored)`,
+  );
 }
 
 export const approveProposalsSchema = z.object({
@@ -1061,37 +1220,44 @@ export async function listAgentRuns(input: ListAgentRunsInput) {
 
 export const logAgentSummarySchema = z.object({
   task_label: z.string().min(1).describe(
-    "Free-text label for what this agent run accomplished. Examples: " +
-    "'Drain held-roaster re-enrich queue', 'Auto-approve clean proposals " +
-    "after sweep', 'Patch korebi bio_hint for Bourbon disambiguation'.",
+    "Short noun phrase that becomes the journal entry TITLE on the " +
+    "admin card. Examples: 'Refreshed Caaraabi catalog', " +
+    "'Drained Black Baza queue', 'Patched korebi Bourbon " +
+    "disambiguation'. Under ~60 chars.",
   ),
   summary: z.string().min(1).describe(
-    "3-5 sentence narrative in your own voice — what scope you covered, " +
-    "how many items you processed, key outcomes, any surprises worth " +
-    "flagging to the human operator. Plain prose; this is the boss-man " +
-    "report.",
+    "EXCERPT shown on the card under the title. 1-3 sentences of plain " +
+    "English — the teaser version of what happened. Under ~200 chars. " +
+    "Frame as if briefing a colleague who'll click for the full read.",
+  ),
+  body_html: z.string().optional().describe(
+    "OPTIONAL long-form journal body, rendered when the user clicks " +
+    "the card to expand. HTML subset: h2, h3, p, ul/ol/li, blockquote, " +
+    "strong, em, a. Write as a journal article would — paragraphs + " +
+    "subheadings + colleague-briefing voice (NOT a technical log dump). " +
+    "Examples of structure: 'What I did', 'What I found', 'What's left', " +
+    "'Loose threads'. Per AGENTIC_UTOPIA: agent log is by the " +
+    "orchestrator, in plain English, for human readability.",
   ),
   outcome: z.enum(["success", "partial", "failed", "aborted"]).optional()
-    .describe("Overall outcome. Defaults to 'success' if omitted."),
+    .describe("Overall outcome. Defaults to 'success' if omitted. Drives card badge color."),
   prompt_excerpt: z.string().optional().describe(
-    "Optional first ~500 chars of the prompt this agent received. Useful " +
-    "for retro-debugging.",
+    "Optional first ~500 chars of the prompt this agent received. " +
+    "Surfaces in the reader's meta sidebar.",
   ),
   tool_calls_count: z.number().int().optional().describe(
-    "How many MCP tool calls you made. Cheaper than aggregating " +
-    "agent_runs at read time.",
+    "MCP tool calls made. Shown in the meta row.",
   ),
   scope_slugs: z.array(z.string()).optional().describe(
-    "Roaster slugs this agent touched. Stored as a JSON array for the " +
-    "Activity Log UI to chip + filter on.",
+    "Roaster slugs touched. Render as roaster-name chips in the " +
+    "reader header.",
   ),
   metrics: z.record(z.unknown()).optional().describe(
-    "Free-form counter object. Examples: {jobs_processed: 12, " +
-    "approved: 9, held: 3, products_enriched: 47}.",
+    "Free-form counters: {jobs_processed: 12, approved: 9, " +
+    "products_enriched: 47}. Surface in meta.",
   ),
   started_at: z.string().optional().describe(
-    "ISO8601 timestamp of when you began. If omitted, the server " +
-    "treats started_at and ended_at as ~now.",
+    "ISO8601 agent start time. If omitted, started_at = ended_at = now.",
   ),
 });
 export type LogAgentSummaryInput = z.infer<typeof logAgentSummarySchema>;
@@ -1106,6 +1272,78 @@ export async function logAgentSummary(input: LogAgentSummaryInput) {
         body: input,
       })),
     (r: any) => `logged session id=${r?.id} task="${input.task_label.slice(0, 60)}"`,
+  );
+}
+
+// ── enrichment_tasks (v2 per-URL state machine — observability) ───────────
+
+export const listEnrichmentTasksSchema = z.object({
+  kind: z.enum(["product", "article"]).optional().describe(
+    "Restrict to one entity kind.",
+  ),
+  state: z.enum([
+    "discovered", "fetching", "llm_pending",
+    "enriched", "failed", "skipped",
+  ]).optional().describe(
+    "Restrict to one task state. Use 'failed' to surface stuck work, " +
+    "'skipped' to inspect what the two-stage filter rejected, etc.",
+  ),
+  roaster_slug: z.string().optional().describe(
+    "Scope to one roaster.",
+  ),
+  extraction_provenance: z.enum([
+    "haiku", "haiku_site_hinted", "admin_manual", "bs4_fallback",
+  ]).optional().describe(
+    "Filter by provenance. 'bs4_fallback' surfaces rows where Haiku " +
+    "failed and the deterministic extractor took over — admin review " +
+    "recommended.",
+  ),
+  since: z.string().optional().describe(
+    "ISO8601 — only rows with state_changed_at >= since.",
+  ),
+  limit: z.number().int().min(1).max(1000).default(100),
+});
+export type ListEnrichmentTasksInput = z.infer<typeof listEnrichmentTasksSchema>;
+
+export async function listEnrichmentTasks(input: ListEnrichmentTasksInput) {
+  return audited(
+    "crema_list_enrichment_tasks",
+    input,
+    async () =>
+      unwrap(await call("/admin/enrichment-tasks", {
+        query: {
+          kind: input.kind,
+          state: input.state,
+          roaster_slug: input.roaster_slug,
+          extraction_provenance: input.extraction_provenance,
+          since: input.since,
+          limit: input.limit,
+        },
+      })),
+  );
+}
+
+export const enrichmentTasksBreakdownSchema = z.object({
+  roaster_slug: z.string().optional().describe(
+    "Scope to one roaster.",
+  ),
+  since: z.string().optional().describe(
+    "ISO8601 — only rows with state_changed_at >= since.",
+  ),
+});
+export type EnrichmentTasksBreakdownInput = z.infer<typeof enrichmentTasksBreakdownSchema>;
+
+export async function enrichmentTasksBreakdown(input: EnrichmentTasksBreakdownInput) {
+  return audited(
+    "crema_enrichment_tasks_breakdown",
+    input,
+    async () =>
+      unwrap(await call("/admin/enrichment-tasks/breakdown", {
+        query: {
+          roaster_slug: input.roaster_slug,
+          since: input.since,
+        },
+      })),
   );
 }
 
@@ -1234,6 +1472,56 @@ export async function diffSweep(input: DiffSweepInput) {
         }
       }
 
+      const staleList = stale.map((r: any) => ({
+        slug: r.slug,
+        name: r.name,
+        platform: r.platform,
+        last_sync: r.last_sync,
+        products_added: r.products_added || 0,
+        products_updated: r.products_updated || 0,
+        products_removed: r.products_removed || 0,
+        articles_added: r.articles_added || 0,
+        articles_updated: r.articles_updated || 0,
+        articles_removed: r.articles_removed || 0,
+        bio_changed: !!r.bio_changed,
+      }));
+
+      // next_steps — structurally encode the orchestrator's
+      // follow-on workflow into the tool response, so it's in
+      // working memory at the exact moment the orchestrator picks
+      // the next action.
+      const nextSteps: Array<{tool: string; args: any; why: string}> = [];
+      if (stale.length > 0) {
+        nextSteps.push({
+          tool: "crema_enrich_all",
+          args: {
+            slugs: staleList.map((r) => r.slug),
+            regenerate_prompt: false,
+          },
+          why: `${stale.length} roasters changed since last snapshot. ` +
+               `Refresh ONLY those slugs (skip the rest — they're current).`,
+        });
+      }
+      if (crawlErrors.length > 0) {
+        nextSteps.push({
+          tool: "crema_test_source_url",
+          args: { slug: crawlErrors[0].slug },
+          why: `${crawlErrors.length} roasters had crawl failures (non-ok ` +
+               `scrape_status). Probe ONE to diagnose: storefront down, ` +
+               `Cloudflare gate, IP block, or schema change.`,
+        });
+      }
+      if (stale.length === 0 && crawlErrors.length === 0) {
+        nextSteps.push({
+          tool: "crema_log_agent_summary",
+          args: {
+            action: "diff sweep — no changes",
+            reasoning: "All in-scope roasters were current. No enrichment needed.",
+          },
+          why: "log the no-op so the activity trail captures the sweep.",
+        });
+      }
+
       return {
         scope_count: acceptedSlugs.length,
         unknown_slugs: unknownSlugs,
@@ -1241,20 +1529,9 @@ export async function diffSweep(input: DiffSweepInput) {
         no_change_count: acceptedSlugs.length - stale.length - crawlErrors.length,
         crawl_error_count: crawlErrors.length,
         waited_seconds: input.wait_seconds,
-        stale: stale.map((r: any) => ({
-          slug: r.slug,
-          name: r.name,
-          platform: r.platform,
-          last_sync: r.last_sync,
-          products_added: r.products_added || 0,
-          products_updated: r.products_updated || 0,
-          products_removed: r.products_removed || 0,
-          articles_added: r.articles_added || 0,
-          articles_updated: r.articles_updated || 0,
-          articles_removed: r.articles_removed || 0,
-          bio_changed: !!r.bio_changed,
-        })),
+        stale: staleList,
         crawl_errors: crawlErrors,
+        next_steps: nextSteps,
       };
     },
     (r: any) =>
@@ -1300,8 +1577,47 @@ export async function onboardRoaster(input: OnboardRoasterInput) {
   return audited(
     "crema_onboard_roaster",
     input,
-    async () =>
-      unwrap(await call("/admin/scrape/sources", { method: "POST", body: input })),
+    async () => {
+      const raw = unwrap<any>(
+        await call("/admin/scrape/sources", { method: "POST", body: input }),
+      );
+      // Augment with structural next_steps. Onboarding is a
+      // multi-step pipeline; without these the orchestrator
+      // typically stops at "queued" without verifying bio
+      // extraction landed, products were discovered, or the
+      // chained scrape actually fired.
+      const jobId = raw?.job_id;
+      raw.next_steps = [
+        ...(jobId != null
+          ? [{
+              tool: "crema_list_jobs",
+              args: { limit: 5 },
+              why: `poll for job ${jobId} until status='succeeded'. ` +
+                   "The bio enrich + chained scrape run in BG; this " +
+                   "is the only signal they completed.",
+            }]
+          : []),
+        {
+          tool: "crema_list_catalog_operations",
+          args: { kind: "onboard_roaster", limit: 3 },
+          why: "audit the onboarding op — confirm status='succeeded' " +
+               "+ summary shows the discovered URL graph from bio.",
+        },
+        {
+          tool: "crema_list_quality_reviews",
+          args: {
+            target_table: "roaster_profiles",
+            verdict: "confirmed",
+            limit: 10,
+          },
+          why: "bio T1 findings on the new roaster — generic " +
+               "specialties, short blurb, no URLs discovered " +
+               "(indicates extraction issue worth investigating " +
+               "BEFORE the new roaster ships to consumers).",
+        },
+      ];
+      return raw;
+    },
     (r: any) =>
       r?.job_id != null
         ? `onboarding queued — source ${r?.source_id} (created=${r?.source_created}), enrich job ${r?.job_id}; poll /api/jobs/${r?.job_id} for slug`
@@ -1710,6 +2026,637 @@ export async function deleteArticle(input: DeleteArticleInput) {
 
 // ── Products (re-enrich / sold-out / undo job) ─────────────────────────────
 
+export const bulkReenrichRoasterSchema = z.object({
+  slug: z.string().describe(
+    "Roaster slug to bulk re-enrich. Required.",
+  ),
+  only_status: z.enum(["failed", "enriched", "pre_v2"]).optional().describe(
+    "Filter products in the roaster: 'failed' (status='failed' rows only), " +
+    "'enriched' (silent-empty sweep — touches enriched rows again), " +
+    "'pre_v2' (rows where enriched_at IS NULL — the most common target " +
+    "after the 2026-05-25 stack). Omit to re-enrich every product in the " +
+    "roaster.",
+  ),
+});
+export type BulkReenrichRoasterInput = z.infer<typeof bulkReenrichRoasterSchema>;
+
+export async function bulkReenrichRoaster(input: BulkReenrichRoasterInput) {
+  return audited(
+    "crema_bulk_reenrich_roaster",
+    input,
+    async () =>
+      unwrap(
+        await call(
+          `/admin/roasters/${encodeURIComponent(input.slug)}/bulk-reenrich`,
+          {
+            method: "POST",
+            body: { only_status: input.only_status },
+          },
+        ),
+      ),
+    (r: any) =>
+      `bulk_reenrich queued: slug=${r?.slug}, products=${r?.product_count}, ` +
+      `job_id=${r?.job_id ?? "n/a"}, filter=${r?.only_status ?? "all"}`,
+  );
+}
+
+export const fullReenrichRoasterSchema = z.object({
+  slug: z.string().describe(
+    "Roaster slug to fully re-enrich. Required.",
+  ),
+  mode: z.enum(["tab1", "tab2"]).optional().describe(
+    "Sync mode. 'tab1' = full crawl (use for new or re-baseline). " +
+    "'tab2' = diff-only sync against the previous snapshot — the " +
+    "right default for steady-state refresh. Default 'tab2'.",
+  ),
+  regenerate_prompt: z.boolean().optional().describe(
+    "Regenerate the per-roaster product-enrichment hint as part of " +
+    "the scrape. Default true (the whole point of full-reenrich is " +
+    "to refresh quirk hints alongside the catalog).",
+  ),
+  regenerate_article_hint: z.boolean().optional().describe(
+    "Regenerate the per-roaster article-enrichment hint as part of " +
+    "the article scrape. Default true.",
+  ),
+  force_enrich: z.boolean().optional().describe(
+    "Re-run Haiku enrichment on EVERY product even if the page " +
+    "content is unchanged since the last scrape. Default false " +
+    "(content-unchanged rows skip). Set true to force re-processing — " +
+    "required to apply enricher/classifier code changes to " +
+    "content-stable rows (e.g. clearing stale silent_empty after a " +
+    "classifier fix).",
+  ),
+});
+export type FullReenrichRoasterInput = z.infer<typeof fullReenrichRoasterSchema>;
+
+export async function fullReenrichRoaster(input: FullReenrichRoasterInput) {
+  return audited(
+    "crema_full_reenrich_roaster",
+    input,
+    async () =>
+      unwrap(
+        await call(
+          `/admin/roasters/${encodeURIComponent(input.slug)}/full-reenrich`,
+          {
+            method: "POST",
+            body: {
+              mode: input.mode,
+              regenerate_prompt: input.regenerate_prompt,
+              regenerate_article_hint: input.regenerate_article_hint,
+              force_enrich: input.force_enrich,
+            },
+          },
+        ),
+      ),
+    (r: any) =>
+      `full_reenrich queued: slug=${r?.slug}, sync_mode=${r?.sync_mode}, ` +
+      `regen_prompt=${r?.regenerate_prompt}, ` +
+      `regen_article_hint=${r?.regenerate_article_hint}, ` +
+      `force_enrich=${r?.force_enrich}`,
+  );
+}
+
+// ── Quality reviewer (T1+T2+T3) ───────────────────────────────────────────
+
+export const listQualityReviewsSchema = z.object({
+  target_table: z.enum(["products", "roaster_articles", "roaster_profiles", "catalog_operations"]).optional().describe(
+    "Scope to products or articles. Omit for all.",
+  ),
+  verdict: z.enum(["pending", "confirmed", "cleared", "overridden"]).optional().describe(
+    "'pending' = T1 flagged, T2 not yet run (rare — should be transient). " +
+    "'confirmed' = T2 Haiku reviewer confirmed hallucination — ready for T3 " +
+    "Opus override. 'cleared' = T2 said T1 was a false positive (no action). " +
+    "'overridden' = T3 already corrected; preserved as history + lesson.",
+  ),
+  tier: z.number().int().min(1).max(3).optional().describe(
+    "Filter by which tier raised the flag.",
+  ),
+  roaster_slug: z.string().optional().describe(
+    "Scope to one roaster's rows.",
+  ),
+  limit: z.number().int().min(1).max(500).optional().describe(
+    "Max rows. Default 100.",
+  ),
+});
+export type ListQualityReviewsInput = z.infer<typeof listQualityReviewsSchema>;
+
+export async function listQualityReviews(input: ListQualityReviewsInput) {
+  return audited(
+    "crema_list_quality_reviews",
+    input,
+    async () => {
+      const qs = new URLSearchParams();
+      if (input.target_table) qs.set("target_table", input.target_table);
+      if (input.verdict) qs.set("verdict", input.verdict);
+      if (input.tier !== undefined) qs.set("tier", String(input.tier));
+      if (input.roaster_slug) qs.set("roaster_slug", input.roaster_slug);
+      if (input.limit !== undefined) qs.set("limit", String(input.limit));
+      return unwrap(await call(`/admin/quality-reviews?${qs.toString()}`));
+    },
+    (r: any) =>
+      `${r?.returned ?? 0} quality_reviews returned. Rollup: ${
+        JSON.stringify(r?.rollup || {})
+      }`,
+  );
+}
+
+export const prepareT3ReviewSchema = z.object({
+  target_table: z.enum(["products", "roaster_articles", "roaster_profiles", "catalog_operations"]).describe(
+    "Which entity table to fetch context for. Required.",
+  ),
+  target_id: z.string().optional().describe(
+    "Scope to one row. Omit to fetch a batch over all rows with " +
+    "verdict='confirmed'.",
+  ),
+  roaster_slug: z.string().optional().describe(
+    "Scope to one roaster's confirmed-flag rows.",
+  ),
+  limit: z.number().int().min(1).max(50).optional().describe(
+    "Max bundles to return. Default 10.",
+  ),
+});
+export type PrepareT3ReviewInput = z.infer<typeof prepareT3ReviewSchema>;
+
+export async function prepareT3Review(input: PrepareT3ReviewInput) {
+  return audited(
+    "crema_prepare_t3_review",
+    input,
+    async () =>
+      unwrap(
+        await call("/admin/quality-reviews/prepare-t3", {
+          method: "POST",
+          body: input,
+        }),
+      ),
+    (r: any) =>
+      `T3 prepare: ${r?.bundle_count ?? 0} bundles returned for ` +
+      `orchestrator reasoning`,
+  );
+}
+
+// ── Operation-level QC + rollback ─────────────────────────────────────────
+
+export const listCatalogOperationsSchema = z.object({
+  kind: z.string().optional().describe(
+    "Filter by operation kind: 'dedupe' | 'delete_product' | " +
+    "'full_reenrich_roaster' | 'sync_tab1' | 'sync_tab2' | " +
+    "'enrich_all' | 'onboard_roaster' | 'standardize' | etc. Free-form.",
+  ),
+  status: z.enum(["running", "succeeded", "failed", "rolled_back"]).optional().describe(
+    "Filter by terminal status. 'running' = still in flight " +
+    "(check for stragglers). 'failed' = errored. 'rolled_back' = " +
+    "admin reverted.",
+  ),
+  target_slug: z.string().optional().describe(
+    "Scope to one roaster's operations.",
+  ),
+  since: z.string().optional().describe(
+    "ISO timestamp; only ops started_at >= since.",
+  ),
+  limit: z.number().int().min(1).max(500).optional().describe(
+    "Max rows. Default 50.",
+  ),
+});
+export type ListCatalogOperationsInput = z.infer<typeof listCatalogOperationsSchema>;
+
+export async function listCatalogOperations(input: ListCatalogOperationsInput) {
+  return audited(
+    "crema_list_catalog_operations",
+    input,
+    async () => {
+      const qs = new URLSearchParams();
+      if (input.kind) qs.set("kind", input.kind);
+      if (input.status) qs.set("status", input.status);
+      if (input.target_slug) qs.set("target_slug", input.target_slug);
+      if (input.since) qs.set("since", input.since);
+      if (input.limit !== undefined) qs.set("limit", String(input.limit));
+      return unwrap(await call(`/admin/catalog-operations?${qs.toString()}`));
+    },
+    (r: any) =>
+      `${r?.returned ?? 0} operations returned. Rollup: ${
+        JSON.stringify(r?.rollup || {})
+      }`,
+  );
+}
+
+export const rollbackCatalogOperationSchema = z.object({
+  operation_id: z.number().int().describe(
+    "catalog_operations.id to roll back. Required.",
+  ),
+  reason: z.string().optional().describe(
+    "Free-form note recorded on the operation row + lesson trail. " +
+    "e.g. 'dedupe over-collapsed Wix products', 'mass-delete on " +
+    "Nandan was a 503 transient'.",
+  ),
+});
+export type RollbackCatalogOperationInput = z.infer<typeof rollbackCatalogOperationSchema>;
+
+export async function rollbackCatalogOperation(input: RollbackCatalogOperationInput) {
+  return audited(
+    "crema_rollback_catalog_operation",
+    input,
+    async () =>
+      unwrap(
+        await call(`/admin/catalog-operations/${input.operation_id}/rollback`, {
+          method: "POST",
+          body: { reason: input.reason },
+        }),
+      ),
+    (r: any) =>
+      `rolled back op ${r?.operation_id}: ${r?.rows_restored ?? 0} restored, ` +
+      `${r?.rows_deleted ?? 0} deleted (tables: ${
+        (r?.tables_touched || []).join(",")
+      })`,
+  );
+}
+
+export const dedupeProductsSchema = z.object({
+  strategy: z.enum(["url_exact", "url_normalized", "content_similarity"]).optional().describe(
+    "How to identify duplicates. Default 'url_normalized' — matches " +
+    "after stripping scheme/www/collections-all/trailing-slash. " +
+    "Catches Class A (same URL different product_id) AND Class B " +
+    "(URL-variant duplicates like www vs no-www). Use 'url_exact' " +
+    "for the conservative path — only same-string URLs consolidate. " +
+    "Use 'content_similarity' for Class D: same coffee published as " +
+    "multiple SKUs differing only by grind / brew preference / region " +
+    "tag (Curious Life Gachatha × 6, Nandan Espresso × 5 — the " +
+    "URL-normalized strategy can't see these because the handles are " +
+    "genuinely distinct). Content-similarity groups by " +
+    "(roaster_slug, normalized_coffee_name, price_inr, image_url) " +
+    "— requires non-null price + image to participate.",
+  ),
+  slug: z.string().optional().describe(
+    "Scope dedup to one roaster's products.",
+  ),
+  limit: z.number().int().min(1).max(5000).optional().describe(
+    "Cap on duplicate groups to consolidate per call. Default " +
+    "unlimited. Useful for batch-by-batch progress on a large dedup.",
+  ),
+  dry_run: z.boolean().optional().describe(
+    "Default true. Always preview before committing — the dry-run " +
+    "report shows per-group: canonical chosen, sibling product_ids " +
+    "to delete, fields that would be merged. Re-fire with " +
+    "dry_run=false to apply.",
+  ),
+});
+export type DedupeProductsInput = z.infer<typeof dedupeProductsSchema>;
+
+export async function dedupeProducts(input: DedupeProductsInput) {
+  return audited(
+    "crema_dedupe_products",
+    input,
+    async () =>
+      unwrap(
+        await call("/admin/products/dedupe", {
+          method: "POST",
+          body: input,
+        }),
+      ),
+    (r: any) =>
+      `dedup ${r?.dry_run ? "dry-run" : "applied"}: ` +
+      `${r?.groups_found ?? 0} groups found, ` +
+      `${r?.groups_consolidated ?? 0} consolidated, ` +
+      `${r?.rows_deleted ?? 0} rows deleted (${r?.rows_kept ?? 0} kept)`,
+  );
+}
+
+
+export const applyFiltersRetroSchema = z.object({
+  slug: z.string().optional().describe(
+    "Scope the sweep to one roaster.",
+  ),
+  limit: z.number().int().min(1).max(50000).optional().describe(
+    "Cap on rows scanned. Omit for unbounded (be careful catalog-wide).",
+  ),
+  dry_run: z.boolean().optional().describe(
+    "Default true. Preview which rows would flip to filter_reject; " +
+    "re-fire with dry_run=false to apply.",
+  ),
+});
+export type ApplyFiltersRetroInput = z.infer<typeof applyFiltersRetroSchema>;
+
+export async function applyFiltersRetro(input: ApplyFiltersRetroInput) {
+  return audited(
+    "crema_apply_filters_retro",
+    input,
+    async () =>
+      unwrap(
+        await call("/admin/catalog/filter-retro-sweep", {
+          method: "POST",
+          body: input,
+        }),
+      ),
+    (r: any) =>
+      `filter sweep ${r?.dry_run ? "dry-run" : "applied"}: ` +
+      `${r?.scanned ?? 0} scanned, ${r?.matched ?? 0} matched` +
+      (r?.dry_run ? "" : `, ${r?.affected ?? 0} flagged filter_reject`),
+  );
+}
+
+
+export const urlHealthAuditSchema = z.object({
+  slug: z.string().optional().describe(
+    "Scope the audit to one roaster.",
+  ),
+  limit: z.number().int().min(1).max(50000).optional().describe(
+    "Cap on rows scanned. Omit for unbounded (catalog-wide).",
+  ),
+  concurrency: z.number().int().min(1).max(32).optional().describe(
+    "Parallel HEAD requests. Default 8. Higher values finish " +
+    "faster but stress some storefront origins more.",
+  ),
+  dry_run: z.boolean().optional().describe(
+    "Default true. Preview the 404'd URLs; re-fire with " +
+    "dry_run=false to flip them to url_dead.",
+  ),
+});
+export type UrlHealthAuditInput = z.infer<typeof urlHealthAuditSchema>;
+
+export async function urlHealthAudit(input: UrlHealthAuditInput) {
+  return audited(
+    "crema_url_health_audit",
+    input,
+    async () =>
+      unwrap(
+        await call("/admin/catalog/url-health-audit", {
+          method: "POST",
+          body: input,
+        }),
+      ),
+    (r: any) =>
+      `url health ${r?.dry_run ? "dry-run" : "applied"}: ` +
+      `${r?.scanned ?? 0} scanned, ${r?.dead ?? 0} dead (404), ` +
+      `${r?.transient_failures ?? 0} transient` +
+      (r?.dry_run ? "" : `, ${r?.affected ?? 0} flagged url_dead`),
+  );
+}
+
+export const runQualityReviewSweepSchema = z.object({
+  target_table: z.enum(["products", "roaster_articles", "roaster_profiles", "catalog_operations"]).optional().describe(
+    "Default 'products'.",
+  ),
+  slug: z.string().optional().describe(
+    "Scope to one roaster.",
+  ),
+  since: z.string().optional().describe(
+    "ISO timestamp; only rows enriched_at >= since.",
+  ),
+  limit: z.number().int().min(1).max(10000).optional().describe(
+    "Cap on rows scanned. Omit for unbounded (be careful catalog-wide).",
+  ),
+  run_t2: z.boolean().optional().describe(
+    "Default true. When false, run T1 only (free, no LLM). When true, " +
+    "fire the T2 Haiku adversarial reviewer on T1-flagged rows — " +
+    "requires Haiku drainers to be active to make progress.",
+  ),
+  skip_already_reviewed: z.boolean().optional().describe(
+    "Default true. When true, skip rows that already have a " +
+    "quality_reviews entry (pending or resolved). Set false to force " +
+    "a re-scan — useful after extending T1 heuristics, to re-evaluate " +
+    "the whole catalog under the new rule set.",
+  ),
+});
+export type RunQualityReviewSweepInput = z.infer<typeof runQualityReviewSweepSchema>;
+
+export async function runQualityReviewSweep(input: RunQualityReviewSweepInput) {
+  return audited(
+    "crema_run_quality_review_sweep",
+    input,
+    async () =>
+      unwrap(
+        await call("/admin/quality-reviews/run-sweep", {
+          method: "POST",
+          body: input,
+        }),
+      ),
+    (r: any) =>
+      `sweep: scanned=${r?.rows_scanned ?? 0}, T1 flagged=` +
+      `${r?.rows_flagged_by_t1 ?? 0} (${r?.total_t1_flags ?? 0} total flags), ` +
+      `T2 confirmed=${r?.t2_confirmed ?? 0}/cleared=${r?.t2_cleared ?? 0}/` +
+      `unsure=${r?.t2_unsure ?? 0}`,
+  );
+}
+
+export const applyT3CorrectionSchema = z.object({
+  target_table: z.enum(["products", "roaster_articles", "roaster_profiles", "catalog_operations"]).describe(
+    "Which entity table to write to. Required.",
+  ),
+  target_id: z.string().describe(
+    "Target row id (product_id for products, id for roaster_articles).",
+  ),
+  corrections: z.array(z.object({
+    field: z.string().describe(
+      "Field name being corrected. Must be in the allowlist " +
+      "(coffee_name, origin, varietal, process_raw, producer, " +
+      "altitude_masl, roast_level, roast_level_name, tasting_notes, " +
+      "roaster_blurb, bean_type, origin_region for products; " +
+      "title, excerpt, topic_category, tags for articles).",
+    ),
+    corrected_value: z.string().nullable().describe(
+      "The corrected value, or null to clear the field entirely. " +
+      "Clearing is preferable to leaving wrong data when the page " +
+      "supports no replacement value.",
+    ),
+    reasoning: z.string().describe(
+      "1-2 sentences explaining the correction with page-text " +
+      "citation when possible. The reasoning isn't persisted (the " +
+      "lesson string captures the durable insight); it's for the " +
+      "orchestrator's own audit trail.",
+    ),
+  })).describe(
+    "List of field-level corrections the orchestrator decided.",
+  ),
+  lesson: z.string().describe(
+    "Required. 1-3 sentences capturing what the original enricher " +
+    "got wrong and what rule (T1 heuristic or prompt-hardening edit) " +
+    "would have caught it. Persisted to every overridden " +
+    "quality_reviews row for the continuous-hardening loop. The " +
+    "lesson is T3's durable output — without it, the cycle doesn't " +
+    "close.",
+  ),
+});
+export type ApplyT3CorrectionInput = z.infer<typeof applyT3CorrectionSchema>;
+
+export async function applyT3Correction(input: ApplyT3CorrectionInput) {
+  return audited(
+    "crema_apply_t3_correction",
+    input,
+    async () =>
+      unwrap(
+        await call("/admin/quality-reviews/apply-t3", {
+          method: "POST",
+          body: input,
+        }),
+      ),
+    (r: any) =>
+      `T3 applied to ${r?.target_id}: ${r?.applied ?? 0} corrections, ` +
+      `${r?.skipped ?? 0} skipped`,
+  );
+}
+
+export const resolveQualityReviewSchema = z.object({
+  review_id: z.number().int().describe(
+    "quality_reviews.id of the row to resolve. Required.",
+  ),
+  verdict: z.enum(["cleared", "confirmed", "overridden"]).describe(
+    "Verdict to set. 'cleared' = T1 false positive, clear it. " +
+    "'confirmed' = mark for later T3 attention (skip T2). " +
+    "'overridden' = admin manually corrected the value (set corrected_value " +
+    "+ lesson too).",
+  ),
+  corrected_value: z.string().optional().describe(
+    "Only for 'overridden'. The corrected value the admin is setting. " +
+    "Pass empty string to clear the field entirely.",
+  ),
+  lesson: z.string().optional().describe(
+    "Only for 'overridden'. A short note capturing what was wrong and " +
+    "what rule would have caught it. Becomes training material for the " +
+    "next prompt-hardening iteration.",
+  ),
+});
+export type ResolveQualityReviewInput = z.infer<typeof resolveQualityReviewSchema>;
+
+export async function resolveQualityReview(input: ResolveQualityReviewInput) {
+  return audited(
+    "crema_resolve_quality_review",
+    input,
+    async () =>
+      unwrap(
+        await call(`/admin/quality-reviews/${input.review_id}/resolve`, {
+          method: "POST",
+          body: {
+            verdict: input.verdict,
+            corrected_value: input.corrected_value,
+            lesson: input.lesson,
+          },
+        }),
+      ),
+    (r: any) =>
+      `quality_review ${r?.id} → verdict=${r?.verdict}`,
+  );
+}
+
+export const reapStuckEnrichmentTasksSchema = z.object({
+  older_than_minutes: z.number().int().min(1).max(1440).optional().describe(
+    "Minimum age (in minutes) a task must be stuck at state='llm_pending' " +
+    "before reaping. Default 5. Use higher values to be conservative on " +
+    "fresh sweeps (where some tasks legitimately sit at llm_pending for " +
+    "a few minutes while waiting on the drainer pool).",
+  ),
+  dry_run: z.boolean().optional().describe(
+    "Default false. When true, return what WOULD be reaped without " +
+    "actually changing state. Use to preview the reap before committing.",
+  ),
+});
+export type ReapStuckEnrichmentTasksInput = z.infer<typeof reapStuckEnrichmentTasksSchema>;
+
+export async function reapStuckEnrichmentTasks(input: ReapStuckEnrichmentTasksInput) {
+  return audited(
+    "crema_reap_stuck_enrichment_tasks",
+    input,
+    async () =>
+      unwrap(
+        await call(`/admin/enrichment-tasks/reap-stuck`, {
+          method: "POST",
+          body: {
+            older_than_minutes: input.older_than_minutes,
+            dry_run: input.dry_run,
+          },
+        }),
+      ),
+    (r: any) =>
+      `${r?.dry_run ? "would_reap" : "reaped"}: ` +
+      `${r?.advanced_to_enriched?.length ?? 0} → enriched, ` +
+      `${r?.advanced_to_failed?.length ?? 0} → failed ` +
+      `(stuck > ${r?.older_than_minutes}m)`,
+  );
+}
+
+export const reapStuckCatalogOperationsSchema = z.object({
+  older_than_minutes: z.number().int().min(1).max(1440).optional().describe(
+    "Minimum age (in minutes) a `catalog_operations` row must be stuck " +
+    "at status='running' before reaping. Default 30. Conservative " +
+    "default because legitimate long-running ops (full_reenrich_roaster " +
+    "on a 50-product roaster) can take 10+ minutes. Use 5-10 only " +
+    "during interactive debugging when you know all real work is done.",
+  ),
+  dry_run: z.boolean().optional().describe(
+    "Default false. When true, return what WOULD be reaped without " +
+    "actually changing state. Use to preview the reap before committing.",
+  ),
+});
+export type ReapStuckCatalogOperationsInput = z.infer<typeof reapStuckCatalogOperationsSchema>;
+
+export async function reapStuckCatalogOperations(input: ReapStuckCatalogOperationsInput) {
+  return audited(
+    "crema_reap_stuck_catalog_operations",
+    input,
+    async () =>
+      unwrap(
+        await call(`/admin/catalog-operations/reap-stuck`, {
+          method: "POST",
+          body: {
+            older_than_minutes: input.older_than_minutes,
+            dry_run: input.dry_run,
+          },
+        }),
+      ),
+    (r: any) => {
+      const byKind = r?.by_kind ?? {};
+      const kindStr = Object.entries(byKind)
+        .map(([k, n]) => `${k}=${n}`)
+        .join(", ") || "none";
+      return (
+        `${r?.dry_run ? "would_reap" : "reaped"}: ` +
+        `${r?.reaped_count ?? 0} stuck>${r?.older_than_minutes}m ` +
+        `(${kindStr})`
+      );
+    },
+  );
+}
+
+export const gradeArticlesSchema = z.object({
+  slug: z.string().optional().describe(
+    "Roaster slug to scope the grading batch to one roaster's articles. " +
+    "Omit for catalog-wide.",
+  ),
+  only_unscored: z.boolean().optional().describe(
+    "Default true. Skip articles that already have a non-null " +
+    "editorial_score. Set false to re-grade everything (use after a " +
+    "rubric change in services/article_grader.py).",
+  ),
+  limit: z.number().int().min(1).max(5000).optional().describe(
+    "Max articles per batch. Default 500. The worker is fire-and-forget; " +
+    "for a multi-thousand backfill, run multiple batches.",
+  ),
+});
+export type GradeArticlesInput = z.infer<typeof gradeArticlesSchema>;
+
+export async function gradeArticles(input: GradeArticlesInput) {
+  return audited(
+    "crema_grade_articles",
+    input,
+    async () =>
+      unwrap(
+        await call(
+          `/admin/articles/grade-batch`,
+          {
+            method: "POST",
+            body: {
+              slug: input.slug,
+              only_unscored: input.only_unscored,
+              limit: input.limit,
+            },
+          },
+        ),
+      ),
+    (r: any) =>
+      `grade_articles queued: scope=${r?.slug ?? "catalog-wide"}, ` +
+      `articles=${r?.article_count}, job_id=${r?.job_id ?? "n/a"}, ` +
+      `only_unscored=${r?.only_unscored}`,
+  );
+}
+
 export const reenrichProductSchema = z.object({
   product_id: z.string().describe(
     "products.product_id — composite slug like 'roaster_slug_handle'. " +
@@ -1750,6 +2697,35 @@ export async function markProductSoldOut(input: MarkProductSoldOutInput) {
         method: "POST",
       })),
     () => `marked ${input.product_id} sold-out`,
+  );
+}
+
+export const setProductAvailableSchema = z.object({
+  product_id: z.string().describe(
+    "products.product_id to set available on.",
+  ),
+  available: z.boolean().describe(
+    "true → un-hide the product (available=1); false → hide it " +
+    "(available=0). Logged as a catalog_operations row " +
+    "(kind='manual_set_available') with a pre-mutation snapshot so it's " +
+    "undoable via crema_rollback_catalog_operation. Use available=true to " +
+    "restore an in-stock bean that was wrongly hidden without a full " +
+    "re-enrich — the gap crema_mark_product_sold_out (which only sets " +
+    "available=0) couldn't fill.",
+  ),
+});
+export type SetProductAvailableInput = z.infer<typeof setProductAvailableSchema>;
+
+export async function setProductAvailable(input: SetProductAvailableInput) {
+  return audited(
+    "crema_set_product_available",
+    input,
+    async () =>
+      unwrap(await call(`/admin/products/${encodeURIComponent(input.product_id)}/set-available`, {
+        method: "POST",
+        body: JSON.stringify({ available: input.available }),
+      })),
+    () => `set ${input.product_id} available=${input.available ? 1 : 0}`,
   );
 }
 
