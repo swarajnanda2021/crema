@@ -1223,9 +1223,27 @@ function RoastersList({
     return map;
   }, [products]);
 
+  // Roasters that currently have at least one IN-STOCK bean in the
+  // catalog. The BEANS tab's "from N roasters" count is computed over
+  // available beans, so gating the ROASTERS list the same way makes the
+  // two tabs agree — and a published roaster whose beans are all
+  // sold-out (or who has none in catalog) no longer shows as an empty
+  // entry here.
+  const roasterSlugsWithStock = useMemo(
+    () =>
+      new Set(
+        (products as any[])
+          .filter((p: any) => p.available !== false && p.available !== 0)
+          .map((p: any) => p.roaster_slug),
+      ),
+    [products],
+  );
+
   const publishedProfiles = useMemo(() => {
-    return (profilesCache.profiles || []).filter((p: any) => p.published === 1);
-  }, [profilesCache.profiles]);
+    return (profilesCache.profiles || []).filter(
+      (p: any) => p.published === 1 && roasterSlugsWithStock.has(p.roaster_slug),
+    );
+  }, [profilesCache.profiles, roasterSlugsWithStock]);
 
   const filteredRoasters = useMemo(() => {
     let result = publishedProfiles;

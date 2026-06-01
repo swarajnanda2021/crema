@@ -912,6 +912,10 @@ export default function RoasterDetailPage() {
     return [...localCoffees, ...catalogCoffees].filter((c) => {
       const id = c.product_id ?? c.id;
       if (deletedProductIds.has(id)) return false;
+      // Hide sold-out beans from the roaster profile — the profile
+      // shows what's buyable now. `available` is 0/false when a scrape
+      // (or manual sold-out flag) marks the bean out of stock.
+      if (c.available === false || c.available === 0) return false;
       if (seen.has(id)) return false;
       seen.add(id);
       return true;
