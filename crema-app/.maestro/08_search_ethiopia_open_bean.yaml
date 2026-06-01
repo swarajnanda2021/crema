@@ -12,7 +12,7 @@ appId: com.crema.app
 - launchApp
 - extendedWaitUntil:
     visible:
-      id: "feed-screen"
+      id: "browse-screen"
     timeout: 30000
 
 # 1. Search tab. The screen auto-focuses the input on mount, so the

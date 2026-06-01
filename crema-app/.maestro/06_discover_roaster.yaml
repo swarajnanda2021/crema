@@ -1,0 +1,33 @@
+# Journey 6 — Roaster discovery loop. Open ROASTERS, scan the list,
+# tap a row to land on the roaster's storefront, and confirm their
+# beans render. Mirrors what a user does when they hear about a new
+# micro-roaster and want to see what they sell. (Catalog-only: the
+# Follow action was removed with the social layer.)
+
+appId: com.crema.app
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "browse-screen"
+    timeout: 30000
+
+# 1. Discover → ROASTERS sub-tab.
+- tapOn:
+    id: "tab-discover"
+- tapOn:
+    id: "browse-tab-roasters"
+
+# 2. Wait for the roaster list to settle on at least one row.
+- extendedWaitUntil:
+    visible:
+      id: "roaster-row-.*"
+    timeout: 15000
+
+# 3. Tap the topmost row → land on the roaster's storefront.
+- tapOn:
+    id: "roaster-row-.*"
+- extendedWaitUntil:
+    visible:
+      id: "roaster-screen"
+    timeout: 15000

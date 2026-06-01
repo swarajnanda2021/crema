@@ -96,7 +96,7 @@ glacial.
 To re-run a subset (post-failure triage), run named files in a loop:
 
 ```bash
-for f in 02_feed_like_and_comment 04_compose_post; do
+for f in 05_discover_bean_inspect_buy 07_discover_journal_read; do
   maestro test "crema-app/.maestro/${f}.yaml" --no-ansi \
     > "/tmp/maestro-flow-${f}.log" 2>&1
 done
@@ -214,7 +214,7 @@ appId: com.crema.app
 - launchApp
 - extendedWaitUntil:
     visible:
-      id: "feed-screen"
+      id: "browse-screen"
     timeout: 30000
 
 # … journey-specific steps …
@@ -226,8 +226,8 @@ Naming:
 - `10_<journey_slug>.yaml` for #10. The shell loop globs `0*.yaml`
   first then `10_*.yaml` so 10 runs last (lexicographic 1<10<2 if
   you don't split the glob).
-- Slug is `<verb>_<surface>` style: `feed_like_and_comment`,
-  `discover_bean_inspect_buy`, `chat_with_aayushi`.
+- Slug is `<verb>_<surface>` style: `discover_bean_inspect_buy`,
+  `discover_journal_read`, `search_ethiopia_open_bean`.
 
 Header comment template (every flow has one):
 
@@ -269,7 +269,7 @@ When a flow fails, work through this in order:
 
 | Symptom | Likely cause | First check |
 |---|---|---|
-| `assertVisible feed-screen` fails right after `launchApp` | App in bad state from prior flow's mid-typing crash, OR Metro slow to bundle after a code change | `adb shell uiautomator dump && grep resource-id /sdcard/window_dump.xml` — confirms whether the tree is actually rendered. If yes, just re-run; the 30s timeout was tight |
+| `assertVisible browse-screen` fails right after `launchApp` | App in bad state from prior flow's mid-typing crash, OR Metro slow to bundle after a code change | `adb shell uiautomator dump && grep resource-id /sdcard/window_dump.xml` — confirms whether the tree is actually rendered. If yes, just re-run; the 30s timeout was tight |
 | Black screen | JS bundle still loading | Force-stop, wait 5–10s, retry. After big code changes Metro can take 30s+ to bundle |
 | `tapOn` says COMPLETED but the screen doesn't change | Absolute-positioned overlay swallowing taps | Open the parent component, look for `style={..., pointerEvents: "none"}` on a sibling Text/View — convert to `<View pointerEvents="none">` prop |
 | `tapOn` fires the wrong handler | testID regex matches an overlapping prefix | Grep for the regex pattern across testIDs; rename so prefixes don't collide |
@@ -295,13 +295,10 @@ grep -oE 'resource-id="[^"]+"' /tmp/window_dump.xml | sort -u
 
 - **Test user**: `crema/crema` (id 144, admin). Persistent across runs;
   do NOT switch to a freshly-registered user — flows assume crema's
-  shelf, follow graph, and DM thread.
-- **Chat counterparty**: `aayushi` (display name "Aayushi Kapadia",
-  id 8). `crema` already has thread `id=2` open with her in the dev
-  DB. Use this for any DM journey.
+  shelf + catalog state.
 - **Real interactions**: every flow leaves real artifacts in the dev
-  DB — likes, comments, reposts, sent messages. The DB tolerates the
-  noise; don't try to "clean up" with teardown steps that are
+  DB — shelf saves, Buy clicks, article likes/comments. The DB tolerates
+  the noise; don't try to "clean up" with teardown steps that are
   themselves fragile.
 - **Article 1220** ("Specialty Coffee: A Complete Guide") is a stable
   hit for any flow that needs to reference an article by id.
@@ -310,13 +307,6 @@ grep -oE 'resource-id="[^"]+"' /tmp/window_dump.xml | sort -u
 
 These are documented limitations, not bugs to fix:
 
-- **Article-URL share in chat** (`https://crema.app/article/1220`,
-  30 chars): can't be typed on the Android emulator. Flow 10 sends a
-  short text message; the unfurl-on-paste logic is exercised by
-  `parseArticleShareUrl` separately.
-- **Image upload in compose**: skipped because the picker permission
-  flow is heavy on a swap-pressured emulator. Flow 04 cancels the
-  composer instead of submitting.
 - **External browser handoff** (Buy click-through opening Chrome):
   flow 05 fires the click but doesn't follow into Chrome — the
   testID `coffee-buy-<id>` is wired to fire `trackClick` +

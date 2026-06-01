@@ -30,5 +30,5 @@ appId: com.crema.app
 
 - extendedWaitUntil:
     visible:
-      id: "feed-screen"
+      id: "browse-screen"
     timeout: 30000

@@ -608,7 +608,7 @@ export default function BrowsePage() {
   };
 
   return (
-    <View style={s.container}>
+    <View testID="browse-screen" style={s.container}>
       {/* Sub-tabs. Mobile layout mirrors Figma 63:4890 exactly:
          60-px tall cream strip, BEANS + ROASTERS + CAFÉS
          left-aligned with a 26-px gap between them, and a

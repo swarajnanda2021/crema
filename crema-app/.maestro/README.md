@@ -17,7 +17,7 @@ auto-detects whichever target is live.
    # then add JAVA_HOME / openjdk to PATH per the brew caveats
    ```
 3. **Install the dev client on a target.** Crema uses `expo-secure-store`,
-   `expo-camera`, `expo-haptics`, etc., which Expo Go doesn't expose.
+   `expo-haptics`, etc., which Expo Go doesn't expose.
    ```bash
    cd crema-app
    npx expo run:ios       # iOS Simulator (needs full Xcode)
@@ -27,8 +27,8 @@ auto-detects whichever target is live.
 ## Running a flow
 
 ```bash
-maestro test crema-app/.maestro/01_register_to_feed.yaml
-maestro test crema-app/.maestro/02_browse_to_coffee_detail.yaml
+maestro test crema-app/.maestro/01_login_as_crema.yaml
+maestro test crema-app/.maestro/05_discover_bean_inspect_buy.yaml
 ```
 
 Run the whole suite:
@@ -64,23 +64,18 @@ flow breaks because the markup changed.
 | `auth-username`, `auth-displayname`, `auth-password` | `app/auth.tsx` | Form inputs |
 | `auth-submit` | `app/auth.tsx` | Sign-in / Create-account button |
 | `auth-toggle-mode` | `app/auth.tsx` | Login ↔ Register toggle |
-| `tab-home`, `tab-discover`, `tab-messages`, `tab-search`, `tab-profile` | `src/components/MobileFooter.tsx` | Bottom-nav tabs |
-| `feed-screen`, `search-screen`, `profile-screen` | `app/(tabs)/*.tsx` | Tab screen markers |
-| `notifications-panel` | `src/components/mobile/MobileOverlays.tsx` | Bell-triggered slide overlay |
+| `tab-discover`, `tab-search`, `tab-profile` | `src/components/MobileFooter.tsx` | Bottom-nav tabs |
+| `browse-screen`, `search-screen`, `profile-screen` | `app/(tabs)/*.tsx` | Tab screen markers |
 
-**Posts + engagement**
+**Article engagement** (JOURNAL articles — likes + comments are the
+surviving engagement surface after the catalog-only pivot)
 
 | testID | File | Purpose |
 |---|---|---|
-| `post-card-<id>` | `src/components/domain/PostCard.tsx` | Post root, both mobile + wide variants |
-| `action-like-<id>` | `src/components/primitives/ActionBar.tsx` | Like toggle on a post or article |
+| `action-like-<id>` | `src/components/primitives/ActionBar.tsx` | Like toggle on an article |
 | `action-comment-<id>` | `src/components/primitives/ActionBar.tsx` | Comment opener |
-| `action-repost-<id>` | `src/components/primitives/ActionBar.tsx` | Repost opener |
 | `action-share-<id>` | `src/components/primitives/ActionBar.tsx` | Copy-share-URL button |
 | `comment-input`, `comment-send` | `src/components/primitives/CommentThread.tsx` | Comment composer |
-| `repost-comment-input`, `repost-submit` | `src/components/shell/PostModal.tsx` | Repost composer |
-| `fab-compose-post` | `app/_layout.tsx` | Floating "Create post" pill |
-| `compose-post-modal`, `compose-post-input`, `compose-post-cancel`, `compose-post-submit` | `src/components/ComposePost.tsx` | Composer modal + body |
 
 **Coffee discovery**
 
@@ -93,7 +88,6 @@ flow breaks because the markup changed.
 | `coffee-detail-sheet`, `detail-sheet-close` | `src/components/CoffeeDetailSheet.tsx` | Long-press provenance sheet |
 | `browse-tab-roasters`, `browse-tab-journals` | `app/(tabs)/browse.tsx` | Discover sub-tabs |
 | `roaster-row-<slug>`, `roaster-screen` | `src/components/RoasterRow.tsx`, `app/roaster/[slug].tsx` | Roaster list row + storefront |
-| `roaster-follow-btn`, `roaster-message-btn` | `app/roaster/[slug].tsx` | Storefront actions |
 | `article-row-<id>`, `article-screen` | `src/components/domain/ArticleListRow.tsx`, `app/article/[id].tsx` | Journals list row + reader |
 
 **Search**
@@ -102,15 +96,6 @@ flow breaks because the markup changed.
 |---|---|---|
 | `search-input` | `src/components/SearchDropdown.tsx` | Sitewide search field |
 | `search-result-bean-<product_id>` | `src/components/SearchDropdown.tsx` | Beans result row |
-
-**Direct messages**
-
-| testID | File | Purpose |
-|---|---|---|
-| `thread-row-<other_username>` | `src/components/MessagesDropdown.tsx` | Inbox thread row |
-| `chat-thread` | `src/components/ThreadBody.tsx` | Open-thread root |
-| `thread-compose-input`, `thread-send-btn` | `src/components/ThreadBody.tsx` | Chat composer |
-| `chat-article-unfurl-<article_id>` | `src/components/ThreadBody.tsx` | Auto-unfurled article bubble |
 
 Adding a new flow that touches a different surface? Add a `testID` to
 the relevant primitive first; flows that select by visible text alone
