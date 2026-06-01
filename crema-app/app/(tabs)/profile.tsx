@@ -210,8 +210,8 @@ export default function ProfilePage() {
   // deep-link returns from descendant pages (e.g. admin/roaster back
   // button when the back-stack is empty) land on the right tab.
   const [activeTab, setActiveTab] = useState<ProfileTab>(() => {
-    const valid: ProfileTab[] = ["posts", "shelf", "following", "analytics", "catalog", "inbox"];
-    return (tabParam && valid.includes(tabParam as ProfileTab)) ? (tabParam as ProfileTab) : "posts";
+    const valid: ProfileTab[] = ["shelf", "analytics", "catalog", "inbox"];
+    return (tabParam && valid.includes(tabParam as ProfileTab)) ? (tabParam as ProfileTab) : "shelf";
   });
   const tabSlider = useTabSlider(activeTab);
   // No more sub-tab state — both shelf sections render at once
@@ -783,7 +783,7 @@ export default function ProfilePage() {
   // four. SITE ANALYTICS holds the read-only metrics dashboard; CATALOG
   // OPS holds the write/run-job actions for the scraper + taste graph.
   const isAdmin = isAdminUser(user);
-  const baseTabs: ProfileTab[] = ["posts", "shelf", "following"];
+  const baseTabs: ProfileTab[] = ["shelf"];
   const visibleTabs: ProfileTab[] = isAdmin
     ? [...baseTabs, "analytics", "catalog", "inbox"]
     : baseTabs;
