@@ -29,6 +29,7 @@ import ComposePost from "../src/components/ComposePost";
 import NavigationLoader from "../src/components/NavigationLoader";
 import MobileFooter from "../src/components/MobileFooter";
 import MobileOverlays from "../src/components/mobile/MobileOverlays";
+import ContactCrema from "../src/components/ContactCrema";
 import FabPill from "../src/components/primitives/FabPill";
 import { openComposePost } from "../src/components/primitives";
 import { Plus } from "lucide-react-native";
@@ -259,6 +260,10 @@ function ThemedRoot() {
             account). Last inside the wrapper so slide chrome
             paints above any open modal. */}
         <MobileOverlays />
+        {/* Floating "Contact Crema" support widget (catalog-only) — sits
+            in the chrome-excluding wrapper where the old create-post FAB
+            lived, so it clears the MobileFooter on mobile. */}
+        <ContactCrema />
         </FloatingFabProvider>
       </View>
       <ConditionalMobileFooter />
