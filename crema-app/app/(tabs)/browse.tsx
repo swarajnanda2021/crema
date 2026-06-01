@@ -1814,7 +1814,7 @@ const useStyles = makeStyles((t) => ({
   } as any,
   lookingForLabel: {
     fontFamily: t.font["body.medium"], fontSize: 14, color: t.color["text.primary"],
-    textTransform: "uppercase", alignSelf: "center",
+    textTransform: "uppercase", alignSelf: "flex-start",
   } as any,
   tabBtn: { justifyContent: "center", position: "relative" } as any,
   tabLabel: { fontFamily: t.font["body.semibold"], fontSize: 14, color: t.color["text.muted"] },
@@ -1860,7 +1860,7 @@ const useStyles = makeStyles((t) => ({
   } as any,
 
   // Browse layout
-  browseLayout: { flex: 1, flexDirection: "row", paddingLeft: "6.25%" as any, paddingRight: "6.25%" as any, paddingTop: 63 } as any,
+  browseLayout: { flex: 1, flexDirection: "row", paddingLeft: "6.25%" as any, paddingRight: "6.25%" as any, paddingTop: 0 } as any,
   // Mobile: collapse the 63-px top pad entirely. The stickySearchWrap
   // below already brings its own paddingTop (12), so anything added
   // here just doubles up the gap above the search field.
