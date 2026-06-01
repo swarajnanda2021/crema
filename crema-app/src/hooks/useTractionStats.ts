@@ -46,6 +46,17 @@ export function useTractionStats(enabled: boolean = true): UseTractionStatsResul
     const promise = apiFetchRaw<any>("/stats/traction")
       .then((res) => {
         const data = (res?.data ?? res) as TractionStats;
+        // Don't cache a partially-failed payload. /stats/traction returns
+        // HTTP 200 even when a section computes to `{ error: ... }` (each
+        // section is independently wrapped server-side), so a transient
+        // backend failure would otherwise be cached at module scope and
+        // poison every later mount — the dashboard would keep showing
+        // broken cards even after the backend recovered, until a hard
+        // reload. Surface it as an error instead so Refresh re-fetches.
+        const failed = Object.values((data || {}) as Record<string, any>).some(
+          (v: any) => v && typeof v === "object" && "error" in v,
+        );
+        if (failed) throw new Error("Some stats sections failed to load — tap Refresh.");
         _cache = data;
         return data;
       })
