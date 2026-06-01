@@ -33,44 +33,43 @@ import LineChart from "./LineChart";
 import MetricCard from "./MetricCard";
 import MetricSeriesModal from "./MetricSeriesModal";
 import MetricTable from "./MetricTable";
-import RetentionTable from "./RetentionTable";
 
 export type AdminSection =
-  | "engagement"
-  | "commerce"
-  | "network"
-  | "retention";
+  | "catalog"
+  | "demand"
+  | "roasters"
+  | "audience";
 
 const SECTIONS: AdminSection[] = [
-  "engagement",
-  "commerce",
-  "network",
-  "retention",
+  "catalog",
+  "demand",
+  "roasters",
+  "audience",
 ];
 
 const SECTION_LABELS: Record<AdminSection, string> = {
-  engagement: "ENGAGEMENT",
-  commerce: "COMMERCE",
-  network: "NETWORK",
-  retention: "RETENTION",
+  catalog: "CATALOG",
+  demand: "DEMAND",
+  roasters: "ROASTERS",
+  audience: "AUDIENCE",
 };
 
 const SECTION_BLURBS: Record<AdminSection, string> = {
-  engagement: "Who's active and how deeply.",
-  commerce: "Buy-intent clicks, funnel, and top products.",
-  network: "Follower graph and implicit community signals.",
-  retention: "Weekly cohort grids and writer recurrence.",
+  catalog: "Supply readiness — beans, roasters, completeness, freshness.",
+  demand: "Consumer intent — shelf saves, Buy clicks, top beans.",
+  roasters: "Marketplace matching — who's discovered, who's cold.",
+  audience: "Growth — users, activity, returning, journal engagement.",
 };
 
 const SECTION_NICE: Record<AdminSection, string> = {
-  engagement: "Engagement",
-  commerce: "Commerce",
-  network: "Network",
-  retention: "Retention",
+  catalog: "Catalog readiness",
+  demand: "Demand",
+  roasters: "Roasters",
+  audience: "Audience",
 };
 
 export default function TractionDashboard() {
-  const [section, setSection] = useState<AdminSection>("engagement");
+  const [section, setSection] = useState<AdminSection>("catalog");
   const { stats, loading, error, refresh } = useTractionStats(true);
   const { width } = useWindowDimensions();
   const s = useStyles();
@@ -163,21 +162,9 @@ export default function TractionDashboard() {
     );
   }
 
-  let body: React.ReactNode = null;
-  switch (section) {
-    case "engagement":
-      body = renderEngagement(stats, headlineBasis, s);
-      break;
-    case "commerce":
-      body = renderCommerce(stats, headlineBasis, s);
-      break;
-    case "network":
-      body = renderNetwork(stats, headlineBasis, s);
-      break;
-    case "retention":
-      body = renderRetention(stats, headlineBasis, s);
-      break;
-  }
+  // All four sections share the generic { cards, tables, series } shape,
+  // so one renderer handles every sub-tab (stats[section] is the payload).
+  const body = renderSection((stats as any)[section], headlineBasis, s);
 
   return (
     <View style={s.wrap}>
@@ -317,388 +304,69 @@ function toLineData(series: Array<{ date: string; count: number }>) {
   }));
 }
 
-// ── Explanations ──────────────────────────────────────────────────────────
-// Kept as strings so the dashboard stays a single file; a future version
-// could move these into a JSON file alongside design-tokens.
+// ── Generic section renderer (catalog-only dashboard) ──────────────────────
+// The backend returns each section as { cards, tables, series }, so one
+// layout renders all four sub-tabs: cards (each drilling into its
+// `series_key` chart) → a swipeable chart carousel for series with data →
+// MetricTables. Replaces the four bespoke social-era render functions.
 
-const E = {
-  totalUsers:
-    "Every registered account with account_type='user'. Excludes roaster and café seller accounts.",
-  dau: "Unique users who did at least one action in the last 24h. Actions = tasting note, post, comment, like, shelf entry, or stamp.",
-  wau: "Unique users active at least once in the last 7 days, using the same action set as DAU.",
-  mau: "Unique users active at least once in the last 30 days, same action set as DAU/WAU.",
-  writers:
-    "Users who have written at least one tasting note. The hardest engagement tier — creation, not consumption.",
-  meanNotes: "Mean tasting notes per writer (sum / writer count).",
-  medianNotes:
-    "Median tasting notes per writer. Less sensitive to power-writers than the mean.",
-  postsPerWeek:
-    "(Posts in last 30d) ÷ (posters in last 30d) ÷ (30/7). A per-active-poster weekly rate.",
-  totalPosts: "Every row in roaster_posts, including reposts and tasting-note posts.",
-  commentsPerPost: "Total post_comments ÷ total posts.",
-  reposts:
-    "Posts whose repost_of_id is set. Organic virality proxy — our Twitter RT.",
-  likeDistribution:
-    "Posts bucketed by how many likes they've earned. 0-like bucket is the 'zero box' — posts nobody hearted.",
-  dailySignups:
-    "New user_account registrations per day, last 90 days. Shows onboarding rate.",
-  dailyActive:
-    "Distinct active users per day, last 30 days. Activity = any action (tasting note, post, comment, like, shelf entry, stamp).",
-  dailyPosts:
-    "Posts created per day, last 30 days. Includes articles, notes, reposts, tasting-note posts.",
-
-  totalClicks:
-    "Outbound 'Buy' clicks the app has logged across all time. The explicit proxy for revenue-intent.",
-  funnelClicked: "Distinct users who clicked Buy on any product.",
-  funnelShelved: "Distinct users who added at least one product to any shelf.",
-  funnelRated: "Distinct users who wrote at least one tasting note.",
-  funnelFull:
-    "Users who clicked Buy AND shelved AND rated the SAME product. The complete loop: intent → ownership → reflection.",
-  dailyClicks:
-    "Outbound Buy clicks per day, last 30 days. Spikes often coincide with launches or highlighted content.",
-  monthlyClicks:
-    "Outbound Buy clicks aggregated by calendar month, last 6 months. Useful for seasonality.",
-  clicksBySource:
-    "Where on the product card each click originated — front (card face), back (details), detail page, etc.",
-  topProducts:
-    "Top 20 products by lifetime Buy-clicks. Ties broken by insertion order; most-clicked first.",
-
-  totalStamps: "Every row in stamps — one per barista-awarded visit.",
-  stamps7: "Stamps scanned in the last 7 days.",
-  stamps30: "Stamps scanned in the last 30 days.",
-  stamps90: "Stamps scanned in the last 90 days.",
-  uniqueStamped: "Distinct users who have ever received a stamp at any café.",
-  avgStampsPerUser:
-    "(Total stamps) ÷ (unique stamped users). A rough repeat-visit rate across all cafés.",
-  avgBetween:
-    "Average days between consecutive stamps at the SAME café for the same user. Measures how often loyal users come back.",
-  loyalCohort:
-    "Users with 3+ stamps at any single café. The engaged base for reward economics.",
-  rewardsRedeemed: "Reward rows created (free coffee claimed) all-time.",
-  rewardConversion:
-    "% of stamped users who reached at least one café's stamp target.",
-  topCafes:
-    "Cafés ranked by total stamps scanned. Scrollable — the list grows as the network does.",
-  dailyStamps: "Stamps scanned per day, last 90 days.",
-
-  totalFollows: "Every row in the follows table — each follower→target edge.",
-  uniqueFollowers: "Distinct users who follow at least one entity.",
-  avgFollowsPerUser: "(Total follows) ÷ (users who follow anyone).",
-  reciprocal:
-    "User-to-user pairs who mutually follow each other. A friend-graph signal — the strongest organic connection.",
-  sharedShelf:
-    "Pairs of users who share ≥3 products on their shelves. An implicit taste-community signal even without a direct follow.",
-  topRoasters: "Roasters ranked by lifetime follower count.",
-  topFollowedCafes: "Cafés ranked by lifetime follower count.",
-
-  writerRetention:
-    "% of tasting-note writers who wrote a second note within 30 days of their first. Creator-mode retention.",
-  firstToSecondStamp:
-    "Average days from a user's first stamp at a café to their second stamp at the same café.",
-  weeklyCohorts:
-    "Weekly signup cohorts with D1 / D7 / D30 activity retention. Each row = users who signed up that week; cells show what % were still active at each day-offset.",
-  d7Series:
-    "D7 retention percentage per weekly cohort. Trending up means new signups are sticking around longer.",
-  d30Series:
-    "D30 retention percentage per weekly cohort. The hardest retention cliff — who's here after a month.",
-  signupsSeries: "Users signing up per week, plotted over the last ~12 weeks.",
-
-  roastersTotal: "Every roaster slug known to the catalog (scraped + seeded + self-registered).",
-  roastersProfiles:
-    "Roasters who have a row in roaster_profiles (the editable overrides table).",
-  roastersProducts: "Roasters with at least one available product row.",
-  roastersFollowers:
-    "Roasters who have at least one follower — the signal that an audience cares.",
-  productsTotal: "Every product_id in the unified products table.",
-  productsAvailable: "Products whose 'available' flag is 1 (in-stock or scrapable).",
-  productsShelf: "Distinct products someone has added to their shelf.",
-  productsNote: "Distinct products at least one user has written a tasting note for.",
-  cafesTotal: "Café profiles seeded or self-registered.",
-  cafesStamps: "Cafés whose loyalty program (stamps_enabled=1) is switched on.",
-  cafesAnyStamp: "Cafés that have issued at least one stamp.",
-  avgMenu: "Average number of menu items per café (per cafe_menu_items).",
-  cafesCatalog:
-    "Cafés whose menu mentions at least one roaster in our catalog — an ecosystem-density signal.",
-  ecosystemDensity:
-    "% of cafés pouring at least one catalog roaster. 100% = the whole network is plugged together.",
-  // §2.17 — procurementReady / procurementOpen / procurementReadiness
-  // explanations removed alongside the cards.
-  businessNotifs:
-    "Catalog-change, wholesale, and stamp notifications fired in the last 30 days. Surfaced to roaster + café accounts under the Business tab.",
-  activityNotifs:
-    "Social notifications (likes, comments, follows, replies, reposts) fired in the last 30 days.",
-  businessShare:
-    "Business share of all notifications fired in the last 30 days. Higher share = more B2B flow relative to social engagement.",
-  inquiriesTotal:
-    "All wholesale 'Interested' handshakes a café has opened to any roaster. The flagship Phase 1 B2B metric.",
-  inquiries30d:
-    "Wholesale inquiries opened in the last 30 days. Activity on this line tells you the café→roaster side of the marketplace is alive.",
-  inquiriesOpen:
-    "Inquiries still sitting in 'open' status — no roaster response yet. A growing backlog here is a risk signal.",
-  inquiryResponseRate:
-    "(responded + archived) / total. Measures how diligently roasters are working their inbound leads.",
-  inquiryCafes:
-    "Distinct cafés that have opened at least one wholesale inquiry.",
-  inquiryRoasters:
-    "Distinct roasters that have received at least one wholesale inquiry.",
-  wholesaleAvailable:
-    "Products flagged as wholesale-available across both the scraped catalog and owner-created beans.",
-  wholesaleSignalPct:
-    "% of active products flagged wholesale-available. A supply-side readiness signal — low numbers mean most roasters aren't yet opting in.",
-  wholesaleRoasters:
-    "Distinct roasters with at least one wholesale-available product.",
-  sourcingStories:
-    "Long-form roaster posts flagged as sourcing stories (post_type = sourcing_story). 200+ chars of narrative beyond the feed excerpt.",
-  sourcingStories30d:
-    "Sourcing stories published in the last 30 days. Leading indicator of roaster-side narrative investment.",
-  sourcingStoryShare:
-    "% of roaster posts that are sourcing stories. Rising share = roasters leaning into provenance-forward storytelling.",
-  brewMethods:
-    "Roaster-submitted brew recipe cards across the catalog. One product can have multiple (one per method).",
-  recipeCoverage:
-    "% of active products with at least one roaster-submitted recipe card.",
-  topBrewMethod:
-    "Most common method across all recipe cards (espresso, pour_over, aeropress, etc.).",
-  // §2.18 expansion — deeper B2B signal layer
-  inquiries7d:
-    "Wholesale inquiries opened in the last 7 days. Pairs with the 30-day card as a leading-edge view of inquiry velocity.",
-  medianResponseHours:
-    "Median hours from a café opening an inquiry to the first message back from the roaster. Median (not mean) shrugs off the long tail of never-responded threads. Lower is better; a warm market sits in single digits.",
-  avgThreadDepth:
-    "Average messages per inquiry thread across the platform. Distinguishes drive-by 'we should chat' inquiries from real procurement conversations. 4+ messages usually means a deal is forming.",
-  returningCafes:
-    "Cafés that have come back to the same roaster for a second-or-later inquiry. Best proxy for 'this sourcing relationship is sticking' — a single inquiry could be drive-by; two means real intent.",
-  inquiryMessagesTotal:
-    "Total messages exchanged across all wholesale-inquiry threads. Lifetime; pairs with avg_thread_depth as a denominator-side check.",
-  inquiryMessages30d:
-    "Inquiry-thread messages exchanged in the last 30 days. Leading indicator before a thread converts to a formal order (Phase 2).",
-  topInquiredBeans:
-    "Top 5 beans by inquiry count. Equivalent to the engagement tab's top-clicked-products table but for wholesale interest — what the cafés are actually asking about, not just clicking.",
-  topResponsiveRoasters:
-    "Top 5 roasters by inquiry response rate, weighted by volume. Filtered to roasters with 3+ inquiries to dodge the '1-of-1 = 100%' noise. The leaderboard for who's worth highlighting on the consumer side.",
-  inquiryCafeCities:
-    "Cities sending the most wholesale inquiries. Network density signal — emerging Goa-vs-Bangalore-vs-other geographies.",
-  inquiryRoasterCities:
-    "Cities receiving the most wholesale inquiries. Pairs with cafe-cities as the supply side of the same map.",
+const CHART_TITLES: Record<string, string> = {
+  daily_new_beans: "New beans / day",
+  daily_saves: "Shelf saves / day",
+  daily_clicks: "Buy clicks / day",
+  daily_signups: "Signups / day",
+  daily_active: "Active users / day",
 };
 
-function renderEngagement(stats: any, basis: any, s: any) {
-  const e = stats.engagement;
-  const likeBuckets = [
-    { label: "0", value: e.like_distribution["0"] ?? 0 },
-    { label: "1–5", value: e.like_distribution["1-5"] ?? 0 },
-    { label: "6–20", value: e.like_distribution["6-20"] ?? 0 },
-    { label: "21+", value: e.like_distribution["21+"] ?? 0 },
-  ];
+function fmtVal(value: any, suffix?: string): string | number {
+  if (value === null || value === undefined || value === "") return "—";
+  return suffix ? `${value}${suffix}` : value;
+}
+
+function renderSection(sectionData: any, basis: any, _s: any) {
+  if (!sectionData) return null;
+  const cards: any[] = sectionData.cards || [];
+  const tables: any[] = sectionData.tables || [];
+  const series: Record<string, any[]> = sectionData.series || {};
+  const charts = Object.entries(series).filter(
+    ([, v]) => Array.isArray(v) && v.length > 0,
+  );
   return (
-    <View style={{ gap: t.spacing.xl }}>
-      <Text style={s.sectionHead}>Headline</Text>
-      {grid(
-        <>
-          <Card basis={basis} label="Total Users" value={e.total_users} hint={`${e.total_roasters} roasters`} info={E.totalUsers} seriesKey="daily_signups" />
-          <Card basis={basis} label="DAU" value={e.dau} hint="Active in last 24h" info={E.dau} seriesKey="dau" />
-          <Card basis={basis} label="WAU" value={e.wau} hint="Active in last 7d" info={E.wau} seriesKey="dau" />
-          <Card basis={basis} label="MAU" value={e.mau} hint="Active in last 30d" info={E.mau} seriesKey="dau" />
-          <Card basis={basis} label="Writers" value={e.writers} hint={`${e.writer_pct}% of all users`} info={E.writers} />
-          <Card basis={basis} label="Notes / Writer · mean" value={e.mean_notes_per_writer} info={E.meanNotes} />
-          <Card basis={basis} label="Notes / Writer · median" value={e.median_notes_per_writer} info={E.medianNotes} />
-          <Card basis={basis} label="Posts / Week / User" value={e.posts_per_active_user_per_week} hint="Active users, last 30d" info={E.postsPerWeek} seriesKey="daily_posts" />
-          <Card basis={basis} label="Total Posts" value={e.total_posts} info={E.totalPosts} seriesKey="total_posts" />
-          <Card basis={basis} label="Comments / Post" value={e.comments_per_post} hint={`${e.total_comments} total`} info={E.commentsPerPost} seriesKey="total_comments" />
-          <Card basis={basis} label="Reposts" value={e.total_reposts} hint={`${e.repost_rate_pct}% of posts`} info={E.reposts} seriesKey="total_reposts" />
-        </>,
-      )}
-      <Text style={s.sectionHead}>Plots</Text>
-      <PlotCarousel
-        slides={[
-          <LineChart
-            key="dau-series"
-            title="Daily active users (30d)"
-            valueLabel="Users"
-            data={toLineData(e.daily_active_users || [])}
-            info={E.dailyActive}
-          />,
-          <LineChart
-            key="signups-series"
-            title="Daily signups (90d)"
-            valueLabel="Signups"
-            data={toLineData(e.daily_signups || [])}
-            info={E.dailySignups}
-          />,
-          <LineChart
-            key="posts-series"
-            title="Daily posts (30d)"
-            valueLabel="Posts"
-            data={toLineData(e.daily_posts || [])}
-            info={E.dailyPosts}
-          />,
-          <MetricTable
-            key="like-dist"
-            title="Like distribution"
-            valueHeader="Posts"
-            info={E.likeDistribution}
-            rows={likeBuckets.map((b) => ({ label: b.label, value: b.value }))}
-          />,
-        ]}
-      />
-    </View>
+    <>
+      {cards.length > 0 ? (
+        <Grid>
+          {cards.map((c) => (
+            <Card
+              key={c.key}
+              basis={basis}
+              label={c.label}
+              value={fmtVal(c.value, c.suffix)}
+              hint={c.hint || undefined}
+              seriesKey={c.series_key}
+            />
+          ))}
+        </Grid>
+      ) : null}
+      {charts.length > 0 ? (
+        <PlotCarousel
+          slides={charts.map(([k, data]) => (
+            <LineChart key={k} title={CHART_TITLES[k] || k} data={toLineData(data as any)} />
+          ))}
+        />
+      ) : null}
+      {tables.map((tbl, i) => (
+        <MetricTable
+          key={`${tbl.title}-${i}`}
+          title={tbl.title}
+          valueHeader={tbl.value_header || undefined}
+          rows={tbl.rows || []}
+          maxHeight={340}
+        />
+      ))}
+    </>
   );
 }
 
-function renderCommerce(stats: any, basis: any, s: any) {
-  const c = stats.commerce;
-  return (
-    <View style={{ gap: t.spacing.xl }}>
-      <Text style={s.sectionHead}>Headline</Text>
-      {grid(
-        <>
-          <Card basis={basis} label="Total Clicks" value={c.total_clicks} hint="All-time outbound Buy intents" info={E.totalClicks} seriesKey="total_clicks" />
-          <Card basis={basis} label="Users Who Clicked" value={c.funnel.clicked} info={E.funnelClicked} />
-          <Card basis={basis} label="Users Who Shelved" value={c.funnel.shelved} info={E.funnelShelved} />
-          <Card basis={basis} label="Users Who Rated" value={c.funnel.rated} info={E.funnelRated} />
-          <Card basis="100%" label="Full Funnel (Click → Shelf → Note)" value={c.funnel.full_funnel} hint="Users who completed the full journey on one product" info={E.funnelFull} />
-        </>,
-      )}
-      <Text style={s.sectionHead}>Plots</Text>
-      <PlotCarousel
-        slides={[
-          <LineChart
-            key="clicks-30d"
-            title="Daily clicks (30d)"
-            valueLabel="Clicks"
-            data={toLineData(c.daily_clicks || [])}
-            info={E.dailyClicks}
-          />,
-          <LineChart
-            key="clicks-6mo"
-            title="Monthly clicks (last 6 mo)"
-            valueLabel="Clicks"
-            data={(c.monthly_clicks || []).map((m: any) => ({
-              label: m.month ? prettyMonth(m.month) : "",
-              value: m.clicks,
-            }))}
-            info={E.monthlyClicks}
-          />,
-          <MetricTable
-            key="sources"
-            title="Clicks by source"
-            valueHeader="Clicks"
-            info={E.clicksBySource}
-            rows={(c.clicks_by_source || []).map((r: any) => ({
-              label: r.source_page,
-              value: r.clicks,
-            }))}
-            maxHeight={360}
-          />,
-          <MetricTable
-            key="top-products"
-            title="Top-clicked products"
-            valueHeader="Clicks"
-            info={E.topProducts}
-            rows={(c.top_products || []).map((p: any) => ({
-              label: p.coffee_name || p.product_id,
-              sub: p.roaster_name || p.roaster_slug,
-              value: p.clicks,
-            }))}
-            maxHeight={360}
-          />,
-        ]}
-      />
-    </View>
-  );
-}
-
-function renderNetwork(stats: any, basis: any, s: any) {
-  const n = stats.network;
-  return (
-    <View style={{ gap: t.spacing.xl }}>
-      <Text style={s.sectionHead}>Headline</Text>
-      {grid(
-        <>
-          <Card basis={basis} label="Total Follow Edges" value={n.total_follows} info={E.totalFollows} seriesKey="total_follows" />
-          <Card basis={basis} label="Users Following Anyone" value={n.unique_followers} info={E.uniqueFollowers} />
-          <Card basis={basis} label="Avg Follows / User" value={n.avg_follows_per_user} info={E.avgFollowsPerUser} />
-          <Card basis={basis} label="Reciprocal Pairs" value={n.reciprocal_pairs} hint="Friend-graph signal" info={E.reciprocal} />
-          <Card basis="100%" label="User pairs sharing ≥3 shelf products" value={n.shared_shelf_pairs_3_plus} hint="Candidate friend-pairs by taste overlap" info={E.sharedShelf} />
-        </>,
-      )}
-      <Text style={s.sectionHead}>Rankings</Text>
-      <PlotCarousel
-        slides={[
-          <MetricTable
-            key="top-roasters"
-            title="Top roasters by followers"
-            valueHeader="Followers"
-            info={E.topRoasters}
-            rows={(n.top_roasters || []).map((r: any) => ({
-              label: r.name,
-              sub: r.city,
-              value: r.followers,
-            }))}
-            maxHeight={360}
-          />,
-        ]}
-      />
-    </View>
-  );
-}
-
-function renderRetention(stats: any, basis: any, s: any) {
-  const r = stats.retention;
-  const cohortsOldFirst = [...(r.cohorts || [])].reverse();
-  return (
-    <View style={{ gap: t.spacing.xl }}>
-      <Text style={s.sectionHead}>Headline</Text>
-      {grid(
-        <>
-          <Card basis={basis} label="Writers (≥1 note)" value={r.writers_total} info={E.writers} />
-          <Card basis={basis} label="Writer Retention · 30d" value={`${r.writer_retention_30d_pct}%`} hint="% who wrote a second note within 30d" info={E.writerRetention} />
-          <Card basis={basis} label="Cohorts Tracked" value={(r.cohorts || []).length} info={E.weeklyCohorts} />
-        </>,
-      )}
-      <Text style={s.sectionHead}>Plots</Text>
-      <PlotCarousel
-        slides={[
-          <LineChart
-            key="d7"
-            title="D7 retention by cohort"
-            valueLabel="D7 %"
-            data={cohortsOldFirst.map((c: any) => ({
-              label: c.week_start ? prettyDate(c.week_start) : c.week,
-              value: c.d7_pct ?? 0,
-            }))}
-            info={E.d7Series}
-          />,
-          <LineChart
-            key="d30"
-            title="D30 retention by cohort"
-            valueLabel="D30 %"
-            data={cohortsOldFirst.map((c: any) => ({
-              label: c.week_start ? prettyDate(c.week_start) : c.week,
-              value: c.d30_pct ?? 0,
-            }))}
-            info={E.d30Series}
-          />,
-          <LineChart
-            key="signups"
-            title="Signups per week"
-            valueLabel="Signups"
-            data={cohortsOldFirst.map((c: any) => ({
-              label: c.week_start ? prettyDate(c.week_start) : c.week,
-              value: c.signups ?? 0,
-            }))}
-            info={E.signupsSeries}
-          />,
-          <RetentionTable
-            key="grid"
-            cohorts={r.cohorts || []}
-            info={E.weeklyCohorts}
-          />,
-        ]}
-      />
-    </View>
-  );
-}
 
 // ── Card helper that applies responsive basis ─────────────────────────────
 
