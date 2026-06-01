@@ -335,25 +335,17 @@ to.
 
 ---
 
-## 6. Revenue model
+## 6. Revenue model & ad tiers
 
-| Stream | Phase | Mechanism | Take rate |
-|--------|-------|-----------|-----------|
-| Promoted listings | 2+ | Roasters pay for visibility in search + feed discovery | ₹2-5k/mo |
-| Premium analytics | 2+ | Deeper seller insights beyond the free dashboard | ₹1-3k/mo |
-| Consumer purchase fee | 2 | % of in-app bean purchase | 3-5% |
-| Delivery fee | 3 | Per-kg per-km + route consolidation margin | Variable |
-| Subscription margin | 3 | Bulk courier rate delta on recurring deliveries | 10-15% |
-| Café POS fee | N | % of counter transaction | 1-2% |
-| Wholesale order fee | N | % of B2B order value | 2-5% |
+The full monetisation model — ad tiers (promoted listings, premium
+analytics, in-article placements, and the **agentic-SEO distribution
+tier**) plus commerce, delivery, and café/wholesale fees — lives in
+**[AD_MODEL.md](AD_MODEL.md)**, the canonical home for revenue and ad
+strategy. NORTH_STAR keeps only the governing principle:
 
 **Rule:** no revenue extraction before Phase 1 metrics are hit. The
 consumer-roaster network has to be warm before anyone pays. Premature
 monetisation kills the flywheel.
-
-Self-sustaining threshold: ~₹15k/month in transaction fees covers
-infrastructure. Projected at 200 consumer purchases per month + a
-handful of paying roasters in one city.
 
 ---
 

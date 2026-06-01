@@ -189,6 +189,7 @@ Pull these in only when the task touches their area:
 - [README.md](README.md) — repo overview, onboarding, local setup
 - [MAESTRO_OPS.md](MAESTRO_OPS.md) — operational guide for running and extending the Maestro E2E suite. Pull this in whenever the user asks to run flows, debug a Maestro failure, or add a new user journey.
 - [LAUNCH_TODO.md](LAUNCH_TODO.md) — pre-launch backlog. Don't self-direct onto these items; only pull in when the user explicitly asks to work on launch blockers / infra / legal / app-store prep.
+- [AD_MODEL.md](AD_MODEL.md) — revenue & ad strategy: ad tiers (promoted listings, premium analytics, in-article ADS, the agentic-SEO distribution tier), the moved revenue model, opt-in mechanics. Pull in for any monetisation / ad-tier / agentic-SEO work.
 - [specs/UI_SPEC.md](specs/UI_SPEC.md) — component structure, page flows, design tokens
 - [specs/CATALOG_SPEC.md](specs/CATALOG_SPEC.md) — catalog data model
 - [specs/SCRAPER_SPEC.md](specs/SCRAPER_SPEC.md) — scraper architecture
