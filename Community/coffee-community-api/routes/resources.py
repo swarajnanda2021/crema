@@ -8,7 +8,7 @@ Nested resources (comments on posts) get scoped list/create.
 
 from fastapi import APIRouter, Depends, Header, Query
 from database import get_db
-from resources.registry import RESOURCES, get_resource
+from resources.registry import RESOURCES, get_resource as _registry_get_resource
 from resources.crud import (
     list_resource, get_resource_by_id, create_resource,
     update_resource, delete_resource, toggle_resource,
@@ -18,6 +18,18 @@ from services.auth import get_current_user, get_optional_user
 from services.notifications import run_hook
 
 router = APIRouter(prefix="/api", tags=["Resources"])
+
+
+def get_resource(resource: str):
+    """Resolve a registry resource by name, or raise 404 for an unknown /
+    removed resource. Keeps the generic /api/{resource} catch-all from
+    surfacing a raw KeyError (500) when a path doesn't map to a resource —
+    e.g. the social routes/resources removed for the catalog-only launch."""
+    try:
+        return _registry_get_resource(resource)
+    except KeyError:
+        from fastapi import HTTPException
+        raise HTTPException(404, f"Unknown resource: {resource}")
 
 
 # ── Admin gate (mirrors routes/specific._require_admin) ──────────────────────
