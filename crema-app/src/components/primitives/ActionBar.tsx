@@ -128,7 +128,7 @@ export default function ActionBar({
           <Text style={[s.count, isMobile && s.countMobile, compact && s.countCompact]}>{commentCount}</Text>
         </HapticPressable>
 
-        {!isRepost && (
+        {!isRepost && onRepost && (
           <HapticPressable testID={`action-repost-${targetId}`} haptic="tap" onPress={onRepost} style={s.btn}>
             <Svg width={repostSize} height={repostSize} viewBox="0 0 24 24" fill="none">
               <Path d="M17 1L21 5L17 9M3 11V9C3 7.93 3.42 6.93 4.17 6.17C4.93 5.42 5.93 5 7 5H21M7 23L3 19L7 15M21 13V15C21 16.06 20.58 17.07 19.83 17.83C19.07 18.58 18.07 19 17 19H3"

@@ -58,7 +58,6 @@ import CoffeeCard, {
 } from "../../src/components/CoffeeCard";
 import ActionBar from "../../src/components/primitives/ActionBar";
 import CommentThread from "../../src/components/primitives/CommentThread";
-import { openPostModal } from "../../src/components/primitives";
 import { useAuth } from "../../src/hooks/useAuth";
 import { articleShareUrl } from "../../src/utils/articleShare";
 import type { RoasterArticle } from "../../src/resources/types";
@@ -623,14 +622,9 @@ export default function ArticlePage() {
             targetId={article.id}
             likeCount={article.like_count ?? 0}
             commentCount={article.comment_count ?? 0}
-            repostCount={article.repost_count ?? 0}
             likedByMe={!!article.liked_by_me}
             shareUrl={articleShareUrl(article.id)}
             onComment={() => hapticTap()}
-            onRepost={() => {
-              hapticTap();
-              openPostModal({ article, mode: "repost" });
-            }}
           />
         </View>
         <View style={s.engagementThreadWrap}>
