@@ -3,8 +3,9 @@
  *
  * Mirrors the site's dropdown language (messages, notifications,
  * profile). Click the navbar glass → dropdown opens below the icon
- * with a styled cream-backed input at the top and three result
- * sections below: Users, Beans, Roasters.
+ * with a styled cream-backed input at the top and result sections
+ * below: Beans, Journal, Roasters. (The Users section was removed
+ * with the social feed — catalog-only.)
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -17,7 +18,7 @@ import { Search as SearchIcon, X } from "lucide-react-native";
 import { t, cardShadow, makeStyles } from "../tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
 import { useCoffeeData } from "../hooks/useCoffeeData";
-import { CroppedAvatar, RoasterLogo } from "./primitives";
+import { RoasterLogo } from "./primitives";
 
 interface Props {
   visible: boolean;
@@ -28,17 +29,6 @@ interface Props {
    *  skips the outside-click dismissal (no "outside" on a full
    *  screen), and fills its parent. */
   fullScreen?: boolean;
-}
-
-interface UserHit {
-  id: number;
-  username: string;
-  display_name: string;
-  avatar_url: string | null;
-  avatar_crop_x?: number | null;
-  avatar_crop_y?: number | null;
-  avatar_zoom?: number | null;
-  location?: string | null;
 }
 
 interface ArticleHit {
@@ -60,11 +50,9 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [ready, setReady] = useState(false);
-  const [userHits, setUserHits] = useState<UserHit[]>([]);
   const [articleHits, setArticleHits] = useState<ArticleHit[]>([]);
   const cardRef = useRef<any>(null);
   const inputRef = useRef<any>(null);
-  const debounceRef = useRef<any>(null);
   const articlesDebounceRef = useRef<any>(null);
   const s = useStyles();
 
@@ -90,23 +78,6 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
         || (r.city || "").toLowerCase().includes(q))
       .slice(0, SECTION_LIMIT);
   }, [roasters, q]);
-
-  // Users hit the backend. Debounced 200ms to avoid a request per
-  // keystroke on fast typers.
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!q) { setUserHits([]); return; }
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await apiFetchRaw<any>(`/users/search?q=${encodeURIComponent(q)}&limit=${SECTION_LIMIT}`);
-        const data = res?.data ?? res;
-        setUserHits(Array.isArray(data) ? data : []);
-      } catch {
-        setUserHits([]);
-      }
-    }, 200);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [q]);
 
   // Articles hit the backend too — title / excerpt / tags search.
   // Same 200 ms debounce so a fast typer doesn't fire one request
@@ -144,7 +115,6 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
     } else {
       const h = setTimeout(() => {
         setQuery("");
-        setUserHits([]);
         setArticleHits([]);
       }, 180);
       return () => clearTimeout(h);
@@ -190,7 +160,7 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
   };
 
   const anyResults =
-    userHits.length + beanHits.length + articleHits.length + roasterHits.length > 0;
+    beanHits.length + articleHits.length + roasterHits.length > 0;
 
   // §2.11 — navbar-pinned dropdown. Matches the messages /
   // notifications / profile pattern exactly: no backdrop, no
@@ -244,7 +214,7 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
           ref={inputRef}
           value={query}
           onChangeText={setQuery}
-          placeholder="Search users, beans, articles, roasters"
+          placeholder="Search beans, articles, roasters"
           placeholderTextColor={t.color["text.muted"]}
           style={s.input}
           autoCapitalize="none"
@@ -264,41 +234,11 @@ export default function SearchDropdown({ visible, onClose, fullScreen }: Props) 
         keyboardShouldPersistTaps="handled"
       >
         {!q ? (
-          <Text style={s.hint}>Start typing to find users, beans, articles, and roasters.</Text>
+          <Text style={s.hint}>Start typing to find beans, articles, and roasters.</Text>
         ) : !anyResults ? (
           <Text style={s.hint}>No matches for "{q}".</Text>
         ) : (
           <>
-            {userHits.length > 0 && (
-              <Section label="Users">
-                {userHits.map((u) => (
-                  <Pressable
-                    key={`u-${u.id}`}
-                    onPress={() => goto(`/user/${u.username}`)}
-                    style={({ pressed }: any) => [s.row, pressed && s.rowPressed]}
-                  >
-                    {u.avatar_url ? (
-                      <CroppedAvatar
-                        url={u.avatar_url}
-                        cropX={u.avatar_crop_x ?? undefined}
-                        cropY={u.avatar_crop_y ?? undefined}
-                        zoom={u.avatar_zoom ?? undefined}
-                        size={28}
-                      />
-                    ) : (
-                      <View style={s.avatarFb}>
-                        <Text style={s.avatarLetter}>{(u.display_name || u.username || "?")[0].toUpperCase()}</Text>
-                      </View>
-                    )}
-                    <View style={s.rowText}>
-                      <Text style={s.rowTitle} numberOfLines={1}>{u.display_name || u.username}</Text>
-                      {u.location ? <Text style={s.rowMeta} numberOfLines={1}>{u.location}</Text> : null}
-                    </View>
-                  </Pressable>
-                ))}
-              </Section>
-            )}
-
             {beanHits.length > 0 && (
               <Section label="Beans">
                 {beanHits.map((b: any) => (
