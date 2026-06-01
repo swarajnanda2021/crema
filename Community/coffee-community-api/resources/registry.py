@@ -18,8 +18,13 @@ Each resource maps to a database table and declares:
 - joins (eager-loaded related data)
 - counts (aggregated sub-resource counts)
 - current_user_flags (e.g. liked_by_me)
-- embeds (nested resource objects, e.g. original_post inside a repost)
-- hooks (on_create, on_toggle_on) for side-effects like notifications
+- embeds (nested resource objects)
+- hooks (on_create, on_toggle_on) for side-effects
+
+NOTE: this is the catalog-only build. The social feed and its resources
+(posts, follows, notifications, DMs, tasting-note journal, and their
+like/comment sub-resources) were removed for the catalog-only launch.
+The full social version is preserved at git tag `social-v1`.
 """
 
 RESOURCES = {
@@ -61,205 +66,17 @@ RESOURCES = {
         "order": "id ASC",
     },
 
-    # ── Posts ─────────────────────────────────────────────────────────────
-    "posts": {
-        "table": "roaster_posts",
-        "pk": "id",
-        "fields": {
-            "id": {"type": "int", "ro": True},
-            "user_id": {"type": "int", "ro": True, "auto": "current_user"},
-            "roaster_slug": {"type": "str", "auto": "user_slug"},
-            "title": {"type": "str"},
-            "teaser": {"type": "str"},
-            "external_url": {"type": "str"},
-            "cover_image_url": {"type": "str"},
-            "post_type": {"type": "str", "default": "note"},
-            "location": {"type": "str"},
-            "images_json": {"type": "json"},
-            "repost_of_id": {"type": "int"},
-            # Article reposts ride on the same `roaster_posts` row pattern
-            # as post reposts — a "repost" row carrying `repost_of_article_id`
-            # rather than `repost_of_id`. The `original_article` cross-
-            # resource embed below resolves the article on the way out.
-            "repost_of_article_id": {"type": "int"},
-            "repost_comment": {"type": "str"},
-            "tasting_note_id": {"type": "int"},
-            # Tagged coffee — the composer's "Tag a coffee" sub-flow
-            # writes the picked coffee's `product_id` here. Renders
-            # as the in-feed coffee chip below the body image
-            # (Figma 825:2657) and drives the "Posted about a coffee"
-            # subtitle copy.
-            "product_id": {"type": "str"},
-            # Phase 1 §2.3 — long-form body for sourcing stories. Null
-            # for every other post_type.
-            "body_full": {"type": "str"},
-            "is_featured": {"type": "int", "default": 0},
-            "featured_order": {"type": "int"},
-            "is_pinned": {"type": "int", "default": 0},
-            "published_at": {"type": "str", "auto": "now"},
-            "created_at": {"type": "str", "ro": True, "auto": "now"},
-            "updated_at": {"type": "str"},
-        },
-        "auth": {"list": None, "read": None, "create": "required", "update": "owner", "delete": "owner"},
-        "owner": "user_id",
-        "joins": [
-            {"table": "users", "alias": "author", "on": "user_id",
-             "fields": ["username", "display_name", "avatar_url", "avatar_crop_x", "avatar_crop_y", "avatar_zoom"]},
-        ],
-        "counts": [
-            {"name": "like_count", "table": "post_likes", "fk": "post_id"},
-            {"name": "comment_count", "table": "post_comments", "fk": "post_id"},
-            {"name": "repost_count", "table": "roaster_posts", "fk": "repost_of_id"},
-        ],
-        "flags": [
-            {"name": "liked_by_me", "table": "post_likes", "fk": "post_id", "user_col": "user_id"},
-            # Recommender-signal flags surfaced so the feed can locally
-            # filter out posts the viewer already hid / disliked.
-            {"name": "hidden_by_me", "table": "post_hides", "fk": "post_id", "user_col": "user_id"},
-            {"name": "disliked_by_me", "table": "post_dislikes", "fk": "post_id", "user_col": "user_id"},
-        ],
-        "embeds": [
-            {"name": "original_post", "self_fk": "repost_of_id"},
-            # Cross-resource embed — `repost_of_article_id` points into
-            # the `articles` resource (table `roaster_articles`). Carries
-            # the same shape an article would when fetched directly, so
-            # the feed renderer can surface a reposted article via
-            # `<ArticlePreviewCard>` without an extra round-trip.
-            {"name": "original_article", "fk": "repost_of_article_id", "resource": "articles"},
-        ],
-        "order": "published_at DESC",
-        "limit": 20,
-        # notify_repost handles repost authors; notify_sourcing_story is a
-        # no-op for any post_type other than 'sourcing_story' so it can sit
-        # alongside without an extra branch in the registry. Article reposts
-        # (where `repost_of_article_id` is set instead of `repost_of_id`)
-        # currently no-op — `notify_repost` exits early because there's no
-        # post-author to notify. Adding a notif type for the article's roaster
-        # is a follow-up; for v1 the roaster discovers reposts via the feed.
-        "hooks": {"on_create": ["notify_repost", "notify_sourcing_story"]},
-    },
-
-    # ── Post Likes (toggle) ──────────────────────────────────────────────
-    "post_likes": {
-        "table": "post_likes",
-        "type": "toggle",
-        "parent": "posts",
-        "parent_table": "roaster_posts",
-        "fk": "post_id",
-        "user_col": "user_id",
-        "auth": {"toggle": "required"},
-        "hooks": {"on_toggle_on": ["notify_like"]},
-    },
-
-    # ── Post Hides (toggle — recommender negative signal) ────────────────
-    # Tapping "Hide" from the three-dots menu on any non-owner post
-    # records this row. The feed filters out posts with `hidden_by_me=1`
-    # client-side on refetch (see the `posts` flag). Toggle shape means
-    # repeated taps undo — useful if the user changes their mind. No
-    # count surfaced; no notification fan-out.
-    "post_hides": {
-        "table": "post_hides",
-        "type": "toggle",
-        "parent": "posts",
-        "parent_table": "roaster_posts",
-        "fk": "post_id",
-        "user_col": "user_id",
-        "auth": {"toggle": "required"},
-    },
-
-    # ── Post Dislikes (toggle — recommender negative signal) ─────────────
-    # Silent "don't show me more like this" signal. Same shape as
-    # post_hides but the feed doesn't filter out disliked posts — it
-    # just records for future ranking. No count exposed to viewers.
-    "post_dislikes": {
-        "table": "post_dislikes",
-        "type": "toggle",
-        "parent": "posts",
-        "parent_table": "roaster_posts",
-        "fk": "post_id",
-        "user_col": "user_id",
-        "auth": {"toggle": "required"},
-    },
-
-    # ── Post Reports (create-only — moderation signal) ───────────────────
-    # Unlike hide/dislike, reports are NOT unique per (user, post) —
-    # each tap records a fresh row so moderators can count repeat
-    # reports from the same user. No update / delete from the viewer
-    # side; only the admin can triage.
-    "post_reports": {
-        "table": "post_reports",
-        "pk": "id",
-        "fields": {
-            "id": {"type": "int", "ro": True},
-            "user_id": {"type": "int", "ro": True, "auto": "current_user"},
-            "post_id": {"type": "int", "required": True},
-            "reason": {"type": "str"},
-            "created_at": {"type": "str", "ro": True, "auto": "now"},
-        },
-        "auth": {"list": "admin", "read": "admin", "create": "required", "update": None, "delete": "admin"},
-        "owner": "user_id",
-    },
-
-    # ── Post Comments ────────────────────────────────────────────────────
-    "post_comments": {
-        "table": "post_comments",
-        "pk": "id",
-        "fields": {
-            "id": {"type": "int", "ro": True},
-            "user_id": {"type": "int", "ro": True, "auto": "current_user"},
-            "post_id": {"type": "int", "required": True},
-            "comment": {"type": "str", "required": True},
-            "parent_id": {"type": "int"},
-            "created_at": {"type": "str", "ro": True, "auto": "now"},
-            "updated_at": {"type": "str"},
-        },
-        "parent": "posts",
-        "parent_table": "roaster_posts",
-        "fk": "post_id",
-        "auth": {"list": None, "create": "required", "update": "owner", "delete": "owner"},
-        "owner": "user_id",
-        "joins": [
-            {"table": "users", "alias": "user", "on": "user_id",
-             "fields": ["id", "username", "display_name", "avatar_url"]},
-        ],
-        "counts": [
-            {"name": "like_count", "table": "comment_likes", "fk": "comment_id"},
-        ],
-        "flags": [
-            {"name": "liked_by_me", "table": "comment_likes", "fk": "comment_id", "user_col": "user_id"},
-        ],
-        "order": "created_at ASC",
-        "hooks": {"on_create": ["notify_comment"]},
-    },
-
-    # ── Comment Likes (toggle) ───────────────────────────────────────────
-    "comment_likes": {
-        "table": "comment_likes",
-        "type": "toggle",
-        "parent": "post_comments",
-        "parent_table": "post_comments",
-        "fk": "comment_id",
-        "user_col": "user_id",
-        "auth": {"toggle": "required"},
-        "hooks": {"on_toggle_on": ["notify_comment_like"]},
-    },
-
     # ── Articles ─────────────────────────────────────────────────────────
-    # The article catalog itself (`roaster_articles`). Specific.py already
-    # owns the listing endpoint (publish-gate JOINs to `roaster_profiles`
-    # are per-route logic), so the auto-routes here are intentionally
-    # restricted: list/read are blocked on the generic /api/articles
-    # endpoint, and create/update/delete are admin-only via the existing
-    # specific.py admin endpoints. The registration is here so the
-    # generic engine can wire up:
-    #   • the cross-resource `original_article` embed on posts (article
-    #     reposts in the feed)
-    #   • the nested /api/articles/{id}/article_comments routes
-    #   • the auto /api/article_likes/{id}/toggle route
-    # Specific.py's `/articles` endpoint will continue to call
-    # build_select(get_resource("articles"), uid) so the chronological
-    # feed payload picks up the like/comment/repost counts and the
-    # liked_by_me flag for free.
+    # The article catalog itself (`roaster_articles`). Specific.py owns the
+    # listing endpoint (publish-gate JOINs to `roaster_profiles` are
+    # per-route logic), so the auto-routes here are restricted: list/read
+    # are blocked on the generic /api/articles endpoint, and
+    # create/update/delete are admin-only via the existing specific.py
+    # admin endpoints. The registration is here so the generic engine can
+    # wire up the nested /api/articles/{id}/article_comments routes and the
+    # auto /api/article_likes/{id}/toggle route. Specific.py's `/articles`
+    # endpoint calls build_select(get_resource("articles"), uid) so the
+    # payload picks up the like/comment counts and the liked_by_me flag.
     "articles": {
         "table": "roaster_articles",
         "pk": "id",
@@ -296,15 +113,9 @@ RESOURCES = {
         "counts": [
             {"name": "like_count", "table": "article_likes", "fk": "article_id"},
             {"name": "comment_count", "table": "article_comments", "fk": "article_id"},
-            # Counts every roaster_post repost row that points at this
-            # article via `repost_of_article_id`. Mirrors the posts
-            # registry's `repost_count` shape.
-            {"name": "repost_count", "table": "roaster_posts", "fk": "repost_of_article_id"},
         ],
         "flags": [
             {"name": "liked_by_me", "table": "article_likes", "fk": "article_id", "user_col": "user_id"},
-            {"name": "hidden_by_me", "table": "article_hides", "fk": "article_id", "user_col": "user_id"},
-            {"name": "disliked_by_me", "table": "article_dislikes", "fk": "article_id", "user_col": "user_id"},
         ],
         "order": "id DESC",
         "limit": 50,
@@ -313,28 +124,6 @@ RESOURCES = {
     # ── Article Likes (toggle) ───────────────────────────────────────────
     "article_likes": {
         "table": "article_likes",
-        "type": "toggle",
-        "parent": "articles",
-        "parent_table": "roaster_articles",
-        "fk": "article_id",
-        "user_col": "user_id",
-        "auth": {"toggle": "required"},
-    },
-
-    # ── Article Hides (toggle — recommender negative signal) ─────────────
-    "article_hides": {
-        "table": "article_hides",
-        "type": "toggle",
-        "parent": "articles",
-        "parent_table": "roaster_articles",
-        "fk": "article_id",
-        "user_col": "user_id",
-        "auth": {"toggle": "required"},
-    },
-
-    # ── Article Dislikes (toggle) ────────────────────────────────────────
-    "article_dislikes": {
-        "table": "article_dislikes",
         "type": "toggle",
         "parent": "articles",
         "parent_table": "roaster_articles",
@@ -360,12 +149,9 @@ RESOURCES = {
     },
 
     # ── Article Comments ─────────────────────────────────────────────────
-    # Same shape as post_comments. Comment-likes route through the
-    # parallel `article_comment_likes` toggle resource (see below) — we
-    # didn't generalise the existing `comment_likes` table because that
-    # would mean a schema migration on the 200+ existing rows. The
-    # frontend's `<CommentThread>` already takes a `likeResource` prop
-    # so swapping per parent type is one-line.
+    # Comment-likes route through the parallel `article_comment_likes`
+    # toggle resource (see below). The frontend's `<CommentThread>` takes a
+    # `likeResource` prop so the same component serves article comments.
     "article_comments": {
         "table": "article_comments",
         "pk": "id",
@@ -407,17 +193,6 @@ RESOURCES = {
         "auth": {"toggle": "required"},
     },
 
-    # ── Follows (toggle by slug) ─────────────────────────────────────────
-    "follows": {
-        "table": "follows",
-        "type": "toggle",
-        "fk": "roaster_slug",
-        "fk_type": "str",
-        "user_col": "follower_user_id",
-        "auth": {"toggle": "required"},
-        "hooks": {"on_toggle_on": ["notify_follow"]},
-    },
-
     # ── Shelves ──────────────────────────────────────────────────────────
     "shelves": {
         "table": "shelf_entries",
@@ -436,106 +211,6 @@ RESOURCES = {
         "limit": 200,
         "group_by": "shelf",
         "hooks": {"on_create": ["shelf_upsert"]},
-    },
-
-    # ── Tasting Notes ────────────────────────────────────────────────────
-    "tasting_notes": {
-        "table": "tasting_notes",
-        "pk": "id",
-        "fields": {
-            "id": {"type": "int", "ro": True},
-            "user_id": {"type": "int", "ro": True, "auto": "current_user"},
-            "product_id": {"type": "str", "required": True},
-            "acidity": {"type": "int"},
-            "body": {"type": "int"},
-            "sweetness": {"type": "int"},
-            "aftertaste": {"type": "int"},
-            "flavor_tags": {"type": "json"},
-            "brew_method": {"type": "str"},
-            "drink_style": {"type": "str"},
-            "milk_type": {"type": "str"},
-            "dose_grams": {"type": "float"},
-            "yield_grams": {"type": "float"},
-            "water_ml": {"type": "float"},
-            "extraction_time_secs": {"type": "int"},
-            "water_temp_celsius": {"type": "int"},
-            "grind_size": {"type": "str"},
-            "brew_ratio": {"type": "str"},
-            "blend_components": {"type": "json"},
-            "comment": {"type": "str"},
-            "created_at": {"type": "str", "ro": True, "auto": "now"},
-            "updated_at": {"type": "str"},
-        },
-        "auth": {"list": None, "read": None, "create": "required", "update": "owner", "delete": "owner"},
-        "owner": "user_id",
-        "joins": [
-            {"table": "users", "alias": "author", "on": "user_id",
-             "fields": ["username", "display_name", "avatar_url", "location"]},
-        ],
-        "order": "created_at DESC",
-        "limit": 20,
-        "hooks": {"on_create": ["validate_dictionary", "auto_create_post"]},
-    },
-
-    # ── Note Likes (toggle) ──────────────────────────────────────────────
-    "note_likes": {
-        "table": "note_likes",
-        "type": "toggle",
-        "parent": "tasting_notes",
-        "parent_table": "tasting_notes",
-        "fk": "note_id",
-        "user_col": "user_id",
-        "auth": {"toggle": "required"},
-    },
-
-    # ── Note Comments ────────────────────────────────────────────────────
-    "note_comments": {
-        "table": "note_comments",
-        "pk": "id",
-        "fields": {
-            "id": {"type": "int", "ro": True},
-            "user_id": {"type": "int", "ro": True, "auto": "current_user"},
-            "note_id": {"type": "int", "required": True},
-            "comment": {"type": "str", "required": True},
-            "created_at": {"type": "str", "ro": True, "auto": "now"},
-        },
-        "parent": "tasting_notes",
-        "parent_table": "tasting_notes",
-        "fk": "note_id",
-        "auth": {"list": None, "create": "required", "delete": "owner"},
-        "owner": "user_id",
-        "joins": [
-            {"table": "users", "alias": "user", "on": "user_id",
-             "fields": ["username", "display_name"]},
-        ],
-        "order": "created_at ASC",
-    },
-
-    # ── Notifications ────────────────────────────────────────────────────
-    "notifications": {
-        "table": "notifications",
-        "pk": "id",
-        "fields": {
-            "id": {"type": "int", "ro": True},
-            "user_id": {"type": "int", "ro": True},
-            "type": {"type": "str"},
-            "actor_id": {"type": "int"},
-            "post_id": {"type": "int"},
-            "comment_id": {"type": "int"},
-            "direct_thread_id": {"type": "int"},
-            "target_slug": {"type": "str"},
-            "subject": {"type": "str"},
-            "read": {"type": "int", "default": 0},
-            "created_at": {"type": "str", "ro": True, "auto": "now"},
-        },
-        "auth": {"list": "self", "update": "self"},
-        "owner": "user_id",
-        "joins": [
-            {"table": "users", "alias": "actor", "on": "actor_id",
-             "fields": ["username", "display_name", "avatar_url", "avatar_crop_x", "avatar_crop_y", "avatar_zoom"]},
-        ],
-        "order": "created_at DESC",
-        "limit": 50,
     },
 
     # ── Products (unified table) ─────────────────────────────────────────
@@ -701,10 +376,10 @@ RESOURCES = {
         # When admin edits the roaster's display name via the inline
         # Name field on the admin page (PUT /api/roaster_profiles/{slug}),
         # propagate the change to `users.display_name` for the linked
-        # roaster account so feed posts surface the canonical name
-        # instead of the slug. Same pattern as `sync_roaster_logo_to_user`
-        # (which lives explicit in the enrich routes); the dispatcher
-        # entry is in services/notifications.py.
+        # roaster account so the roaster's surfaces show the canonical
+        # name instead of the slug. Same pattern as
+        # `sync_roaster_logo_to_user` (which lives explicit in the enrich
+        # routes); the dispatcher entry is in services/notifications.py.
         "hooks": {"on_update": ["sync_roaster_name_to_user"]},
         "order": "roaster_slug ASC",
     },
@@ -713,10 +388,9 @@ RESOURCES = {
     # `article_id` + `placement_source` are nullable — populated when
     # a click originates from an in-article placement (the reader fires
     # the click event with both fields), NULL for organic Buy clicks
-    # on /coffee/[id], /roaster/[slug], the feed, etc. The split lets
-    # the analytics surface pivot ad-slot vs organic clicks without
-    # joining back to a placements snapshot. See P1 attribution notes
-    # in database.py.
+    # on /coffee/[id], /roaster/[slug], etc. The split lets the analytics
+    # surface pivot ad-slot vs organic clicks without joining back to a
+    # placements snapshot. See P1 attribution notes in database.py.
     "click_events": {
         "table": "click_events",
         "pk": "id",
@@ -734,7 +408,7 @@ RESOURCES = {
         "write_only": True,
     },
 
-    # ── Café entity (see CRUD_UTOPIA.md) ─────────────────────────────────
+    # ── Brew methods (roaster recipe cards) ──────────────────────────────
     "brew_methods": {
         "table": "brew_methods",
         "pk": "id",
