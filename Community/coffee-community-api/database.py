@@ -34,33 +34,6 @@ CREATE TABLE IF NOT EXISTS shelf_entries (
     UNIQUE(user_id, product_id)
 );
 
-CREATE TABLE IF NOT EXISTS tasting_notes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    product_id TEXT NOT NULL,
-    -- Tasting attributes (1-5 sliders)
-    acidity INTEGER CHECK (acidity BETWEEN 1 AND 5),
-    body INTEGER CHECK (body BETWEEN 1 AND 5),
-    sweetness INTEGER CHECK (sweetness BETWEEN 1 AND 5),
-    aftertaste INTEGER CHECK (aftertaste BETWEEN 1 AND 5),
-    flavor_tags TEXT,
-    -- Brew recipe
-    brew_method TEXT,
-    drink_style TEXT,
-    milk_type TEXT,
-    dose_grams REAL,
-    yield_grams REAL,
-    water_ml REAL,
-    extraction_time_secs INTEGER,
-    water_temp_celsius INTEGER,
-    grind_size TEXT,
-    brew_ratio TEXT,
-    -- Meta
-    comment TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS click_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER REFERENCES users(id),
@@ -72,31 +45,8 @@ CREATE TABLE IF NOT EXISTS click_events (
 
 CREATE INDEX IF NOT EXISTS idx_shelf_user ON shelf_entries(user_id);
 CREATE INDEX IF NOT EXISTS idx_shelf_product ON shelf_entries(product_id);
-CREATE INDEX IF NOT EXISTS idx_notes_user ON tasting_notes(user_id);
-CREATE INDEX IF NOT EXISTS idx_notes_product ON tasting_notes(product_id);
 CREATE INDEX IF NOT EXISTS idx_clicks_roaster ON click_events(roaster_slug);
 CREATE INDEX IF NOT EXISTS idx_clicks_product ON click_events(product_id);
-
-CREATE TABLE IF NOT EXISTS note_likes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    note_id INTEGER NOT NULL REFERENCES tasting_notes(id) ON DELETE CASCADE,
-    created_at TEXT NOT NULL,
-    UNIQUE(user_id, note_id)
-);
-
-CREATE TABLE IF NOT EXISTS note_comments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    note_id INTEGER NOT NULL REFERENCES tasting_notes(id) ON DELETE CASCADE,
-    comment TEXT NOT NULL,
-    created_at TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_likes_note ON note_likes(note_id);
-CREATE INDEX IF NOT EXISTS idx_likes_user ON note_likes(user_id);
-CREATE INDEX IF NOT EXISTS idx_comments_note ON note_comments(note_id);
-CREATE INDEX IF NOT EXISTS idx_comments_user ON note_comments(user_id);
 """
 
 
@@ -1631,6 +1581,60 @@ _MIGRATIONS = [
     )""",
     "CREATE INDEX IF NOT EXISTS idx_catalog_snapshots_op ON catalog_snapshots(operation_id)",
     "CREATE INDEX IF NOT EXISTS idx_catalog_snapshots_table ON catalog_snapshots(table_name, row_pk)",
+]
+
+
+# ── Catalog-only build: strip the social-feed schema ─────────────────────────
+# The social feed and its tables — posts/follows/notifications/DMs, the
+# tasting journal, and their like/comment sub-tables — were removed for the
+# catalog-only launch. Rather than surgically deleting the (interleaved,
+# multi-line) CREATE statements from the migration list above, filter any
+# social CREATE/INDEX/ALTER statement out at load time so a fresh DB never
+# creates them, then DROP any left over in an existing DB. The full social
+# schema is preserved at git tag `social-v1`.
+_SOCIAL_SCHEMA_TABLES = (
+    "roaster_posts", "follows", "notifications", "post_likes", "post_comments",
+    "comment_likes", "post_hides", "post_dislikes", "post_reports",
+    "direct_threads", "direct_messages", "direct_message_reports",
+    "article_hides", "article_dislikes",
+    "tasting_notes", "note_likes", "note_comments",
+)
+
+
+def _is_social_schema_stmt(stmt: str) -> bool:
+    s = " ".join(stmt.split()).lower()
+    for t in _SOCIAL_SCHEMA_TABLES:
+        if (f"create table if not exists {t} (" in s
+                or f"on {t}(" in s
+                or f"on {t} (" in s
+                or f"alter table {t} " in s):
+            return True
+    return False
+
+
+_MIGRATIONS = [m for m in _MIGRATIONS if not _is_social_schema_stmt(m)]
+
+# Drop leftover social tables from an existing DB (no-op on a fresh DB via
+# IF EXISTS). Children before parents; DROP TABLE also drops the table's
+# indexes, so no explicit DROP INDEX is needed.
+_MIGRATIONS += [
+    "DROP TABLE IF EXISTS comment_likes",
+    "DROP TABLE IF EXISTS post_comments",
+    "DROP TABLE IF EXISTS post_likes",
+    "DROP TABLE IF EXISTS post_hides",
+    "DROP TABLE IF EXISTS post_dislikes",
+    "DROP TABLE IF EXISTS post_reports",
+    "DROP TABLE IF EXISTS note_likes",
+    "DROP TABLE IF EXISTS note_comments",
+    "DROP TABLE IF EXISTS direct_message_reports",
+    "DROP TABLE IF EXISTS direct_messages",
+    "DROP TABLE IF EXISTS direct_threads",
+    "DROP TABLE IF EXISTS article_hides",
+    "DROP TABLE IF EXISTS article_dislikes",
+    "DROP TABLE IF EXISTS roaster_posts",
+    "DROP TABLE IF EXISTS tasting_notes",
+    "DROP TABLE IF EXISTS follows",
+    "DROP TABLE IF EXISTS notifications",
 ]
 
 
