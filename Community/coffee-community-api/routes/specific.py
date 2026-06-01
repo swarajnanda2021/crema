@@ -9991,6 +9991,87 @@ def admin_requeue_llm_job(job_id: int,
         db.close()
 
 
+@router.post("/admin/llm-jobs/delete")
+def admin_delete_llm_jobs(body: dict, user=Depends(get_current_user)):
+    """Hard-delete llm_jobs queue items — single or bulk.
+
+    `llm_jobs` is the operational work queue, not a catalog entity:
+    rows are ephemeral tickets, so a hard-delete is the right
+    semantics (no soft-delete / catalog_snapshots — those are for
+    products/roasters/articles). Use to clear orphaned pending jobs
+    whose parent scrape died, or to drop a single bad ticket.
+
+    Body (all optional; id/filter clauses are ANDed into one match set):
+      • job_id (int)       — delete one specific ticket
+      • ids (int[])        — delete an explicit list of tickets
+      • status (str)       — bulk by status (pending|in_progress|failed|complete)
+      • roaster_slug (str) — bulk by roaster
+      • step (str)         — bulk by step
+      • all (bool)         — REQUIRED to run a filterless whole-queue wipe
+      • dry_run (bool)     — return matched count + sample WITHOUT deleting
+
+    A call with no id/filter and all != true is refused (422) so the
+    whole queue can't be wiped by accident. Returns
+    {dry_run, matched, deleted, sample}.
+    """
+    _require_admin(user)
+    body = body or {}
+    clauses: list = []
+    params: list = []
+
+    if body.get("job_id") is not None:
+        clauses.append("id = ?"); params.append(int(body["job_id"]))
+
+    ids = body.get("ids")
+    if ids:
+        if not isinstance(ids, list):
+            raise HTTPException(422, "ids must be a list of integers")
+        try:
+            id_ints = [int(x) for x in ids]
+        except (TypeError, ValueError):
+            raise HTTPException(422, "ids must be a list of integers")
+        if id_ints:
+            clauses.append(f"id IN ({','.join('?' for _ in id_ints)})")
+            params.extend(id_ints)
+
+    for col in ("status", "roaster_slug", "step"):
+        val = body.get(col)
+        if val:
+            clauses.append(f"{col} = ?"); params.append(val)
+
+    delete_all = bool(body.get("all"))
+    if not clauses and not delete_all:
+        raise HTTPException(
+            422,
+            "refused: provide job_id / ids / status / roaster_slug / step, "
+            "or pass all=true to clear the entire queue",
+        )
+
+    where_sql = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+    dry_run = bool(body.get("dry_run"))
+    db = get_db()
+    try:
+        matched = db.execute(
+            f"SELECT COUNT(*) AS c FROM llm_jobs{where_sql}", tuple(params),
+        ).fetchone()["c"]
+        sample = [
+            dict(r) for r in db.execute(
+                f"SELECT id, roaster_slug, step, status FROM llm_jobs"
+                f"{where_sql} ORDER BY id DESC LIMIT 10",
+                tuple(params),
+            ).fetchall()
+        ]
+        if dry_run:
+            return ok({"dry_run": True, "matched": matched, "deleted": 0,
+                       "sample": sample}, resource="llm_jobs")
+        db.execute(f"DELETE FROM llm_jobs{where_sql}", tuple(params))
+        db.commit()
+        return ok({"dry_run": False, "matched": matched, "deleted": matched,
+                   "sample": sample}, resource="llm_jobs")
+    finally:
+        db.close()
+
+
 @router.get("/admin/scrape-runs")
 def admin_list_scrape_runs(roaster_slug: Optional[str] = None,
                             kind: Optional[str] = None,

@@ -2909,6 +2909,55 @@ export async function requeueLLMJob(input: RequeueLLMJobInput) {
   );
 }
 
+export const deleteLLMQueueItemSchema = z.object({
+  job_id: z.number().int().optional().describe(
+    "Delete one specific llm_jobs ticket by id.",
+  ),
+  ids: z.array(z.number().int()).optional().describe(
+    "Delete an explicit list of llm_jobs ids.",
+  ),
+  status: z.enum(["pending", "in_progress", "failed", "complete"]).optional()
+    .describe("Bulk-delete every queue item with this status."),
+  roaster_slug: z.string().optional().describe(
+    "Bulk-delete every queue item for this roaster.",
+  ),
+  step: z.string().optional().describe(
+    "Bulk-delete every queue item with this step (product_enrich, " +
+    "article_enrich, standardize_tasting, bio_hint, etc.).",
+  ),
+  all: z.boolean().optional().describe(
+    "REQUIRED to run a filterless whole-queue wipe. Ignored when any " +
+    "id/filter is set.",
+  ),
+  dry_run: z.boolean().optional().describe(
+    "Return the matched count + a 10-row sample WITHOUT deleting. " +
+    "Always dry-run first.",
+  ),
+});
+export type DeleteLLMQueueItemInput = z.infer<typeof deleteLLMQueueItemSchema>;
+
+export async function deleteLLMQueueItem(input: DeleteLLMQueueItemInput) {
+  return audited(
+    "crema_delete_llm_queue_item",
+    input,
+    async () =>
+      unwrap(await call("/admin/llm-jobs/delete", {
+        method: "POST",
+        body: {
+          job_id: input.job_id,
+          ids: input.ids,
+          status: input.status,
+          roaster_slug: input.roaster_slug,
+          step: input.step,
+          all: input.all,
+          dry_run: input.dry_run,
+        },
+      })),
+    (r: any) =>
+      `${r?.dry_run ? "dry-run " : ""}matched ${r?.matched}, deleted ${r?.deleted}`,
+  );
+}
+
 export const listScrapeRunsSchema = z.object({
   roaster_slug: z.string().optional().describe(
     "Filter to runs that produced at least one proposal touching this slug. " +

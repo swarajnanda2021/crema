@@ -62,7 +62,7 @@ import {
   getScrapeRunLogSchema, cancelRunningJobSchema,
   // phase 2 inspect / diagnose
   getProductDetailSchema, deleteProductSchema, getRawSnapshotSchema,
-  getLLMJobDetailSchema, requeueLLMJobSchema, listScrapeRunsSchema,
+  getLLMJobDetailSchema, requeueLLMJobSchema, deleteLLMQueueItemSchema, listScrapeRunsSchema,
   testSourceURLSchema,
   // aggregate observability (MCP-purity gap closers)
   catalogStatsSchema, catalogQualityAuditSchema, catalogPricePerGramSchema, freshnessReportSchema,
@@ -97,7 +97,7 @@ import {
   gradeArticles,
   getScrapeRunLog, cancelRunningJob,
   getProductDetail, deleteProduct, getRawSnapshot,
-  getLLMJobDetail, requeueLLMJob, listScrapeRuns, testSourceURL,
+  getLLMJobDetail, requeueLLMJob, deleteLLMQueueItem, listScrapeRuns, testSourceURL,
   catalogStats, catalogQualityAudit, catalogPricePerGram, freshnessReport, listThinProducts,
   fetchShopifyProduct, fetchPageText, renderPage,
   logAgentAction, getSessionActions, logAgentMemory, getAgentMemory, searchAgentMemory,
@@ -987,6 +987,22 @@ const TOOLS: ToolDef<any>[] = [
     schema: requeueLLMJobSchema,
     handler: requeueLLMJob,
     idempotent: false,
+  },
+  {
+    name: "crema_delete_llm_queue_item",
+    description:
+      "Hard-delete llm_jobs queue items — single OR bulk. The llm_jobs " +
+      "queue is the operational work surface (ephemeral tickets, not " +
+      "catalog entities), so hard-delete is correct here — no soft-delete " +
+      "/ snapshot. job_id deletes one ticket; ids[] an explicit list; " +
+      "status / roaster_slug / step bulk-delete by filter (ANDed). A " +
+      "filterless call is REFUSED unless all=true, so the whole queue " +
+      "can't be wiped by accident. ALWAYS pass dry_run=true first — it " +
+      "returns {matched, sample} WITHOUT deleting. Use to clear orphaned " +
+      "pending jobs whose parent scrape died.",
+    schema: deleteLLMQueueItemSchema,
+    handler: deleteLLMQueueItem,
+    destructive: true,
   },
   {
     name: "crema_list_scrape_runs",
