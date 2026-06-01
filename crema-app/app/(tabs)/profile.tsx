@@ -21,28 +21,22 @@ import { useShelves } from "../../src/hooks/useShelves";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
-import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t, SHELF_LABELS, makeStyles } from "../../src/tokens/useTokens";
 
 type ShelfKey = "open_bags" | "on_the_list";
 
-import PostCard from "../../src/components/domain/PostCard";
-import { openPostModal, openComposePost, ConfirmDeleteModal, useTabSlider } from "../../src/components/primitives";
+import { ConfirmDeleteModal, useTabSlider } from "../../src/components/primitives";
 import Animated from "react-native-reanimated";
 import CropGestureWrap from "../../src/components/shell/CropGestureWrap";
 import CoffeeCard from "../../src/components/CoffeeCard";
-import ComposePost from "../../src/components/ComposePost";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
 import Navbar from "../../src/components/Navbar";
 import CremaLogo from "../../src/components/CremaLogo";
 import TractionDashboard from "../../src/components/admin/TractionDashboard";
 import CatalogOps from "../../src/components/admin/CatalogOps";
 import SupportInbox from "../../src/components/admin/SupportInbox";
-import { useFloatingFab } from "../../src/contexts/FloatingFabContext";
-import FabPill from "../../src/components/primitives/FabPill";
-
-type ProfileTab = "posts" | "shelf" | "following" | "analytics" | "catalog" | "inbox";
+type ProfileTab = "shelf" | "analytics" | "catalog" | "inbox";
 
 // Admin check — defense in depth: slug match + flag match. The backend
 // endpoint enforces this same predicate on /api/stats/traction, so a
@@ -217,22 +211,9 @@ export default function ProfilePage() {
   // No more sub-tab state — both shelf sections render at once
 
   // Data
-  const POSTS_PER_PAGE = 5;
-  const [posts, setPosts] = useState<any[]>([]);
-  const [visiblePostCount, setVisiblePostCount] = useState(POSTS_PER_PAGE);
-  // (The previous `fabVisible` scroll-depth gate was removed in
-  // §2.40.18 — the FAB now lives at root layout via
-  // `useFloatingFab` and anchors to the relative wrapper's stable
-  // bottom edge, so it can't collide with the in-page tab strip
-  // anyway.)
-  const [followingList, setFollowingList] = useState<any[]>([]);
-  const [followerCount, setFollowerCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [popularity, setPopularity] = useState<Record<string, number>>({});
 
-  // Edit + delete confirm state — compose now goes through
-  // GlobalComposePost at root layout.
-  const [postToDelete, setPostToDelete] = useState<any>(null);
   const [shelfEntryToRemove, setShelfEntryToRemove] = useState<number | null>(null);
 
   // ── In-place editing state ──────────────────────────────────────────
@@ -247,32 +228,6 @@ export default function ProfilePage() {
   // cross-platform via the events helper).
   useEffect(() => listen("crema:edit-profile", () => setIsEditing(true)), []);
 
-  // Register the "Create post" FabPill at root layout via
-  // FloatingFabContext (§2.40.18). Renders ONLY on the personal
-  // Posts tab and not while editing the profile — same conditions
-  // as the prior inline circular FAB. Anchored to the relative
-  // wrapper's stable bottom edge so it doesn't jitter on
-  // chrome-scroll. The composer config still posts to
-  // `/roaster-posts` with the legacy `user_<id>` slug — every
-  // post-type owned by a user historically routes through that
-  // table.
-  useFloatingFab(
-    user && activeTab === "posts" && !isEditing ? (
-      <FabPill
-        testID="fab-compose-post"
-        icon={<Plus size={17} color={t.color["text.on-light"]} strokeWidth={2.5} />}
-        label="Create post"
-        onPress={() =>
-          openComposePost({
-            endpoint: "/roaster-posts",
-            extraData: { roaster_slug: `user_${user.id}` },
-            refetchEventName: "crema:profile-posts-updated",
-          })
-        }
-        style={{ position: "absolute" as any, bottom: 28, right: 28 }}
-      />
-    ) : null,
-  );
   const [saving, setSaving] = useState(false);
   const [editName, setEditName] = useState("");
   const [editBio, setEditBio] = useState("");
@@ -348,52 +303,9 @@ export default function ProfilePage() {
     setEditZoom((z) => Math.round(Math.max(1, Math.min(5, z + delta)) * 100) / 100);
   }, [isEditing]);
 
-  // ── Followers modal state (same pattern as roaster profile) ─────────
-  const [followers, setFollowers] = useState<any[]>([]);
-  const [showFollowersModal, setShowFollowersModal] = useState(false);
-  const [myFollows, setMyFollows] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (!showFollowersModal || !user) return;
-    (async () => {
-      const raw = await apiFetchRaw<any>("/my-following");
-      const d = raw?.data ?? raw;
-      setMyFollows(d.slugs || d.following || []);
-    })().catch(() => {});
-  }, [showFollowersModal, user]);
-
-  const handleToggleFollowInModal = useCallback(async (slug: string) => {
-    try {
-      const raw = await apiFetchRaw<any>(`/roasters/${slug}/follow`, { method: "POST" });
-      const res = raw?.data ?? raw;
-      setMyFollows((prev) => res.following ? [...prev, slug] : prev.filter((s) => s !== slug));
-    } catch (e) { console.warn("Follow toggle failed:", e); }
-  }, []);
-
   // ── Data loading ───────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     if (!user) return;
-    const [postsRes, followingRes, followersRes] = await Promise.allSettled([
-      apiFetchRaw(`/users/${user.username}/posts`),
-      apiFetchRaw("/my-following"),
-      apiFetchRaw(`/followers/user_${user.id}`),
-    ]);
-    if (postsRes.status === "fulfilled") {
-      const raw = postsRes.value;
-      const d = raw?.data ?? raw;
-      setPosts(Array.isArray(d?.posts ?? d) ? (d?.posts ?? d) : []);
-    }
-    if (followingRes.status === "fulfilled") {
-      const raw = followingRes.value;
-      const d = raw?.data ?? raw;
-      setFollowingList(d.following || []);
-    }
-    if (followersRes.status === "fulfilled") {
-      const raw = followersRes.value;
-      const d = raw?.data ?? raw;
-      setFollowerCount(d.follower_count || 0);
-      setFollowers(d.followers || []);
-    }
     fetchShelves();
     apiFetchRaw("/products/popularity").then((r: any) => {
       const d = r?.data ?? r;
@@ -402,19 +314,12 @@ export default function ProfilePage() {
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  // Re-fetch after the sitewide composer submits a profile post.
-  useEffect(() => listen("crema:profile-posts-updated", () => loadData()), [loadData]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
   };
-
-  const handlePinToggle = useCallback(async (postId: number) => {
-    try { await apiFetchRaw(`/posts/${postId}/pin`, { method: "PUT" }); await loadData(); }
-    catch (e: any) { console.warn("Pin toggle error:", e.message); }
-  }, [loadData]);
 
   // Edit post routes through GlobalComposePost now — no local handler.
 
@@ -451,12 +356,6 @@ export default function ProfilePage() {
   // Compose + edit now route through the sitewide GlobalComposePost
   // at root layout via the `openComposePost` event helper — no local
   // compose state or submit handler. (§2.40.3 / §2.40.6)
-
-  // ── Follow toggle in following list ────────────────────────────────────
-  const handleUnfollow = async (slug: string) => {
-    await apiFetchRaw(`/roasters/${slug}/follow`, { method: "POST" });
-    setFollowingList((prev) => prev.filter((f) => f.slug !== slug));
-  };
 
   // ── Shelf data — both sections rendered simultaneously ─────────────────
   const shelfSections = SHELF_KEYS.map((key) => ({
@@ -701,10 +600,6 @@ export default function ProfilePage() {
 
         {/* Row 3: followers (Figma 119:1035 + 119:1037) | location (116:1029 + 116:1030) */}
         <View style={s.infoRow}>
-          <Pressable onPress={() => setShowFollowersModal(true)} style={s.infoItem}>
-            <HeroPeopleIcon />
-            <Text style={s.infoText}>{followerCount} followers</Text>
-          </Pressable>
           <View style={s.infoItem}>
             <HeroPinIcon />
             {isEditing ? (
@@ -788,12 +683,8 @@ export default function ProfilePage() {
     ? [...baseTabs, "analytics", "catalog", "inbox"]
     : baseTabs;
   const baseLabel = (tab: ProfileTab) =>
-    tab === "posts"
-      ? "POSTS"
-      : tab === "shelf"
+    tab === "shelf"
       ? "COFFEE SHELF"
-      : tab === "following"
-      ? "FOLLOWING"
       : tab === "analytics"
       ? "SITE ANALYTICS"
       : tab === "catalog"
@@ -808,7 +699,6 @@ export default function ProfilePage() {
           onPress={() => {
             tabSlider.slideTo(tab);
             setActiveTab(tab);
-            setVisiblePostCount(POSTS_PER_PAGE);
           }}
           ref={tabSlider.trackTab(tab)}
           style={s.tab}
@@ -845,51 +735,7 @@ export default function ProfilePage() {
   // ── Tab content ────────────────────────────────────────────────────────
   let tabContent: React.ReactNode = null;
 
-  if (activeTab === "posts") {
-    tabContent = (
-      <View style={s.tabContent}>
-        {posts.length === 0 ? (
-          <View style={g.empty}>
-            <Text style={g.emptyText}>No posts yet.</Text>
-            <Text style={g.emptySubtext}>Share your first coffee moment with the + button.</Text>
-          </View>
-        ) : (
-          posts.slice(0, visiblePostCount).map((post: any, idx: number) => {
-            const card = (
-              <PostCard post={post} user={user}
-                onOpen={(p) => openPostModal({ post: p, mode: "view" })}
-                onComment={(p) => openPostModal({ post: p, mode: "comment" })}
-                onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
-                onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
-                onHide={(p) => hidePost(p.id)}
-                onReport={(p) => confirmAndReport(p.id)}
-                onDislike={(p) => dislikePost(p.id)}
-                isOwner={user?.id === post.user_id}
-                onEdit={(p) => openComposePost({
-                  editPostId: p.id,
-                  initialData: {
-                    body: p.teaser || (p as any).body,
-                    images: (p as any).images || [],
-                    location: p.location || "",
-                  },
-                })}
-                onPin={(p) => handlePinToggle(p.id)}
-                onDelete={(p) => setPostToDelete(p)}
-              />
-            );
-            return (
-              <View key={`post-${post.id}-${idx}`}>
-                {/* SwipeToCommit retired in §2.40.22 — visible
-                    action bar under each post is the affordance. */}
-                {card}
-                {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
-              </View>
-            );
-          })
-        )}
-      </View>
-    );
-  } else if (activeTab === "shelf") {
+  if (activeTab === "shelf") {
     tabContent = (
       <View style={s.tabContent}>
         {shelfSections.map((section) => (
@@ -923,37 +769,6 @@ export default function ProfilePage() {
     tabContent = (
       <View style={s.adminTabContent}>
         <SupportInbox />
-      </View>
-    );
-  } else if (activeTab === "following") {
-    tabContent = (
-      <View style={s.tabContent}>
-        {followingList.length === 0 ? (
-          <View style={g.empty}>
-            <Text style={g.emptyText}>Not following anyone yet.</Text>
-            <Text style={g.emptySubtext}>Discover roasters and coffee lovers to follow.</Text>
-          </View>
-        ) : (
-          followingList.map((f: any) => (
-            <Pressable key={f.slug} onPress={() => { if (f.is_roaster) router.push(`/roaster/${f.slug}`); else router.push(`/user/${f.username}`); }} style={s.followRow}>
-              {f.avatar_url ? (
-                <Image source={{ uri: resolveUploadUrl(f.avatar_url) }} style={s.followAvatar} contentFit="cover" />
-              ) : (
-                <View style={[s.followAvatar, s.followAvatarFb]}>
-                  <Text style={s.followAvatarLetter}>{(f.display_name || "?")[0].toUpperCase()}</Text>
-                </View>
-              )}
-              <View style={s.followInfo}>
-                <Text style={s.followName}>{f.display_name}</Text>
-                <Text style={s.followMeta}>{f.follower_count} follower{f.follower_count !== 1 ? "s" : ""}</Text>
-              </View>
-              <Pressable onPress={(e) => { e.stopPropagation(); handleUnfollow(f.slug); }} style={s.followingBtn}>
-                <Check size={10} color={t.color["text.primary"]} strokeWidth={2.5} />
-                <Text style={s.followingBtnText}>Following</Text>
-              </Pressable>
-            </Pressable>
-          ))
-        )}
       </View>
     );
   }
@@ -1003,12 +818,6 @@ export default function ProfilePage() {
         stickyHeaderIndices={[1]}
         onScroll={(e) => {
           onChromeScroll(e);
-          const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 300) {
-            if (activeTab === "posts" && visiblePostCount < posts.length) {
-              setVisiblePostCount((c) => Math.min(c + POSTS_PER_PAGE, posts.length));
-            }
-          }
         }}
         scrollEventThrottle={16}
       >
@@ -1071,78 +880,6 @@ export default function ProfilePage() {
           </View>
         </Modal>
       )}
-
-      {/* Followers modal (same pattern as roaster profile) */}
-      {showFollowersModal && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setShowFollowersModal(false)}>
-          <View style={s.followersOverlayWrap}>
-            <Pressable style={s.followersOverlayBg} onPress={() => setShowFollowersModal(false)} />
-            <View style={s.followersModal}>
-              <View style={s.followersHeader}>
-                <Text style={s.followersTitle}>{followerCount} {followerCount === 1 ? "follower" : "followers"}</Text>
-                <Pressable onPress={() => setShowFollowersModal(false)} hitSlop={14} accessibilityLabel="Close followers list">
-                  <X size={16} color={t.color["text.primary"]} />
-                </Pressable>
-              </View>
-              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
-                {followers.length === 0 ? (
-                  <Text style={s.followersEmpty}>No followers yet</Text>
-                ) : (
-                  followers.map((f: any, idx: number) => {
-                    const isMe = user && (f.user_id === user.id || f.username === user.username);
-                    const fSlug = f.roaster_slug || `user_${f.user_id}`;
-                    const amFollowing = myFollows.includes(fSlug);
-                    return (
-                      <View key={f.user_id || idx}>
-                        {idx > 0 && <View style={s.followerDivider} />}
-                        <View style={s.followerRow}>
-                          <Pressable onPress={() => { setShowFollowersModal(false); router.push(`/user/${f.username}`); }} style={s.followerInfo}>
-                            {f.avatar_url ? (
-                              <Image source={{ uri: resolveUploadUrl(f.avatar_url) }} style={s.followerAvatar} contentFit="cover" />
-                            ) : (
-                              <View style={[s.followerAvatar, s.followerAvatarFb]}>
-                                <Text style={s.followerAvatarLetter}>{(f.display_name || "?")[0].toUpperCase()}</Text>
-                              </View>
-                            )}
-                            <View style={{ flexShrink: 1 }}>
-                              <Text style={s.followerName} numberOfLines={1}>
-                                {(f.display_name?.length || 0) > 25 ? f.display_name.slice(0, 25) + "…" : f.display_name}
-                              </Text>
-                              {f.location ? <Text style={s.followerLocation} numberOfLines={1}>{f.location}</Text> : null}
-                            </View>
-                          </Pressable>
-                          {!isMe && (
-                            <Pressable onPress={() => handleToggleFollowInModal(fSlug)} style={[s.followerFollowBtn, amFollowing && s.followerFollowBtnActive]}>
-                              {amFollowing ? <Check size={10} color={t.color["text.primary"]} strokeWidth={2.5} /> : <Plus size={10} color={t.color["text.primary"]} strokeWidth={2.5} />}
-                              <Text style={s.followerFollowBtnText}>{amFollowing ? "Following" : "Follow"}</Text>
-                            </Pressable>
-                          )}
-                        </View>
-                      </View>
-                    );
-                  })
-                )}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {/* Edit post routes to the sitewide composer (GlobalComposePost)
-          via the `openComposePost` helper — same mid-band treatment
-          as the Home FAB so chrome stays painted on mobile. */}
-
-      <ConfirmDeleteModal
-        visible={!!postToDelete}
-        title="Delete this post?"
-        confirmLabel="Delete"
-        onConfirm={async () => {
-          if (!postToDelete) return;
-          await apiFetchRaw(`/posts/${postToDelete.id}`, { method: "DELETE" });
-          loadData();
-        }}
-        onClose={() => setPostToDelete(null)}
-      />
 
       <ConfirmDeleteModal
         visible={shelfEntryToRemove != null}
