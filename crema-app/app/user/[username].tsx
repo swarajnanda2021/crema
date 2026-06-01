@@ -12,7 +12,6 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
-import { Plus, Check, MessageCircle, X } from "lucide-react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { useAuth } from "../../src/hooks/useAuth";
@@ -20,17 +19,12 @@ import { useShelves } from "../../src/hooks/useShelves";
 import { useCoffeeData } from "../../src/hooks/useCoffeeData";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
-import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t, SHELF_LABELS, makeStyles } from "../../src/tokens/useTokens";
 
-import PostCard from "../../src/components/domain/PostCard";
-import { openPostModal, useTabSlider } from "../../src/components/primitives";
-import Animated from "react-native-reanimated";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import SiteHeader from "../../src/components/SiteHeader";
 
-type ProfileTab = "posts" | "shelf" | "following";
 type ShelfKey = "open_bags" | "on_the_list";
 const SHELF_KEYS: ShelfKey[] = ["open_bags", "on_the_list"];
 const SHELF_SECTION_LABELS: Record<ShelfKey, string> = {
@@ -149,96 +143,33 @@ export default function UserProfilePage() {
   // Avatar manual positioning state
   const [pubImgAspect, setPubImgAspect] = useState(1.5);
   const [pubContW, setPubContW] = useState(0);
-  const POSTS_PER_PAGE = 5;
-  const [visiblePostCount, setVisiblePostCount] = useState(5);
   const [pubContH, setPubContH] = useState(0);
 
   const [profileUser, setProfileUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
-  const tabSlider = useTabSlider(activeTab);
-  // No sub-tab state — both shelf sections render at once
-  const [posts, setPosts] = useState<any[]>([]);
   const [shelves, setShelves] = useState<any>({ open_bags: [], on_the_list: [] });
-  const [followingList, setFollowingList] = useState<any[]>([]);
-  const [followerCount, setFollowerCount] = useState(0);
-  const [followers, setFollowers] = useState<any[]>([]);
-  const [showFollowersModal, setShowFollowersModal] = useState(false);
-  const [myFollows, setMyFollows] = useState<string[]>([]);
-  const [following, setFollowing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const isOwn = authUser?.username === username;
 
   const loadData = useCallback(async () => {
     if (!username) return;
-    const [userRes, postsRes, shelfRes] = await Promise.allSettled([
+    const [userRes, shelfRes] = await Promise.allSettled([
       apiFetchRaw(`/auth/users/${username}`),
-      apiFetchRaw(`/users/${username}/posts`),
       fetchUserShelves(username),
     ]);
     if (userRes.status === "fulfilled") {
       const raw = userRes.value;
       const u = raw?.data ?? raw;
       setProfileUser(u);
-      const slug = `user_${u.id}`;
-      apiFetchRaw(`/followers/${slug}`).then((r) => {
-        const d = r?.data ?? r;
-        setFollowerCount(d?.follower_count || 0);
-        setFollowers(Array.isArray(d?.followers) ? d.followers : []);
-      }).catch(() => {});
-      if (authUser && !isOwn) {
-        apiFetchRaw(`/follow-status/${slug}`).then((r) => { const d = r?.data ?? r; setFollowing(d?.following || false); }).catch(() => {});
-      }
-    }
-    if (postsRes.status === "fulfilled") {
-      const raw = postsRes.value;
-      const d = raw?.data ?? raw;
-      const p = d?.posts ?? d;
-      setPosts(Array.isArray(p) ? p : []);
     }
     if (shelfRes.status === "fulfilled") setShelves(shelfRes.value || { open_bags: [], on_the_list: [] });
     setLoading(false);
-  }, [username, authUser]);
+  }, [username, fetchUserShelves]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  useEffect(() => {
-    if (activeTab !== "following" || !profileUser) return;
-    if (isOwn) {
-      apiFetchRaw("/my-following").then((r) => { const d = r?.data ?? r; setFollowingList(d?.following || []); }).catch(() => {});
-    }
-  }, [activeTab, profileUser, isOwn]);
-
-  // Pull the viewer's own follow slugs when the followers modal
-  // opens, so we can show a "Following / Follow" pill per row.
-  useEffect(() => {
-    if (!showFollowersModal || !authUser) return;
-    apiFetchRaw<any>("/my-following").then((r) => {
-      const d = r?.data ?? r;
-      setMyFollows(d.slugs || d.following || []);
-    }).catch(() => {});
-  }, [showFollowersModal, authUser]);
-
-  const handleToggleFollowInModal = useCallback(async (slug: string) => {
-    try {
-      const raw = await apiFetchRaw<any>(`/roasters/${slug}/follow`, { method: "POST" });
-      const res = raw?.data ?? raw;
-      setMyFollows((prev) => res.following ? [...prev, slug] : prev.filter((s) => s !== slug));
-    } catch (e) { console.warn("Follow toggle failed:", e); }
-  }, []);
-
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
-
-  const handleFollowToggle = async () => {
-    if (!profileUser) return;
-    try {
-      const res = await apiFetchRaw(`/roasters/user_${profileUser.id}/follow`, { method: "POST" });
-      const d = res?.data ?? res;
-      setFollowing(d.following);
-      setFollowerCount(d.follower_count);
-    } catch (e) { console.error("Follow toggle failed:", e); }
-  };
 
   const shelfSections = SHELF_KEYS.map((key) => ({
     key,
@@ -332,187 +263,34 @@ export default function UserProfilePage() {
           </>
         ) : null}
 
-        {/* Row 3: followers + location */}
-        <View style={s.infoRow}>
-          <Pressable onPress={() => setShowFollowersModal(true)} style={s.infoItem}>
-            <HeroPeopleIcon /><Text style={s.infoText}>{followerCount} followers</Text>
-          </Pressable>
-          {u.location ? (
+        {/* Row 3: location */}
+        {u.location ? (
+          <View style={s.infoRow}>
             <View style={s.infoItem}><HeroPinIcon /><Text style={s.infoText}>{u.location}</Text></View>
-          ) : null}
-        </View>
-
-        <View style={s.divider} />
-
-        {/* Follow + Message buttons */}
-        {!isOwn && authUser && (
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable onPress={handleFollowToggle} style={[s.followBtn, following && s.followBtnFollowing]}>
-              {following ? (
-                <><Check size={10} color={t.color["text.primary"]} strokeWidth={2.5} /><Text style={s.followBtnTextFollowing}>Following</Text></>
-              ) : (
-                <><Plus size={10} color={t.color["text.primary"]} strokeWidth={2.5} /><Text style={s.followBtnText}>Follow</Text></>
-              )}
-            </Pressable>
-            <Pressable
-              onPress={async () => {
-                try {
-                  const raw = await apiFetchRaw(`/direct-threads/with/${username}`, { method: "POST" });
-                  const d = raw?.data ?? raw;
-                  if (!d?.thread_id) return;
-                  // Cross-platform open:
-                  //  - Web wide: Navbar's MessagesDropdown bridge opens
-                  //    the floating dropdown at the right thread.
-                  //  - Native / narrow web: navigate to the Messages
-                  //    tab with the thread id as a route param; that
-                  //    screen reads `useLocalSearchParams` and opens
-                  //    the thread (M3 fix). The web bridge doesn't
-                  //    exist on native because the Navbar component
-                  //    never mounts there.
-                  if (isMobile) {
-                    router.push({
-                      pathname: "/messages",
-                      params: { thread_id: String(d.thread_id), kind: "direct_message" },
-                    } as any);
-                  } else if (typeof window !== "undefined") {
-                    (window as any).__crema_openThread?.("direct_message", d.thread_id);
-                  }
-                } catch (e) { console.warn("Open DM failed:", e); }
-              }}
-              style={s.messageBtn}
-            >
-              <MessageCircle size={11} color={t.color["text.primary"]} strokeWidth={2} />
-              <Text style={s.followBtnText}>Message</Text>
-            </Pressable>
           </View>
-        )}
+        ) : null}
       </View>
     </View>
   );
 
-  // ── Tab bar ──
-  const tabs: ProfileTab[] = isOwn ? ["posts", "shelf", "following"] : ["posts", "shelf"];
-  const tabChildren = (
-    <>
-      {tabs.map((tab) => (
-        <Pressable
-          key={tab}
-          onPress={() => { tabSlider.slideTo(tab); setActiveTab(tab); setVisiblePostCount(POSTS_PER_PAGE); }}
-          ref={tabSlider.trackTab(tab)}
-          style={s.tab}
-        >
-          <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>
-            {tab === "posts" ? "POSTS" : tab === "shelf" ? "COFFEE SHELF" : "FOLLOWING"}
-          </Text>
-        </Pressable>
-      ))}
-      {/* One animated bar inside the same coordinate space the tab
-         onLayouts report (parent is either the desktop row View or
-         the mobile ScrollView's contentContainer). */}
-      <Animated.View
-        pointerEvents="none"
-        style={[s.tabUnderlineAnimated, tabSlider.underlineStyle]}
-      />
-    </>
-  );
-
-  // Mobile: horizontal ScrollView lets users swipe past tabs that
-  // overflow the viewport. Wide web keeps the flat row. Layout
-  // props (flexDirection / alignItems / gap) live in
-  // contentContainerStyle — putting them on the outer ScrollView
-  // style throws on native.
-  const tabBar = isMobile ? (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={s.tabBarMobileOuter}
-      contentContainerStyle={s.tabBarMobileInner}
-    >
-      {tabChildren}
-    </ScrollView>
-  ) : (
-    <View style={s.tabBar}>{tabChildren}</View>
-  );
-
-  // ── Tab content ──
-  let tabContent: React.ReactNode = null;
-
-  if (activeTab === "posts") {
-    tabContent = (
-      <View style={s.tabContent}>
-        {posts.length === 0 ? (
-          <View style={g.empty}><Text style={g.emptyText}>No posts yet.</Text></View>
-        ) : (
-          posts.slice(0, visiblePostCount).map((post: any, idx: number) => {
-            const card = (
-              <PostCard post={post} user={authUser}
-                onOpen={(p) => openPostModal({ post: p, mode: "view" })}
-                onComment={(p) => openPostModal({ post: p, mode: "comment" })}
-                onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
-                onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
-                onHide={(p) => hidePost(p.id)}
-                onReport={(p) => confirmAndReport(p.id)}
-                onDislike={(p) => dislikePost(p.id)}
-              />
-            );
-            return (
-              <View key={`post-${post.id}-${idx}`}>
-                {/* SwipeToCommit retired in §2.40.22. */}
-                {card}
-                {idx < Math.min(posts.length, visiblePostCount) - 1 && <View style={s.postDivider} />}
-              </View>
-            );
-          })
-        )}
-      </View>
-    );
-  } else if (activeTab === "shelf") {
-    tabContent = (
-      <View style={s.tabContent}>
-        {shelfSections.map((section) => (
-          <View key={section.key} style={s.shelfSection}>
-            <Text style={s.shelfSectionTitle}>{section.label}</Text>
-            <View style={s.shelfSectionMeta}>
-              <HeroCoffeeIcon />
-              <Text style={s.shelfSectionCount}>
-                {section.entries.length} {section.entries.length === 1 ? "Coffee" : "Coffees"}
-              </Text>
-            </View>
-            <View style={s.shelfSectionDivider} />
-            <ShelfCarousel coffees={section.entries} isOwner={isOwn} onAddToShelf={(productId: string) => { addToShelf(productId, "open_bags"); }} />
+  // ── Shelf content (the public Coffee Shelf — catalog-only) ──
+  const shelfContent = (
+    <View style={s.tabContent}>
+      {shelfSections.map((section) => (
+        <View key={section.key} style={s.shelfSection}>
+          <Text style={s.shelfSectionTitle}>{section.label}</Text>
+          <View style={s.shelfSectionMeta}>
+            <HeroCoffeeIcon />
+            <Text style={s.shelfSectionCount}>
+              {section.entries.length} {section.entries.length === 1 ? "Coffee" : "Coffees"}
+            </Text>
           </View>
-        ))}
-      </View>
-    );
-  } else if (activeTab === "following" && isOwn) {
-    tabContent = (
-      <View style={s.tabContent}>
-        {followingList.length === 0 ? (
-          <View style={g.empty}><Text style={g.emptyText}>Not following anyone yet.</Text></View>
-        ) : (
-          followingList.map((f: any) => (
-            <Pressable
-              key={f.slug}
-              onPress={() => { if (f.is_roaster) router.push(`/roaster/${f.slug}`); else router.push(`/user/${f.username}`); }}
-              style={s.followRow}
-            >
-              {f.avatar_url ? (
-                <Image source={{ uri: resolveUploadUrl(f.avatar_url) }} style={s.followAvatar} contentFit="cover" />
-              ) : (
-                <View style={[s.followAvatar, s.followAvatarFb]}>
-                  <Text style={s.followAvatarLetter}>{(f.display_name || "?")[0].toUpperCase()}</Text>
-                </View>
-              )}
-              <View style={s.followInfo}>
-                <Text style={s.followName}>{f.display_name}</Text>
-                <Text style={s.followMeta}>{f.follower_count} follower{f.follower_count !== 1 ? "s" : ""}</Text>
-              </View>
-            </Pressable>
-          ))
-        )}
-      </View>
-    );
-  }
+          <View style={s.shelfSectionDivider} />
+          <ShelfCarousel coffees={section.entries} isOwner={isOwn} onAddToShelf={(productId: string) => { addToShelf(productId, "open_bags"); }} />
+        </View>
+      ))}
+    </View>
+  );
 
   return (
     <>
@@ -524,80 +302,14 @@ export default function UserProfilePage() {
           contentContainerStyle={s.scrollContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.color["text.primary"]} />}
           showsVerticalScrollIndicator={false}
-          onScroll={(e) => {
-            onChromeScroll(e);
-            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-            if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 300) {
-              if (activeTab === "posts" && visiblePostCount < posts.length) {
-                setVisiblePostCount((c) => Math.min(c + POSTS_PER_PAGE, posts.length));
-              }
-            }
-          }}
+          onScroll={onChromeScroll}
           scrollEventThrottle={16}
         >
           {heroContent}
-          {tabBar}
-          {tabContent}
+          {shelfContent}
         </ScrollView>
       </View>
 
-      {/* Followers modal — mirrors the owner-profile pattern in
-         app/(tabs)/profile.tsx. Tapping a row navigates to that
-         user's profile; follow pill toggles via /roasters/{slug}/follow. */}
-      {showFollowersModal && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setShowFollowersModal(false)}>
-          <View style={s.followersOverlayWrap}>
-            <Pressable style={s.followersOverlayBg} onPress={() => setShowFollowersModal(false)} />
-            <View style={s.followersModal}>
-              <View style={s.followersHeader}>
-                <Text style={s.followersTitle}>{followerCount} {followerCount === 1 ? "follower" : "followers"}</Text>
-                <Pressable onPress={() => setShowFollowersModal(false)} hitSlop={8}>
-                  <X size={16} color={t.color["text.primary"]} />
-                </Pressable>
-              </View>
-              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
-                {followers.length === 0 ? (
-                  <Text style={s.followersEmpty}>No followers yet</Text>
-                ) : (
-                  followers.map((f: any, idx: number) => {
-                    const isMe = authUser && (f.user_id === authUser.id || f.username === authUser.username);
-                    const fSlug = f.roaster_slug || `user_${f.user_id}`;
-                    const amFollowing = myFollows.includes(fSlug);
-                    return (
-                      <View key={f.user_id || idx}>
-                        {idx > 0 && <View style={s.followerDivider} />}
-                        <View style={s.followerRow}>
-                          <Pressable onPress={() => { setShowFollowersModal(false); router.push(`/user/${f.username}`); }} style={s.followerInfo}>
-                            {f.avatar_url ? (
-                              <Image source={{ uri: resolveUploadUrl(f.avatar_url) }} style={s.followerAvatar} contentFit="cover" />
-                            ) : (
-                              <View style={[s.followerAvatar, s.followerAvatarFb]}>
-                                <Text style={s.followerAvatarLetter}>{(f.display_name || "?")[0].toUpperCase()}</Text>
-                              </View>
-                            )}
-                            <View style={{ flexShrink: 1 }}>
-                              <Text style={s.followerName} numberOfLines={1}>
-                                {(f.display_name?.length || 0) > 25 ? f.display_name.slice(0, 25) + "…" : f.display_name}
-                              </Text>
-                              {f.location ? <Text style={s.followerLocation} numberOfLines={1}>{f.location}</Text> : null}
-                            </View>
-                          </Pressable>
-                          {!isMe && authUser && (
-                            <Pressable onPress={() => handleToggleFollowInModal(fSlug)} style={[s.followerFollowBtn, amFollowing && s.followerFollowBtnActive]}>
-                              {amFollowing ? <Check size={10} color={t.color["text.primary"]} strokeWidth={2.5} /> : <Plus size={10} color={t.color["text.primary"]} strokeWidth={2.5} />}
-                              <Text style={s.followerFollowBtnText}>{amFollowing ? "Following" : "Follow"}</Text>
-                            </Pressable>
-                          )}
-                        </View>
-                      </View>
-                    );
-                  })
-                )}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-      )}
     </>
   );
 }
