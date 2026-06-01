@@ -92,18 +92,13 @@ def _engagement(db) -> dict:
         row = db.execute(
             """
             SELECT COUNT(*) FROM (
-                SELECT user_id FROM tasting_notes WHERE created_at > ?
-                UNION
-                SELECT user_id FROM roaster_posts WHERE created_at > ?
-                UNION
-                SELECT user_id FROM post_comments WHERE created_at > ?
-                UNION
-                SELECT user_id FROM post_likes WHERE created_at > ?
-                UNION
                 SELECT user_id FROM shelf_entries WHERE added_at > ?
+                UNION
+                SELECT user_id FROM click_events
+                  WHERE clicked_at > ? AND user_id IS NOT NULL
             )
             """,
-            (since, since, since, since, since),
+            (since, since),
         ).fetchone()
         return _n(row[0])
 
@@ -111,97 +106,20 @@ def _engagement(db) -> dict:
     wau = _active_since(7)
     mau = _active_since(30)
 
-    # % of users with ≥1 tasting note
-    writers = _n(
-        db.execute(
-            "SELECT COUNT(DISTINCT user_id) FROM tasting_notes"
-        ).fetchone()[0]
-    )
-    writer_pct = round((writers / total_users * 100.0), 1) if total_users else 0.0
-
-    # Tasting notes per active user — mean / median
-    per_user = db.execute(
-        """
-        SELECT user_id, COUNT(*) AS c
-        FROM tasting_notes
-        GROUP BY user_id
-        ORDER BY c
-        """
-    ).fetchall()
-    counts = [r["c"] for r in per_user]
-    mean_notes = round(sum(counts) / len(counts), 2) if counts else 0.0
-    if counts:
-        mid = len(counts) // 2
-        median_notes = (
-            counts[mid] if len(counts) % 2 else (counts[mid - 1] + counts[mid]) / 2
-        )
-    else:
-        median_notes = 0
-
-    # Posts per active user per week (last 30d)
-    since_30 = _days_ago(30)
-    posts_30 = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM roaster_posts WHERE created_at > ?",
-            (since_30,),
-        ).fetchone()[0]
-    )
-    posters_30 = _n(
-        db.execute(
-            "SELECT COUNT(DISTINCT user_id) FROM roaster_posts WHERE created_at > ?",
-            (since_30,),
-        ).fetchone()[0]
-    )
-    # Convert 30-day volume → weekly average per active poster
-    posts_per_active_user_per_week = (
-        round(posts_30 / posters_30 / (30 / 7), 2) if posters_30 else 0.0
-    )
-
-    # Comments per post
-    total_posts = _n(
-        db.execute("SELECT COUNT(*) FROM roaster_posts").fetchone()[0]
-    )
-    total_comments = _n(
-        db.execute("SELECT COUNT(*) FROM post_comments").fetchone()[0]
-    )
-    comments_per_post = (
-        round(total_comments / total_posts, 2) if total_posts else 0.0
-    )
-
-    # Like distribution — posts bucketed by like count
-    # 0, 1-5, 6-20, 21+
-    like_dist_rows = db.execute(
-        """
-        SELECT CASE
-            WHEN lc = 0 THEN '0'
-            WHEN lc BETWEEN 1 AND 5 THEN '1-5'
-            WHEN lc BETWEEN 6 AND 20 THEN '6-20'
-            ELSE '21+'
-        END AS bucket,
-        COUNT(*) AS n
-        FROM (
-            SELECT p.id, COALESCE(l.c, 0) AS lc
-            FROM roaster_posts p
-            LEFT JOIN (
-                SELECT post_id, COUNT(*) AS c FROM post_likes GROUP BY post_id
-            ) l ON l.post_id = p.id
-        )
-        GROUP BY bucket
-        """
-    ).fetchall()
-    like_distribution = {r["bucket"]: _n(r["n"]) for r in like_dist_rows}
-    for k in ("0", "1-5", "6-20", "21+"):
-        like_distribution.setdefault(k, 0)
-
-    # Reposts (repost_of_id not null) + repost rate
-    reposts = _n(
-        db.execute(
-            "SELECT COUNT(*) FROM roaster_posts WHERE repost_of_id IS NOT NULL"
-        ).fetchone()[0]
-    )
-    repost_rate = (
-        round(reposts / total_posts * 100.0, 1) if total_posts else 0.0
-    )
+    # Feed engagement (tasting notes, posts, comments, likes, reposts) was
+    # retired in the catalog-only pivot — these are zeroed so the cards
+    # render an empty state instead of crashing on the dropped tables.
+    writers = 0
+    writer_pct = 0.0
+    mean_notes = 0.0
+    median_notes = 0
+    posts_per_active_user_per_week = 0.0
+    total_posts = 0
+    total_comments = 0
+    comments_per_post = 0.0
+    like_distribution = {"0": 0, "1-5": 0, "6-20": 0, "21+": 0}
+    reposts = 0
+    repost_rate = 0.0
 
     # Time series — signups per day (90d) and active users per day (30d).
     # Active = any action on that calendar day (UTC).
@@ -220,29 +138,15 @@ def _engagement(db) -> dict:
         30,
         """
         SELECT date, COUNT(DISTINCT user_id) AS count FROM (
-            SELECT DATE(created_at) AS date, user_id FROM tasting_notes
-              WHERE DATE(created_at) >= DATE('now', '-29 days')
-            UNION SELECT DATE(created_at), user_id FROM roaster_posts
-              WHERE DATE(created_at) >= DATE('now', '-29 days')
-            UNION SELECT DATE(created_at), user_id FROM post_comments
-              WHERE DATE(created_at) >= DATE('now', '-29 days')
-            UNION SELECT DATE(created_at), user_id FROM post_likes
-              WHERE DATE(created_at) >= DATE('now', '-29 days')
-            UNION SELECT DATE(added_at), user_id FROM shelf_entries
+            SELECT DATE(added_at) AS date, user_id FROM shelf_entries
               WHERE DATE(added_at) >= DATE('now', '-29 days')
+            UNION SELECT DATE(clicked_at), user_id FROM click_events
+              WHERE DATE(clicked_at) >= DATE('now', '-29 days')
+                AND user_id IS NOT NULL
         ) GROUP BY date ORDER BY date
         """,
     )
-    daily_posts = _daily_series(
-        db,
-        30,
-        """
-        SELECT DATE(created_at) AS date, COUNT(*) AS count
-        FROM roaster_posts
-        WHERE DATE(created_at) >= DATE('now', '-29 days')
-        GROUP BY date ORDER BY date
-        """,
-    )
+    daily_posts: list = []  # feed retired in the catalog-only pivot
 
     return {
         "total_users": total_users,
@@ -337,18 +241,17 @@ def _commerce(db) -> dict:
     users_shelved = _n(
         db.execute("SELECT COUNT(DISTINCT user_id) FROM shelf_entries").fetchone()[0]
     )
-    users_rated = _n(
-        db.execute("SELECT COUNT(DISTINCT user_id) FROM tasting_notes").fetchone()[0]
-    )
+    # "Rated" (tasting notes) retired with the tasting journal.
+    users_rated = 0
 
-    # Full funnel: users who clicked AND shelved AND rated the SAME product
+    # Full funnel: users who clicked AND shelved the SAME product (the
+    # rating leg is gone with the tasting journal).
     full_funnel = _n(
         db.execute(
             """
             SELECT COUNT(DISTINCT c.user_id)
             FROM click_events c
             JOIN shelf_entries s ON s.user_id = c.user_id AND s.product_id = c.product_id
-            JOIN tasting_notes t ON t.user_id = c.user_id AND t.product_id = c.product_id
             WHERE c.user_id IS NOT NULL
             """
         ).fetchone()[0]
@@ -383,23 +286,25 @@ def _commerce(db) -> dict:
 # ── Network ──────────────────────────────────────────────────────────────────
 
 def _network(db) -> dict:
-    total_follows = _n(db.execute("SELECT COUNT(*) FROM follows").fetchone()[0])
-    unique_followers = _n(
-        db.execute("SELECT COUNT(DISTINCT follower_user_id) FROM follows").fetchone()[0]
-    )
-    avg_follows_per_user = (
-        round(total_follows / unique_followers, 2) if unique_followers else 0.0
-    )
+    # Follows retired in the catalog-only pivot — the network section now
+    # runs on catalog signals (shelf overlap + roasters ranked by saves).
+    total_follows = 0
+    unique_followers = 0
+    avg_follows_per_user = 0.0
+    reciprocal_pairs = 0
 
-    # Top-followed roasters (slug doesn't start with user_ and target_type roaster-ish)
+    # Top roasters by shelf-saves of their products — the catalog signal
+    # that replaces follower counts. (`followers` key retained for
+    # frontend compat; the value is now shelf-saves.)
     top_roaster_rows = db.execute(
         """
-        SELECT f.roaster_slug, COUNT(*) AS n,
+        SELECT p.roaster_slug AS roaster_slug, COUNT(*) AS n,
             rp.name, rp.city
-        FROM follows f
-        LEFT JOIN roaster_profiles rp ON rp.roaster_slug = f.roaster_slug
-        WHERE f.roaster_slug NOT LIKE 'user_%'
-        GROUP BY f.roaster_slug ORDER BY n DESC LIMIT 10
+        FROM shelf_entries s
+        JOIN products p ON p.product_id = s.product_id
+        LEFT JOIN roaster_profiles rp ON rp.roaster_slug = p.roaster_slug
+        WHERE p.roaster_slug IS NOT NULL
+        GROUP BY p.roaster_slug ORDER BY n DESC LIMIT 10
         """
     ).fetchall()
     top_roasters = [
@@ -411,19 +316,6 @@ def _network(db) -> dict:
         }
         for r in top_roaster_rows
     ]
-
-    # Reciprocal follows — user A follows user_B AND user B follows user_A
-    reciprocal_rows = db.execute(
-        """
-        SELECT COUNT(*) FROM follows f1
-        JOIN follows f2
-          ON f2.follower_user_id = CAST(SUBSTR(f1.roaster_slug, 6) AS INTEGER)
-         AND f1.follower_user_id = CAST(SUBSTR(f2.roaster_slug, 6) AS INTEGER)
-        WHERE f1.roaster_slug LIKE 'user_%' AND f2.roaster_slug LIKE 'user_%'
-        """
-    ).fetchone()
-    reciprocal_edges = _n(reciprocal_rows[0])
-    reciprocal_pairs = reciprocal_edges // 2
 
     # Shelf-connection graph: pairs of users who share ≥3 products
     shared_shelf_pairs = _n(
@@ -454,8 +346,8 @@ def _network(db) -> dict:
 
 def _retention(db) -> dict:
     """
-    Weekly signup cohorts with D1/D7/D30 retention. Activity = any of:
-    tasting_note, post, comment, like, or shelf_entry.
+    Weekly signup cohorts with D1/D7/D30 retention. Activity = a shelf
+    save or a Buy click (catalog signals; feed activity was retired).
     """
     cohorts: list[dict] = []
 
@@ -489,25 +381,16 @@ def _retention(db) -> dict:
                 return 0
             placeholders = ",".join("?" * len(user_ids))
             params = list(user_ids)
-            # Compute per-user window edges once in SQL for safety
-            # Activity comes from any of the 5 tables.
+            # Compute per-user window edges once in SQL for safety.
+            # Activity = shelf saves + Buy clicks (catalog signals).
             query = f"""
                 SELECT COUNT(DISTINCT u.id) FROM users u WHERE u.id IN ({placeholders}) AND (
-                    EXISTS (SELECT 1 FROM tasting_notes t WHERE t.user_id = u.id
-                        AND t.created_at BETWEEN datetime(u.created_at, '+{start_offset} days')
-                                             AND datetime(u.created_at, '+{end_offset} days'))
-                    OR EXISTS (SELECT 1 FROM roaster_posts p WHERE p.user_id = u.id
-                        AND p.created_at BETWEEN datetime(u.created_at, '+{start_offset} days')
-                                             AND datetime(u.created_at, '+{end_offset} days'))
-                    OR EXISTS (SELECT 1 FROM post_comments c WHERE c.user_id = u.id
-                        AND c.created_at BETWEEN datetime(u.created_at, '+{start_offset} days')
-                                             AND datetime(u.created_at, '+{end_offset} days'))
-                    OR EXISTS (SELECT 1 FROM post_likes pl WHERE pl.user_id = u.id
-                        AND pl.created_at BETWEEN datetime(u.created_at, '+{start_offset} days')
-                                             AND datetime(u.created_at, '+{end_offset} days'))
-                    OR EXISTS (SELECT 1 FROM shelf_entries s WHERE s.user_id = u.id
+                    EXISTS (SELECT 1 FROM shelf_entries s WHERE s.user_id = u.id
                         AND s.added_at BETWEEN datetime(u.created_at, '+{start_offset} days')
                                            AND datetime(u.created_at, '+{end_offset} days'))
+                    OR EXISTS (SELECT 1 FROM click_events ce WHERE ce.user_id = u.id
+                        AND ce.clicked_at BETWEEN datetime(u.created_at, '+{start_offset} days')
+                                              AND datetime(u.created_at, '+{end_offset} days'))
                 )
             """
             return _n(db.execute(query, params).fetchone()[0])
@@ -528,28 +411,9 @@ def _retention(db) -> dict:
             "d30_pct": round(d30 / signups * 100.0, 1) if signups else 0.0,
         })
 
-    # Writer retention — users with ≥1 tasting note, then active post-first-note
-    writer_cohort_rows = db.execute(
-        "SELECT COUNT(DISTINCT user_id) FROM tasting_notes"
-    ).fetchone()
-    writer_total = _n(writer_cohort_rows[0])
-    writer_returned_30 = _n(
-        db.execute(
-            """
-            SELECT COUNT(DISTINCT t.user_id) FROM tasting_notes t
-            WHERE EXISTS (
-                SELECT 1 FROM tasting_notes t2
-                WHERE t2.user_id = t.user_id AND t2.id <> t.id
-                AND julianday(t2.created_at) - julianday(t.created_at) BETWEEN 0 AND 30
-            )
-            """
-        ).fetchone()[0]
-    )
-    writer_retention_pct = (
-        round(writer_returned_30 / writer_total * 100.0, 1)
-        if writer_total
-        else 0.0
-    )
+    # Writer retention retired with the tasting journal.
+    writer_total = 0
+    writer_retention_pct = 0.0
 
     return {
         "cohorts": cohorts,
@@ -572,34 +436,18 @@ _SERIES_DEFS: dict[str, str] = {
         "FROM users WHERE account_type = 'user' AND created_at IS NOT NULL "
         "GROUP BY DATE(created_at)"
     ),
-    # DAU is built from the union of five activity tables. Each row
-    # counts as one user-day; COUNT(DISTINCT user_id) per day is what
-    # renders as DAU in the chart.
+    # DAU on catalog signals — shelf saves + Buy clicks (the feed
+    # activity tables were retired in the catalog-only pivot).
     "dau": (
         "SELECT DATE(t) AS date, COUNT(DISTINCT user_id) AS count FROM ("
-        "  SELECT user_id, created_at AS t FROM tasting_notes "
-        "  UNION ALL SELECT user_id, created_at AS t FROM roaster_posts "
-        "  UNION ALL SELECT user_id, created_at AS t FROM post_comments "
-        "  UNION ALL SELECT user_id, created_at AS t FROM post_likes "
-        "  UNION ALL SELECT user_id, added_at AS t FROM shelf_entries "
+        "  SELECT user_id, added_at AS t FROM shelf_entries "
+        "  UNION ALL SELECT user_id, clicked_at AS t FROM click_events "
+        "    WHERE user_id IS NOT NULL "
         ") GROUP BY DATE(t)"
     ),
-    "daily_posts": (
-        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
-        "FROM roaster_posts GROUP BY DATE(created_at)"
-    ),
-    "total_posts": (
-        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
-        "FROM roaster_posts GROUP BY DATE(created_at)"
-    ),
-    "total_comments": (
-        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
-        "FROM post_comments GROUP BY DATE(created_at)"
-    ),
-    "total_reposts": (
-        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
-        "FROM roaster_posts WHERE repost_of_id IS NOT NULL "
-        "GROUP BY DATE(created_at)"
+    "daily_shelf_saves": (
+        "SELECT DATE(added_at) AS date, COUNT(*) AS count "
+        "FROM shelf_entries GROUP BY DATE(added_at)"
     ),
     # ── Commerce ────────────────────────────────────────────────────
     "daily_clicks": (
@@ -610,20 +458,9 @@ _SERIES_DEFS: dict[str, str] = {
         "SELECT DATE(clicked_at) AS date, COUNT(*) AS count "
         "FROM click_events GROUP BY DATE(clicked_at)"
     ),
-    # ── Sourcing stories / brew methods ─────────────────────────────
-    "sourcing_stories_total": (
-        "SELECT DATE(created_at) AS date, COUNT(*) AS count "
-        "FROM roaster_posts WHERE post_type = 'sourcing_story' "
-        "GROUP BY DATE(created_at)"
-    ),
     "brew_methods_total": (
         "SELECT DATE(created_at) AS date, COUNT(*) AS count "
         "FROM brew_methods GROUP BY DATE(created_at)"
-    ),
-    # ── Network / follows ──────────────────────────────────────────
-    "total_follows": (
-        "SELECT DATE(followed_at) AS date, COUNT(*) AS count "
-        "FROM follows GROUP BY DATE(followed_at)"
     ),
 }
 
