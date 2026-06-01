@@ -56,12 +56,10 @@ _ENRICHMENT_FIELDS: tuple[str, ...] = (
 _FK_TABLES: tuple[str, ...] = (
     "shelf_entries",        # UNIQUE(user_id, product_id)
     "hidden_products",      # UNIQUE(roaster_slug, product_id)
-    "tasting_notes",        # no unique constraint
     "click_events",         # no unique constraint
     "brew_methods",         # no unique constraint
     "ad_impressions",       # no unique constraint
     "roaster_ad_placements",  # no unique constraint
-    "roaster_posts",        # no unique constraint
     "scrape_proposals",     # no unique constraint
 )
 

@@ -27,9 +27,6 @@ from fastapi import HTTPException
 # INSERT. Adding a new entity here is all it takes to bring a new
 # delete path into the bin.
 ENTITY_MAP = {
-    "posts":            {"table": "roaster_posts",  "pk": "id",        "owner_col": "user_id",    "owner_kind": "user"},
-    "post_comments":    {"table": "post_comments",  "pk": "id",        "owner_col": "user_id",    "owner_kind": "user"},
-    "tasting_notes":    {"table": "tasting_notes",  "pk": "id",        "owner_col": "user_id",    "owner_kind": "user"},
     "shelf_entries":    {"table": "shelf_entries",  "pk": "id",        "owner_col": "user_id",    "owner_kind": "user"},
     "brew_methods":     {"table": "brew_methods",   "pk": "id",        "owner_col": "roaster_slug","owner_kind": "roaster"},
     "roaster_products": {"table": "roaster_products","pk": "product_id","owner_col": "roaster_slug","owner_kind": "roaster"},
