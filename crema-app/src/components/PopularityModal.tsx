@@ -3,15 +3,10 @@ import { View, Text, Pressable, Modal, ScrollView, StyleSheet, Platform } from "
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { X, MapPin, PenLine } from "lucide-react-native";
+import { X, MapPin } from "lucide-react-native";
 import { t, makeStyles } from "../tokens/useTokens";
 import { apiFetchRaw, resolveUploadUrl } from "../api/client";
-import { useAuth } from "../hooks/useAuth";
 import { useBreakpoint } from "../hooks/useBreakpoint";
-import PostCard from "./domain/PostCard";
-import ComposePost from "./ComposePost";
-import { openPostModal } from "./primitives";
-import type { Post } from "../resources/types";
 
 interface Props {
   visible: boolean;
@@ -35,75 +30,35 @@ export default function PopularityModal({
   onClose,
 }: Props) {
   const router = useRouter();
-  const { user } = useAuth();
   const { isMobile } = useBreakpoint();
   const insets = useSafeAreaInsets();
   const [users, setUsers] = useState<any[]>([]);
-  const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
-  const [writing, setWriting] = useState(false);
-  const [posting, setPosting] = useState(false);
   const s = useStyles();
 
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
     setLoading(true);
-    Promise.all([
-      apiFetchRaw<any>(`/products/${productId}/users`).catch(() => ({ data: { users: [] } })),
-      apiFetchRaw<any>(`/products/${productId}/posts`).catch(() => ({ data: [] })),
-    ]).then(([uRes, pRes]) => {
-      if (cancelled) return;
-      const uData = uRes?.data ?? uRes;
-      const pData = pRes?.data ?? pRes;
-      setUsers(uData?.users || []);
-      setPosts(Array.isArray(pData) ? pData : []);
-      setLoading(false);
-    });
+    apiFetchRaw<any>(`/products/${productId}/users`)
+      .catch(() => ({ data: { users: [] } }))
+      .then((uRes) => {
+        if (cancelled) return;
+        const uData = uRes?.data ?? uRes;
+        setUsers(uData?.users || []);
+        setLoading(false);
+      });
     return () => { cancelled = true; };
   }, [visible, productId]);
 
-  // Dedupe users-without-notes against the people who posted — if
-  // they appear in both, the PostCard already represents them, so the
-  // "also on shelf" list only mentions the rest. Matched by username
-  // via author, which the post carries through the registry's join.
-  const writerUsernames = new Set(posts.map((p) => p.author?.username).filter(Boolean));
-  const silentShelvers = users.filter((u) => !writerUsernames.has(u.username));
-
   const count = users.length;
-
-  const handleCreatePost = async (data: any) => {
-    if (posting) return;
-    setPosting(true);
-    try {
-      await apiFetchRaw("/posts", {
-        method: "POST",
-        body: JSON.stringify({
-          ...data,
-          post_type: data.post_type || "note",
-          location: data.location || null,
-        }),
-      });
-      setWriting(false);
-      // Refetch posts so the user's new tasting note shows up in
-      // the modal body right away (same product context).
-      const pRes = await apiFetchRaw<any>(`/products/${productId}/posts`).catch(() => ({ data: [] }));
-      const pData = pRes?.data ?? pRes;
-      setPosts(Array.isArray(pData) ? pData : []);
-    } catch (e: any) {
-      console.warn("Tasting note post error:", e?.message);
-    } finally {
-      setPosting(false);
-    }
-  };
 
   if (!visible) return null;
 
   // Card body shared between mobile (mid-band) and web (centered).
   const cardBody = (
     <View style={[s.card, isMobile && s.cardMidBand]}>
-          {/* Header — count now lives here (moved off the CoffeeCard
-             social dot which became number-free). */}
+          {/* Header — the shelf count for this bean. */}
           <View style={s.header}>
             <View style={{ flex: 1 }}>
               <Text style={s.title} numberOfLines={1}>{coffeeName}</Text>
@@ -113,31 +68,13 @@ export default function PopularityModal({
                 </Text>
               )}
             </View>
-            {/* Write-a-tasting-note shortcut — only for signed-in
-               users. Dispatches into a local compose sub-modal with
-               the Add-Card → Tasting Note flow pre-seeded for this
-               coffee, so the user lands on the sliders. */}
-            {user && (
-              <Pressable
-                onPress={() => setWriting(true)}
-                style={s.writeBtn}
-                accessibilityLabel="Write a tasting note for this coffee"
-              >
-                <PenLine size={13} color={t.color["text.on-cta"]} strokeWidth={2} />
-                <Text style={s.writeBtnText}>Tasting note</Text>
-              </Pressable>
-            )}
             <Pressable onPress={onClose} style={s.closeBtn} hitSlop={8}>
               <X size={18} color={t.color["text.secondary"]} />
             </Pressable>
           </View>
 
-          {/* Body. Tasting-note posts render through the shared
-             `PostCard` so the card shows the same header + tasting
-             note + action bar language as the rest of the site (feed,
-             roaster profile, user profile). Silent shelvers get a
-             compact avatar row at the bottom — they shelved the bean
-             but didn't write, so there's no post to surface. */}
+          {/* Body — the people who have this bean on a shelf. Tapping a
+             row opens their public catalog profile (shelf + basics). */}
           <ScrollView
             style={s.scrollArea}
             contentContainerStyle={s.scrollContent}
@@ -145,108 +82,37 @@ export default function PopularityModal({
           >
             {loading ? (
               <Text style={s.emptyText}>Loading...</Text>
+            ) : users.length === 0 ? (
+              <Text style={s.emptyText}>Nobody has this on their shelf yet.</Text>
             ) : (
-              <>
-                {posts.map((post, idx) => (
-                  <View key={post.id}>
-                    <PostCard
-                      post={post}
-                      user={user}
-                      isOwner={user?.id === post.user_id}
-                      onComment={(p) => openPostModal({ post: p, mode: "comment" })}
-                      onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
-                      onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
-                    />
-                    {idx < posts.length - 1 && <View style={s.divider} />}
+              users.map((u) => (
+                <Pressable
+                  key={u.username}
+                  onPress={() => { onClose(); router.push(`/user/${u.username}`); }}
+                  style={s.silentRow}
+                >
+                  {u.avatar_url ? (
+                    <Image source={{ uri: resolveUploadUrl(u.avatar_url) }} style={s.silentAvatar} />
+                  ) : (
+                    <View style={s.silentAvatarFallback}>
+                      <Text style={s.silentAvatarLetter}>{(u.display_name || "?")[0]}</Text>
+                    </View>
+                  )}
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={s.silentName}>{u.display_name}</Text>
+                    {u.location && (
+                      <View style={s.silentMeta}>
+                        <MapPin size={9} color={t.color["text.muted"]} />
+                        <Text style={s.silentLocation}>{u.location}</Text>
+                      </View>
+                    )}
                   </View>
-                ))}
-
-                {silentShelvers.length > 0 && (
-                  <>
-                    {posts.length > 0 && <View style={s.sectionGap} />}
-                    <Text style={s.sectionLabel}>Also on shelf</Text>
-                    {silentShelvers.map((u) => (
-                      <Pressable
-                        key={u.username}
-                        onPress={() => { onClose(); router.push(`/user/${u.username}`); }}
-                        style={s.silentRow}
-                      >
-                        {u.avatar_url ? (
-                          <Image source={{ uri: resolveUploadUrl(u.avatar_url) }} style={s.silentAvatar} />
-                        ) : (
-                          <View style={s.silentAvatarFallback}>
-                            <Text style={s.silentAvatarLetter}>{(u.display_name || "?")[0]}</Text>
-                          </View>
-                        )}
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={s.silentName}>{u.display_name}</Text>
-                          {u.location && (
-                            <View style={s.silentMeta}>
-                              <MapPin size={9} color={t.color["text.muted"]} />
-                              <Text style={s.silentLocation}>{u.location}</Text>
-                            </View>
-                          )}
-                        </View>
-                      </Pressable>
-                    ))}
-                  </>
-                )}
-
-                {posts.length === 0 && silentShelvers.length === 0 && (
-                  <Text style={s.emptyText}>Nobody has this on their shelf yet.</Text>
-                )}
-              </>
+                </Pressable>
+              ))
             )}
           </ScrollView>
     </View>
   );
-
-  const composeSub = writing ? (
-    isMobile ? (
-      <View style={[s.mobileHost, { top: insets.top + MOBILE_HEADER_HEIGHT, bottom: 0 }]}>
-        <View style={s.composeCardMobile}>
-          <ComposePost
-            onSubmit={handleCreatePost}
-            onCancel={() => setWriting(false)}
-            loading={posting}
-            user={user}
-            products={[]}
-            prefillTastingNote={{
-              product_id: productId,
-              coffee_name: coffeeName,
-              roaster_name: roasterName,
-              roast_level: roastLevel,
-              process: productProcess,
-              product_url: productUrl,
-            }}
-          />
-        </View>
-      </View>
-    ) : (
-      <Modal visible transparent animationType="fade" onRequestClose={() => setWriting(false)}>
-        <View style={s.composeOverlay}>
-          <Pressable style={s.composeBg} onPress={() => setWriting(false)} />
-          <View style={s.composeCard}>
-            <ComposePost
-              onSubmit={handleCreatePost}
-              onCancel={() => setWriting(false)}
-              loading={posting}
-              user={user}
-              products={[]}
-              prefillTastingNote={{
-                product_id: productId,
-                coffee_name: coffeeName,
-                roaster_name: roasterName,
-                roast_level: roastLevel,
-                process: productProcess,
-                product_url: productUrl,
-              }}
-            />
-          </View>
-        </View>
-      </Modal>
-    )
-  ) : null;
 
   // Mobile: render as an absolute-positioned mid-band view so the
   // MobileHeader + MobileFooter chrome stays painted. Requires the
@@ -255,12 +121,9 @@ export default function PopularityModal({
   // edge of MobileFooter.
   if (isMobile) {
     return (
-      <>
-        <View style={[s.mobileHost, { top: insets.top + MOBILE_HEADER_HEIGHT, bottom: 0 }]}>
-          {cardBody}
-        </View>
-        {composeSub}
-      </>
+      <View style={[s.mobileHost, { top: insets.top + MOBILE_HEADER_HEIGHT, bottom: 0 }]}>
+        {cardBody}
+      </View>
     );
   }
 
@@ -271,7 +134,6 @@ export default function PopularityModal({
         <Pressable style={s.overlayBg} onPress={onClose} />
         {cardBody}
       </View>
-      {composeSub}
     </Modal>
   );
 }

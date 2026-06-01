@@ -25,6 +25,7 @@ import NavigationLoader from "../src/components/NavigationLoader";
 import MobileFooter from "../src/components/MobileFooter";
 import MobileOverlays from "../src/components/mobile/MobileOverlays";
 import ContactCrema from "../src/components/ContactCrema";
+import PopularityModal from "../src/components/PopularityModal";
 import { FloatingFabProvider, useIsFloatingFabRegistered } from "../src/contexts/FloatingFabContext";
 import { apiFetchRaw } from "../src/api/client";
 
@@ -38,6 +39,29 @@ function ConditionalMobileFooter() {
   if (!isMobile) return null;
   if (pathname?.startsWith("/auth")) return null;
   return <MobileFooter />;
+}
+
+/** Sitewide "who has this on their shelf" modal (catalog-only). A bean's
+ *  CoffeeCard tap calls `openPopularityModal(...)`, which emits
+ *  `crema:open-popularity`; this listener renders the stripped (no-feed)
+ *  PopularityModal in response. Mounted inside the relative wrapper so
+ *  its mobile mid-band `bottom: 0` lands on the MobileFooter's top edge. */
+function GlobalPopularityModal() {
+  const [opts, setOpts] = useState<any>(null);
+  useEffect(() => listen("crema:open-popularity", (o: any) => setOpts(o)), []);
+  if (!opts) return null;
+  return (
+    <PopularityModal
+      visible
+      productId={opts.productId}
+      coffeeName={opts.coffeeName}
+      roasterName={opts.roasterName}
+      roastLevel={opts.roastLevel}
+      process={opts.process}
+      productUrl={opts.productUrl}
+      onClose={() => setOpts(null)}
+    />
+  );
 }
 
 
@@ -234,6 +258,9 @@ function ThemedRoot() {
             account). Last inside the wrapper so slide chrome
             paints above any open modal. */}
         <MobileOverlays />
+        {/* "Who has this on their shelf" modal — event-driven mount for
+            CoffeeCard's openPopularityModal (catalog-only, stripped). */}
+        <GlobalPopularityModal />
         {/* Floating "Contact Crema" support widget (catalog-only) — sits
             in the chrome-excluding wrapper where the old create-post FAB
             lived, so it clears the MobileFooter on mobile. */}
