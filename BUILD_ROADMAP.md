@@ -9,6 +9,55 @@ For architecture rules see `CRUD_UTOPIA.md`.
 
 ## 1. What has been built
 
+### 1.0 Catalog-only launch (2026-06-01) — current product state
+
+Crema launched as a **catalog-only web offering** (cremaclub.co). The
+social/feed layer was removed in a deliberate scope cut. **This section
+is the authoritative current state**; the feature tables in §1.2–§1.3
+below still describe the pre-pivot full-featured app and are *retained
+for history* — where a row describes a removed feature, treat this
+section as the source of truth.
+
+**Removed** (deleted, not flagged — per the phase-deferral = hard-delete
+rule): the chronological **social feed** + `roaster_posts`; post /
+comment / tasting-note **likes**; **follows** + follower lists; **DMs** /
+messages inbox; **notifications**; the **tasting journal**
+(`tasting_notes` + sliders + auto-posts); **roaster in-app posting** (the
+Posts tab + sourcing-story composer — roaster long-form is now the
+scraped JOURNAL only); the sitewide feed composer (`ComposePost`) +
+`PostModal` + `PostCard`; and the `messages` / `notifications` /
+social `user/[username]` screens. Five now-unused native deps were
+pruned (`@shopify/react-native-skia`, `expo-camera`, `expo-media-library`,
+`jsqr`, `react-native-qrcode-svg`). Backend social tables/routes were cut
+in the same pass.
+
+**Kept / unchanged:** the full catalog (Browse / Discover, search
+dropdown, flavor wheel, `/coffee/[id]`, roaster profiles, JOURNAL reader
++ roaster articles, in-article ADS), the **coffee shelf** (the heart is
+the one save-and-favorite control), **article comments + likes**, and the
+admin dashboard (Site Analytics / Catalog Ops).
+
+**Changed / added for catalog-only:**
+- **"Who has it on their shelf"** — the per-bean `PopularityModal` was
+  kept as social proof but **stripped** to just the shelvers list (its
+  tasting-note posts + composer removed) and **re-mounted** via a
+  `GlobalPopularityModal` listener in `_layout` (it had been orphaned).
+- **`user/[username]`** rebuilt as a **public catalog profile** —
+  identity (name / avatar / bio / location) + the person's read-only
+  **public Coffee Shelf**, reached from the shelvers list. No posts /
+  follows / DMs. Uses `fetchUserShelves` → `/auth/users/{username}` +
+  `/shelves/filter` (both survived the cut; zero new backend).
+- **`profile.tsx`** reduced to the **Coffee Shelf** + admin tabs (Site
+  Analytics / Catalog Ops / **Inbox**); Posts + Following tabs removed.
+- **Contact-Crema support widget** — a floating bottom-right chat where a
+  signed-in user messages Crema (admin) alone (feedback / roaster-join
+  inquiries); admin reads + replies from the new **Inbox** tab; unread
+  counts are the only "notifications" (`support_threads` /
+  `support_messages`; `ContactCrema.tsx` / `admin/SupportInbox.tsx`).
+- **Chrome:** landing `/` → `/browse`; HOME + DISCOVER nav links, the
+  bell, and the messages icon removed from Navbar / MobileHeader /
+  MobileFooter.
+
 ### 1.1 Architecture (CRUD Utopia)
 
 The backend is **registry-driven**. Every CRUD resource is declared in
@@ -133,6 +182,20 @@ Android from a single codebase.
 Ordered by the Phase 1 roadmap in `NORTH_STAR.md`. Each item references
 the relevant section there. For deployment/infra prerequisites see
 `LAUNCH_TODO.md`.
+
+> **CATALOG-ONLY WEB PIVOT (2026-06-01) — read first.** The launch is a
+> catalog-only **web** offering (cremaclub.co); per the pivot, Crema is
+> "not a mobile app — likely never an app." So the mobile / iOS+Android
+> readiness block below (§2.31–§2.40) and its "ship iOS before launch"
+> framing are **deferred** (web-first launch). The feed-removal migration
+> is **complete** (see §1.0). The active catalog-only build queue is:
+> (a) rebuild roaster analytics on catalog signals — shelf-saves + Buy
+> clicks + article engagement, replacing the follows/posts dashboard;
+> (b) update the Maestro E2E suite for no-feed; (c) *optional* browse-level
+> "Popular beans" rail (rank by shelf-count + Buy clicks); (d) launch infra
+> — hosting posture, page pre-render + schema.org for SEO, daily
+> orchestrator — per the launch plan + `LAUNCH_TODO.md`. §2.40.8 (DM
+> archive backend) is dropped (DMs removed).
 
 The mobile readiness block (§2.31–§2.40) shipped in earlier sessions.
 Remaining post-pivot work: §2.37 hit-slop second wave, §2.39 EAS,

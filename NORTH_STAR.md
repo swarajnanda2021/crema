@@ -2,51 +2,57 @@
 
 > **Synopsis (< 1000 chars)**
 >
-> Crema is a daily coffee manager for Indian specialty consumers.
-> Drinkers discover beans through a chronological feed, track tasting
-> notes, build a shelf of what they own, and buy from roasters.
+> Crema is a discovery catalog for Indian specialty coffee. Drinkers
+> search and browse beans across 120+ micro-roasters, save what they
+> want to a personal shelf, read roasters' sourcing journals, see who
+> else has a bean on their shelf, and buy direct from roasters.
 > Roasters get a storefront, tell sourcing stories about the farms
 > they buy from, and reach an audience that's been invisible to them
 > — most micro-roasters get near-zero traffic to their own sites
 > today. The platform connects 120+ micro-roasters with a growing
 > consumer base, without owning inventory or running logistics.
-> Phase 1 builds the daily habit: feed + journal + shelf + Buy
-> intent, pre-revenue. Phase 2 turns Buy into a real checkout, Crema
-> taking a fee on bean orders. Phase 3 owns delivery — same-city
-> same-day, freshness guaranteed within 7 days of roast. Cafés are
-> deliberately deferred: loyalty, supplier discovery, POS, and
-> wholesale come back as a later phase once the consumer-roaster
-> network can support a third participant. Build the habit first,
-> extract second.
+> Phase 1 builds discoverability: a complete, searchable catalog +
+> shelf + roaster journals + Buy intent, with organic search (and the
+> agentic-SEO distribution tier) as the top of the funnel —
+> pre-revenue. Phase 2 turns Buy into a real checkout, Crema taking a
+> fee on bean orders. Phase 3 owns delivery — same-city same-day,
+> freshness guaranteed within 7 days of roast. Cafés are deliberately
+> deferred: loyalty, supplier discovery, POS, and wholesale come back
+> as a later phase once the consumer-roaster network can support a
+> third participant. Build discovery first, extract second.
 
 ---
 
 ## 1. What Crema is
 
-Crema is the operating system for Indian specialty coffee. Not a
+Crema is the discovery layer for Indian specialty coffee. Not a
 marketplace (we don't move beans — yet), not a review site (we don't
-rank). We are a **daily utility with a social spine** — the app you
-open when you grind your morning dose, when you want to see what your
-friends are drinking, when you want to reorder a bag, when you (as a
-roaster) want to tell the story of a new lot.
+rank). We are a **discovery utility** — the site you open when you
+want to find a new bean, when you want to check your shelf or reorder
+a bag, when you want to read the sourcing journal behind a coffee,
+when you (as a roaster) want your beans found by people who'd never
+otherwise have heard of you.
 
-The social feed is not decoration — it is the primary retention
-surface for consumers. People come back to see what others are
-posting: a friend's tasting note on a new Ethiopian, a roaster's
-sourcing story from a Chikmagalur farm, a stranger's pour-over set-up
-at home. The feed turns private coffee habits into a shared
-experience. It's where discovery happens organically — a user sees a
-bean in someone else's post, taps through to the product page, adds
-it to their shelf, and eventually buys. The tasting journal and the
-shelf are personal tools; the feed is what makes them social. Without
-it, Crema is a drink tracker. With it, Crema is a community.
+The catalog itself is the retention surface. People come back to
+search and browse beans they can't find anywhere else, to manage the
+shelf of what they own and want, and to read the roaster journals
+behind each coffee. And the funnel starts *outside* the app: organic
+search and the agentic-SEO distribution tier (see
+[AD_MODEL.md](AD_MODEL.md)) are the top of the funnel — the
+micro-roaster-invisibility thesis means discoverability, not a feed,
+is what brings people in. Light social proof gives the catalog texture
+without a feed: you can see who else has a bean on their shelf, and you
+can comment on roaster journal articles. The shelf and the journal are
+the personal tools; organic discoverability is what fills the top of
+the funnel. Without discovery, Crema is a private drink tracker. With
+it, Crema is how India finds its specialty coffee.
 
 **Two participants today, one deferred:**
 
 | Participant | Daily job | Why they stay |
 |-------------|-----------|---------------|
-| **Consumer** | See what others are drinking, share what I'm tasting, discover new beans, buy | Social feed, tasting journal, shelf, Buy button |
-| **Roaster** | Tell my story, reach an audience, sell beans | Storefront, sourcing stories, audience analytics |
+| **Consumer** | Discover new beans, manage my shelf, read roaster journals, buy | Searchable catalog, coffee shelf, roaster journals, Buy button |
+| **Roaster** | Tell my story, get discovered, sell beans | Storefront, sourcing journals, catalog analytics |
 
 **Cafés are deliberately deferred.** Loyalty programs, supplier
 discovery, POS, and wholesale commerce were originally Phase 1
@@ -61,10 +67,11 @@ When we come back to cafés, we expect to **rewrite the surfaces from
 scratch** — not revive what was there — because the right design for
 café tooling will look different by then.
 
-The single metric that matters: **weekly actions per user.** A post,
-a like, a tasting note, a Buy click — any of these count. If a user
-does one action per week, they're retained. Everything we build
-should make one of those actions easier or more rewarding.
+The single metric that matters: **weekly actions per user.** A search,
+a shelf save, a journal-article read or comment, a Buy click — any of
+these count. If a user does one action per week, they're retained.
+Everything we build should make one of those actions easier or more
+rewarding.
 
 ---
 
@@ -93,8 +100,8 @@ recommend a brew method. Micro-roasters compete on story and quality,
 not volume. They need a megaphone, and that megaphone needs to speak
 their language, not the consumer's. Crema is that megaphone — a
 discovery channel they don't have to pay for upfront, where the
-consumer audience builds because the feed gives people a reason to
-browse.
+consumer audience builds because search-discoverable bean pages give
+people a reason to land here.
 
 **The dominant national brand** has 10-year fixed-cost farm
 contracts, a massive product catalog, and retail stores. They set the
@@ -149,31 +156,35 @@ Phase 1, consumers use Crema to manage their coffee life and roasters
 use it to tell their story. No money changes hands through Crema yet
 — but every participant has a reason to open the app every week.
 
-**Consumer side:** social feed (the daily pull — see what friends and
-followed roasters are posting, discover beans through other people's
-experiences), tasting journal, coffee shelf (beans I own / have
-owned), Buy button (outbound to roaster's site — every click tracked
-as an intent signal). The feed is the top of the funnel; the journal
-and shelf are where the habit deepens.
+**Consumer side:** a complete, searchable catalog (the daily pull —
+find beans across 120+ roasters you can't discover anywhere else),
+coffee shelf (beans I own / want / have owned, the heart being the one
+save-and-favorite control), roaster journals to read (sourcing stories
++ article comments), and the Buy button (outbound to roaster's site —
+every click tracked as an intent signal). Organic search is the top of
+the funnel; the shelf and the journals are where the habit deepens.
 
-**Roaster side:** product catalog with sourcing stories (long-form
-posts about farms and processing, not just tasting-note shorthand).
-Brew method recommendations as infographic cards — the roaster's
-voice alongside the consumer's tasting notes. Audience analytics —
-followers, post reach, Buy clicks per product — so roasters can see
-what's working.
+**Roaster side:** product catalog with sourcing journals (long-form
+articles about farms and processing, not just tasting-note shorthand)
+plus in-article bean placements. Catalog analytics — shelf-saves, Buy
+clicks per product, and journal-article engagement — so roasters can
+see what's working, built on catalog signals rather than followers.
 
-**Platform:** notifications surface follow / like / comment / Buy-
-click activity. Admin traction dashboard with every metric an
-investor would ask for. Catalog ingestion and enrichment runs at
-scale (today: ~15 roasters live, target 50+ before Phase 2).
+**Platform:** the catalog is pre-rendered and emits structured data
+(schema.org JSON-LD) so bean and roaster pages are crawlable by search
+engines and AI assistants — that crawlability *is* the discovery
+funnel. Admin traction dashboard with every metric an investor would
+ask for. Catalog ingestion and enrichment run at scale via an
+autonomous agent pipeline (today: ~15 roasters live, target 50+ before
+Phase 2).
 
 **Success looks like:**
 - 500 registered users in one city
 - 50 weekly active users
 - 20+ roasters with published profiles and complete catalogs
-- 100+ posts per week (feed activity)
+- 200+ shelf saves per week (engagement signal)
 - 50+ Buy clicks per week (intent signal)
+- Organic search / AI-assistant referrals a growing share of inbound
 - D7 retention ≥ 20%
 
 ---
@@ -186,13 +197,13 @@ want to sell. Now Crema handles money.
 **B2C — Consumer purchases.** The Buy button becomes a real checkout.
 Consumer taps Buy, sees price and delivery estimate, pays via UPI or
 card, order goes to the roaster for fulfillment. On delivery, Crema
-prompts "Add to your shelf? Write a tasting note?" — closing the loop
-from discovery to purchase to experience. Crema takes 3-5% of order
+prompts "Add to your shelf?" — closing the loop from discovery to
+purchase to ownership. Crema takes 3-5% of order
 value. The roaster sets the price and ships the beans; Crema never
 owns inventory.
 
 **Promoted listings.** Roasters pay to appear higher in catalog
-search and feed discovery. Simple, low-touch, intent-aligned — the
+search and browse rankings. Simple, low-touch, intent-aligned — the
 consumer is already searching for an Ethiopian; the promotion just
 surfaces the relevant roaster faster.
 
@@ -269,31 +280,31 @@ is gated on traction, not on time.
 Crema's defensibility is the **graph:**
 
 ```
-Consumer ──tasting_note──▶ Product ◀──sourcing_story── Roaster
+Consumer ───shelf save───▶ Product ◀──sourcing journal── Roaster
     │                         │                            ▲
-    │ shelf / Buy intent      │ feed post                  │ delivery (Phase 3)
+    │ Buy intent              │ catalog page (SEO)         │ delivery (Phase 3)
     ▼                         ▼                            │
    Purchase ─────────────────────────────────────────── Roaster (fulfilment)
 ```
 
-Every action makes the graph denser. A tasting note connects a
-consumer to a product. A sourcing story connects a roaster to a farm.
-A shelf entry marks ownership. A Buy click signals intent. A purchase
-closes the discovery-to-ownership loop. A delivery closes the
-purchase loop with physical goods on a freshness clock no one else
-can match.
+Every action makes the graph denser. A shelf save connects a consumer
+to a product. A sourcing journal connects a roaster to a farm. A Buy
+click signals intent. A purchase closes the discovery-to-ownership
+loop. A delivery closes the purchase loop with physical goods on a
+freshness clock no one else can match.
 
 No single participant can replicate this graph. Blue Tokai knows
 their own sales but not what Nada's customers think. Nada knows their
-beans but not who the broader Indian specialty audience is following
-this week. Crema is the only entity that sees both perspectives at
+beans but not what the broader Indian specialty audience is
+discovering this week. Crema is the only entity that sees both perspectives at
 once — and in Phase 3, the only entity that physically moves the
 beans from roaster to consumer on a freshness window the roaster's
 own logistics can't beat.
 
-The flywheel: more roasters → more products → more tasting notes →
-more discovery for consumers → more Buy clicks → more roaster revenue
-→ more roasters. Density compounds. When cafés re-enter in Phase N,
+The flywheel: more roasters → more products → more catalog pages
+indexed → more organic discovery for consumers → more shelf saves +
+Buy clicks → more roaster revenue → more roasters. Density compounds.
+When cafés re-enter in Phase N,
 the graph extends with a third edge type, but the consumer-roaster
 substrate has to exist first or the third edge has nothing to attach
 to.
@@ -318,12 +329,11 @@ to.
   not Yelp reviews. There is no star rating, no roaster ranking. This
   is intentional — it keeps roasters collaborative on the platform
   rather than competitive against each other.
-- **Not optimising for scroll time.** The social feed is central to
-  retention — it's how consumers discover beans and stay connected to
-  the community — but it is not engineered for addiction.
-  Chronological only. No algorithmic ranking, no stories, no reels,
-  no engagement tricks. The feed serves coffee, not attention
-  metrics.
+- **Not optimising for scroll time.** There is no feed — discovery is
+  search + browse, not an algorithmic timeline. No infinite scroll, no
+  stories, no reels, no engagement tricks. We optimise for *finding the
+  right bean fast*, not for time-on-app. The catalog serves coffee, not
+  attention metrics.
 - **Not building for cafés yet.** Cafés are a deferred participant,
   not a forgotten one. We will not bolt café surfaces back onto
   Phase 1 in pieces — that's how we got the complexity that drove the
