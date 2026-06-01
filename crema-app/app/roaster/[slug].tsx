@@ -27,22 +27,17 @@ import { useAuth } from "../../src/hooks/useAuth";
 import { useBreakpoint } from "../../src/hooks/useBreakpoint";
 import CropGestureWrap from "../../src/components/shell/CropGestureWrap";
 import { onChromeScroll } from "../../src/utils/chromeScroll";
-import { hidePost, dislikePost, confirmAndReport } from "../../src/utils/postMenuActions";
 import { apiFetchRaw, resolveUploadUrl } from "../../src/api/client";
 import { t, makeStyles } from "../../src/tokens/useTokens";
 import CoffeeCard from "../../src/components/CoffeeCard";
 import RoasterLogo from "../../src/components/primitives/RoasterLogo";
-import { useFloatingFab } from "../../src/contexts/FloatingFabContext";
-import FabPill from "../../src/components/primitives/FabPill";
 import SiteHeader from "../../src/components/SiteHeader";
-import PostCard from "../../src/components/domain/PostCard";
 import ArticleListRow from "../../src/components/domain/ArticleListRow";
 import BusinessAnalytics from "../../src/components/analytics/BusinessAnalytics";
 import CremaLogo from "../../src/components/CremaLogo";
 import EditableCoffeeCard from "../../src/components/domain/EditableCoffeeCard";
 import ImageUploadModal from "../../src/components/ImageUploadModal";
-import PostPromptModal from "../../src/components/PostPromptModal";
-import { openPostModal, openComposePost, ConfirmDeleteModal, useTabSlider } from "../../src/components/primitives";
+import { ConfirmDeleteModal, useTabSlider } from "../../src/components/primitives";
 import Animated from "react-native-reanimated";
 import { listen } from "../../src/utils/events";
 
@@ -903,10 +898,6 @@ export default function RoasterDetailPage() {
       if (d && typeof d === "object" && !Array.isArray(d)) setPopularity(d);
     }).catch(() => {});
   }, []);
-  // Post-prompt state — same pattern as the café page
-  const [postPrompt, setPostPrompt] = useState<{
-    title: string; body: string; teaser: string;
-  } | null>(null);
   const coffees = useMemo(() => {
     const seen = new Set<string>();
     return [...localCoffees, ...catalogCoffees].filter((c) => {
@@ -924,20 +915,8 @@ export default function RoasterDetailPage() {
 
   const isOwner = user?.account_type === "roaster" && user?.roaster_slug === slug;
 
-  // Posts
-  const [allPosts, setAllPosts] = useState<any[]>([]);
-  const [postsLoading, setPostsLoading] = useState(true);
-  const [visiblePosts, setVisiblePosts] = useState(POSTS_PER_PAGE);
-
-  // Follow
-  const [following, setFollowing] = useState(false);
-  const [followerCount, setFollowerCount] = useState(0);
-  const [followers, setFollowers] = useState<any[]>([]);
-  const [showFollowersModal, setShowFollowersModal] = useState(false);
-  const [myFollows, setMyFollows] = useState<string[]>([]);
-
   // Tabs & compose
-  const [activeTab, setActiveTab] = useState<"posts" | "beans" | "journals" | "ads" | "analytics">("posts");
+  const [activeTab, setActiveTab] = useState<"beans" | "journals" | "ads" | "analytics">("beans");
   const [adsSubTab, setAdsSubTab] = useState<"journal" | "search" | "feed">("journal");
   // Sliding underlines — one for the top tab strip (POSTS / BEANS /
   // JOURNAL / ADS / ANALYTICS) and one for the ADS sub-strip
@@ -949,7 +928,6 @@ export default function RoasterDetailPage() {
   const [adsJournal, setAdsJournal] = useState<any[] | null>(null);
   const [adsJournalLoading, setAdsJournalLoading] = useState(false);
   const adsFetchedRef = useRef<string | null>(null);
-  const [postToDelete, setPostToDelete] = useState<any>(null);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
   // Per-roaster article top-up — mirrors browse.tsx's JOURNALS chip
@@ -1120,29 +1098,6 @@ export default function RoasterDetailPage() {
   const [isEditing, setIsEditing] = useState(edit === "1");
   const [saving, setSaving] = useState(false);
 
-  // Register the "Create post" FabPill at root layout via
-  // FloatingFabContext (§2.40.18). Only renders when the viewer
-  // owns this roaster, isn't currently editing the profile, and
-  // is on the Posts tab — same conditions as the prior inline
-  // circular FAB. Anchored to the relative wrapper's stable
-  // bottom edge so it doesn't jitter on chrome-scroll.
-  useFloatingFab(
-    isOwner && !isEditing && activeTab === "posts" ? (
-      <FabPill
-        icon={<Plus size={17} color={t.color["text.on-light"]} strokeWidth={2.5} />}
-        label="Create post"
-        onPress={() =>
-          openComposePost({
-            endpoint: "/roaster-posts",
-            extraData: { roaster_slug: slug },
-            refetchEventName: "crema:roaster-posts-updated",
-          })
-        }
-        style={{ position: "absolute" as any, bottom: 28, right: 28 }}
-      />
-    ) : null,
-  );
-
   // Profile derived values
   const heroImageUrl = useMemo(
     () => profile?.hero_image_url || (!profileLoading && coffees.find((c: any) => c.image_url)?.image_url) || null,
@@ -1180,39 +1135,6 @@ export default function RoasterDetailPage() {
 
   // ── Data loading ───────────────────────────────────────────────────────────
 
-  const loadPosts = useCallback(async () => {
-    try {
-      setPostsLoading(true);
-      const res = await apiFetchRaw(`/roasters/${slug}/posts`);
-      const d = res?.data ?? res;
-      setAllPosts(d?.posts || []);
-    } catch { setAllPosts([]); }
-    finally { setPostsLoading(false); }
-  }, [slug]);
-
-  useEffect(() => { if (slug) loadPosts(); }, [loadPosts, slug]);
-  // Refetch on the sitewide composer's emit (§2.40.3-follow-up).
-  useEffect(() => listen("crema:roaster-posts-updated", () => { loadPosts(); }), [loadPosts]);
-
-  useEffect(() => {
-    if (!slug) return;
-    // `/followers/{slug}` now bundles `viewer_following` so the page
-    // doesn't pay a second `/follow-status/{slug}` round-trip — one
-    // call covers both the follower list/count and the "Follow /
-    // Following" CTA state. Anonymous viewers read false.
-    apiFetchRaw(`/followers/${slug}`).then((res) => {
-      const d = res?.data ?? res;
-      setFollowerCount(d?.follower_count || 0);
-      setFollowers(d?.followers || []);
-      setFollowing(d?.viewer_following || false);
-    }).catch(() => {});
-  }, [slug]);
-
-  // Default to beans tab if no posts
-  useEffect(() => {
-    if (!postsLoading && allPosts.length === 0) setActiveTab("beans");
-  }, [postsLoading, allPosts]);
-
   // Sync edit state
   useEffect(() => { if (edit === "1" && isOwner) setIsEditing(true); }, [edit, isOwner]);
   useEffect(() => {
@@ -1224,48 +1146,7 @@ export default function RoasterDetailPage() {
     }
   }, [isEditing, aboutBlurb, profile]);
 
-  // Fetch my follows when followers modal opens
-  useEffect(() => {
-    if (!showFollowersModal || !user) return;
-    apiFetchRaw<any>("/my-following")
-      .then((res) => { const d = res?.data ?? res; setMyFollows(d.following || []); })
-      .catch(() => {});
-  }, [showFollowersModal, user]);
-
   // ── Action handlers ────────────────────────────────────────────────────────
-
-  const handleFollowToggle = useCallback(async () => {
-    try {
-      const res = await apiFetchRaw(`/roasters/${slug}/follow`, { method: "POST" });
-      const d = res?.data ?? res;
-      setFollowing(d.following);
-      setFollowerCount(d.follower_count);
-      apiFetchRaw(`/followers/${slug}`).then((r) => {
-        const fd = r?.data ?? r;
-        setFollowers(fd?.followers || []);
-      }).catch(() => {});
-    } catch { setFollowing((f) => !f); }
-  }, [slug]);
-
-  const handleToggleFollowInModal = useCallback(async (roasterSlug: string) => {
-    try {
-      const res = await apiFetchRaw<any>(`/roasters/${roasterSlug}/follow`, { method: "POST" });
-      const d = res?.data ?? res;
-      setMyFollows((prev) => d.following ? [...prev, roasterSlug] : prev.filter((s) => s !== roasterSlug));
-    } catch (e) { console.warn("Follow toggle failed:", e); }
-  }, []);
-
-  const handlePinToggle = useCallback(async (postId: number) => {
-    try { await apiFetchRaw(`/posts/${postId}/pin`, { method: "PUT" }); await loadPosts(); }
-    catch (e: any) { console.warn("Pin toggle error:", e.message); }
-  }, [loadPosts]);
-
-  const handleDeletePost = useCallback(async (postId: number) => {
-    try {
-      await apiFetchRaw(`/posts/${postId}`, { method: "DELETE" });
-      setAllPosts((prev) => prev.filter((p) => p.id !== postId));
-    } catch (e: any) { console.warn("Delete post error:", e.message); }
-  }, []);
 
   const handleCreateProduct = useCallback(async (data: any) => {
     try {
@@ -1280,13 +1161,6 @@ export default function RoasterDetailPage() {
       };
       setLocalCoffees((prev) => [normalised, ...prev]);
       appendProducts([normalised]);
-      // Offer the roaster a chance to announce the new coffee in a post.
-      const subject = data?.coffee_name || "a new coffee";
-      setPostPrompt({
-        title: "New coffee added",
-        body: `You just added "${subject}" to your catalog.`,
-        teaser: `New in: ${subject}. Just added to our lineup.`,
-      });
     } catch (e: any) { console.warn("Create product error:", e.message); }
   }, [slug, appendProducts, roaster]);
 
@@ -1330,9 +1204,6 @@ export default function RoasterDetailPage() {
   }, [localCoffees]);
 
   const handleDeleteProduct = useCallback(async (productId: string) => {
-    // Capture the coffee name before optimistic removal for the prompt
-    const gone = localCoffees.find((c) => (c.product_id ?? c.id) === productId);
-    const subject = gone?.coffee_name || "a coffee";
     setDeletedProductIds((prev) => new Set([...prev, productId]));
     setLocalCoffees((prev) => prev.filter((c) => (c.product_id ?? c.id) !== productId));
     removeProduct(productId);
@@ -1345,11 +1216,6 @@ export default function RoasterDetailPage() {
           method: "POST", body: JSON.stringify({ product_id: productId }),
         });
       }
-      setPostPrompt({
-        title: "Coffee removed",
-        body: `You just removed "${subject}" from your catalog.`,
-        teaser: `${subject} has been taken off our catalog for now.`,
-      });
     } catch (e: any) { console.warn("Delete product error:", e.message); }
   }, [slug, removeProduct, localCoffees]);
 
@@ -1406,13 +1272,6 @@ export default function RoasterDetailPage() {
     e.preventDefault();
     setEditHeroZoom((z: number) => Math.round(Math.max(1, Math.min(5, z - e.deltaY * 0.01)) * 100) / 100);
   }, [isEditing]);
-
-  // Sorted posts: pinned first, then by date
-  const sortedPosts = useMemo(() => {
-    const pinned = allPosts.filter((p) => p.is_featured);
-    const rest = allPosts.filter((p) => !p.is_featured);
-    return [...pinned, ...rest];
-  }, [allPosts]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1631,55 +1490,11 @@ export default function RoasterDetailPage() {
                     <ExternalLinkIcon /><Text style={s.metaText}>Website</Text>
                   </Pressable>
                 )}
-                <Pressable onPress={() => setShowFollowersModal(true)} style={s.metaItem}>
-                  <UsersIcon /><Text style={s.metaText}>{followerCount} {followerCount === 1 ? "follower" : "followers"}</Text>
-                </Pressable>
                 {city && (<View style={s.metaItem}><MapPinIcon /><Text style={s.metaText}>{city}</Text></View>)}
               </>
             )}
           </View>
 
-          {!isOwner && (
-            <View style={s.followRow}>
-              <FollowButton testID="roaster-follow-btn" following={following} onToggle={handleFollowToggle} />
-              {user && (
-                <Pressable
-                  onPress={async () => {
-                    try {
-                      const raw: any = await apiFetchRaw(
-                        `/direct-threads/with-roaster/${slug}`,
-                        { method: "POST" },
-                      );
-                      const d = raw?.data ?? raw;
-                      if (!d?.thread_id) return;
-                      // Cross-platform open — same pattern as user profile.
-                      // Native / narrow web: nav to /messages with route
-                      // params; Messages screen reads useLocalSearchParams
-                      // and opens the thread. Web wide: hit Navbar's
-                      // MessagesDropdown bridge.
-                      if (isMobile) {
-                        router.push({
-                          pathname: "/messages",
-                          params: { thread_id: String(d.thread_id), kind: "direct_message" },
-                        } as any);
-                      } else if (typeof window !== "undefined") {
-                        (window as any).__crema_openThread?.("direct_message", d.thread_id);
-                      }
-                    } catch (e) {
-                      console.warn("Open roaster DM failed:", e);
-                    }
-                  }}
-                  testID="roaster-message-btn"
-                  style={s.messageBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Message ${roaster.name}`}
-                >
-                  <MessageCircle size={11} color={t.color["text.on-dark"]} strokeWidth={2} />
-                  <Text style={s.messageBtnText}>Message</Text>
-                </Pressable>
-              )}
-            </View>
-          )}
         </View>
 
         {/* ── RIGHT PANEL ── */}
@@ -1687,16 +1502,8 @@ export default function RoasterDetailPage() {
           <ScrollView
             style={[s.rightScroll, !isWide && { flex: undefined } as any]}
             contentContainerStyle={s.rightContent}
-            showsVerticalScrollIndicator={false} scrollEventThrottle={400}
+            showsVerticalScrollIndicator={false}
             scrollEnabled={isWide}
-            onScroll={(e) => {
-              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-              if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 300) {
-                if (activeTab === "posts" && visiblePosts < sortedPosts.length) {
-                  setVisiblePosts((c) => Math.min(c + POSTS_PER_PAGE, sortedPosts.length));
-                }
-              }
-            }}
           >
             {/* Hero — wide web only (§2.35 redo). On mobile the hero
                banner is rendered above the pageContainer, with the
@@ -1758,20 +1565,15 @@ export default function RoasterDetailPage() {
                so POSTS / BEANS / JOURNALS / ANALYTICS can scroll past
                the viewport when the full labels overflow. */}
             {(() => {
-              // Spec-aligned with café + user-profile tab bars: the
-              // POSTS tab is always present (matches BIO/MENU/POSTS on
-              // café; POSTS/SHELF/STAMPS on user profile) so the tab
-              // count + ordering doesn't shift based on content state.
-              // Empty state copy lives inside the POSTS tab content.
+              // BEANS is the default + first tab (catalog-only). JOURNAL
+              // is the roaster's scraped articles; ADS + ANALYTICS are
+              // owner-only.
               const tabs = (
                 <>
                   {/* slideTo fires the underline on the UI thread
                      before setActiveTab triggers the content swap —
                      keeps the slide smooth even when the new tab's
                      content mount is expensive. */}
-                  <Pressable onPress={() => { tabSlider.slideTo("posts"); setActiveTab("posts"); }} ref={tabSlider.trackTab("posts")} style={s.rightTab}>
-                    <Text style={[s.rightTabText, activeTab === "posts" && s.rightTabTextActive]}>POSTS</Text>
-                  </Pressable>
                   <Pressable onPress={() => { tabSlider.slideTo("beans"); setActiveTab("beans"); }} ref={tabSlider.trackTab("beans")} style={s.rightTab}>
                     <Text style={[s.rightTabText, activeTab === "beans" && s.rightTabTextActive]}>BEANS</Text>
                   </Pressable>
@@ -1816,56 +1618,6 @@ export default function RoasterDetailPage() {
                 <View style={s.rightTabBar}>{tabs}</View>
               );
             })()}
-
-            {/* POSTS TAB */}
-            {activeTab === "posts" && (
-              <>
-                {!postsLoading && sortedPosts.length > 0 && sortedPosts.slice(0, visiblePosts).map((post, i) => (
-                  <View key={post.id}>
-                    <PostCard
-                      post={post} user={user} isOwner={isOwner}
-                      onOpen={(p) => openPostModal({ post: p, mode: "view" })}
-                      onComment={(p) => openPostModal({ post: p, mode: "comment" })}
-                      onRepost={(p) => openPostModal({ post: p, mode: "repost" })}
-                      onViewOriginal={(id) => openPostModal({ postId: id, mode: "comment" })}
-                      onHide={(p) => hidePost(p.id)}
-                      onReport={(p) => confirmAndReport(p.id)}
-                      onDislike={(p) => dislikePost(p.id)}
-                      onEdit={(p) => openComposePost({
-                        editPostId: p.id,
-                        endpoint: "/roaster-posts",
-                        extraData: { roaster_slug: slug },
-                        refetchEventName: "crema:roaster-posts-updated",
-                        initialData: {
-                          body: p.teaser || (p as any).body,
-                          images: (p as any).images || [],
-                          location: p.location || "",
-                        },
-                      })}
-                      onPin={(p) => handlePinToggle(p.id)}
-                      onDelete={(p) => setPostToDelete(p)}
-                    />
-                    {i < Math.min(sortedPosts.length, visiblePosts) - 1 && <View style={s.dividerLight} />}
-                  </View>
-                ))}
-                {isOwner && !postsLoading && allPosts.length === 0 && (
-                  <View style={s.emptyPostsWrap}>
-                    <Text style={s.emptyPostsTitle}>Share your story</Text>
-                    <Text style={s.emptyPostsBody}>Post about your coffee, link to press coverage, or share anything worth reading.</Text>
-                    <Pressable
-                      onPress={() => openComposePost({
-                        endpoint: "/roaster-posts",
-                        extraData: { roaster_slug: slug },
-                        refetchEventName: "crema:roaster-posts-updated",
-                      })}
-                      style={s.emptyPostsBtn}
-                    >
-                      <Text style={s.emptyPostsBtnText}>Write your first post {"\u2192"}</Text>
-                    </Pressable>
-                  </View>
-                )}
-              </>
-            )}
 
             {/* BEANS TAB */}
             {activeTab === "beans" && (
@@ -2005,104 +1757,16 @@ export default function RoasterDetailPage() {
               <BusinessAnalytics kind="roaster" slug={slug} />
             )}
 
-            {/* Followers modal */}
-            <Modal visible={showFollowersModal} transparent animationType="fade" onRequestClose={() => setShowFollowersModal(false)}>
-              <View style={s.followersOverlayWrap}>
-                <Pressable style={s.followersOverlayBg} onPress={() => setShowFollowersModal(false)} />
-                <View style={s.followersModal}>
-                  <View style={s.followersModalHeader}>
-                    <Text style={s.followersCount}>{followerCount} {followerCount === 1 ? "follower" : "followers"}</Text>
-                    <Pressable onPress={() => setShowFollowersModal(false)} hitSlop={8}><X size={18} color={t.color["text.primary"]} /></Pressable>
-                  </View>
-                  <ScrollView style={s.followersScrollArea} showsVerticalScrollIndicator={false}>
-                    {followers.length === 0 ? (
-                      <View style={s.followersEmpty}><Text style={s.followersEmptyText}>No followers yet</Text></View>
-                    ) : followers.map((f: any, idx: number) => {
-                      const isMe = user && f.username === user.username;
-                      const followSlug = f.roaster_slug || f.username;
-                      const amFollowing = myFollows.includes(followSlug);
-                      const isRoasterAcct = f.account_type === "roaster" && f.roaster_slug;
-                      return (
-                        <View key={f.username}>
-                          {idx > 0 && <View style={s.followerDivider} />}
-                          <View style={s.followerRow}>
-                            <Pressable onPress={() => { setShowFollowersModal(false); router.push(isRoasterAcct ? `/roaster/${f.roaster_slug}` : `/user/${f.username}`); }} style={s.followerPressable}>
-                              {f.avatar_url ? (
-                                <Image source={{ uri: resolveUploadUrl(f.avatar_url) }} style={s.followerAvatar} contentFit="cover" />
-                              ) : (
-                                <View style={s.followerAvatarFallback}>
-                                  <Text style={s.followerInitial}>{(f.display_name || f.username || "?")[0].toUpperCase()}</Text>
-                                </View>
-                              )}
-                              <View style={s.followerInfo}>
-                                <Text style={s.followerName} numberOfLines={1}>
-                                  {(f.display_name?.length || 0) > 25 ? f.display_name.slice(0, 25) + "…" : f.display_name}
-                                </Text>
-                                {f.location && (
-                                  <View style={s.followerLocationRow}>
-                                    <MapPin size={12} color={t.color.accent} strokeWidth={2} />
-                                    <Text style={s.followerLocation} numberOfLines={1}>{f.location}</Text>
-                                  </View>
-                                )}
-                              </View>
-                            </Pressable>
-                            {!isMe && (
-                              <Pressable onPress={() => handleToggleFollowInModal(followSlug)} style={[s.followerFollowBtn, amFollowing && s.followerFollowBtnActive]}>
-                                {!amFollowing && <Plus size={10} color={t.color["text.secondary"]} strokeWidth={2.5} />}
-                                {amFollowing && <Check size={10} color={t.color["text.primary"]} strokeWidth={2.5} />}
-                                <Text style={[s.followerFollowBtnText, amFollowing && s.followerFollowBtnTextActive]}>{amFollowing ? "Following" : "Follow"}</Text>
-                              </Pressable>
-                            )}
-                          </View>
-                        </View>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              </View>
-            </Modal>
-
             <View style={{ height: 100 }} />
           </ScrollView>
 
           {isEditing && <View style={s.editDimOverlay} pointerEvents="none" />}
-
-          {/* FAB — owner, posts tab. Opens the same floating composer modal
-              the PostPromptModal flow uses, so a roaster gets the same
-              "float over the page" experience the consumer feed FAB has.
-              The old version expanded ComposePost inline at the top of the
-              Posts tab (and posted as the user, not the roaster), which
-              was the wrong mechanism. The pill itself is now rendered at
-              root layout via `useFloatingFab` (§2.40.18) — see the
-              `useFloatingFab` call earlier in this component. */}
-
-          {/* Edit-post path (§2.40.3-follow-up): routes through the
-             sitewide composer via `openComposePost({ editPostId })` —
-             the global mount handles the PUT + refetch emit. */}
 
           {/* Image upload modals */}
           <ImageUploadModal visible={showLogoUpload} title="Upload Logo" purpose="logo" currentUrl={editLogo}
             onConfirm={(url) => setEditLogo(url)} onClose={() => setShowLogoUpload(false)} />
           <ImageUploadModal visible={showHeroUpload} title="Upload Cover Image" purpose="hero" currentUrl={editHero}
             onConfirm={(url) => setEditHero(url)} onClose={() => setShowHeroUpload(false)} />
-
-          {/* Post-prompt after product mutation (§2.40.3-follow-up):
-             routes straight to the sitewide composer with prefill. */}
-          <PostPromptModal
-            visible={!!postPrompt}
-            title={postPrompt?.title || ""}
-            body={postPrompt?.body || ""}
-            onConfirm={() => {
-              openComposePost({
-                endpoint: "/roaster-posts",
-                extraData: { roaster_slug: slug },
-                refetchEventName: "crema:roaster-posts-updated",
-                initialData: { body: postPrompt?.teaser || "", images: [], location: "" },
-              });
-              setPostPrompt(null);
-            }}
-            onClose={() => setPostPrompt(null)}
-          />
 
           {/* §2.9 / §2.19 — confirm-before-delete via the shared
              primitive so every destructive sheet on the site reads
@@ -2148,16 +1812,6 @@ export default function RoasterDetailPage() {
             </View>
           </Modal>
 
-          <ConfirmDeleteModal
-            visible={!!postToDelete}
-            title="Delete this post?"
-            confirmLabel="Delete"
-            onConfirm={async () => {
-              if (!postToDelete) return;
-              await handleDeletePost(postToDelete.id);
-            }}
-            onClose={() => setPostToDelete(null)}
-          />
         </View>
       </View>
       </ResponsiveWrapper>
