@@ -43,10 +43,9 @@ export default function ContactCrema() {
   const scrollRef = useRef<any>(null);
 
   // Badge poll (while closed): how many Crema replies the user hasn't
-  // seen. Skipped when logged out (no thread) or for the admin (they use
-  // the Inbox tab).
-  const isAdmin = user?.username === "crema";
-  const enabled = !!user && !isAdmin;
+  // seen. Skipped when logged out (no thread). The admin sees the widget
+  // too (their own thread is harmless) so it's always QA-able.
+  const enabled = !!user;
 
   useEffect(() => {
     if (!enabled) { setUnread(0); return; }
@@ -74,11 +73,11 @@ export default function ContactCrema() {
 
   // Load + poll for replies while the panel is open.
   useEffect(() => {
-    if (!open || !user || isAdmin) return;
+    if (!open || !user) return;
     loadThread();
     const id = setInterval(loadThread, 6000);
     return () => clearInterval(id);
-  }, [open, user, isAdmin, loadThread]);
+  }, [open, user, loadThread]);
 
   // Keep the latest message in view.
   useEffect(() => {
@@ -105,9 +104,8 @@ export default function ContactCrema() {
     }
   };
 
-  // Hidden on the sign-in screen and for the admin account.
+  // Hidden only on the sign-in screen.
   if (pathname?.startsWith("/auth")) return null;
-  if (isAdmin) return null;
 
   return (
     <>
@@ -217,6 +215,7 @@ export default function ContactCrema() {
 const s = StyleSheet.create({
   fab: {
     position: "absolute",
+    zIndex: 60,
     bottom: 28,
     width: 52,
     height: 52,
@@ -249,6 +248,7 @@ const s = StyleSheet.create({
   },
   panel: {
     position: "absolute",
+    zIndex: 60,
     bottom: 92,
     backgroundColor: t.color["card.front"],
     borderRadius: 14,
