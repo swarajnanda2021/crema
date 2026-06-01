@@ -38,10 +38,11 @@ import Navbar from "../../src/components/Navbar";
 import CremaLogo from "../../src/components/CremaLogo";
 import TractionDashboard from "../../src/components/admin/TractionDashboard";
 import CatalogOps from "../../src/components/admin/CatalogOps";
+import SupportInbox from "../../src/components/admin/SupportInbox";
 import { useFloatingFab } from "../../src/contexts/FloatingFabContext";
 import FabPill from "../../src/components/primitives/FabPill";
 
-type ProfileTab = "posts" | "shelf" | "following" | "analytics" | "catalog";
+type ProfileTab = "posts" | "shelf" | "following" | "analytics" | "catalog" | "inbox";
 
 // Admin check — defense in depth: slug match + flag match. The backend
 // endpoint enforces this same predicate on /api/stats/traction, so a
@@ -209,7 +210,7 @@ export default function ProfilePage() {
   // deep-link returns from descendant pages (e.g. admin/roaster back
   // button when the back-stack is empty) land on the right tab.
   const [activeTab, setActiveTab] = useState<ProfileTab>(() => {
-    const valid: ProfileTab[] = ["posts", "shelf", "following", "analytics", "catalog"];
+    const valid: ProfileTab[] = ["posts", "shelf", "following", "analytics", "catalog", "inbox"];
     return (tabParam && valid.includes(tabParam as ProfileTab)) ? (tabParam as ProfileTab) : "posts";
   });
   const tabSlider = useTabSlider(activeTab);
@@ -784,7 +785,7 @@ export default function ProfilePage() {
   const isAdmin = isAdminUser(user);
   const baseTabs: ProfileTab[] = ["posts", "shelf", "following"];
   const visibleTabs: ProfileTab[] = isAdmin
-    ? [...baseTabs, "analytics", "catalog"]
+    ? [...baseTabs, "analytics", "catalog", "inbox"]
     : baseTabs;
   const baseLabel = (tab: ProfileTab) =>
     tab === "posts"
@@ -795,7 +796,9 @@ export default function ProfilePage() {
       ? "FOLLOWING"
       : tab === "analytics"
       ? "SITE ANALYTICS"
-      : "CATALOG OPS";
+      : tab === "catalog"
+      ? "CATALOG OPS"
+      : "INBOX";
 
   const tabChildren = (
     <>
@@ -914,6 +917,12 @@ export default function ProfilePage() {
     tabContent = (
       <View style={s.adminTabContent}>
         <CatalogOps />
+      </View>
+    );
+  } else if (isAdmin && activeTab === "inbox") {
+    tabContent = (
+      <View style={s.adminTabContent}>
+        <SupportInbox />
       </View>
     );
   } else if (activeTab === "following") {
