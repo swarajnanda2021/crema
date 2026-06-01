@@ -47,6 +47,32 @@ CREATE INDEX IF NOT EXISTS idx_shelf_user ON shelf_entries(user_id);
 CREATE INDEX IF NOT EXISTS idx_shelf_product ON shelf_entries(product_id);
 CREATE INDEX IF NOT EXISTS idx_clicks_roaster ON click_events(roaster_slug);
 CREATE INDEX IF NOT EXISTS idx_clicks_product ON click_events(product_id);
+
+-- ── Contact Crema (support) ──────────────────────────────────────────
+-- Scoped support chat: every thread is a single user <-> Crema-admin
+-- conversation (no peer-to-peer). This is the catalog-only replacement
+-- for the removed DM system — feedback + roaster-join inquiries only.
+CREATE TABLE IF NOT EXISTS support_threads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    status TEXT NOT NULL DEFAULT 'open',
+    unread_admin INTEGER NOT NULL DEFAULT 0,
+    unread_user INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    last_message_at TEXT NOT NULL,
+    UNIQUE(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS support_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    thread_id INTEGER NOT NULL REFERENCES support_threads(id) ON DELETE CASCADE,
+    sender TEXT NOT NULL CHECK (sender IN ('user','admin')),
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_threads_user ON support_threads(user_id);
+CREATE INDEX IF NOT EXISTS idx_support_messages_thread ON support_messages(thread_id, created_at);
 """
 
 

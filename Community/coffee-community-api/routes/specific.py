@@ -94,6 +94,190 @@ def link_preview(url: str = ""):
         return ok(result, resource="link_preview")
 
 
+# ── Contact Crema (support) ──────────────────────────────────────────
+# Scoped support chat: every thread is a single user <-> Crema-admin
+# conversation (no peer-to-peer). The catalog-only replacement for the
+# removed DM system — feedback + roaster-join inquiries only. "Unread"
+# counts are the notification mechanism (admin: unread_admin per thread;
+# user: unread_user on their one thread → the floating-widget badge).
+
+
+@router.get("/support/my-thread")
+def support_my_thread(user=Depends(get_current_user)):
+    """The signed-in user's single support thread + messages. Opening it
+    marks Crema's replies as read by the user (clears the badge)."""
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT * FROM support_threads WHERE user_id = ?", (user["id"],)
+        ).fetchone()
+        if not row:
+            return ok({"thread": None, "messages": []}, resource="support")
+        db.execute(
+            "UPDATE support_threads SET unread_user = 0 WHERE id = ?", (row["id"],)
+        )
+        db.commit()
+        msgs = db.execute(
+            "SELECT * FROM support_messages WHERE thread_id = ? ORDER BY created_at ASC",
+            (row["id"],),
+        ).fetchall()
+        return ok(
+            {"thread": dict(row), "messages": [dict(m) for m in msgs]},
+            resource="support",
+        )
+    finally:
+        db.close()
+
+
+@router.get("/support/my-unread")
+def support_my_unread(user=Depends(get_current_user)):
+    """Unread Crema-reply count for the floating-widget badge."""
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT unread_user FROM support_threads WHERE user_id = ?", (user["id"],)
+        ).fetchone()
+        return ok({"unread": (row["unread_user"] if row else 0)}, resource="support")
+    finally:
+        db.close()
+
+
+@router.post("/support/messages", status_code=201)
+def support_post_message(body: dict, user=Depends(get_current_user)):
+    """Send a message to Crema. Lazily creates the user's one thread and
+    bumps the admin-unread counter."""
+    text = ((body or {}).get("body") or "").strip()
+    if not text:
+        from fastapi import HTTPException
+        raise HTTPException(400, "Message body required")
+    import datetime
+    now = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id FROM support_threads WHERE user_id = ?", (user["id"],)
+        ).fetchone()
+        if row:
+            tid = row["id"]
+            db.execute(
+                "UPDATE support_threads SET last_message_at = ?, "
+                "unread_admin = unread_admin + 1, status = 'open' WHERE id = ?",
+                (now, tid),
+            )
+        else:
+            cur = db.execute(
+                "INSERT INTO support_threads (user_id, status, unread_admin, "
+                "unread_user, created_at, last_message_at) "
+                "VALUES (?, 'open', 1, 0, ?, ?)",
+                (user["id"], now, now),
+            )
+            tid = cur.lastrowid
+        db.execute(
+            "INSERT INTO support_messages (thread_id, sender, body, created_at) "
+            "VALUES (?, 'user', ?, ?)",
+            (tid, text, now),
+        )
+        db.commit()
+        return ok({"thread_id": tid}, resource="support")
+    finally:
+        db.close()
+
+
+@router.get("/admin/support/threads")
+def admin_support_threads(user=Depends(get_current_user)):
+    """Admin inbox: every support thread with the sender's identity, a
+    last-message preview, and unread counts. `total_unread` drives the
+    Inbox-tab badge."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        rows = db.execute(
+            """
+            SELECT t.*, u.username, u.display_name, u.avatar_url,
+                   (SELECT body FROM support_messages m WHERE m.thread_id = t.id
+                      ORDER BY m.created_at DESC LIMIT 1) AS last_body,
+                   (SELECT sender FROM support_messages m WHERE m.thread_id = t.id
+                      ORDER BY m.created_at DESC LIMIT 1) AS last_sender
+            FROM support_threads t JOIN users u ON u.id = t.user_id
+            ORDER BY t.last_message_at DESC
+            """
+        ).fetchall()
+        total_unread = db.execute(
+            "SELECT COALESCE(SUM(unread_admin), 0) AS n FROM support_threads"
+        ).fetchone()["n"]
+        return ok(
+            {"threads": [dict(r) for r in rows], "total_unread": total_unread},
+            resource="support",
+        )
+    finally:
+        db.close()
+
+
+@router.get("/admin/support/threads/{thread_id}")
+def admin_support_thread(thread_id: int, user=Depends(get_current_user)):
+    """Admin: one thread + messages. Opening it clears the admin-unread
+    counter for that thread."""
+    _require_admin(user)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT t.*, u.username, u.display_name, u.avatar_url "
+            "FROM support_threads t JOIN users u ON u.id = t.user_id WHERE t.id = ?",
+            (thread_id,),
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, "Thread not found")
+        db.execute(
+            "UPDATE support_threads SET unread_admin = 0 WHERE id = ?", (thread_id,)
+        )
+        db.commit()
+        msgs = db.execute(
+            "SELECT * FROM support_messages WHERE thread_id = ? ORDER BY created_at ASC",
+            (thread_id,),
+        ).fetchall()
+        return ok(
+            {"thread": dict(row), "messages": [dict(m) for m in msgs]},
+            resource="support",
+        )
+    finally:
+        db.close()
+
+
+@router.post("/admin/support/threads/{thread_id}/reply", status_code=201)
+def admin_support_reply(thread_id: int, body: dict, user=Depends(get_current_user)):
+    """Admin replies to a support thread; bumps the user-unread counter."""
+    _require_admin(user)
+    text = ((body or {}).get("body") or "").strip()
+    if not text:
+        from fastapi import HTTPException
+        raise HTTPException(400, "Reply body required")
+    import datetime
+    now = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id FROM support_threads WHERE id = ?", (thread_id,)
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, "Thread not found")
+        db.execute(
+            "INSERT INTO support_messages (thread_id, sender, body, created_at) "
+            "VALUES (?, 'admin', ?, ?)",
+            (thread_id, text, now),
+        )
+        db.execute(
+            "UPDATE support_threads SET last_message_at = ?, "
+            "unread_user = unread_user + 1 WHERE id = ?",
+            (now, thread_id),
+        )
+        db.commit()
+        return ok({"thread_id": thread_id}, resource="support")
+    finally:
+        db.close()
+
+
 @router.get("/stats/traction")
 def stats_traction(user=Depends(get_current_user)):
     _require_admin(user)
