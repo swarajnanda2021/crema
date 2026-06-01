@@ -9,7 +9,8 @@ were deferred to Phase N. When cafés re-enter, the surface will be
 redesigned from scratch.
 
 Hero question (see NORTH_STAR.md §1):
-- Roaster: "Am I being seen?" → followers + posts this month
+- Roaster: "Am I being seen / wanted?" → shelf saves + Buy clicks
+  (catalog signals; the follows/posts feed metrics were retired).
 """
 
 from __future__ import annotations
@@ -50,82 +51,110 @@ def _series_30d(db, sql: str, params: tuple = ()) -> List[Dict[str, Any]]:
     so the chart axis is always the same length, even when most days
     have zero events. Caller's SQL must `SELECT DATE(...) AS date,
     COUNT(*) AS count GROUP BY DATE(...)`."""
-    return _daily_series(db, sql, params, days=30)
+    return _daily_series(db, 30, sql, params)
 
 
 # ── Roaster dashboard ─────────────────────────────────────────────
 
 def _roaster_audience(db, roaster_slug: str) -> Dict[str, Any]:
-    """Audience subtab — two cards on reach.
+    """Audience subtab — catalog-signal reach for a roaster.
 
-    1. Followers (total, cumulative)
-    2. Posts this month (volume of your megaphone)
+    1. Shelf saves — how many people saved your beans (interest)
+    2. Buy clicks — outbound Buy clicks on your beans (intent)
+    3. Journal engagement — likes + comments on your articles
     """
-    # Card 1 — total followers + new-this-week delta
-    total_followers = _n(db.execute(
-        "SELECT COUNT(*) AS c FROM follows WHERE roaster_slug = ?",
-        (roaster_slug,),
-    ).fetchone()["c"])
-
-    wow_new = _week_over_week(db, """
-        SELECT
-          SUM(CASE WHEN created_at >= datetime('now', '-7 days') THEN 1 ELSE 0 END) AS this_week,
-          SUM(CASE WHEN created_at >= datetime('now', '-14 days')
-                   AND created_at <  datetime('now', '-7 days') THEN 1 ELSE 0 END) AS prior_week
-        FROM follows WHERE roaster_slug = ?
-    """, (roaster_slug,))
-
-    # Card 2 — posts published this month
-    posts_month = _n(db.execute("""
-        SELECT COUNT(*) AS c FROM roaster_posts
-        WHERE roaster_slug = ? AND created_at >= datetime('now', '-30 days')
+    # Card 1 — total shelf-saves of this roaster's beans + new-this-week
+    total_saves = _n(db.execute("""
+        SELECT COUNT(*) AS c FROM shelf_entries s
+        JOIN products p ON p.product_id = s.product_id
+        WHERE p.roaster_slug = ?
     """, (roaster_slug,)).fetchone()["c"])
 
-    posts_wow = _week_over_week(db, """
+    saves_wow = _week_over_week(db, """
         SELECT
-          SUM(CASE WHEN created_at >= datetime('now', '-7 days') THEN 1 ELSE 0 END) AS this_week,
-          SUM(CASE WHEN created_at >= datetime('now', '-14 days')
-                   AND created_at <  datetime('now', '-7 days') THEN 1 ELSE 0 END) AS prior_week
-        FROM roaster_posts WHERE roaster_slug = ?
+          SUM(CASE WHEN s.added_at >= datetime('now', '-7 days') THEN 1 ELSE 0 END) AS this_week,
+          SUM(CASE WHEN s.added_at >= datetime('now', '-14 days')
+                   AND s.added_at <  datetime('now', '-7 days') THEN 1 ELSE 0 END) AS prior_week
+        FROM shelf_entries s
+        JOIN products p ON p.product_id = s.product_id
+        WHERE p.roaster_slug = ?
     """, (roaster_slug,))
 
-    followers_series = _series_30d(db, """
-        SELECT DATE(created_at) AS date, COUNT(*) AS count
-        FROM follows WHERE roaster_slug = ?
-        GROUP BY DATE(created_at)
+    # Card 2 — Buy clicks on this roaster's beans, last 30 days + WoW
+    clicks_month = _n(db.execute("""
+        SELECT COUNT(*) AS c FROM click_events
+        WHERE roaster_slug = ? AND clicked_at >= datetime('now', '-30 days')
+    """, (roaster_slug,)).fetchone()["c"])
+
+    clicks_wow = _week_over_week(db, """
+        SELECT
+          SUM(CASE WHEN clicked_at >= datetime('now', '-7 days') THEN 1 ELSE 0 END) AS this_week,
+          SUM(CASE WHEN clicked_at >= datetime('now', '-14 days')
+                   AND clicked_at <  datetime('now', '-7 days') THEN 1 ELSE 0 END) AS prior_week
+        FROM click_events WHERE roaster_slug = ?
     """, (roaster_slug,))
 
-    posts_series = _series_30d(db, """
-        SELECT DATE(created_at) AS date, COUNT(*) AS count
-        FROM roaster_posts WHERE roaster_slug = ?
-        GROUP BY DATE(created_at)
+    # Card 3 — journal engagement: likes + comments on this roaster's
+    # articles. The like/comment rows carry no timestamp, so this is a
+    # cumulative total (no week-over-week / series).
+    article_engagement = _n(db.execute("""
+        SELECT
+          (SELECT COUNT(*) FROM article_likes al
+             JOIN roaster_articles ra ON ra.id = al.article_id
+             WHERE ra.roaster_slug = ?)
+          +
+          (SELECT COUNT(*) FROM article_comments ac
+             JOIN roaster_articles ra2 ON ra2.id = ac.article_id
+             WHERE ra2.roaster_slug = ?) AS c
+    """, (roaster_slug, roaster_slug)).fetchone()["c"])
+
+    saves_series = _series_30d(db, """
+        SELECT DATE(s.added_at) AS date, COUNT(*) AS count
+        FROM shelf_entries s
+        JOIN products p ON p.product_id = s.product_id
+        WHERE p.roaster_slug = ?
+        GROUP BY DATE(s.added_at)
+    """, (roaster_slug,))
+
+    clicks_series = _series_30d(db, """
+        SELECT DATE(clicked_at) AS date, COUNT(*) AS count
+        FROM click_events WHERE roaster_slug = ?
+        GROUP BY DATE(clicked_at)
     """, (roaster_slug,))
 
     return {
         "cards": [
             {
-                "key": "followers",
-                "label": "Followers",
-                "value": total_followers,
-                "hint": f"+{wow_new['value']} this week" if wow_new["value"] else None,
-                "delta_pct": wow_new["delta_pct"],
-                "info": "Total people following your roaster profile. Growth usually comes from sourcing stories and tasting-note mentions — showing up in the feed matters more than posting frequency.",
+                "key": "shelf_saves",
+                "label": "Shelf saves",
+                "value": total_saves,
+                "hint": f"+{saves_wow['value']} this week" if saves_wow["value"] else None,
+                "delta_pct": saves_wow["delta_pct"],
+                "info": "How many people have saved your beans to a shelf — the clearest signal of catalog interest. Saves grow when your beans are discoverable in search and your product pages are complete.",
                 "charts": True,
             },
             {
-                "key": "posts_month",
-                "label": "Posts this month",
-                "value": posts_month,
-                "delta_pct": posts_wow["delta_pct"],
-                "info": "Posts you've published in the last 30 days. Too few and you fade from the feed; too many and consumers scroll past. 1-3 posts a week is the sweet spot.",
+                "key": "buy_clicks",
+                "label": "Buy clicks (30d)",
+                "value": clicks_month,
+                "delta_pct": clicks_wow["delta_pct"],
+                "info": "Outbound Buy clicks on your beans in the last 30 days — purchase intent. Every click is a consumer heading to your site to buy.",
                 "charts": True,
+            },
+            {
+                "key": "journal_engagement",
+                "label": "Journal engagement",
+                "value": article_engagement,
+                "delta_pct": None,
+                "info": "Likes + comments on your journal articles. Sourcing stories that explain the farm, the producer, and the process tend to earn the most.",
+                "charts": False,
             },
         ],
         "series": {
-            "followers": followers_series,
-            "posts_month": posts_series,
+            "shelf_saves": saves_series,
+            "buy_clicks": clicks_series,
         },
-        "hero_key": "followers",
+        "hero_key": "shelf_saves",
     }
 
 
