@@ -25,11 +25,8 @@
 import { View, Pressable, StyleSheet, Animated, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Bell } from "lucide-react-native";
-
 import { t, makeStyles } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
-import { useNotifications } from "../hooks/useNotifications";
 import { emit } from "../utils/events";
 import { getChromeHiddenAnim } from "../utils/chromeScroll";
 import CremaLogo from "./CremaLogo";
@@ -58,7 +55,6 @@ const hamburger = StyleSheet.create({
 export default function MobileHeader() {
   const router = useRouter();
   const { user } = useAuth();
-  const { unreadCount } = useNotifications(!!user);
   const insets = useSafeAreaInsets();
   const hidden = getChromeHiddenAnim();
   const s = useStyles();
@@ -106,52 +102,25 @@ export default function MobileHeader() {
           )}
         </View>
 
-        {/* Center: Crema wordmark (tap routes to the feed). Dismisses
-           any open modal first so the user lands on a clean feed. */}
+        {/* Center: Crema wordmark → catalog landing. Dismisses any
+           open modal first so the user lands clean. */}
         <Pressable
           onPress={() => {
             emit("crema:dismiss-modals");
-            router.push("/");
+            router.push("/browse");
           }}
           style={s.logoArea}
           hitSlop={8}
-          accessibilityLabel="Feed"
+          accessibilityLabel="Catalog"
           accessibilityRole="button"
         >
           <CremaLogo width={131} height={27} />
         </Pressable>
 
-        {/* Right: bell only. Navigates to the full-page notifications
-           reader (`/notifications`). The previous right-slide panel
-           was retired 2026-05-10 — the notifications surface deserves
-           full screen real estate (not 80% of viewport-width with the
-           Crema chrome peeking around the edges) and the back-button
-           exit reads as proper navigation rather than a swipe-away
-           ephemeral. The search glass that used to live here moved
-           to the MobileFooter (Search tab → /search). Dismisses any
-           open modal first — see the hamburger comment above. */}
-        <View style={s.flankRight}>
-          {user && (
-            <Pressable
-              onPress={() => {
-                emit("crema:dismiss-modals");
-                router.push("/notifications");
-              }}
-              style={s.iconBtn}
-              hitSlop={10}
-              accessibilityLabel="Notifications"
-              accessibilityRole="button"
-            >
-              {/* Bell sized to visually match the hamburger: 24-pt
-                 glyph with a 2-px stroke reads as a landscape 25×16
-                 stack (the hamburger is 3 bars of the same 2-px
-                 weight). Prior 1.5/1.75 stroke + 22-pt bell was
-                 optically lighter. */}
-              <Bell size={24} color={t.color["navbar.text"]} strokeWidth={2} />
-              {unreadCount > 0 && <View style={s.badge} />}
-            </Pressable>
-          )}
-        </View>
+        {/* Right: empty spacer — keeps the logo optically centered
+           against the left hamburger. The bell / notifications
+           affordance was removed with the feed. */}
+        <View style={s.flankRight} />
       </View>
       </SafeAreaView>
     </Animated.View>

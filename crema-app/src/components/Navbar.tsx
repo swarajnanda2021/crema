@@ -1,203 +1,93 @@
 /**
- * Navbar — exact Figma specs from the design file.
- * Height: 72px, bg: #351101.
- * HOME at x=90, SHOP at x=213, logo centered at x=649.
- * Search icon at x=1262 (24px), User avatar at x=1326 (24px).
- * Active SHOP link: #D798DA (logo purple).
+ * Navbar — wide (tablet+) top chrome for the catalog-only build.
+ * Height 72px, bg Espresso. Logo centered → catalog landing.
+ * Right side: sitewide search + profile/auth.
  *
- * Profile dropdown (Chrome-style) appears on avatar click for authenticated users.
+ * The HOME / DISCOVER nav tabs were removed with the social feed —
+ * the catalog (Discover) is now the landing, reached via the logo, so
+ * a header tab row is redundant. The messages icon, notifications
+ * bell, and DM bridge were removed too. Full social chrome preserved
+ * at git tag `social-v1`.
  */
-import { View, Text, Pressable, StyleSheet } from "react-native";
-import { useRouter, usePathname } from "expo-router";
-import { useEffect, useState } from "react";
-import { User, Search, Bell, MessageCircle } from "lucide-react-native";
+import { View, Pressable, StyleSheet } from "react-native";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import { User, Search } from "lucide-react-native";
 import { t, NAVBAR_HEIGHT } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
-import { useNotifications } from "../hooks/useNotifications";
-import { useDirectInbox } from "../hooks/useDirectInbox";
 import { CroppedAvatar } from "./primitives";
 import CremaLogo from "./CremaLogo";
 import ProfileDropdown from "./ProfileDropdown";
-import MessagesDropdown from "./MessagesDropdown";
 import SearchDropdown from "./SearchDropdown";
-import type { ThreadKind } from "./ThreadBody";
 
 export default function Navbar() {
   const router = useRouter();
-  const pathname = usePathname();
   const { user, backendAvailable } = useAuth();
-  // §2.11 — sitewide search moved to a floating dropdown (same
-  // language as messages / notifications). The navbar glass just
-  // toggles visibility; all typing + results happen inside
-  // SearchDropdown.
+  // §2.11 — sitewide search lives in a floating dropdown; the navbar
+  // glass just toggles visibility.
   const [searchOpen, setSearchOpen] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  // Messages dropdown holds list + active thread in a single floating
-  // panel. initialThread lets cross-page taps (profile "Message" CTA,
-  // window.__crema_openThread bridge) jump straight into the right
-  // conversation without first showing the list.
-  const [showMessages, setShowMessages] = useState(false);
-  const [initialThread, setInitialThread] = useState<{ kind: ThreadKind; id: number } | null>(null);
-  const { unreadCount } = useNotifications(!!user);
-  // Every authenticated user has a Messages icon now — DMs are
-  // available to regular user accounts too.
-  const showMessagesIcon = !!user;
-  const { totalUnread: messagesUnread } = useDirectInbox(!!user);
 
-
-  const isShop = pathname === "/browse";
-  const isHome = pathname === "/";
-
-  // Close every dropdown except the one named. Called from every
-  // navbar-button onPress so clicking any icon/search always
-  // dismisses whatever else was open. Keeps the dropdowns mutually
-  // exclusive without threading state through each toggler.
-  const closeOthers = (keep?: "messages" | "profile" | "search") => {
-    if (keep !== "messages") setShowMessages(false);
+  // Close every dropdown except the one named, so any icon tap
+  // dismisses whatever else was open.
+  const closeOthers = (keep?: "profile" | "search") => {
     if (keep !== "profile") setShowDropdown(false);
     if (keep !== "search") setSearchOpen(false);
   };
 
-  // Cross-component bridge. Anywhere on the site that wants to open a
-  // conversation (profile Message button, future "Message roaster"
-  // CTAs) can call window.__crema_openThread(kind, id). Keeps us from
-  // threading a context or a hook through every tree level. Registered
-  // on mount, cleared on unmount.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    (window as any).__crema_openThread = (kind: ThreadKind, id: number) => {
-      setInitialThread({ kind, id });
-      setShowMessages(true);
-    };
-    return () => { delete (window as any).__crema_openThread; };
-  }, []);
-
   return (
     <>
-      {/* data-role marker lets the dropdown outside-click handlers
-         ignore clicks that land on the navbar itself (so icon toggle
-         logic stays intact). */}
       <View {...({ dataSet: { role: "navbar" } } as any)} style={s.navbar}>
-        {/* Left nav links — HOME at x=90, SHOP at x=213 */}
-        <View style={s.leftLinks}>
-          <Pressable onPress={() => router.push("/")} style={s.navLink}>
-            <Text style={[s.navLinkText, isHome && s.navLinkTextActiveHome]}>HOME</Text>
-          </Pressable>
-          <Pressable onPress={() => router.push("/browse")} style={s.navLink}>
-            <Text style={[s.navLinkText, isShop && s.navLinkTextActiveShop]}>DISCOVER</Text>
-          </Pressable>
-        </View>
+        {/* Left spacer — balances the right-side icons so the
+           absolutely-centered logo stays centered. (HOME / DISCOVER
+           tabs removed with the feed.) */}
+        <View style={s.leftLinks} />
 
-        {/* Center — Crema logo (141×29, centered) */}
-        <Pressable onPress={() => router.push("/")} style={s.logoArea}>
+        {/* Center — Crema logo → catalog landing */}
+        <Pressable onPress={() => router.push("/browse")} style={s.logoArea}>
           <CremaLogo width={141} height={29} />
         </Pressable>
 
         {/* Right side — search + user avatar */}
         <View style={s.rightSide}>
-          <>
-              <Pressable
-                onPress={() => { closeOthers("search"); setSearchOpen((v) => !v); }}
-                style={s.iconBtn}
-              >
-                <Search size={24} color={t.color["navbar.text"]} strokeWidth={1.5} />
-              </Pressable>
+          <Pressable
+            onPress={() => { closeOthers("search"); setSearchOpen((v) => !v); }}
+            style={s.iconBtn}
+          >
+            <Search size={24} color={t.color["navbar.text"]} strokeWidth={1.5} />
+          </Pressable>
 
-              {/* Messages icon — every authenticated user now. DMs
-                 are available to regular users as well as café +
-                 roaster accounts. Clicking opens the inbox dropdown at
-                 list view; the dropdown itself swaps to thread view on
-                 row tap. */}
-              {user && showMessagesIcon && (
-                <Pressable
-                  onPress={() => {
-                    setInitialThread(null);
-                    closeOthers("messages");
-                    setShowMessages((v) => !v);
-                  }}
-                  style={s.iconBtn}
-                >
-                  <MessageCircle size={22} color={t.color["navbar.text"]} strokeWidth={1.5} />
-                  {messagesUnread > 0 && (
-                    <View style={s.badge}>
-                      <Text style={s.badgeText}>{messagesUnread > 9 ? "9+" : messagesUnread}</Text>
-                    </View>
-                  )}
-                </Pressable>
+          {user ? (
+            <Pressable
+              onPress={() => { closeOthers("profile"); setShowDropdown((v) => !v); }}
+              style={s.iconBtn}
+            >
+              {user.avatar_url ? (
+                <View style={{ borderWidth: 1.5, borderColor: t.color["navbar.text"], borderRadius: 16, overflow: "hidden" }}>
+                  <CroppedAvatar
+                    url={user.avatar_url}
+                    cropX={user.avatar_crop_x}
+                    cropY={user.avatar_crop_y}
+                    zoom={user.avatar_zoom}
+                    size={28}
+                  />
+                </View>
+              ) : (
+                <User size={24} color={t.color["navbar.text"]} strokeWidth={1.5} />
               )}
-
-              {/* Bell icon with unread badge — navigates to the
-                 full-page notifications reader. The floating
-                 dropdown was retired 2026-05-10 in favor of the
-                 sitewide /notifications route so the surface is the
-                 same affordance everywhere (mobile + web). */}
-              {user && (
-                <Pressable
-                  onPress={() => {
-                    closeOthers();
-                    router.push("/notifications");
-                  }}
-                  style={s.iconBtn}
-                >
-                  <Bell size={22} color={t.color["navbar.text"]} strokeWidth={1.5} />
-                  {unreadCount > 0 && (
-                    <View style={s.badge}>
-                      <Text style={s.badgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
-                    </View>
-                  )}
-                </Pressable>
-              )}
-
-              {user ? (
-                <Pressable
-                  onPress={() => {
-                    closeOthers("profile");
-                    setShowDropdown((v) => !v);
-                  }}
-                  style={s.iconBtn}
-                >
-                  {user.avatar_url ? (
-                    <View style={{ borderWidth: 1.5, borderColor: t.color["navbar.text"], borderRadius: 16, overflow: "hidden" }}>
-                      <CroppedAvatar
-                        url={user.avatar_url}
-                        cropX={user.avatar_crop_x}
-                        cropY={user.avatar_crop_y}
-                        zoom={user.avatar_zoom}
-                        size={28}
-                      />
-                    </View>
-                  ) : (
-                    <User size={24} color={t.color["navbar.text"]} strokeWidth={1.5} />
-                  )}
-                </Pressable>
-              ) : backendAvailable ? (
-                <Pressable onPress={() => router.push("/auth")} style={s.iconBtn}>
-                  <User size={24} color={t.color["navbar.text"]} strokeWidth={1.5} />
-                </Pressable>
-              ) : null}
-            </>
+            </Pressable>
+          ) : backendAvailable ? (
+            <Pressable onPress={() => router.push("/auth")} style={s.iconBtn}>
+              <User size={24} color={t.color["navbar.text"]} strokeWidth={1.5} />
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
-      {/* §2.11 — sitewide search dropdown. */}
+      {/* §2.11 — sitewide search dropdown (beans / roasters / journal). */}
       <SearchDropdown
         visible={searchOpen}
         onClose={() => setSearchOpen(false)}
-      />
-
-      {/* Notifications dropdown was retired 2026-05-10 — the bell now
-         navigates to /notifications (full-page reader). Sitewide
-         affordance is one tap, one full page; same as messages /
-         coffee detail / article reader. */}
-
-      {/* Messages dropdown — compact floating panel that holds both
-         the list and the active thread in master-detail. Non-blocking:
-         no full-viewport backdrop, so the rest of the site stays
-         scrollable + clickable. */}
-      <MessagesDropdown
-        visible={showMessages}
-        onClose={() => setShowMessages(false)}
-        initialThread={initialThread}
       />
 
       {/* Profile dropdown — rendered OUTSIDE the navbar View to avoid RNW overflow clip */}
@@ -205,49 +95,23 @@ export default function Navbar() {
         visible={showDropdown}
         onClose={() => setShowDropdown(false)}
       />
-
     </>
   );
 }
 
 const s = StyleSheet.create({
-  // Figma: 1440×72, bg #351101 (Espresso). Uses `navbar.bg`
-  // explicitly rather than `accent.cta` because the two are no
-  // longer the same — `accent.cta` flipped to constant Crema pink
-  // in §2.40.19 to match the new "buttons are pink" rule. The
-  // navbar is chrome, not a button, so it stays Espresso via
-  // `navbar.bg`.
   navbar: {
     height: NAVBAR_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingLeft: "6.25%" as any,   // Figma: 90/1440 = 6.25%
-    paddingRight: "6.25%" as any,  // scales with viewport
+    paddingLeft: "6.25%" as any,
+    paddingRight: "6.25%" as any,
     backgroundColor: t.color["navbar.bg"],
   },
-  leftLinks: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 80,  // Figma: HOME(90)→SHOP(213), gap = 213-90-43 = 80
-    flex: 1,
-  },
-  navLink: {},
-  // Figma: Inter Semi Bold 14px, uppercase
-  navLinkText: {
-    fontFamily: t.font["body.semibold"],
-    fontSize: 14,
-    color: t.color["navbar.text"],
-    textTransform: "uppercase",
-  } as any,
-  // HOME active: stays white/cream
-  navLinkTextActiveHome: {
-    color: t.color["text.on-dark"],
-  },
-  // SHOP active: highlighted in logo purple #D798DA
-  navLinkTextActiveShop: {
-    color: t.color.accent,
-  },
+  // Left spacer: flex:1 to balance the flex:1 right side, keeping the
+  // absolutely-centered logo centered.
+  leftLinks: { flex: 1 },
   logoArea: {
     position: "absolute",
     left: "50%",
@@ -259,24 +123,8 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
-    gap: 40,  // Figma: search(1262)→user(1326) = 64px center-to-center, minus 24px icon = 40px gap
+    gap: 40,
     flex: 1,
   },
-  // Figma: 24×24 icons
   iconBtn: { position: "relative" } as any,
-  badge: {
-    position: "absolute",
-    top: -4,
-    right: -6,
-    backgroundColor: t.color.accent,
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 3,
-  } as any,
-  badgeText: { fontFamily: t.font["body.semibold"], fontSize: 9, color: t.color["text.primary"] },
-  // searchContainer / searchInput styles removed — the sitewide
-  // search moved to a floating dropdown (see SearchDropdown).
 });

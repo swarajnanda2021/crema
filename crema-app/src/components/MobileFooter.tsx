@@ -54,13 +54,12 @@
 import { View, Pressable } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import {
-  Home, Compass, MessageCircle, Search, User as UserIcon,
+  Compass, MessageCircle, Search, User as UserIcon,
   QrCode, ClipboardList, Package, BarChart3, Settings, Users,
 } from "lucide-react-native";
 
 import { t, makeStyles } from "../tokens/useTokens";
 import { useAuth } from "../hooks/useAuth";
-import { useDirectInbox } from "../hooks/useDirectInbox";
 import { showChromeNow } from "../utils/chromeScroll";
 import { emit } from "../utils/events";
 import { tap as hapticTap, select as hapticSelect } from "../utils/haptics";
@@ -95,22 +94,10 @@ interface TabDef {
 function defaultTabs(user: any): TabDef[] {
   return [
     {
-      label: "Home",
-      path: "/",
-      match: (p) => p === "/",
-      icon: (color) => <Home size={26} color={color} strokeWidth={2} />,
-    },
-    {
       label: "Discover",
       path: "/browse",
       match: (p) => p === "/browse",
       icon: (color) => <Compass size={26} color={color} strokeWidth={2} />,
-    },
-    {
-      label: "Messages",
-      path: "/messages",
-      match: (p) => p === "/messages",
-      icon: (color) => <MessageCircle size={26} color={color} strokeWidth={2} />,
     },
     {
       label: "Search",
@@ -239,14 +226,6 @@ export default function MobileFooter() {
   const { user } = useAuth();
   const s = useStyles();
 
-  // Unread DM badge — pink dot on the Messages tab icon when the
-  // sitewide inbox carries any unread threads. Mirrors the discover
-  // filter-dot pattern (8×8 accent disc, top-right of the icon
-  // slot). Polling is shared via DirectInboxProvider; passing
-  // `!!user` makes the footer a polling consumer when signed in,
-  // keeping the dot fresh without per-screen wiring.
-  const { totalUnread } = useDirectInbox(!!user);
-
   // Per-screen tab sets (§2.40.7): the dispatcher picks the right
   // TabDef[] based on the URL prefix so café POS + roaster analytics
   // screens can ship with their own 5-tab nav without mounting their
@@ -297,7 +276,6 @@ export default function MobileFooter() {
             setTimeout(() => emit("crema:loading-end"), 350);
           }
         };
-        const showUnreadDot = tab.label === "Messages" && totalUnread > 0;
         return (
           <Pressable
             key={tab.path}
@@ -305,16 +283,11 @@ export default function MobileFooter() {
             onPress={onPress}
             style={s.tab}
             hitSlop={4}
-            accessibilityLabel={
-              showUnreadDot
-                ? `${tab.label}, ${totalUnread} unread`
-                : tab.label
-            }
+            accessibilityLabel={tab.label}
             accessibilityRole="button"
           >
             <View style={s.iconSlot}>
               {tab.icon(color)}
-              {showUnreadDot ? <View style={s.unreadDot} /> : null}
             </View>
           </Pressable>
         );
