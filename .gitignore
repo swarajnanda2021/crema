@@ -45,9 +45,13 @@ Thumbs.db
 # Log files
 *.log
 
-# Local research artifacts (one-shot analysis venvs, scratch outputs)
-tmp/cluster_venv/
-tmp/cluster_results.txt
-tmp/cluster_run.log
-tmp/distinct_tags.tsv
-tmp/cluster_tags.py
+# Local scratch / dev artifacts — never source
+tmp/
+
+# Catalog-ops orchestrator workspace — track only the operating docs +
+# run history; everything else (architecture drafts, audit dumps, .claude
+# session artifacts) stays local.
+agent-catalog-ops/*
+!agent-catalog-ops/CLAUDE.md
+!agent-catalog-ops/RUNBOOK.md
+!agent-catalog-ops/run_history/
