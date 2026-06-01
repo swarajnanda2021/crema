@@ -58,13 +58,14 @@ a ranking boost gated on the same opt-in flag as §2.4.
 Paid sellers get deeper insight than the free dashboard — repeat-interest
 signals, regional breakdown, agent-activity (§2.4 measurement). Phase 2+.
 
-### 2.3 In-article ADS (already built — revisit for launch)
+### 2.3 In-article ADS (built — KEPT in the launch)
 A shipped in-article ad-placement system: `roaster_ad_placements`, the
 roaster "ADS" tab, journal-placement matcher (commit `eb4ea00`). Roasters'
-products are placed inside JOURNAL articles. **Status:** built, but parked
-for the catalog-only launch (the ADS tab is one of the surfaces slated to
-drop — see the migration scoping). Revisit post-launch as a real ad lever
-once the catalog surface is stable.
+products are placed inside JOURNAL articles. **Status (decided 2026-06-01):
+KEPT in the catalog-only launch.** The JOURNAL placements stay (they depend
+only on articles + products + roaster — no feed); only the half-stubbed
+"search"/"feed" sub-tabs of the ADS surface drop with the feed. A live ad
+lever from day one.
 
 ### 2.4 Agentic-SEO distribution tier (the new, detailed one)
 
@@ -210,8 +211,8 @@ scraper that already *parses* JSON-LD (now *emits* it).
 - **`ai-train` signal** — recommended **`ai-train=no`** (let assistants
   *answer* live from fresh data; don't let the ad-tier value leak into
   model weights for free), `search=yes`, `ai-input=yes`.
-- **In-article ADS (§2.3)** — in or out for the catalog-only launch?
-  Currently parked.
+- **In-article ADS (§2.3)** — RESOLVED 2026-06-01: **in** for the launch
+  (JOURNAL placements kept; the feed/search sub-tab stubs drop with the feed).
 - **Public read-MCP vs. admin MCP** — keep separate surfaces; the public
   one is read-only and opt-in-scoped. Reuse plumbing, not the auth.
 
