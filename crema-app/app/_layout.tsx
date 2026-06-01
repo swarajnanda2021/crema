@@ -15,24 +15,16 @@ import { AuthProvider, useAuth } from "../src/hooks/useAuth";
 import { CoffeeDataProvider } from "../src/hooks/useCoffeeData";
 import { RoasterProfilesProvider } from "../src/hooks/useRoasterProfiles";
 import { RoasterArticlesProvider } from "../src/hooks/useRoasterArticles";
-import { NotificationsProvider } from "../src/hooks/useNotifications";
-import { DirectInboxProvider } from "../src/hooks/useDirectInbox";
 import { t, makeStyles, useTheme } from "../src/tokens/useTokens";
 import { ThemeProvider } from "../src/tokens/ThemeProvider";
 import { listen, emit } from "../src/utils/events";
 import { useBreakpoint } from "../src/hooks/useBreakpoint";
-import PostModal from "../src/components/shell/PostModal";
 import Toast from "../src/components/shell/Toast";
 import AuthModal from "../src/components/AuthModal";
-import PopularityModal from "../src/components/PopularityModal";
-import ComposePost from "../src/components/ComposePost";
 import NavigationLoader from "../src/components/NavigationLoader";
 import MobileFooter from "../src/components/MobileFooter";
 import MobileOverlays from "../src/components/mobile/MobileOverlays";
 import ContactCrema from "../src/components/ContactCrema";
-import FabPill from "../src/components/primitives/FabPill";
-import { openComposePost } from "../src/components/primitives";
-import { Plus } from "lucide-react-native";
 import { FloatingFabProvider, useIsFloatingFabRegistered } from "../src/contexts/FloatingFabContext";
 import { apiFetchRaw } from "../src/api/client";
 
@@ -132,13 +124,9 @@ export default function RootLayout() {
           <RoasterProfilesProvider>
             <CoffeeDataProvider>
               <RoasterArticlesProvider>
-                <NotificationsProvider>
-                  <DirectInboxProvider>
-                    <AuthGate>
-                      <ThemedRoot />
-                    </AuthGate>
-                  </DirectInboxProvider>
-                </NotificationsProvider>
+                <AuthGate>
+                  <ThemedRoot />
+                </AuthGate>
               </RoasterArticlesProvider>
             </CoffeeDataProvider>
           </RoasterProfilesProvider>
@@ -226,22 +214,8 @@ function ThemedRoot() {
               headerShown: false,
             }}
           />
-          {/* Mobile-only destinations behind the MobileHeader bell
-             icon. Native stack renders a back button for free via
-             headerShown:true. On web wide these URLs exist but the
-             Navbar's floating dropdowns are preferred — nothing
-             there navigates here. (Search used to live here as a
-             Stack screen; it's now a peer (tabs)/search.tsx tab.) */}
-          <Stack.Screen
-            name="notifications"
-            options={{
-              headerShown: true,
-              title: "Notifications",
-              headerTintColor: t.color["accent.cta"],
-              headerStyle: { backgroundColor: t.color.bg },
-              headerShadowVisible: false,
-            }}
-          />
+          {/* /account is reached via the ProfileDropdown. Native stack
+             renders a back button for free via headerShown:true. */}
           <Stack.Screen
             name="account"
             options={{
