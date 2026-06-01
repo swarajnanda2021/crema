@@ -1239,6 +1239,25 @@ function RoastersList({
     [products],
   );
 
+  // In-stock bean count per roaster — distinct available products,
+  // matching exactly what the roaster profile renders (which hides
+  // sold-out beans). The profile row's `products_count` counts ALL
+  // products incl. sold-out, so it over-reported on the card vs the
+  // page; this is the figure the card should show.
+  const roasterStockCount = useMemo(() => {
+    const seen = new Set<string>();
+    const map: Record<string, number> = {};
+    (products as any[]).forEach((p: any) => {
+      if (p.available === false || p.available === 0) return;
+      const pid = p.product_id ?? p.id;
+      const key = `${p.roaster_slug}::${pid}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      map[p.roaster_slug] = (map[p.roaster_slug] || 0) + 1;
+    });
+    return map;
+  }, [products]);
+
   const publishedProfiles = useMemo(() => {
     return (profilesCache.profiles || []).filter(
       (p: any) => p.published === 1 && roasterSlugsWithStock.has(p.roaster_slug),
@@ -1268,12 +1287,12 @@ function RoastersList({
     }
     // Sort: most-stocked roasters surface first; alphabetical secondary.
     return [...result].sort((a, b) => {
-      const ap = a.products_count || 0;
-      const bp = b.products_count || 0;
+      const ap = roasterStockCount[a.roaster_slug] || 0;
+      const bp = roasterStockCount[b.roaster_slug] || 0;
       if (ap !== bp) return bp - ap;
       return (a.name || a.roaster_slug).localeCompare(b.name || b.roaster_slug);
     });
-  }, [publishedProfiles, roasterQuery, selectedCities, selectedEstates, roasterEstateMap]);
+  }, [publishedProfiles, roasterQuery, selectedCities, selectedEstates, roasterEstateMap, roasterStockCount]);
 
   const toggleCity = (city: string) => {
     // setSelectedCities arrives from BrowsePage as a plain `(next) =>`
@@ -1361,7 +1380,7 @@ function RoastersList({
               name={r.name || r.roaster_slug}
               city={r.city}
               state={r.state}
-              productsCount={r.products_count || 0}
+              productsCount={roasterStockCount[r.roaster_slug] || 0}
               showDivider={idx < filteredRoasters.length - 1}
               onPress={() => router.push(`/roaster/${r.roaster_slug}`)}
             />
