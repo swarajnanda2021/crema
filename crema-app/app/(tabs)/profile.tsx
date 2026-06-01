@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Plus, Check, X, PenLine, Camera, Coffee } from "lucide-react-native";
+import { Plus, Check, X, PenLine, Camera, Coffee, ArrowLeft } from "lucide-react-native";
 import Svg, { Path, Circle } from "react-native-svg";
 
 import { useAuth } from "../../src/hooks/useAuth";
@@ -784,6 +784,26 @@ export default function ProfilePage() {
           jitter the user reported). ArticlesPanel's `useFloatingFab`
           call works unchanged — context propagates from root. */}
       {editBanner}
+      {/* Web back affordance — profile is a (tabs) route with no Stack
+          header, so on web there's no in-app way back without the
+          browser button. Sits outside the ScrollView so the sticky
+          tab-strip index is unaffected. Mobile keeps the bottom-tab
+          nav + native gestures. */}
+      {!isMobile && (
+        <Pressable
+          onPress={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace("/(tabs)/browse");
+          }}
+          style={s.backRow}
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+          hitSlop={8}
+        >
+          <ArrowLeft size={18} color={t.color["text.primary"]} strokeWidth={2} />
+          <Text style={s.backRowText}>Back</Text>
+        </Pressable>
+      )}
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.scrollContent}
@@ -900,6 +920,20 @@ const useStyles = makeStyles((t) => ({
   container: { flex: 1, backgroundColor: t.color.bg },
   scroll: { flex: 1 },
   scrollContent: { flexGrow: 1 },
+  backRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 4,
+  } as any,
+  backRowText: {
+    fontFamily: t.font["body.medium"],
+    fontSize: 14,
+    color: t.color["text.primary"],
+  } as any,
   loadingWrap: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: t.color.bg },
   loadingText: { fontFamily: t.font["body.regular"], fontSize: 16, color: t.color["text.secondary"] },
 
